@@ -26,6 +26,12 @@ var state := State.IDLE
 @onready var _rig: CameraRig = $CameraRig
 @onready var _mesh: MeshInstance3D = $MeshInstance3D
 
+
+## The player's active Camera3D (via the rig). Used by BuildController for its
+## screen-center raycast (ARCH line 335).
+func get_camera() -> Camera3D:
+	return _rig.get_camera()
+
 var _velocity_on_jump := Vector3.ZERO  # horizontal world-velocity frozen at jump (y=0)
 var _speed_on_jump := 0.0              # walk_speed or sprint_speed, frozen at takeoff
 var _is_sprinting_on_jump := false
@@ -38,9 +44,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Esc/pause is owned by Core (main.gd -> GameState.set_paused). Player does
 	# NOT consume ui_cancel so it bubbles up. The pause menu (when it lands) will
 	# release the cursor; for now the mouse stays captured during pause.
+	if event.is_action_pressed("build_toggle"):
+		toggle_blueprint_mode()
+		return
 	# Click to recapture the mouse if it was released (e.g. alt-tab).
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Flip NORMAL <-> BLUEPRINT mode and broadcast via EventBus (ARCH Player flow,
+## line 388). Movement still applies in Blueprint mode (line 391) — no movement
+## change here. BuildController listens and activates/deactivates accordingly.
+func toggle_blueprint_mode() -> void:
+	mode = Mode.BLUEPRINT if mode == Mode.NORMAL else Mode.NORMAL
+	EventBus.blueprint_mode_toggled.emit(mode == Mode.BLUEPRINT)
 
 
 func _physics_process(delta: float) -> void:
@@ -103,7 +120,6 @@ func _handle_move_keys(delta: float) -> void:
 		speed = sprint_speed if Input.is_action_pressed("sprint") else walk_speed
 	else:
 		speed = _speed_on_jump
-hgi
 	velocity.x = wish.x * speed
 	velocity.z = wish.z * speed
 

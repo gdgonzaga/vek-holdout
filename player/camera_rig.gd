@@ -44,3 +44,12 @@ func _unhandled_input(event: InputEvent) -> void:
 func _apply_rotation() -> void:
 	rotation.y = _yaw
 	_spring.rotation.x = _pitch
+
+
+## The active Camera3D (a child of the spring arm). Built in _ready, so callers
+## must wait until the rig is ready before requesting this.
+func get_camera() -> Camera3D:
+	if _spring == null or _spring.get_child_count() == 0:
+		return null
+	var cam := _spring.get_child(0)
+	return cam as Camera3D

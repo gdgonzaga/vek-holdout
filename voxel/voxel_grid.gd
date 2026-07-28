@@ -61,13 +61,18 @@ func remove_block_at(pos: Vector3i) -> void:
 ## collision bodies that VoxelTerrain generates and resolve the hit point to a
 ## voxel index. The -normal*0.001 nudge keeps flooring inside the struck voxel
 ## instead of the adjacent empty one.
-func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float) -> Dictionary:
+## `exclude` (optional): Array[RID] of physics bodies to ignore. Used by the
+## build raycast to skip the player's own capsule (the third-person camera ray
+## would otherwise hit the player body before the terrain).
+func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary:
 	# VoxelGrid is a plain Node (no get_world_3d); the VoxelTerrain child is a
 	# Node3D and owns the physics world its collision bodies live in.
 	var space := _terrain.get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * max_dist)
 	query.collide_with_areas = false
 	query.collide_with_bodies = true
+	if not exclude.is_empty():
+		query.exclude = exclude
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
 		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false}
