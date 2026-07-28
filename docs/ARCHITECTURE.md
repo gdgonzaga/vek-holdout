@@ -48,10 +48,11 @@ res://
 │   ├── settings/
 │   └── shared/         # Reusable subscenes (health_bar, inventory_slot, roster_row, job_log_entry, memorial_entry)
 ├── debug/              # Debug console (dev/playtest only; stripped from release)
-└── tests/              # Playtest scenes, debug harness
+├── tests/              # Automated unit/integration tests (run in CI / headless)
+└── testing/            # Manual playtest scenes (developer-run, not shipped)
 ```
 
-**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `autoloads/`. All data in `data/` (centralized, not scattered).
+**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`.
 
 ## Scene Tree Overview
 

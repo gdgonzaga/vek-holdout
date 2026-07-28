@@ -1,25 +1,23 @@
 [gd_scene format=3 uid="uid://boii6trikli4f"]
 
-[ext_resource type="Script" path="res://voxel/world.gd" id="1_world"]
-[ext_resource type="Script" path="res://voxel/voxel_grid.gd" id="2_voxel_grid"]
+[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://voxel/world.gd" id="1_world"]
+[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://voxel/voxel_grid.gd" id="2_voxel_grid"]
 
 [sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_terrain"]
 channel = 0
 
 [sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_default"]
 
-[node name="World" type="Node3D"]
+[node name="World" type="Node3D" unique_id=378224630]
 script = ExtResource("1_world")
 
-[node name="VoxelGrid" type="Node" parent="."]
+[node name="VoxelGrid" type="Node" parent="." unique_id=167104052]
 script = ExtResource("2_voxel_grid")
 
-[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid"]
+[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=256541527]
 generator = SubResource("VoxelGeneratorFlat_terrain")
 mesher = SubResource("VoxelMesherBlocky_default")
-; voxel_type defaults to 1 in VoxelGeneratorFlat, which is the terrain index in
-; BlockLibrary (terrain forced to index 1).
 
-[node name="ColonistContainer" type="Node3D" parent="."]
+[node name="ColonistContainer" type="Node3D" parent="." unique_id=545713349]
 
-[node name="EnemyContainer" type="Node3D" parent="."]
+[node name="EnemyContainer" type="Node3D" parent="." unique_id=83114285]
