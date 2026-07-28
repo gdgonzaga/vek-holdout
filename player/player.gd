@@ -35,12 +35,10 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Esc releases the cursor. Real pause (GameState.set_paused) is deferred —
-	# TODO: route through GameState once Core lands.
-	if event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		return
-	# Click to recapture after Esc.
+	# Esc/pause is owned by Core (main.gd -> GameState.set_paused). Player does
+	# NOT consume ui_cancel so it bubbles up. The pause menu (when it lands) will
+	# release the cursor; for now the mouse stays captured during pause.
+	# Click to recapture the mouse if it was released (e.g. alt-tab).
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -105,7 +103,7 @@ func _handle_move_keys(delta: float) -> void:
 		speed = sprint_speed if Input.is_action_pressed("sprint") else walk_speed
 	else:
 		speed = _speed_on_jump
-
+hgi
 	velocity.x = wish.x * speed
 	velocity.z = wish.z * speed
 

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="GameConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/game_config.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+gravity = 9.8
+target_fps = 60
+loop_length_minutes = 30.0
+max_enemies_on_screen = 24

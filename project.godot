@@ -11,9 +11,18 @@ config_version=5
 [application]
 
 config/name="Vek Holdout"
-run/main_scene="uid://cqg74jy2csvnj"
+run/main_scene="res://core/boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*res://autoloads/game_state.gd"
+EventBus="*res://autoloads/event_bus.gd"
+SceneManager="*res://autoloads/scene_manager.gd"
+SaveSystem="*res://autoloads/save_system.gd"
+Colony="*res://autoloads/colony.gd"
+TimeSystem="*res://autoloads/time_system.gd"
 
 [display]
 
