@@ -14,7 +14,8 @@ extends CharacterBody3D
 enum Mode { NORMAL, BLUEPRINT }
 enum State { IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD }
 
-@export var move_speed := 3.5
+@export var walk_speed := 3.5
+@export var sprint_speed := 7
 @export var gravity := 9.8
 @export var jump_force := 5.0
 @export var jump_move_speed := 0.5
@@ -26,6 +27,8 @@ var state := State.IDLE
 @onready var _mesh: MeshInstance3D = $MeshInstance3D
 
 var _velocity_on_jump := Vector3.ZERO  # horizontal world-velocity frozen at jump (y=0)
+var _speed_on_jump := 0.0              # walk_speed or sprint_speed, frozen at takeoff
+var _is_sprinting_on_jump := false
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -95,15 +98,27 @@ func _handle_move_keys(delta: float) -> void:
 		)
 		wish = cam_fwd * fwd + cam_right * strafe
 
-	velocity.x = wish.x * move_speed
-	velocity.z = wish.z * move_speed
+	# Speed scalar: ground uses the live sprint key; air uses the speed frozen at
+	# takeoff so holding/releasing Shift mid-air can't rescale preserved momentum.
+	var speed: float
+	if is_on_floor():
+		speed = sprint_speed if Input.is_action_pressed("sprint") else walk_speed
+	else:
+		speed = _speed_on_jump
+
+	velocity.x = wish.x * speed
+	velocity.z = wish.z * speed
 
 	move_and_slide()
 
 	# Movement state + visual facing (CharacterBody3D itself never rotates, so the
 	# camera rig's orbit is decoupled from where the avatar looks).
 	if wish.length_squared() > 0.001:
-		state = State.WALK
+		# SPRINT only while grounded + sprinting; mid-air carries momentum but
+		# isn't "sprinting" (state reflects what the avatar is doing, not what it
+		# did at takeoff).
+		var sprinting := is_on_floor() and Input.is_action_pressed("sprint")
+		state = State.SPRINT if sprinting else State.WALK
 		_mesh.look_at(_mesh.global_position + wish, Vector3.UP)
 	else:
 		state = State.IDLE
@@ -126,6 +141,14 @@ func _handle_jump() -> void:
 		if Input.is_action_pressed("move_left"): input += Vector2.LEFT
 
 		_velocity_on_jump = _camera_relative_wish(input.normalized())
+		# Freeze the takeoff speed so a sprint-jump carries sprint-scale momentum
+		# for the whole jump (mid-air Shift can't change it).
+		_speed_on_jump = sprint_speed if Input.is_action_pressed("sprint") else walk_speed
+		
+		if Input.is_action_pressed("sprint"):
+			_is_sprinting_on_jump = true
+		else:
+			_is_sprinting_on_jump = false
 
 
 ## Project a camera-relative input Vector2 to a horizontal WORLD wish-vector.
