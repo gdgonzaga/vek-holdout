@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://coop66p355jr0"]
+
+[ext_resource type="Script" uid="uid://l7s7s8u352lj" path="res://testing/zylann/voxel_test.gd" id="1_script"]
+
+[node name="VoxelTest" type="Node3D" unique_id=921856715]
+script = ExtResource("1_script")

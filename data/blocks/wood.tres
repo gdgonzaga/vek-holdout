@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="BlockDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/blocks/block_def.gd" id="1_script"]
+[ext_resource type="Mesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="2_mesh"]
+
+[resource]
+script = ExtResource("1_script")
+block_id = "wood"
+display_name = "Wood Block"
+hp = 50
+mesh = ExtResource("2_mesh")
+material_cost = {
+"wood": 3
+}
+is_terrain = false
+metadata/_custom_type_script = "uid://b174ngojt5ovy"
