@@ -40,15 +40,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_handle_move_keys(delta)
+
+func _handle_move_keys(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 
 	# Camera-relative WASD on the ground plane.
 	var input := Vector2.ZERO
-	if Input.is_key_pressed(KEY_W): input.y -= 1.0
-	if Input.is_key_pressed(KEY_S): input.y += 1.0
-	if Input.is_key_pressed(KEY_A): input.x -= 1.0
-	if Input.is_key_pressed(KEY_D): input.x += 1.0
+	if Input.is_action_pressed("move_forward"): input += Vector2.UP
+	if Input.is_action_pressed("move_backward"): input += Vector2.DOWN
+	if Input.is_action_pressed("move_right"): input += Vector2.RIGHT
+	if Input.is_action_pressed("move_left"): input += Vector2.LEFT
 	input = input.normalized()
 
 	var basis := _rig.global_transform.basis
