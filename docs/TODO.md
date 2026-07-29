@@ -104,7 +104,7 @@ Schemas section. Mostly mechanical once the owning subsystem settles.
 - [ ] **voxel_tool raycast reliability** (line 148) — `VoxelTool.raycast()` unreliable; workaround uses Godot physics raycast against voxel collision bodies (see `gotchas/voxel_tool_raycast.md`). Validate when build mode lands.
 - [ ] **Colonist pathfinding split** (line 149) — A* on voxel grid for colonists, NavigationAgent for enemies. Two pathfinding systems; validate the split pays off vs NavAgent-for-everything once both prototyped.
 - [ ] **`combat/` accumulating shared character-stat components** (line 150) — HealthComponent/BreathComponent/StaminaComponent live in `combat/` but are general-purpose. Consider `core/components/` home if a fourth such component appears.
-- [ ] **Colony autoload accumulating run-state children** (line 151) — Memorial, KeyItemPool, LoadoutManager, DiscoveredGear all on Colony (4 children). Consider dedicated `RunState` autoload before adding a fifth.
+- [ ] **Colony autoload accumulating run-state children** (line 151) — Memorial, KeyItemPool, LoadoutManager, DiscoveredGear all on Colony (4 children). Consider dedicated `RunProgress` autoload before adding a fifth.
 - [ ] **Debug console release-stripping** (line 152) — decide before first export: (a) export profile excludes `debug/`, (b) `OS.is_debug_build()` gate, (c) both.
 
 ---
