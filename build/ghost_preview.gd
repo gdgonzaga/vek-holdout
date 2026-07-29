@@ -4,10 +4,9 @@ extends MeshInstance3D
 ## Carries no logic about *where* to be — BuildController positions it each frame.
 ## Tinted green (valid) / red (invalid) via material_override.
 ##
-## Mesh occupies the (0,0,0)->(1,1,1) voxel cell convention: the MeshInstance3D is
-## offset +0.5 on every axis so the BoxMesh (centered on origin) fills the cell
-## whose integer corner is its transform.origin. BuildController sets origin to
-## the voxel index; this node offsets internally.
+## Mesh follows the voxel corner convention: it spans (0,0,0)->(1,1,1) in local
+## space, so the MeshInstance3D's origin is placed exactly at the integer voxel
+## cell (no centering offset). BuildController sets global_position to Vector3(cell).
 
 const _COLOR_VALID := Color(0.2, 0.9, 0.3, 0.4)
 const _COLOR_INVALID := Color(0.9, 0.2, 0.2, 0.4)
@@ -22,14 +21,12 @@ func _ready() -> void:
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.albedo_color = _COLOR_VALID
 	material_override = _material
-	# Offset so a BoxMesh centered on origin fills the cell at the integer origin.
-	position = Vector3(0.5, 0.5, 0.5)
 	hide()
 
 
 ## Show the ghost at a voxel cell (integer origin). Tints by validity.
 func show_at(cell: Vector3i, valid: bool) -> void:
-	global_position = Vector3(cell) + Vector3(0.5, 0.5, 0.5)
+	global_position = Vector3(cell)
 	set_valid(valid)
 	show()
 

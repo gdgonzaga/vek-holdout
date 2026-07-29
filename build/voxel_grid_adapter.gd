@@ -23,6 +23,20 @@ func get_block_at(pos: Vector3i) -> String:
 	return _grid.get_block_at(pos)
 
 
+## Places block_id at pos (delegates to VoxelGrid; emits block_placed there).
+func set_block_at(pos: Vector3i, block_id: String) -> void:
+	if _grid == null:
+		return
+	_grid.set_block_at(pos, block_id)
+
+
+## Removes whatever is at pos (delegates to VoxelGrid; emits block_destroyed there).
+func remove_block_at(pos: Vector3i) -> void:
+	if _grid == null:
+		return
+	_grid.remove_block_at(pos)
+
+
 ## True if a block can be placed at cell: currently means the cell is air (not
 ## terrain and not already a buildable block). TODO: ownership/footprint checks
 ## once multi-cell blocks exist.

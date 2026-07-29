@@ -6,7 +6,8 @@ extends Node
 ##
 ## Controls: B toggles build mode (ghost appears/disappears). Look at the terrain
 ## — the ghost follows the cursor and tints green (valid) / red (invalid). LMB
-## would place (stub — warns). Movement/sprint/jump work as before.
+## places a block on a valid cell (InstantPlacementStrategy -> VoxelGrid).
+## Movement/sprint/jump work as before.
 
 func _ready() -> void:
 	var light := DirectionalLight3D.new()
@@ -41,6 +42,10 @@ func _ready() -> void:
 	var adapter := VoxelGridAdapter.new()
 	adapter.set_grid(grid)
 	build.grid_adapter = adapter
+	# Strategy goes through the adapter (ARCH flow trace: strategy -> adapter).
+	var strategy := InstantPlacementStrategy.new()
+	strategy.set_grid(adapter)
+	build.strategy = strategy
 	build.set_camera(player.get_camera())
 	# Exclude the player capsule so the camera ray hits terrain, not the player.
 	build.add_exclude_body(player)

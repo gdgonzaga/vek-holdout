@@ -7,8 +7,9 @@ extends Node3D
 ## never touches voxel_tool directly.
 ##
 ## This pass: ghost-follows-cursor works (raycast from camera, snap to the
-## adjacent empty voxel of the face under the cursor, tint by validity). Placement
-## is a stub (InstantPlacementStrategy.commit warns). Rotation is a stub.
+## adjacent empty voxel of the face under the cursor, tint by validity). LMB
+## places via InstantPlacementStrategy (instant, 1x1, no cost yet). Rotation is
+## a stub.
 
 const _RAY_DISTANCE := 30.0
 
@@ -47,7 +48,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _active:
 		return
-	# LMB = place (routed to the stub strategy), RMB = remove (stub).
+	# LMB = place (routed to the strategy), RMB = remove (stub).
 	# Rotation keys (R / mouse wheel) would route to rotation_state here.
 	if event.is_action_pressed("build_place"):
 		_try_commit()
@@ -127,7 +128,7 @@ func _try_commit() -> void:
 	if strategy == null or grid_adapter == null or _camera == null:
 		return
 	# Recompute the target cell (mirrors _physics_process) and hand the transform
-	# to the strategy. Strategy is a stub — warns and places nothing this pass.
+	# to the strategy, which resolves the cell and calls adapter.set_block_at.
 	var center := get_viewport().get_visible_rect().size / 2.0
 	var origin := _camera.project_ray_origin(center)
 	var dir := _camera.project_ray_normal(center)
