@@ -24,6 +24,8 @@ var _node_by_anchor: Dictionary = {}
 # item that owns it, so removal by pointing at any covered cell resolves to the item.
 var _anchor_by_cell: Dictionary = {}
 
+const _new_furniture_template: PackedScene = preload("res://build/new_furniture_template.tscn")
+
 
 func set_container(container: Node3D) -> void:
 	_container = container
@@ -89,21 +91,43 @@ func spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D:
 	if def.mesh == null:
 		push_error("FurnitureLayer: def '%s' has no mesh" % def.id)
 		return null
-	var node := MeshInstance3D.new()
-	node.mesh = def.mesh
+	var node := _create_furniture_node(def, dims, yaw_quarters)
 	node.name = "Furniture_%s" % def.id
-	# Parent first: global_position needs the node in the tree. The container is
-	# under WorldRoot at identity, so its local origin == world origin.
 	_container.add_child(node)
 	node.global_position = world_origin(anchor, dims, yaw_quarters)
-	# Apply yaw so the mesh faces the rotated footprint.
-	if yaw_quarters != 0:
-		node.rotate_y(float(yaw_quarters) * PI * 0.5)
 	_node_by_anchor[anchor] = node
 	for off in footprint_cells(dims, yaw_quarters):
 		_anchor_by_cell[anchor + off] = anchor
 	EventBus.furniture_placed.emit(def.id, anchor)
 	return node
+
+func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int) -> Node3D:
+	# Create a parent Node3D to hold mesh and collision.
+	var root := _new_furniture_template.instantiate()
+	var mesh_node: MeshInstance3D = root.find_child("Mesh")
+	mesh_node.mesh = def.mesh
+	
+	mesh_node.create_trimesh_collision()
+	
+	var mesh_static_body: StaticBody3D = mesh_node.get_child(0) as StaticBody3D
+	mesh_static_body.name = "WorldStaticBody"
+	mesh_static_body.set_collision_layer_value(1, true)
+	mesh_static_body.collision_mask = 0
+	
+	var build_collider := root.get_node("BuildBody/BuildCollider") as CollisionObject3D
+	if build_collider != null:
+		var box := BoxShape3D.new()
+		box.size = Vector3(dims.x, dims.y, dims.z)
+		build_collider.shape = box
+		# Center the box in its footprint cells (root Y is the footprint bottom).
+		build_collider.position = Vector3(0, dims.y * 0.5, 0)
+		var build_body = root.get_node("BuildBody") as StaticBody3D
+		build_body.set_collision_layer_value(3, true)
+	
+	# Apply rotation to root so both mesh and collision rotate together.
+	if yaw_quarters != 0:
+		root.rotate_y(float(yaw_quarters) * PI * 0.5)
+	return root
 
 
 ## Remove the item covering `cell` (any covered cell resolves to its anchor).
