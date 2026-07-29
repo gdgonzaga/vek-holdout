@@ -53,8 +53,8 @@ func _build() -> void:
 			push_error("BlockLibrary: failed to load %s" % path)
 			continue
 		var index := _add_model_for(def)
-		_index_by_id[def.block_id] = index
-		_defs_by_id[def.block_id] = def
+		_index_by_id[def.id] = index
+		_defs_by_id[def.id] = def
 		_defs_by_index[index] = def
 
 	_voxel_library.bake()
@@ -107,7 +107,7 @@ func get_id(index: int) -> String:
 	if index == 0:
 		return ""
 	var def: BlockDef = _defs_by_index.get(index)
-	return def.block_id if def != null else ""
+	return def.id if def != null else ""
 
 func has_id(block_id: String) -> bool:
 	return _defs_by_id.has(block_id)

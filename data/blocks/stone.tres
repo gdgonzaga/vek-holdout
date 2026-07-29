@@ -5,7 +5,7 @@
 
 [resource]
 script = ExtResource("1_script")
-block_id = "stone"
+id = "stone"
 display_name = "Stone Block"
 hp = 300
 mesh = ExtResource("2_mesh")
