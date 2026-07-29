@@ -66,7 +66,7 @@ func _run_tests() -> void:
 		var pos := Vector3i(i * 2, y, 0)
 		grid.set_block_at(pos, BLOCK_TYPES[i])
 		var got := grid.get_block_at(pos)
-		var ok := got == BLOCK_TYPES[i]
+		var ok: bool = got == BLOCK_TYPES[i]
 		all_placed = all_placed and ok
 		_diagnostics.append("place %-10s @ %-18s : %s" % [BLOCK_TYPES[i], str(pos), "PASS" if ok else "FAIL (got '%s')" % got])
 
@@ -90,7 +90,7 @@ func _run_tests() -> void:
 	await get_tree().physics_frame
 	var block_top := Vector3(2, y, 0) + Vector3(0.5, 1.0, 0.5) # center of top face
 	var rc := grid.raycast_to_voxel(block_top + Vector3(0, 5, 0), Vector3.DOWN, 20.0)
-	var ray_ok := rc.get("hit", false) and rc.get("position") == Vector3i(2, y, 0)
+	var ray_ok: bool = rc.get("hit", false) and rc.get("position") == Vector3i(2, y, 0)
 	_diagnostics.append("raycast_to_voxel @ (2,1,0)     : %s" % ("PASS" if ray_ok else "FAIL %s" % str(rc)))
 
 	_diagnostics.append("")
