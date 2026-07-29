@@ -4,8 +4,12 @@ extends Node
 ##
 ## Registered as an autoload so the build menu / BuildController can read it
 ## across scenes without reference-passing. Read-only after _ready (the catalog
-## doesn't change at runtime — unlock *availability* is a separate concern, see
-## get_unlocked()).
+## doesn't change at runtime — the defs are session-stable content).
+##
+## "What's unlocked" is delegated to RunProgress (the run-state autoload). This
+## catalog seeds RunProgress with the unlocked-by-default defs at startup and on
+## run_started (New Game). It does NOT re-read data on run_started — it walks the
+## already-loaded _defs_by_id.
 
 const _DIR_BLOCKS := "res://data/blocks/"
 const _DIR_BUILDABLES := "res://data/buildables/"
@@ -16,6 +20,11 @@ var _defs_by_id: Dictionary = {}   # id (String) -> BuildableDef
 func _ready() -> void:
 	_load_dir(_DIR_BLOCKS)
 	_load_dir(_DIR_BUILDABLES)
+	# Seed the default-unlocked buildables into RunProgress. Done at startup (first
+	# run) AND on run_started (New Game: RunProgress was reset, re-add defaults
+	# without re-reading the data). Additive + idempotent, so order is irrelevant.
+	_seed_defaults()
+	EventBus.run_started.connect(_seed_defaults)
 
 
 ## Load every .tres in a directory as a BuildableDef, keyed by id.
@@ -33,16 +42,33 @@ func _load_dir(dir_path: String) -> void:
 		fname = dir.get_next()
 
 
-## The buildables the player can currently choose. STUB: returns every def with
-## unlocked_by_default == true. TODO: route through RunProgress (earned unlocks)
-## when that autoload exists — this method's signature stays the same, so the
-## build menu never needs to change.
+## Push every unlocked_by_default def into RunProgress. No disk re-read — walks
+## the in-memory catalog. Idempotent (RunProgress.unlock is a no-op if present).
+func _seed_defaults() -> void:
+	for def in _defs_by_id.values():
+		if def.unlocked_by_default:
+			RunProgress.unlock(def.id)
+
+
+## Is this buildable currently available? Defaults + earned unlocks both flow
+## through RunProgress (it holds both, since defaults are seeded into it).
+func is_unlocked(id: String) -> bool:
+	return RunProgress.is_unlocked(id)
+
+
+## The buildables the player can currently choose (for the build menu).
 func get_unlocked() -> Array:
 	var out: Array = []
 	for def in _defs_by_id.values():
-		if def.unlocked_by_default:
+		if RunProgress.is_unlocked(def.id):
 			out.append(def)
 	return out
+
+
+## Earn an unlock at runtime (items/skills/quests call this). Thin pass-through
+## to RunProgress so callers talk to the catalog, not run-state internals.
+func unlock(id: String) -> void:
+	RunProgress.unlock(id)
 
 
 func get_def(id: String) -> BuildableDef:

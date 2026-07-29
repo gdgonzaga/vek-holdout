@@ -6,6 +6,9 @@ extends Node
 ## State-change signals (day_changed, pause_state_changed, etc.) do NOT go here;
 ## those live on GameState and are connected directly.
 
+# --- Run lifecycle ---
+signal run_started()                             # New Game flow -> seeders re-add defaults to RunProgress
+
 # --- Time / day ---
 signal day_rolled_over(new_day: int)              # TimeSystem -> SaveSystem, HUD, raids
 
