@@ -51,7 +51,7 @@ func _ready() -> void:
 	add_child(layer)
 	var label := Label.new()
 	label.position = Vector2(10, 10)
-	label.text = "B: toggle build mode (ghost follows cursor)\nWASD/Shift/Space: move"
+	label.text = "B: open build menu -> pick a block -> ghost appears\nEsc: close menu without building\nWASD/Shift/Space: move"
 	label.add_theme_font_size_override("font_size", 16)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.add_theme_color_override("font_shadow_color", Color.BLACK)

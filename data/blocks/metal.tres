@@ -12,5 +12,6 @@ mesh = ExtResource("2_mesh")
 material_cost = {
 "metal": 3
 }
+unlocked_by_default = true
 is_terrain = false
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

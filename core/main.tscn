@@ -10,5 +10,6 @@ layer = 10
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 layer = 20
+groups = ["ui_layer"]
 
 [node name="WorldRootSlot" type="Node" parent="."]

@@ -1,14 +1,13 @@
 [gd_scene format=3 uid="uid://ccqgqi0j6yvnj"]
 
-[ext_resource type="Script" path="res://build/build_controller.gd" id="1_controller"]
-[ext_resource type="Script" path="res://build/ghost_preview.gd" id="2_ghost"]
+[ext_resource type="Script" uid="uid://dhq4hyx8nxo8n" path="res://build/build_controller.gd" id="1_controller"]
+[ext_resource type="Script" uid="uid://cxhelejr2ejn2" path="res://build/ghost_preview.gd" id="2_ghost"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ghost"]
-size = Vector3(1, 1, 1)
 
-[node name="BuildController" type="Node3D"]
+[node name="BuildController" type="Node3D" unique_id=1033573714]
 script = ExtResource("1_controller")
 
-[node name="GhostPreview" type="MeshInstance3D" parent="."]
+[node name="GhostPreview" type="MeshInstance3D" parent="." unique_id=549679742]
 mesh = SubResource("BoxMesh_ghost")
 script = ExtResource("2_ghost")

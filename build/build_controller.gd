@@ -23,6 +23,9 @@ var rotation_state := RotationState.new()
 var _ghost: GhostPreview
 var _camera: Camera3D
 var _active := false
+# The currently selected buildable id (set by the build menu). Used by the
+# placement strategy on commit. TODO: also drive the ghost mesh from this.
+var selected_id: String = ""
 # Physics bodies to exclude from the cursor raycast (the player capsule, etc.).
 # The third-person camera ray would otherwise hit the player before the terrain.
 var exclude_bodies: Array[PhysicsBody3D] = []
@@ -122,8 +125,7 @@ func _try_commit() -> void:
 		return
 	var t := Transform3D.IDENTITY
 	t.origin = Vector3(cell)
-	# TODO: source item_id from a build palette / hotbar; "wood" placeholder.
-	strategy.commit(t, rotation_state, "wood")
+	strategy.commit(t, rotation_state, selected_id)
 
 
 func _try_remove() -> void:

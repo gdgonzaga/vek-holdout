@@ -45,19 +45,56 @@ func _unhandled_input(event: InputEvent) -> void:
 	# NOT consume ui_cancel so it bubbles up. The pause menu (when it lands) will
 	# release the cursor; for now the mouse stays captured during pause.
 	if event.is_action_pressed("build_toggle"):
-		toggle_blueprint_mode()
+		_open_build_menu()
 		return
 	# Click to recapture the mouse if it was released (e.g. alt-tab).
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-## Flip NORMAL <-> BLUEPRINT mode and broadcast via EventBus (ARCH Player flow,
-## line 388). Movement still applies in Blueprint mode (line 391) — no movement
-## change here. BuildController listens and activates/deactivates accordingly.
-func toggle_blueprint_mode() -> void:
-	mode = Mode.BLUEPRINT if mode == Mode.NORMAL else Mode.NORMAL
-	EventBus.blueprint_mode_toggled.emit(mode == Mode.BLUEPRINT)
+## Open the build menu. Selecting a buildable closes it and enters Blueprint mode
+## with that buildable selected (ARCH Player flow, line 388 — now driven by menu
+## selection rather than a direct B-toggle). Movement still applies in Blueprint.
+func _open_build_menu() -> void:
+	var menu: BuildMenu = preload("res://ui/build_menu/build_menu.tscn").instantiate()
+	# Mount on a UI CanvasLayer. Prefer the one Main owns; fall back to creating one
+	# under the world root so this works in test scenes without Main.
+	var layer := get_tree().get_first_node_in_group("ui_layer") as CanvasLayer
+	if layer == null:
+		layer = CanvasLayer.new()
+		layer.name = "UILayer"
+		# Add high enough to render above the world but below the HUD overlay.
+		layer.layer = 20
+		get_tree().current_scene.add_child(layer)
+	layer.add_child(menu)
+	menu.populate()
+	# Release the cursor so the player can click the menu.
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	menu.buildable_selected.connect(_on_buildable_selected)
+	menu.closed.connect(_on_build_menu_closed)
+
+
+func _on_buildable_selected(id: String) -> void:
+	# Hand the selection to BuildController (sibling under WorldRoot) and enter
+	# Blueprint mode. BuildController listens to blueprint_mode_toggled.
+	var build := get_parent().get_node_or_null("BuildController")
+	if build != null:
+		build.selected_id = id
+	mode = Mode.BLUEPRINT
+	EventBus.blueprint_mode_toggled.emit(true)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _on_build_menu_closed() -> void:
+	# Menu closed without a selection (Esc / B-toggle) — recapture the mouse.
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Exit Blueprint mode (e.g. when the player wants to stop building). Re-entering
+## is via the build menu (B).
+func exit_blueprint_mode() -> void:
+	mode = Mode.NORMAL
+	EventBus.blueprint_mode_toggled.emit(false)
 
 
 func _physics_process(delta: float) -> void:

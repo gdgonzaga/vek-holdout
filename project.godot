@@ -23,6 +23,7 @@ SceneManager="*res://autoloads/scene_manager.gd"
 SaveSystem="*res://autoloads/save_system.gd"
 Colony="*res://autoloads/colony.gd"
 TimeSystem="*res://autoloads/time_system.gd"
+BuildLibrary="*res://build/build_library.gd"
 
 [display]
 
