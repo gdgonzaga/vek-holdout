@@ -114,7 +114,14 @@ func _on_blueprint_mode_toggled(active: bool) -> void:
 
 func _on_buildable_selected(id: String) -> void:
 	selected_id = id
+	_set_ghost_mesh()
 
+
+func _set_ghost_mesh():
+	var def := BuildLibrary.get_def(selected_id)
+	if def == null:
+		return
+	_ghost.mesh = def.mesh
 
 func _try_commit() -> void:
 	if strategy == null or grid_adapter == null or _camera == null:

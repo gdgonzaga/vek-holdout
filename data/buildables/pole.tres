@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="BuildableDef" format=3 uid="uid://clmv6tpktyi6j"]
+
+[ext_resource type="Script" uid="uid://b3lhesw6s1vi6" path="res://data/buildables/buildable_def.gd" id="1_4atpf"]
+[ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="1_jh6tj"]
+
+[resource]
+script = ExtResource("1_4atpf")
+id = "pole"
+display_name = "pole"
+hp = 100
+mesh = ExtResource("1_jh6tj")
+unlocked_by_default = true
+metadata/_custom_type_script = "uid://b3lhesw6s1vi6"
