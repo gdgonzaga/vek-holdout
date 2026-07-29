@@ -46,6 +46,10 @@ func _ready() -> void:
 	var strategy := InstantPlacementStrategy.new()
 	strategy.set_grid(adapter)
 	build.strategy = strategy
+	# FurnitureLayer parents spawned Node3Ds under the world's FurnitureContainer.
+	var furniture := FurnitureLayer.new()
+	furniture.set_container(world.get_furniture_container())
+	build.furniture_layer = furniture
 	build.set_camera(player.get_camera())
 	# Exclude the player capsule so the camera ray hits terrain, not the player.
 	build.add_exclude_body(player)
@@ -56,7 +60,7 @@ func _ready() -> void:
 	add_child(layer)
 	var label := Label.new()
 	label.position = Vector2(10, 10)
-	label.text = "B: open build menu -> pick a block -> ghost appears\nEsc: close menu without building\nWASD/Shift/Space: move"
+	label.text = "B: open build menu -> pick a buildable -> ghost appears\nEsc: close menu without building\nLMB: place (blocks = voxel, pole/workbench = free-standing)\nRMB: remove\nWASD/Shift/Space: move"
 	label.add_theme_font_size_override("font_size", 16)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.add_theme_color_override("font_shadow_color", Color.BLACK)

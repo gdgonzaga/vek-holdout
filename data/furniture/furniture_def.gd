@@ -12,8 +12,9 @@ class_name FurnitureDef
 ##
 ## Deferred: a capability-unlocking field (working name base_system) so Colony can
 ## count placed furniture toward Functional Rooms (GDD §7.8). Not on this class
-## yet — added when the Colony counting surface is built. Dimensions alone is
-## enough for the catalog/preview pass.
+## yet — added when the Colony counting surface is built. `dimensions` is
+## consumed now: FurnitureLayer.footprint_cells reads it for placement validity,
+## positioning, and rotation.
 
 ## Cell-box the item occupies, in cells: x=width, y=height, z=depth
 ## (GDD §7.2's Height/Width/Depth columns). Default 1x1x1.

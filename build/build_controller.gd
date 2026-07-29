@@ -2,21 +2,27 @@ class_name BuildController
 extends Node3D
 ## Build-mode controller (ARCH "Class: BuildController", lines 478-491).
 ## Active only when Player.mode == BLUEPRINT. Owns the cursor raycast, ghost
-## preview, rotation state, and commit. Delegates commit resolution to an
-## IPlacementStrategy and grid queries to an IBlockGrid (VoxelGridAdapter) — it
-## never touches voxel_tool directly.
+## preview, rotation state, and commit. Routes commit by kind:
+##   - BlockDef        -> InstantPlacementStrategy -> VoxelGridAdapter (voxel).
+##   - everything else -> FurnitureLayer (free-standing Node3D under
+##                        FurnitureContainer). pole (BuildableDef) and any
+##                        FurnitureDef (workbench) land here.
+## Grid queries go through the VoxelGridAdapter (IBlockGrid) — voxel_tool is
+## never touched directly.
 ##
-## This pass: ghost-follows-cursor works (raycast from camera, snap to the
-## adjacent empty voxel of the face under the cursor, tint by validity). LMB
-## places via InstantPlacementStrategy (instant, 1x1, no cost yet). Rotation is
-## a stub.
+## This pass: ghost-follows-cursor works for both kinds (single cell for blocks,
+## footprint center for furniture). LMB places via the kind path. RMB removes
+## (blocks at the struck voxel, furniture at the adjacent air cell). Rotation is
+## a stub (rotation_state.step is read, but no key is wired to change it yet).
 
 const _RAY_DISTANCE := 30.0
 
-# Runtime-wired (not @export: VoxelGridAdapter/InstantPlacementStrategy extend
-# RefCounted, which Godot can't export). Set by the world/test after instantiation.
+# Runtime-wired (not @export: VoxelGridAdapter/InstantPlacementStrategy/
+# FurnitureLayer extend RefCounted, which Godot can't export). Set by the
+# world/test after instantiation.
 var grid_adapter: VoxelGridAdapter
 var strategy: InstantPlacementStrategy
+var furniture_layer: FurnitureLayer
 @export var camera_path: NodePath = ^""   # set in scene or via set_camera()
 
 var rotation_state := RotationState.new()
@@ -68,10 +74,19 @@ func _physics_process(_delta: float) -> void:
 		_ghost.hide_()
 		return
 	# Placement cell = the struck voxel + the face normal (the adjacent empty cell
-	# where a new block would go).
+	# where a new block/furniture anchor would go).
 	var cell: Vector3i = hit["position"] + hit["normal"]
-	var valid := grid_adapter.is_valid_placement(cell)
-	_ghost.show_at(cell, valid)
+	var ghost_pos: Vector3
+	var valid: bool
+	if _is_furniture(selected_id):
+		# Furniture: footprint center on XZ; valid only if every covered cell is free.
+		ghost_pos = _furniture_ghost_pos(cell)
+		valid = _is_footprint_free(cell, BuildLibrary.get_def(selected_id))
+	else:
+		# Block (or nothing selected): single cell at the corner.
+		ghost_pos = Vector3(cell)
+		valid = grid_adapter.is_valid_placement(cell)
+	_ghost.show_at(ghost_pos, valid)
 
 
 ## Enable/disable the controller (called on blueprint_mode_toggled).
@@ -125,10 +140,12 @@ func _set_ghost_mesh():
 	_ghost.mesh = def.mesh
 
 func _try_commit() -> void:
-	if strategy == null or grid_adapter == null or _camera == null:
+	if grid_adapter == null or _camera == null or selected_id == "":
 		return
-	# Recompute the target cell (mirrors _physics_process) and hand the transform
-	# to the strategy, which resolves the cell and calls adapter.set_block_at.
+	var def := BuildLibrary.get_def(selected_id)
+	if def == null:
+		return
+	# Recompute the target cell (mirrors _physics_process).
 	var center := get_viewport().get_visible_rect().size / 2.0
 	var origin := _camera.project_ray_origin(center)
 	var dir := _camera.project_ray_normal(center)
@@ -136,6 +153,16 @@ func _try_commit() -> void:
 	if not hit.get("hit", false):
 		return
 	var cell: Vector3i = hit["position"] + hit["normal"]
+	if def is BlockDef:
+		_commit_block(cell)
+	else:
+		_commit_furniture(def, cell)
+
+
+## BlockDef path: hand off to InstantPlacementStrategy -> VoxelGridAdapter.
+func _commit_block(cell: Vector3i) -> void:
+	if strategy == null:
+		return
 	if not grid_adapter.is_valid_placement(cell):
 		return
 	var t := Transform3D.IDENTITY
@@ -143,6 +170,61 @@ func _try_commit() -> void:
 	strategy.commit(t, rotation_state, selected_id)
 
 
+## Non-block path: spawn a free-standing Node3D via FurnitureLayer. Validity
+## checks every cell in the (possibly rotated) footprint.
+func _commit_furniture(def: BuildableDef, anchor: Vector3i) -> void:
+	if furniture_layer == null:
+		return
+	if not _is_footprint_free(anchor, def):
+		return
+	furniture_layer.spawn(def, anchor, rotation_state.step)
+
+
 func _try_remove() -> void:
-	# TODO: route removal through a strategy or grid_adapter.get_grid().remove_block_at.
-	push_warning("BuildController: remove not implemented (stub)")
+	if grid_adapter == null or _camera == null:
+		return
+	var center := get_viewport().get_visible_rect().size / 2.0
+	var origin := _camera.project_ray_origin(center)
+	var dir := _camera.project_ray_normal(center)
+	var hit := grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
+	if not hit.get("hit", false):
+		return
+	# Blocks occupy the struck voxel itself; furniture occupies the adjacent air
+	# cell (it has no collision body yet — removal targets the floor cell under
+	# it, consistent with placement). Try both so RMB works on either kind.
+	var struck: Vector3i = hit["position"]
+	if grid_adapter.get_block_at(struck) != "":
+		grid_adapter.remove_block_at(struck)
+		return
+	var adj: Vector3i = struck + hit["normal"]
+	if furniture_layer != null and furniture_layer.remove_at(adj):
+		return
+
+
+# --- kind helpers -------------------------------------------------------------
+
+## True if the selected id is a non-block (free-standing) buildable. Reads the
+## catalog so the def shape (BlockDef vs not) drives routing everywhere.
+func _is_furniture(id: String) -> bool:
+	if id == "":
+		return false
+	var def := BuildLibrary.get_def(id)
+	return def != null and not (def is BlockDef)
+
+
+## World-space origin for the furniture ghost: footprint center on XZ, anchor Y.
+func _furniture_ghost_pos(cell: Vector3i) -> Vector3:
+	var def := BuildLibrary.get_def(selected_id)
+	var dims := FurnitureLayer.dimensions_of(def)
+	return FurnitureLayer.world_origin(cell, dims, rotation_state.step)
+
+
+func _is_footprint_free(anchor: Vector3i, def: BuildableDef) -> bool:
+	var dims := FurnitureLayer.dimensions_of(def)
+	for off in FurnitureLayer.footprint_cells(dims, rotation_state.step):
+		var c: Vector3i = anchor + off
+		if not grid_adapter.is_valid_placement(c):
+			return false
+		if furniture_layer != null and furniture_layer.has_at(c):
+			return false
+	return true

@@ -24,9 +24,11 @@ func _ready() -> void:
 	hide()
 
 
-## Show the ghost at a voxel cell (integer origin). Tints by validity.
-func show_at(cell: Vector3i, valid: bool) -> void:
-	global_position = Vector3(cell)
+## Show the ghost at a world-space origin. Tints by validity. Callers resolve
+## the position: blocks pass the cell corner (Vector3(cell)); furniture passes
+## the footprint center (FurnitureLayer.world_origin(...)).
+func show_at(world_pos: Vector3, valid: bool) -> void:
+	global_position = world_pos
 	set_valid(valid)
 	show()
 
