@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://c31sfq3jiyts0"]
 
-[ext_resource type="ArrayMesh" uid="uid://drwjgkqavll2r" path="res://assets/animpic-mega-survival-construction/SM_Workbench_01.SM_Workbench_01.mesh" id="1_8yjq3"]
+[ext_resource type="ArrayMesh" uid="uid://drwjgkqavll2r" path="res://assets/animpic-mega-survival-construction/workbench/SM_Workbench_01.SM_Workbench_01.mesh" id="1_8yjq3"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_script"]
 
 [resource]
