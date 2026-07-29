@@ -16,6 +16,7 @@ extends Node3D
 ## a stub (rotation_state.step is read, but no key is wired to change it yet).
 
 const _RAY_DISTANCE := 30.0
+const DEBUG_RAYCAST := true
 
 # Runtime-wired (not @export: VoxelGridAdapter/InstantPlacementStrategy/
 # FurnitureLayer extend RefCounted, which Godot can't export). Set by the
@@ -76,16 +77,22 @@ func _physics_process(_delta: float) -> void:
 	# Placement cell = the struck voxel + the face normal (the adjacent empty cell
 	# where a new block/furniture anchor would go).
 	var cell: Vector3i = hit["position"] + hit["normal"]
+	if DEBUG_RAYCAST:
+		print("[DEBUG] hit pos=%s norm=%s cell=%s selected_id=%s" % [hit["position"], hit["normal"], cell, selected_id])
 	var ghost_pos: Vector3
 	var valid: bool
 	if _is_furniture(selected_id):
 		# Furniture: footprint center on XZ; valid only if every covered cell is free.
 		ghost_pos = _furniture_ghost_pos(cell)
 		valid = _is_footprint_free(cell, BuildLibrary.get_def(selected_id))
+		if DEBUG_RAYCAST:
+			print("[DEBUG] furniture ghost_pos=%s valid=%s" % [ghost_pos, valid])
 	else:
 		# Block (or nothing selected): single cell at the corner.
 		ghost_pos = Vector3(cell)
 		valid = grid_adapter.is_valid_placement(cell)
+		if DEBUG_RAYCAST:
+			print("[DEBUG] block ghost_pos=%s valid=%s" % [ghost_pos, valid])
 	_ghost.show_at(ghost_pos, valid)
 
 
