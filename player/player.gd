@@ -38,6 +38,10 @@ var _is_sprinting_on_jump := false
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# React to a buildable selection (emitted by the build menu) by entering
+	# Blueprint mode + recapturing the mouse. The selected id itself goes straight
+	# to BuildController via the same signal — Player doesn't carry it.
+	EventBus.buildable_selected.connect(_on_buildable_selected)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -70,16 +74,14 @@ func _open_build_menu() -> void:
 	menu.populate()
 	# Release the cursor so the player can click the menu.
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	menu.buildable_selected.connect(_on_buildable_selected)
+	# Selection is broadcast via EventBus (menu emits directly); only the
+	# no-selection dismissal is handled locally.
 	menu.closed.connect(_on_build_menu_closed)
 
 
-func _on_buildable_selected(id: String) -> void:
-	# Hand the selection to BuildController (sibling under WorldRoot) and enter
-	# Blueprint mode. BuildController listens to blueprint_mode_toggled.
-	var build := get_parent().get_node_or_null("BuildController")
-	if build != null:
-		build.selected_id = id
+func _on_buildable_selected(_id: String) -> void:
+	# The selected id flows menu -> EventBus -> BuildController directly; Player
+	# only reacts to the event to flip its own mode and recapture the mouse.
 	mode = Mode.BLUEPRINT
 	EventBus.blueprint_mode_toggled.emit(true)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

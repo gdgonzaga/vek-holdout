@@ -2,14 +2,14 @@ class_name BuildMenu
 extends Control
 ## Build-mode selection menu (ARCH "Build" subsystem; first UI scene).
 ## Lists every unlocked buildable (display name only — no icons yet). Clicking
-## one emits buildable_selected(id) so the opener can enter Blueprint mode with
-## that buildable selected.
+## one broadcasts EventBus.buildable_selected(id) so BuildController sets its
+## selected_id and Player enters Blueprint mode. Only the no-selection dismissal
+## (closed) stays as a local signal — the opener wires it.
 ##
 ## The container skeleton is authored in build_menu.tscn (ARCH line 135: UI is
 ## .tscn, not built dynamically); the per-buildable buttons are created in code
 ## in populate().
 
-signal buildable_selected(id: String)
 signal closed()
 
 @onready var _list: VBoxContainer = $Panel/List
@@ -27,7 +27,10 @@ func populate() -> void:
 
 
 func _on_button_pressed(id: String) -> void:
-	buildable_selected.emit(id)
+	# Broadcast the selection globally. BuildController listens and sets its
+	# selected_id; Player listens and enters Blueprint mode. This menu stays
+	# otherwise EventBus-agnostic — closed() (no-selection dismissal) stays local.
+	EventBus.buildable_selected.emit(id)
 	queue_free()
 
 

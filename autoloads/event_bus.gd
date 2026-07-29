@@ -27,5 +27,6 @@ signal game_over()                                # GameState -> SceneManager
 
 # --- Player / build / inventory ---
 signal blueprint_mode_toggled(active: bool)       # player -> BuildController, HUD
+signal buildable_selected(id: String)             # player -> BuildController (sets selected_id)
 signal item_picked_up(item_id: String, count: int) # inventory -> HUD
 signal job_logged(entry: Dictionary)              # colonists (Job Board) -> Job Log UI

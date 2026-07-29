@@ -23,8 +23,9 @@ var rotation_state := RotationState.new()
 var _ghost: GhostPreview
 var _camera: Camera3D
 var _active := false
-# The currently selected buildable id (set by the build menu). Used by the
-# placement strategy on commit. TODO: also drive the ghost mesh from this.
+# The currently selected buildable id. Set via EventBus.buildable_selected (the
+# build menu -> Player -> here). Used by the placement strategy on commit.
+# TODO: also drive the ghost mesh from this.
 var selected_id: String = ""
 # Physics bodies to exclude from the cursor raycast (the player capsule, etc.).
 # The third-person camera ray would otherwise hit the player before the terrain.
@@ -37,6 +38,8 @@ func _ready() -> void:
 		_camera = get_node(camera_path)
 	# Blueprint mode is global; listen for the toggle (ARCH Player flow, line 388).
 	EventBus.blueprint_mode_toggled.connect(_on_blueprint_mode_toggled)
+	# Selected buildable arrives the same way — Player relays it from the build menu.
+	EventBus.buildable_selected.connect(_on_buildable_selected)
 	# Start inactive (NORMAL mode). Ghost is hidden in its own _ready.
 	_update_activation()
 
@@ -107,6 +110,10 @@ func _update_activation() -> void:
 
 func _on_blueprint_mode_toggled(active: bool) -> void:
 	set_active(active)
+
+
+func _on_buildable_selected(id: String) -> void:
+	selected_id = id
 
 
 func _try_commit() -> void:
