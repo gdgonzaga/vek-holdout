@@ -2,8 +2,9 @@ extends Resource
 class_name BuildableDef
 ## Base definition for everything the player can build: voxel blocks (walls,
 ## floors) and free-standing furniture/structures. Subclasses add kind-specific
-## concerns — BlockDef adds `is_terrain` for the voxel grid; a future FurnitureDef
-## would add footprint/scene.
+## concerns — BlockDef adds `is_terrain` for the voxel grid; FurnitureDef adds
+## dimensions. A per-instance Node3D scene (for the free-standing furniture
+## layer) is deferred to that subsystem.
 ##
 ## `id` is the canonical identifier across all buildable kinds (inherited by
 ## subclasses; do not redeclare as block_id/furniture_id/etc.). `mesh` lives here

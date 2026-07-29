@@ -1,6 +1,7 @@
 extends Node
 ## Global catalog of everything the player can build (ARCH: build subsystem).
-## Loaded from data/blocks/ (BlockDef) and data/buildables/ (future furniture).
+## Loaded from data/blocks/ (BlockDef), data/buildables/ (BuildableDef), and
+## data/furniture/ (FurnitureDef).
 ##
 ## Registered as an autoload so the build menu / BuildController can read it
 ## across scenes without reference-passing. Read-only after _ready (the catalog
@@ -13,6 +14,7 @@ extends Node
 
 const _DIR_BLOCKS := "res://data/blocks/"
 const _DIR_BUILDABLES := "res://data/buildables/"
+const _DIR_FURNITURE := "res://data/furniture/"
 
 var _defs_by_id: Dictionary = {}   # id (String) -> BuildableDef
 
@@ -20,6 +22,7 @@ var _defs_by_id: Dictionary = {}   # id (String) -> BuildableDef
 func _ready() -> void:
 	_load_dir(_DIR_BLOCKS)
 	_load_dir(_DIR_BUILDABLES)
+	_load_dir(_DIR_FURNITURE)   # FurnitureDef (loaded as BuildableDef — polymorphic)
 	# Seed the default-unlocked buildables into RunProgress. Done at startup (first
 	# run) AND on run_started (New Game: RunProgress was reset, re-add defaults
 	# without re-reading the data). Additive + idempotent, so order is irrelevant.
