@@ -1,8 +1,6 @@
 extends Node
 ## General utility functions and helper methods shared across subsystems.
-
 var _crypto := Crypto.new()
-
 ## Generates a cryptographically random RFC 4122 compliant UUID v4 string.
 ## Example output: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 func generate_uuid() -> String:
