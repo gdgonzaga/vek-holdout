@@ -54,6 +54,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Click to recapture the mouse if it was released (e.g. alt-tab).
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	
+	if mode == Mode.BLUEPRINT and event.is_action_pressed("ui_cancel"):
+		exit_blueprint_mode()
 
 
 ## Open the build menu. Selecting a buildable closes it and enters Blueprint mode
