@@ -24,7 +24,7 @@ var _node_by_anchor: Dictionary = {}
 # item that owns it, so removal by pointing at any covered cell resolves to the item.
 var _anchor_by_cell: Dictionary = {}
 
-const _new_furniture_template: PackedScene = preload("res://build/new_furniture_template.tscn")
+const _new_furniture_template: PackedScene = preload("res://subsystems/build/new_furniture_template.tscn")
 
 
 func set_container(container: Node3D) -> void:

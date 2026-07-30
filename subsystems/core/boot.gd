@@ -9,7 +9,7 @@ extends Node
 ## the entry point.
 
 func _ready() -> void:
-	var main: Node = preload("res://core/main.tscn").instantiate()
+	var main: Node = preload("res://subsystems/core/main.tscn").instantiate()
 	add_child(main)
 	# TODO: SceneManager.open_screen("main_menu") once Main Menu exists.
 	print("[Boot] Main loaded. Main Menu open is TODO (UI subsystem).")

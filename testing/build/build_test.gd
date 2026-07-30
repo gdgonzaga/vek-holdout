@@ -15,11 +15,11 @@ func _ready() -> void:
 	light.shadow_enabled = true
 	add_child(light)
 
-	var world: Node = preload("res://voxel/world.tscn").instantiate()
+	var world: Node = preload("res://subsystems/voxel/world.tscn").instantiate()
 	add_child(world)
 
 	# Player onto the terrain.
-	var player: Node3D = preload("res://player/player.tscn").instantiate()
+	var player: Node3D = preload("res://subsystems/player/player.tscn").instantiate()
 	player.global_position = Vector3(0, 5, 0)
 	world.add_child(player)
 
@@ -31,7 +31,7 @@ func _ready() -> void:
 	player.add_child(viewer)
 
 	# BuildController as a sibling of the player under WorldRoot (ARCH line 67).
-	var build: Node = preload("res://build/build.tscn").instantiate()
+	var build: Node = preload("res://subsystems/build/build.tscn").instantiate()
 	world.add_child(build)
 
 	# Wire the adapter to the world's VoxelGrid and the controller's camera to the

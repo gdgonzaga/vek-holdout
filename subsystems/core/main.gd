@@ -33,7 +33,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _load_base_world() -> void:
 	# TODO: replace with SceneManager.swap_world("base") once its body is real.
 	# For now, instance world.tscn directly so the skeleton has something to show.
-	var world: Node = preload("res://voxel/world.tscn").instantiate()
+	var world: Node = preload("res://subsystems/voxel/world.tscn").instantiate()
 	_world_slot.add_child(world)
 	GameState.world_root = world
 	GameState.set_scene_id("base")

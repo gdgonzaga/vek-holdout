@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://dbnt5sw84m1xl"]
 
-[ext_resource type="Script" uid="uid://bvunjvyry03ui" path="res://player/player.gd" id="1_player"]
-[ext_resource type="Script" uid="uid://cc4nhj4oth8vo" path="res://player/camera_rig.gd" id="2_camera_rig"]
+[ext_resource type="Script" uid="uid://bvunjvyry03ui" path="res://subsystems/player/player.gd" id="1_i0iyb"]
+[ext_resource type="Script" uid="uid://cc4nhj4oth8vo" path="res://subsystems/player/camera_rig.gd" id="2_wfstl"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
@@ -12,7 +12,7 @@ radius = 0.3
 height = 1.6
 
 [node name="Player" type="CharacterBody3D" unique_id=348076264]
-script = ExtResource("1_player")
+script = ExtResource("1_i0iyb")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=339738198]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
@@ -23,4 +23,4 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 shape = SubResource("CapsuleShape3D_body")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=157783146]
-script = ExtResource("2_camera_rig")
+script = ExtResource("2_wfstl")

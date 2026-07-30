@@ -28,11 +28,11 @@ func _ready() -> void:
 	light.shadow_enabled = true
 	add_child(light)
 
-	var world: Node3D = preload("res://voxel/world.tscn").instantiate()
+	var world: Node3D = preload("res://subsystems/voxel/world.tscn").instantiate()
 	add_child(world)
 
 	# Player drops in a couple meters above the terrain so it settles onto it.
-	var player: Node3D = preload("res://player/player.tscn").instantiate()
+	var player: Node3D = preload("res://subsystems/player/player.tscn").instantiate()
 	player.global_position = Vector3(0, 5, 0)
 	world.add_child(player)
 

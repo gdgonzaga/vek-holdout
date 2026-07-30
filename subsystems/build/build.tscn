@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ccqgqi0j6yvnj"]
 
-[ext_resource type="Script" uid="uid://dhq4hyx8nxo8n" path="res://build/build_controller.gd" id="1_controller"]
-[ext_resource type="Script" uid="uid://cxhelejr2ejn2" path="res://build/ghost_preview.gd" id="2_ghost"]
+[ext_resource type="Script" uid="uid://dhq4hyx8nxo8n" path="res://subsystems/build/build_controller.gd" id="1_controller"]
+[ext_resource type="Script" uid="uid://cxhelejr2ejn2" path="res://subsystems/build/ghost_preview.gd" id="2_ghost"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ghost"]
 

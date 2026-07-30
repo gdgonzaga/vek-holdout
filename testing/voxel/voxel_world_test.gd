@@ -23,7 +23,7 @@ func _ready() -> void:
 	add_child(light)
 
 	# The real WorldRoot.
-	_world = preload("res://voxel/world.tscn").instantiate()
+	_world = preload("res://subsystems/voxel/world.tscn").instantiate()
 	add_child(_world)
 
 	# Fly camera + viewer (drives terrain streaming + collision for raycasts).
