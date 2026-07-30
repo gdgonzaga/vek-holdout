@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-07-27
+Last updated: 2026-07-31 (Voxel/World + Functional Rooms drift resolved)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
@@ -10,34 +10,26 @@ Last updated: 2026-07-27
 
 ```
 res://
-├── autoloads/          # Singleton scripts (GameState, EventBus, SceneManager, etc.)
-├── core/               # Main scene, shared utilities, global UI shell, save system
-├── data/               # All .tres/.json data (centralized)
-│   ├── characters/     # CharacterDef per type (player, colonist, companion, brawler, shooter)
-│   ├── blocks/         # Block definitions (wood/scrap/stone/metal/reinforced)
-│   ├── items/          # Item definitions
-│   ├── loot/           # Loot tables (standard.tres, deep.tres) + key_items.tres pool
-│   ├── loadouts/       # Loadout templates (player-created + saved per run)
-│   ├── recipes/        # Recipe definitions (workbench.tres, forge.tres)
-│   ├── skills/         # Skill definitions (6 skills) + use-curves + level multipliers
-│   ├── energy_config.tres  # Global Stamina thresholds/floors + Breath rates
-│   ├── game_config.tres    # Engine-level constants
-│   ├── raid_curve.tres     # Raid escalation table
-│   └── starting_conditions.tres
-├── player/             # Player controller, camera rig, state machine
-├── build/              # Blueprint mode, ghost preview, placement strategies, grid adapters
-├── voxel/              # Voxel world, block grid, terrain (wraps Zylann's voxel_tool)
-├── colonists/          # Colonist entities, roster, Job Board, labor AI
-├── skills/             # SkillSet component, skill progression, work-speed multipliers
-├── combat/             # Damage resolution, weapons, durability, enemy base + archetypes
-├── equipment/          # Equipment component, loadout templates, auto-equip/unequip
-├── raids/              # Raid scheduler, threat direction, spawn manager
-├── expeditions/        # Scavenge mission, world map, POI
-├── loot/               # Loot tables, container logic, Key Item pool
-├── inventory/          # Items, stacks, inventory model
-├── crafting/           # Recipe model, station logic, craft-Job flow
-├── ui/                 # HUD + all full-screen UIs (player/colony/map/menus)
+├── subsystems/         # All logical subsystems (moved here from the project root)
+│   ├── autoloads/      # Singleton scripts (GameState, EventBus, SceneManager, SaveSystem,
+│   │                   #   Colony, TimeSystem, RunProgress, Tools)
+│   ├── core/           # Main scene, shared utilities, global UI shell, save system
+│   ├── voxel/          # Voxel world, block grid, terrain (wraps Zylann's voxel_tool)
+│   ├── player/         # Player controller, camera rig, state machine
+│   ├── build/          # Blueprint mode, BuildLibrary catalog, ghost preview, block placement
+│   │                   #   strategies, furniture layer, grid adapters
+│   ├── colonists/      # Colonist entities, roster, Job Board, labor AI
+│   ├── skills/         # SkillSet component, skill progression, work-speed multipliers
+│   ├── combat/         # Damage resolution, weapons, durability, enemy base + archetypes
+│   ├── equipment/      # Equipment component, loadout templates, auto-equip/unequip
+│   ├── raids/          # Raid scheduler, threat direction, spawn manager
+│   ├── expeditions/    # Scavenge mission, world map, POI
+│   ├── loot/           # Loot tables, container logic, Key Item pool
+│   ├── inventory/      # Items, stacks, inventory model
+│   └── crafting/       # Recipe model, station logic, craft-Job flow
+├── ui/                 # HUD + all full-screen UIs (kept at project root for now)
 │   ├── hud/
+│   ├── build_menu/
 │   ├── player_screen/
 │   ├── colony_screen/
 │   ├── world_map/
@@ -47,12 +39,27 @@ res://
 │   ├── day_summary/
 │   ├── settings/
 │   └── shared/         # Reusable subscenes (health_bar, inventory_slot, roster_row, job_log_entry, memorial_entry)
+├── data/               # All .tres/.json data (centralized)
+│   ├── characters/     # CharacterDef per type (player, colonist, companion, brawler, shooter)
+│   ├── blocks/         # Block definitions (wood/scrap/stone/metal/reinforced)
+│   ├── buildables/     # BuildableDef (player-placed objects: pole, etc.)
+│   ├── colonists/      # Colonist definitions + AI (ColonistDef, colonist_ai)
+│   ├── furniture/      # FurnitureDef (is_functional + functional_area) — schema pending (C1)
+│   ├── items/          # Item definitions
+│   ├── loot/           # Loot tables (standard.tres, deep.tres) + key_items.tres pool
+│   ├── loadouts/       # Loadout templates (player-created + saved per run)
+│   ├── recipes/        # Recipe definitions (workbench.tres, forge.tres)
+│   ├── skills/         # Skill definitions (6 skills) + use-curves + level multipliers
+│   ├── game_config.tres    # Engine-level constants
+│   ├── energy_config.tres      # Planned — Global Stamina thresholds/floors + Breath rates (Energy subsystem)
+│   ├── raid_curve.tres         # Planned — Raid escalation table (Raids subsystem)
+│   └── starting_conditions.tres # Planned — Day-1 resources/equipment/structure (§9; C7)
 ├── debug/              # Debug console (dev/playtest only; stripped from release)
 ├── tests/              # Automated unit/integration tests (run in CI / headless)
 └── testing/            # Manual playtest scenes (developer-run, not shipped)
 ```
 
-**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`.
+**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `subsystems/autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`. UI scenes live in `ui/` (project root), not under `subsystems/`.
 
 ## Scene Tree Overview
 
@@ -60,11 +67,13 @@ res://
   - CanvasLayer (`layer=10`) — UI overlay layer
     - **HUD** (`hud.tscn`) — persistent in-game overlay (HP/Durability/Stamina/Breath bars, hotbar, build-mode ghost). Instanced by Main at startup; hidden during full-screen menus.
   - CanvasLayer (`layer=20`) — Full-screen UI layer (Player/Colony/Map/Pause/MainMenu/GameOver/Settings). Only one present at a time.
-  - **WorldRoot** (`world.tscn`) — the current game world; swapped by SceneManager on base↔POI transitions.
-    - VoxelTerrain (`voxel_tool` blocky mode)
+  - **WorldRoot** (`world.tscn`, root script `world.gd` — `World`) — the current game world; swapped by SceneManager on base↔POI transitions. Structural container only; no gameplay logic.
+    - VoxelGrid (Node, `voxel_grid.gd`) — the `IBlockGrid` owner; sole voxel_tool access point
+      - VoxelTerrain (`voxel_tool` blocky mode)
     - **Player** (`player.tscn`)
     - ColonistContainer (Node3D) — holds active colonist instances
     - EnemyContainer (Node3D) — holds active enemy instances
+    - FurnitureContainer (Node3D) — holds free-standing furniture placed at runtime (Build subsystem)
     - BuildController (`build.tscn`) — active only in Blueprint mode
 - **Boot** (`boot.tscn`) — project entry point; loads Main + Main Menu. (Alternative: Main is the entry point and Main Menu is a CanvasLayer. Pick one in implementation — see Tech Debt.)
 
@@ -82,6 +91,9 @@ Only scripts genuinely needed across multiple unrelated scenes. Solo project —
 | **SaveSystem** | `save_system.gd` | Autosave on sleep/midnight/quit; load on Continue/New Game. |
 | **Colony** | `colony.gd` | The colony roster + Job Board. Cross-scene because base and POI scenes both need it (colonists stay in colony during expeditions). |
 | **TimeSystem** | `time_system.gd` | Continuous time advance, day boundary (midnight) event, links to Stamina accrual. Cross-scene because time advances in both base and POI. |
+| **RunProgress** | `run_progress.gd` | Run-scoped *earned* state. Currently holds buildable unlocks; **intended to grow into the home for Colony's run-state children** (Memorial, KeyItemPool, LoadoutManager, DiscoveredGear) and other run-earned state — migration ongoing. A "dumb bag" of ids only (no data-def reading). Reset by the New Game orchestrator, then reseeded by `EventBus.run_started`. Saved with the run, wiped on New Game. |
+| **BuildLibrary** | `build_library.gd` | The read-only catalog of everything buildable. Loads every `BuildableDef` subclass (`BlockDef`, `BuildableDef`, `FurnitureDef`) from `data/blocks/`, `data/buildables/`, `data/furniture/` into one `id → def` map. "What's unlocked" is delegated to `RunProgress` — this catalog seeds the default-unlocked defs at startup and on `EventBus.run_started`, then exposes `is_unlocked` / `get_unlocked` / `unlock` / `get_def`. Read-only after `_ready`. See Build subsystem. |
+| **Tools** | `tools.gd` | General cross-subsystem utilities. Currently: `generate_uuid() -> String` (cryptographically random RFC 4122 UUID v4). |
 
 **Deliberately NOT autoloads** (kept as scene-scoped references):
 - Inventory — belongs to the player; accessed via the Player node.
@@ -95,6 +107,7 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 
 | Signal | Emitted by | Listeners | Purpose |
 |---|---|---|---|
+| `run_started()` | New Game orchestrator | RunProgress seeders (BuildLibrary, etc.) | New Game reset complete; seeders re-add default unlocks to RunProgress (additive — safe to run repeatedly) |
 | `day_rolled_over(new_day: int)` | `time_system.gd` | `save_system.gd`, HUD, raids scheduler | Midnight crossed; triggers autosave + Day Summary prep |
 | `raid_started(raid_data: Dictionary)` | raids subsystem | HUD, Colony (stance assignment), colonists | Begin raid sequence |
 | `raid_ended(outcome: Dictionary)` | raids subsystem | HUD, Colony, save_system | Raid resolved; unlock player control |
@@ -104,6 +117,9 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 | `player_died(context: String)` | combat subsystem | GameState, HUD | Player HP hit 0 (respawn handling) |
 | `game_over()` | GameState | SceneManager | All colonists + player dead; load Game Over scene |
 | `blueprint_mode_toggled(active: bool)` | player subsystem | BuildController, HUD | Mode layer change |
+| `buildable_selected(id: String)` | player subsystem | BuildController | Player selected a buildable in the build menu (sets the controller's `selected_id`) |
+| `furniture_placed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms) | Furniture placed in world — increments the relevant Functional Rooms counter |
+| `furniture_removed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms) | Furniture removed from world — decrements the relevant Functional Rooms counter |
 | `item_picked_up(item_id: String, count: int)` | inventory subsystem | HUD (hotbar/inventory refresh) | Inventory changed while Player screen closed |
 | `job_logged(entry: Dictionary)` | colonists (Job Board) | UI (Job Log panel, when open) | Diagnostic feed for job failures |
 
@@ -148,7 +164,7 @@ Emitted by GameState when its own state changes. Connect directly — NOT throug
 - [ ] **voxel_tool raycast reliability** — `VoxelTool.raycast()` is unreliable (see `gotchas/voxel_tool_raycast.md`); the workaround uses Godot physics raycast against voxel collision bodies. Validate this still works when build mode lands.
 - [ ] **Colonist pathfinding split** — A* on voxel grid for colonists, NavigationAgent for enemies. Two pathfinding systems in one game is complexity; validate the split pays off vs. NavAgent-for-everything once both are prototyped.
 - [ ] **`combat/` accumulating shared character-stat components** — HealthComponent, BreathComponent, StaminaComponent all live in `combat/` but are general-purpose character components (used by player/colonists/enemies). Consider a `core/components/` home if a fourth such component appears.
-- [ ] **Colony autoload accumulating run-state children** — Memorial (deceased roster), KeyItemPool (once-per-playthrough enforcement), LoadoutManager (templates + assignments), and DiscoveredGear (item-possession tracking) all live on Colony because their state must persist across base↔POI scene swaps and be saved. Now at 4 children — consider a dedicated `RunProgress` autoload to hold them all before adding a fifth.
+- [~] **Colony autoload accumulating run-state children** — Memorial (deceased roster), KeyItemPool (once-per-playthrough enforcement), LoadoutManager (templates + assignments), and DiscoveredGear (item-possession tracking) all live on Colony because their state must persist across base↔POI scene swaps and be saved. **Resolved (in progress):** the `RunProgress` autoload has been created as the intended home for this run-state, and currently holds buildable unlocks. It is *growing* — additional run-earned state (and the eventual migration of Colony's four children) lands here as subsystems come online. In the interim, Memorial / KeyItemPool / LoadoutManager / DiscoveredGear still live on Colony.
 - [ ] **Debug console release-stripping approach undecided** — the console is dev-only and must not ship in release builds. Options: (a) Godot export profile excludes the `debug/` folder, (b) `OS.is_debug_build()` gate around the autoload registration, (c) both. Decide before first export; document here.
 
 ## Unimplemented Subsystems
@@ -198,7 +214,7 @@ New game wipes all state including map reveal. **Missing:** no reset class/flow;
 The `game_over()` EventBus signal exists, but nothing checks the "all colonists AND player dead" condition. **Missing:** an evaluator (probably on Colony or a dedicated component) that listens to `colonist_died` + `player_died` and emits `game_over()` when both rosters are empty.
 
 **Structural weak-point targeting** — GDD §17 Raids
-Brawlers attack the lowest-HP block in range; Shooters path through the lowest-resistance opening (open gates first, then Scrap blocks, then damaged blocks). **Missing:** no targeting logic — only the `block_destroyed` signal exists. Needs a structural-analysis pass (evaluate perimeter for weak points) consumed by enemy AI.
+Brawlers attack the lowest-HP block in range; Shooters path through the lowest-resistance opening (open gates first, then Scrap blocks, then damaged blocks). **Missing:** the targeting logic / structural-analysis pass that evaluates the perimeter for weak points and is consumed by enemy AI. The low-level primitive it would build on now exists: `VoxelGrid` exposes `get_hp_at` / `has_block_at` / `apply_damage` and the `block_destroyed` signal — so per-block HP querying and damage are available; what's still needed is the perimeter-scoring + AI-consumption layer.
 
 **Travel-time-proportional-to-distance** — GDD §17 Day/Night
 "Travel time proportional to POI distance. Longer travel = more time passes = more Stamina drained." **Missing:** the proportional-distance calculation isn't specced (distance metric? time-per-unit-distance?).
@@ -290,6 +306,7 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 | `current_scene_id` | `String` | `"base"` or `"poi_<id>"`. |
 | `paused` | `bool` | True when any full-screen menu is open. |
 | `save_slot` | `String` | Current save slot name; empty if none loaded. |
+| `world_root` | `Node` | Reference to the WorldRoot whose children get `process_mode`-toggled on pause. Set by Main when it mounts the WorldRoot; `null` until then. |
 
 **Signals:**
 
@@ -304,8 +321,10 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 | Function | Description |
 |---|---|
-| `set_paused(p: bool) -> void` | Toggles pause; emits `pause_state_changed`; sets `process_mode` on sim nodes. |
+| `set_paused(p: bool) -> void` | Toggles pause; emits `pause_state_changed`; sets `process_mode` on `world_root` (and its children). |
 | `advance_day() -> void` | Increments `current_day`; emits `day_changed`. Called by TimeSystem. |
+| `set_scene_id(scene_id: String) -> void` | Sets `current_scene_id`; emits `scene_changed`. Called by SceneManager on swap completion. |
+| `set_save_slot(slot_name: String) -> void` | Sets `save_slot`; emits `save_slot_changed`. Called on New Game / Load. |
 
 ---
 
@@ -317,9 +336,9 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 
 | File | Type | Responsibility |
 |---|---|---|
-| `world.tscn` / `world.gd` | Scene/Script | The WorldRoot; holds VoxelTerrain + containers for player/colonists/enemies. |
-| `voxel_grid.gd` | Script | Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` raycast math (see `gotchas/voxel_tool_raycast.md`). Owns block get/set. Does NOT own placement UX (that's Build). |
-| `block_library.gd` | Script | Resource mapping block IDs → mesh/HP/Durability/material cost. Loaded from `data/`. |
+| `world.tscn` / `world.gd` | Scene/Script | The WorldRoot (`World`, structural container only — no gameplay logic). Holds VoxelGrid + containers for player/colonists/enemies/furniture. |
+| `voxel_grid.gd` | Script | Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the Godot-physics raycast (see `gotchas/voxel_tool_raycast.md`). Owns block get/set, per-cell HP, and the damage surface. Does NOT own placement UX (that's Build). |
+| `block_library.gd` | Script (Resource) | Owns the `VoxelBlockyLibrary` the mesher renders with; maps string block_id ↔ integer library index, and id → `BlockDef`. Enforces the index convention (0 = air, terrain = 1) and bakes the library from `data/blocks/`. |
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, terrain). See Data Schema. |
 
 ### Signals
@@ -342,22 +361,87 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 
 ### Class Reference
 
+#### Class: World
+
+**Extends:** Node3D
+**Script:** `world.gd`
+**Description:** The WorldRoot — the current game world, swapped by SceneManager on base↔POI transitions. A structural container only; holds no gameplay logic. The voxel world's behavior lives in `VoxelGrid` / `BlockLibrary`.
+**Used by:** SceneManager (swaps the whole node), subsystems that fetch their containers/grid via the accessors.
+**Lifecycle:** `@onready` resolves its child refs at `_ready`.
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `voxel_grid` | `VoxelGrid` | `@onready` ref to the `VoxelGrid` child (the `IBlockGrid` owner). |
+| `colonist_container` | `Node3D` | `@onready` ref; parent of active colonist instances. |
+| `enemy_container` | `Node3D` | `@onready` ref; parent of active enemy instances. |
+| `furniture_container` | `Node3D` | `@onready` ref; parent Node3D for free-standing furniture placed at runtime (Build subsystem). |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_grid() -> VoxelGrid` | Convenience proxy (most callers want the grid, not the world). |
+| `get_terrain() -> VoxelTerrain` | Delegates to `voxel_grid.get_terrain()`. |
+| `get_furniture_container() -> Node3D` | The furniture parent node. |
+
 #### Class: VoxelGrid
 
 **Extends:** Node
 **Script:** `voxel_grid.gd`
-**Description:** Implements `IBlockGrid` (defined in `build/i_block_grid.gd`). The sole owner of voxel_tool access for build/placement queries.
-**Used by:** Build (placement), Colonists (A* pathfinding), Raids (breach detection).
-**Lifecycle:** `_ready()` fetches the `VoxelTool` reference from the `VoxelTerrain` child.
+**Description:** Implements `IBlockGrid` (defined in `build/i_block_grid.gd`). The sole owner of voxel_tool access for build/placement queries. Block identity is a string `block_id` everywhere outside this class; internally the integer voxel-tool library index is stored and `BlockLibrary` does the id↔index translation. Tracks per-position HP (`_hp_by_pos`) so combat/raids can damage blocks below their `BlockDef.hp` before destroying them.
+**Used by:** Build (placement + raycast), Colonists (A* pathfinding), Raids (breach + damage), Combat (`apply_damage`).
+**Lifecycle:** `_ready()` constructs the `BlockLibrary`, wires its `VoxelBlockyLibrary` into the terrain mesher, and fetches the `VoxelTool` reference from the `VoxelTerrain` child.
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `terrain_path` | `NodePath` | `[export]` Path to the `VoxelTerrain` child; default `^"VoxelTerrain"`. |
+| `_terrain` | `VoxelTerrain` | `@onready` ref; owns the physics world its collision bodies live in. |
+| `_voxel_tool` | `VoxelTool` | Fetched in `_ready`; `mode = MODE_SET`. |
+| `_library` | `BlockLibrary` | Constructed in `_ready`. |
+| `_hp_by_pos` | `Dictionary` | `Vector3i -> int` (current HP; absent = air). |
+
+**Signals:**
+
+| Signal | Description |
+|---|---|
+| `block_placed(pos: Vector3i, block_id: String)` | A block was placed. Listeners: Build (ghost), colonists (re-bake), Functional Rooms (when wired). |
+| `block_destroyed(pos: Vector3i)` | A block's HP hit 0 or was removed. Listeners: colonists (re-bake), raids (breach), Functional Rooms (when wired). |
 
 **Functions:**
 
 | Function | Description |
 |---|---|
 | `get_block_at(pos: Vector3i) -> String` | Returns block ID at position; empty string if air. |
-| `set_block_at(pos: Vector3i, block_id: String) -> void` | Places a block; emits `block_placed`. |
-| `remove_block_at(pos: Vector3i) -> void` | Removes a block; emits `block_destroyed`. |
-| `raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float) -> Dictionary` | Physics raycast → voxel index + face normal. Returns `{position, normal, hit}`. |
+| `set_block_at(pos: Vector3i, block_id: String) -> void` | Places a block; seeds `_hp_by_pos[pos] = def.hp`; emits `block_placed`. |
+| `remove_block_at(pos: Vector3i) -> void` | Removes a block; clears its HP entry; emits `block_destroyed`. |
+| `raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary` | Godot physics raycast → voxel index + face normal. Returns `{position, normal, hit}`. `exclude` is an `Array[RID]` to skip (player body). NOT `VoxelTool.raycast` (see gotcha). |
+| `get_hp_at(pos: Vector3i) -> int` | Current HP of the block at pos, or 0 if air/terrain. |
+| `has_block_at(pos: Vector3i) -> bool` | Whether a buildable block exists at pos (HP entry present). |
+| `apply_damage(pos: Vector3i, amount: int) -> void` | Applies damage to a buildable block; destroys it (and emits `block_destroyed`) when HP hits 0. Terrain is ignored (no HP entry). |
+| `get_library() -> BlockLibrary` | The block library (id↔index + def lookup). |
+| `get_terrain() -> VoxelTerrain` / `get_voxel_tool() -> VoxelTool` | Accessors for consumers that need the raw handles. |
+
+#### Class: BlockLibrary
+
+**Extends:** Resource
+**Script:** `block_library.gd`
+**Description:** Registry of block types. Owns the `VoxelBlockyLibrary` the mesher renders with, maps string `block_id` ↔ integer library index, and resolves id → `BlockDef`. Assembled from `data/blocks/` in `_init()`.
+**Used by:** `VoxelGrid` (mesher wiring, id↔index translation, def lookup for HP).
+**Index convention:** `0` = air (`VoxelBlockyModelEmpty`); **terrain is forced to index 1** so `VoxelGeneratorFlat` (which emits `voxel_type = 1`) renders as terrain without remapping; the rest load alphabetically. Deterministic across runs.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_def(block_id) -> BlockDef` / `get_def_by_index(index) -> BlockDef` | Def lookup either way. |
+| `get_index(block_id) -> int` | Library index; air (`""`) → 0, unknown → -1. |
+| `get_id(index: int) -> String` | Inverse: index → block_id (0 → `""`). |
+| `has_id(block_id) -> bool` / `get_all_defs() -> Array` | Membership + full def list. |
+| `get_voxel_library() -> VoxelBlockyLibrary` | The baked mesher library. |
 
 ---
 
@@ -369,9 +453,9 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 
 | File | Type | Responsibility |
 |---|---|---|
-| `player.tscn` / `player.gd` | Scene/Script | CharacterBody3D + camera rig. Owns movement, Mode+State machine, sprint/jump/interact. Does NOT own combat resolution (delegates to Combat) or build UX (delegates to Build when in Blueprint mode). |
-| `camera_rig.gd` | Script | SpringArm3D + Camera3D orbit; mouse look, zoom, collision. |
-| `player_state_machine.gd` | Script | Mode + State logic (Normal/Blueprint × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). |
+| `player.tscn` / `player.gd` | Scene/Script | CharacterBody3D + camera rig. Owns movement (WASD + sprint + jump with mid-air momentum preservation), inline Mode+State enums, build menu interaction (opens `build_menu.tscn` on a CanvasLayer), blueprint mode entry via menu selection + exit via `ui_cancel` (Esc). Exposes `get_camera()` for BuildController raycasts. Does NOT own combat resolution (delegates to Combat) or build UX (delegates to Build when in Blueprint mode). **TODO:** source movement stats from CharacterDef instead of `@export` vars. |
+| `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm), zoom via spring length, collision on spring arm (layer 1). LMB/RMB reserved for item actions, not consumed here. |
+| `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Blueprint × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
 | `../data/characters/player.tres` | Data | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See Data Schema. |
 
 ### Signals
@@ -379,22 +463,26 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
 | `blueprint_mode_toggled(active)` | `player.gd` | BuildController, HUD | Yes | Enter Blueprint Mode |
-| `player_died(context)` | `player.gd` | GameState, HUD | Yes | Player Death / Respawn |
-| `interact_started(target)` | `player.gd` | (target's interact handler) | No | Loot / Door / Bed |
+| `player_died(context)` | `player.gd` *(planned — not yet emitted)* | GameState, HUD | Yes | Player Death / Respawn |
+| `interact_started(target)` | `player.gd` *(planned — not yet emitted)* | (target's interact handler) | No | Loot / Door / Bed |
 
 ### Flow Trace: Enter Blueprint Mode
 
-**Trigger:** Player presses B in Normal mode.
+**Trigger:** Player presses `build_toggle` in Normal mode.
 
-1. `player.gd` flips `mode = BLUEPRINT`; emits `blueprint_mode_toggled(true)` via EventBus.
-2. HUD updates: shows build-mode controls hint, ghost preview enabled.
-3. BuildController activates; routes LMB/RMB/mouse-wheel to placement/rotation.
-4. Movement states still apply (player can walk while building).
-5. Press B again → inverse; emits `blueprint_mode_toggled(false)`.
+1. `player.gd` instantiates `res://ui/build_menu/build_menu.tscn` on a CanvasLayer (layer in `"ui_layer"` group, or a new one); releases cursor for menu interaction.
+2. Player selects a buildable from the menu → menu emits its selection signal → `player.gd._on_buildable_selected(id)`: sets `mode = BLUEPRINT`; emits `blueprint_mode_toggled(true)` via EventBus; re-captures mouse.
+3. HUD updates: shows build-mode controls hint, ghost preview enabled.
+4. BuildController activates; routes LMB/RMB/mouse-wheel to placement/rotation.
+5. Movement states still apply (player can walk while building).
+6. Player presses `ui_cancel` (Esc) → `exit_blueprint_mode()`: sets `mode = NORMAL`; emits `blueprint_mode_toggled(false)`.
+7. Dismissing the build menu without selecting → re-captures cursor; mode stays `NORMAL`.
 
-**End state:** Build UX active; LMB/RMB repurposed; movement unaffected.
+**End state:** Build UX active; LMB/RMB repurposed; movement unaffected. Exit is via Esc, not B.
 
 ### Flow Trace: Sprint and Breath
+
+> **Implementation status: planned, not yet built.** Sprint currently works as an unconditional Shift hold with no Breath gating or drain. The design below is the intended shape. Treat this as the spec to implement against, not a description of current code.
 
 **Trigger:** Player holds Shift while moving (and Breath > 20%).
 
@@ -410,6 +498,17 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 
 **End state:** Sprint drains Breath, regenerates when not sprinting; Stamina unaffected by sprint.
 
+### Flow Trace: Jump and Mid-Air Control
+
+**Trigger:** Player presses jump while on floor.
+
+1. `player.gd` sets `velocity.y = jump_force`; captures current horizontal wish-velocity into `_velocity_on_jump` and current speed into `_speed_on_jump`.
+2. Mid-air: the frozen momentum is resolved per-axis (forward/back, strafe) against live camera directions via `_resolve_air_axis`. Keys can only *brake* the frozen momentum — they never re-project it, so camera rotation mid-air cannot curve movement.
+3. Per-axis braking rules: both keys held = cancel; key held matching momentum direction = preserve; key held opposing momentum = nudge at `jump_move_speed`; neither held = snap stop (no coasting).
+4. Speed scale at takeoff is frozen — releasing/pressing Shift mid-air does not change momentum scale.
+
+**End state:** Jump preserves horizontal momentum from takeoff; player can brake but not steer mid-air.
+
 ### Class Reference
 
 #### Class: Player
@@ -423,72 +522,195 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 
 | Property | Type | Description |
 |---|---|---|
-| `character_def` | `CharacterDef` | Loaded resource (player.tres): max_hp, base_move_speed, sprint_multiplier, stamina_drain_rate, breath costs. |
+| `walk_speed` | `float` | `[export default 3.5]` Ground move speed. **TODO:** source from CharacterDef. |
+| `sprint_speed` | `float` | `[export default 7.0]` Sprint speed. **TODO:** source from CharacterDef. |
+| `gravity` | `float` | `[export default 9.8]` Gravity acceleration. |
+| `jump_force` | `float` | `[export default 5.0]` Vertical impulse on jump. |
+| `jump_move_speed` | `float` | `[export default 0.5]` Mid-air nudge speed for axis braking. |
 | `mode` | `Mode` enum | `NORMAL` or `BLUEPRINT`. |
-| `state` | `State` enum | Movement/action state. |
-| `breath_component` | `BreathComponent` | @onready ref; queried for sprint gating + burst-action spending. |
-| `stamina_component` | `StaminaComponent` | @onready ref; queried for work/movement multipliers. |
+| `state` | `State` enum | Movement/action state (`IDLE`, `WALK`, `SPRINT`, `ATTACK`, `INTERACT`, `SLEEP`, `DEAD`). Only `IDLE`/`WALK`/`SPRINT` are actively assigned at runtime; the rest are placeholders. |
+| `character_def` | `CharacterDef` *(planned)* | Loaded resource (player.tres): max_hp, base_move_speed, sprint_multiplier, stamina_drain_rate, breath costs. |
+| `breath_component` | `BreathComponent` *(planned)* | @onready ref; queried for sprint gating + burst-action spending. |
+| `stamina_component` | `StaminaComponent` *(planned)* | @onready ref; queried for work/movement multipliers. |
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `toggle_blueprint_mode() -> void` | Flips mode; emits `blueprint_mode_toggled` via EventBus. |
-| `take_damage(amount: int, source: Node) -> void` | Forwards to Combat's damage resolver. |
+| `get_camera() -> Camera3D` | Public accessor; delegates to CameraRig. Used by BuildController for screen-center raycasts. |
+| `exit_blueprint_mode() -> void` | One-way exit: sets `mode = NORMAL`; emits `blueprint_mode_toggled(false)`. Called on `ui_cancel` (Esc) in Blueprint mode. |
+| `_open_build_menu() -> void` | Instantiates `build_menu.tscn` on a CanvasLayer; releases cursor for menu interaction. |
+| `_on_buildable_selected(id: String) -> void` | Enters Blueprint mode on menu selection: sets `mode = BLUEPRINT`; emits `blueprint_mode_toggled(true)`. |
+| `take_damage(amount: int, source: Node) -> void` *(planned)* | Forwards to Combat's damage resolver. |
 
 ---
 
 ## Subsystem: Build
 
-Blueprint mode UX: cursor, rotation, ghost preview, validity check, commit. The controller is voxel-agnostic; voxel coupling is via `IBlockGrid` adapters (per the third-person-template plan).
+Blueprint mode UX: cursor raycast, rotation state, ghost preview, validity check, commit — plus the global `BuildLibrary` catalog that everything reads from, and a `FurnitureLayer` for free-standing furniture. The controller is voxel-agnostic: all voxel coupling is behind the `IBlockGrid` adapter, and `voxel_tool` is never imported here.
+
+**Two-kind placement model:** a single `BuildController` routes commit by the selected def's runtime kind (per the `BuildableDef` hierarchy in `data/`):
+- **`BlockDef`** (voxel block: wood/scrap/stone/metal/reinforced) → `InstantPlacementStrategy` → `VoxelGridAdapter` → voxel grid.
+- **everything else** — a plain `BuildableDef` (e.g. `pole`) or a `FurnitureDef` (e.g. `workbench`) → `FurnitureLayer`, which spawns a free-standing `Node3D` under the world's `FurnitureContainer`.
+
+The def's shape drives routing everywhere: `BuildController._is_furniture(id)` is `def != null and not (def is BlockDef)`, the ghost uses the same test to pick a single-cell preview vs. a footprint-center preview, and `FurnitureLayer` reads `FurnitureDef.dimensions` for multi-cell validity + placement.
 
 ### Files
 
 | File | Type | Responsibility |
 |---|---|---|
-| `build.tscn` / `build_controller.gd` | Scene/Script | Owns cursor raycast, rotation state, ghost preview, validity, commit. Does NOT know what commit does (delegates to `IPlacementStrategy`). |
-| `ghost_preview.gd` | Script | Translucent mesh at candidate transform; tinted by validity. |
-| `rotation_state.gd` | Script | Axis cycle (R: Z→X→Y), 90° wheel, even-footprint 0.5m pivot rule (GDD §7.4). |
-| `i_block_grid.gd` | Script (interface) | Adapter interface: `get_block_at`, `is_valid_placement`, `snap_transform`. |
-| `i_placement_strategy.gd` | Script (interface) | Strategy interface: `commit(transform, rotation, item_id)`. |
-| `instant_placement_strategy.gd` | Script | MVP strategy: instantiates the item at transform. |
-| `blueprint_then_build_strategy.gd` | Script | Post-MVP strategy stub: spawns blueprint → registers Job on Job Board. |
-| `voxel_grid_adapter.gd` | Script | `IBlockGrid` impl wrapping `voxel/voxel_grid.gd`. |
+| `build.tscn` / `build_controller.gd` | Scene/Script | Owns cursor raycast (screen-center, player-excluded), rotation state, ghost preview, validity, and commit. Does NOT know what commit does — it routes by def kind to the strategy (blocks) or the furniture layer (everything else). |
+| `build_library.gd` | Autoload | Global catalog (`id → BuildableDef`) of everything buildable. Loads `data/blocks/`, `data/buildables/`, `data/furniture/`. Delegates "unlocked" to `RunProgress`; seeds defaults at startup + on `EventBus.run_started`. See Autoloads table. |
+| `ghost_preview.gd` | Script | `MeshInstance3D` (translucent, validity-tinted green/red). Mesh is driven by the selected def's `mesh`; positioned each frame by the controller — single cell corner for blocks, footprint center for furniture. |
+| `rotation_state.gd` | Script | Axis cycle (R: Z→X→Y) + 90° step wheel + the even-footprint 0.5m pivot rule (GDD §7.4). **STUB:** the 0.5m pivot is unimplemented (`get_yaw_degrees` returns a Z-axis yaw placeholder) and no input key is wired to `cycle_axis`/`cycle_step` yet — `step` is only read for furniture footprint swaps. |
+| `i_block_grid.gd` | Script (interface) | Documentation-only contract: `get_block_at`, `set_block_at`, `remove_block_at`, `is_valid_placement`, `raycast_to_voxel`, `snap_transform`. Implementations duck-type; they do NOT extend it. |
+| `i_placement_strategy.gd` | Script (interface) | Documentation-only contract: `commit(transform, rotation, item_id) -> bool`. Implementations duck-type; they do NOT extend it. |
+| `instant_placement_strategy.gd` | Script (`RefCounted`) | MVP block strategy: resolves the cell from `transform.origin`, calls `VoxelGridAdapter.set_block_at`. Cost deduction deferred (TODO). |
+| `blueprint_then_build_strategy.gd` | Script *(planned — not yet implemented)* | Post-MVP block strategy: spawns a blueprint ghost → registers a construction Job on the Job Board (colonist builds it over time). Will be the second `IPlacementStrategy` impl alongside `InstantPlacementStrategy`. |
+| `voxel_grid_adapter.gd` | Script (`RefCounted`) | `IBlockGrid` impl wrapping `voxel/voxel_grid.gd`. Adds `is_valid_placement` + `snap_transform` + raycast `exclude` passthrough (for player-body exclusion). |
+| `furniture_layer.gd` | Script (`RefCounted`) | Free-standing furniture layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns an `Node3D` (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model (cell-box `dimensions`, yaw swaps x/z), overlap rejection, and removal-by-pointing-at-any-covered-cell. Emits `furniture_placed` / `furniture_removed` on EventBus. |
+| `new_furniture_template.tscn` | Scene | Node template for spawned furniture: a root `Node3D` holding a `Mesh` `MeshInstance3D` (gets a runtime trimesh `StaticBody3D` on collision layer 1) + a `BuildBody` `StaticBody3D` with a footprint-sized `BoxShape3D` (collision layer 3). Rotated as a unit by yaw. |
+| `../data/blocks/` | Data | `BlockDef` per block type (wood, scrap, stone, metal, reinforced, terrain). See Data Schema. |
+| `../data/buildables/` | Data | Plain `BuildableDef` (player-placed objects not on the voxel grid — e.g. `pole`). |
+| `../data/furniture/` | Data | `FurnitureDef` per furniture type (workbench, etc.); adds `dimensions: Vector3i`. Schema pending (C1). |
 
 ### Signals
 
+Build placement has no same-scene signals — the controller calls strategies/layers directly, and the world-side reactions go through the global voxel/furniture emissions:
+
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `placement_committed(transform, item_id)` | `build_controller.gd` | active strategy | No | Place Block |
+| `blueprint_mode_toggled(active)` | player subsystem | `BuildController` (activates/deactivates) | Yes | Enter/Exit Blueprint Mode |
+| `buildable_selected(id)` | player subsystem (from build menu) | `BuildController` (sets `selected_id` + ghost mesh) | Yes | Select a Buildable |
+| `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
+| `furniture_placed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter) | Yes | Place Furniture |
+| `furniture_removed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter) | Yes | Remove Furniture |
 
-### Flow Trace: Place a blueprint block (MVP → Instant)
+### Flow Trace: Place a voxel block (MVP → Instant)
 
-**Trigger:** Player LMB-clicks in Blueprint mode with valid placement.
+**Trigger:** Player LMB-clicks (`build_place` action) in Blueprint mode with a `BlockDef` selected and valid placement.
 
-1. BuildController queries current strategy (`InstantPlacementStrategy` in MVP).
-2. Calls `strategy.commit(transform, rotation, item_id)`.
-3. Strategy calls `VoxelGridAdapter.set_block_at(transform, item_id)` → emits `block_placed`.
-4. Colonists' A* pathfinding listens → re-bakes affected region.
-5. Ghost preview clears; ready for next placement.
+1. `BuildController._try_commit` raycasts from screen center (player body excluded).
+2. Target cell = struck voxel + face normal. Confirmed valid via `grid_adapter.is_valid_placement(cell)` (cell is air).
+3. Routes to `_commit_block`: builds a `Transform3D` at the cell origin, calls `strategy.commit(transform, rotation_state, selected_id)`.
+4. `InstantPlacementStrategy.commit` resolves the cell from the transform origin and calls `grid_adapter.set_block_at(cell, item_id)`.
+5. Adapter delegates to `VoxelGrid.set_block_at` → emits `block_placed(pos, block_id)` (consumed by colonist pathfinding, raids, Functional Rooms).
 
-**End state:** Block exists in world; pathfinding updated; materials consumed (strategy handles).
+**End state:** Block exists in the voxel grid; downstream listeners notified. Materials consumed (deferred — strategy TODO).
+
+### Flow Trace: Place free-standing furniture
+
+**Trigger:** Player LMB-clicks (`build_place`) in Blueprint mode with a non-block def selected (`BuildableDef` or `FurnitureDef`) and a free footprint.
+
+1. `BuildController._try_commit` raycasts from screen center; cell = struck voxel + face normal.
+2. Routes to `_commit_furniture` (the def is not a `BlockDef`).
+3. `_is_footprint_free(anchor, def)`: for every cell in the (yaw-rotated) footprint, confirms `grid_adapter.is_valid_placement(cell)` AND `furniture_layer.has_at(cell)` is false. Rejects overlap with terrain, blocks, or existing furniture.
+4. On success, `FurnitureLayer.spawn(def, anchor, rotation_state.step)`:
+   - Instantiates `new_furniture_template.tscn`; assigns `def.mesh` to the `Mesh` node and builds a footprint-sized `BoxShape3D` collision on the `BuildBody` (layer 3) + a trimesh body (layer 1).
+   - Positions at `FurnitureLayer.world_origin(anchor, dims, yaw)` (footprint center on XZ, anchor Y).
+   - Registers every covered cell in `anchor_by_cell` (so removal by pointing at any covered cell resolves to the item) and the node in `node_by_anchor`.
+   - Emits `furniture_placed(def.id, anchor)` on EventBus → Colony's Functional Rooms counter increments.
+
+**End state:** Furniture node exists under `FurnitureContainer`; every covered cell reserved; Functional Rooms notified.
+
+### Flow Trace: Remove (block or furniture)
+
+**Trigger:** Player RMB-clicks (`build_remove`) in Blueprint mode.
+
+1. `BuildController._try_remove` raycasts from screen center.
+2. A block occupies the **struck voxel itself**; furniture occupies the **adjacent air cell** (it has no voxel collision — placement targeted the floor cell next to the struck surface). The controller tries both so RMB works on either kind:
+   - If `grid_adapter.get_block_at(struck)` is non-empty → `grid_adapter.remove_block_at(struck)` → `block_destroyed`.
+   - Else → `furniture_layer.remove_at(adjacent)` → resolves the anchor from any covered cell, frees the node, clears all its cells, emits `furniture_removed`.
 
 ### Class Reference
+
+#### Class: BuildLibrary
+
+**Extends:** Node (autoload)
+**Script:** `build_library.gd`
+**Description:** Global, read-only catalog of every buildable. Loads all three `BuildableDef` subclass folders into one polymorphic `id → BuildableDef` map. Holds no run-state — "what's unlocked" is delegated to `RunProgress`.
+**Used by:** Build menu (lists available defs), `BuildController` (resolves `selected_id` → def for routing/ghost/commit), `InstantPlacementStrategy` (cost lookup, deferred).
+**Lifecycle:** `_ready` loads the dirs, seeds `RunProgress` with `unlocked_by_default` defs, then connects `_seed_defaults` to `EventBus.run_started` (New Game: `RunProgress` was reset, defaults re-added from the in-memory catalog — no disk re-read).
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_def(id: String) -> BuildableDef` | The def for `id`, or `null`. |
+| `has_def(id: String) -> bool` | Catalog membership (independent of unlock state). |
+| `is_unlocked(id: String) -> bool` | Thin pass-through to `RunProgress.is_unlocked`. |
+| `get_unlocked() -> Array` | The defs currently available to the build menu. |
+| `unlock(id: String) -> void` | Pass-through to `RunProgress.unlock` (items/skills/quests call this; callers talk to the catalog, not run-state internals). |
 
 #### Class: BuildController
 
 **Extends:** Node3D
 **Script:** `build_controller.gd`
-**Description:** Build-mode controller. Active only when Player.mode == BLUEPRINT. Owns cursor/rotation/ghost/commit; delegates commit resolution to an `IPlacementStrategy` and grid queries to an `IBlockGrid`.
-**Used by:** Player (mode toggle), HUD (build overlay).
+**Description:** Build-mode controller. Active only when Player.mode == BLUEPRINT. Owns cursor raycast (screen-center, player-body-excluded), rotation state, ghost preview, and commit routing. Delegates block commit to `InstantPlacementStrategy`, furniture commit to `FurnitureLayer`, and grid queries to `VoxelGridAdapter`.
+**Used by:** World (runtime wiring after player exists), EventBus (`blueprint_mode_toggled`, `buildable_selected`).
 
 **Properties:**
 
 | Property | Type | Description |
 |---|---|---|
-| `strategy` | `IPlacementStrategy` | [export] The active placement strategy. |
-| `grid_adapter` | `IBlockGrid` | [export] The active grid adapter. |
+| `grid_adapter` | `VoxelGridAdapter` | Runtime-wired (RefCounted can't be `@export`'d). The active grid adapter. |
+| `strategy` | `InstantPlacementStrategy` | Runtime-wired (same reason). The block placement strategy. |
+| `furniture_layer` | `FurnitureLayer` | Runtime-wired. The free-standing furniture layer (non-block path). |
+| `camera_path` | `NodePath` | `[export]` Path to the build camera; resolved in `_ready`, or via `set_camera()`. |
+| `exclude_bodies` | `Array[PhysicsBody3D]` | Bodies to skip in the cursor raycast (the player capsule). Add via `add_exclude_body()`. |
 | `rotation_state` | `RotationState` | Current axis + 90° step. |
+| `selected_id` | `String` | The currently selected buildable id. Set by `EventBus.buildable_selected`; drives ghost mesh + commit routing. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `set_active(active: bool) -> void` | Activates/deactivates the controller (called on `blueprint_mode_toggled`); shows/hides the ghost. |
+| `set_camera(camera: Camera3D) -> void` | Runtime camera wiring (controller is a sibling of the player; can't use a relative path). |
+| `add_exclude_body(body: PhysicsBody3D) -> void` | Adds a body to the raycast exclusion list. |
+
+#### Class: VoxelGridAdapter
+
+**Extends:** RefCounted
+**Script:** `voxel_grid_adapter.gd`
+**Description:** `IBlockGrid` implementation wrapping `voxel/voxel_grid.gd`. Keeps `BuildController` voxel-agnostic. Holds a `VoxelGrid` reference set at wiring time.
+**Used by:** `BuildController` (raycast + validity queries), `InstantPlacementStrategy` (block set), `FurnitureLayer` (footprint validity queries).
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `set_grid(grid: VoxelGrid) -> void` | Wiring. |
+| `get_block_at(pos: Vector3i) -> String` | Block id at cell, or `""` for air. |
+| `set_block_at(pos: Vector3i, block_id: String) -> void` | Delegates to `VoxelGrid`; emits `block_placed` there. |
+| `remove_block_at(pos: Vector3i) -> void` | Delegates to `VoxelGrid`; emits `block_destroyed` there. |
+| `is_valid_placement(pos: Vector3i) -> bool` | True if the cell is air. (TODO: ownership/footprint checks once multi-cell blocks exist.) |
+| `raycast_to_voxel(origin, dir, max_dist, exclude: Array = []) -> Dictionary` | Physics raycast → `{position, normal, hit}`. `exclude` is an `Array[RID]` to ignore (player body). |
+| `snap_transform(world_pos: Vector3) -> Vector3i` | Snap a world position to its containing cell. |
+
+#### Class: FurnitureLayer
+
+**Extends:** RefCounted
+**Script:** `furniture_layer.gd`
+**Description:** Free-standing furniture placement layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns an `Node3D` (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model. Never touches `voxel_tool` — it asks `VoxelGridAdapter` whether candidate cells are free.
+**Used by:** `BuildController` (non-block commit/remove), Colony (Functional Rooms, via `furniture_placed`/`furniture_removed`).
+
+**Static helpers:**
+
+| Function | Description |
+|---|---|
+| `footprint_cells(dimensions: Vector3i, yaw_quarters: int) -> Array[Vector3i]` | Cell offsets an item covers (yaw swaps width/depth; height unchanged). |
+| `dimensions_of(def: BuildableDef) -> Vector3i` | Effective cell-box (def's `dimensions` if `FurnitureDef`, else `1×1×1`). |
+| `world_origin(anchor, dimensions, yaw_quarters) -> Vector3` | World-space spawn origin: footprint center on XZ, anchor Y. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `set_container(container: Node3D) -> void` | Wiring: where spawned nodes parent. |
+| `spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D` | Place an item; returns the node or `null` if unwired/overlapping/no mesh. Emits `furniture_placed(def.id, anchor)`. |
+| `remove_at(cell: Vector3i) -> bool` | Remove the item covering `cell` (any covered cell resolves to its anchor). Emits `furniture_removed`. |
+| `has_at(cell: Vector3i) -> bool` | Whether any item covers `cell`. |
 
 ---
 
@@ -496,11 +718,13 @@ Blueprint mode UX: cursor, rotation, ghost preview, validity check, commit. The 
 
 Tracks which functional-furniture types are placed in the colony and how many of each. Gates capability unlocks (world map, crafting, smelting, etc.) and feeds the raid visibility bonus. GDD §7.8.
 
+> **Implementation status: planned, not yet built.** The design below is the intended shape, but **none of it exists in `colony.gd` yet** — there is no `functional_counts` state, no `_on_block_placed` / `_on_block_destroyed` listeners, and no `count_functional_furniture()` / `count_of()` / `has_functional()` surface. The `data/furniture/` schema (`is_functional` + `functional_area`) is also still pending (C1). Treat this section as the spec to implement against, not a description of current code. The pieces it depends on *do* exist: `VoxelGrid` emits `block_placed` / `block_destroyed`, and `FurnitureLayer` emits `furniture_placed` / `furniture_removed` (the more likely source once furniture is non-block — see note below).
+
 **Design notes:**
 - **No room detection** — there's no bounding-box or enclosure check. "Functional area unlocked" means *at least one of the furniture type exists in the colony*, placed anywhere.
 - **"Functional furniture" = the 7 area-defining types only** (Clinic Bed, Workbench, Forge, Command Desk, Vehicle Lift, Colonist Bed, Growing Trough). Storage crates, watchtowers, spike traps, lamps do NOT count.
 - **Counts live directly on the Colony autoload** (not a separate child). It's just 7 integers — too small to justify a 5th Colony child. Colony exposes the query surface; ThreatModel and UI read from it.
-- **Subscribes to existing VoxelGrid signals** (`block_placed` / `block_destroyed`) — increments/decrements the relevant counter when the placed/destroyed thing is functional furniture. No new signals.
+- **Signal source — open question.** The doc previously assumed Colony subscribes to `VoxelGrid.block_placed` / `block_destroyed`. With the two-kind placement model now landed (Build subsystem), functional furniture is a `FurnitureDef` placed via `FurnitureLayer`, which emits `furniture_placed` / `furniture_removed` on EventBus — not `block_placed`. Decide at implementation time whether to count from the furniture emissions, the voxel emissions (only relevant if a functional type is ever a `BlockDef`), or both.
 
 ### Files
 
@@ -537,7 +761,7 @@ Tracks which functional-furniture types are placed in the colony and how many of
 
 ### Class Reference
 
-*(Methods live on the Colony autoload — documented here because they belong to this feature.)*
+*(Planned — methods/state live on the Colony autoload. None of this is implemented yet; documented here because the feature is distinct even though the code will live on Colony.)*
 
 #### Colony methods (Functional Rooms surface)
 
@@ -1223,7 +1447,7 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 
 **Extends:** Node
 **Script:** `threat_model.gd`
-**Description:** Per-edge threat weights (N/S/E/W). Owned by Colony autoload because POI visits (which bump weights) happen during expeditions. The visibility bonus (+3 per functional-furniture item to all edges) is applied here via `Colony.count_functional_furniture()` (see Functional Rooms subsystem).
+**Description:** Per-edge threat weights (N/S/E/W). Owned by Colony autoload because POI visits (which bump weights) happen during expeditions. The visibility bonus (+3 per functional-furniture item to all edges) is applied here via `Colony.count_functional_furniture()` (see Functional Rooms subsystem — **planned, not yet built**).
 **Used by:** Raids (edge selection), Expeditions (POI visit bumps weights).
 
 **Properties:**
@@ -1237,7 +1461,7 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 | Function | Description |
 |---|---|
 | `bump_edge(edge: String, amount: int) -> void` | POI visit raises edge weight. |
-| `apply_visibility_bonus() -> void` | Adds `Colony.count_functional_furniture() × 3` to all edges. Called at raid-start. |
+| `apply_visibility_bonus() -> void` | Adds `Colony.count_functional_furniture() × 3` to all edges. Called at raid-start. *(Depends on Functional Rooms — planned.)* |
 | `decay_all() -> void` | Daily −2/edge, floored at 10. |
 | `select_edge() -> String` | Weighted-random + 10% floor. |
 
