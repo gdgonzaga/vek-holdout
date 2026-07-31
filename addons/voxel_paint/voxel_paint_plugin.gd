@@ -42,7 +42,7 @@ var _active: bool = false
 var _terrain: VoxelTerrain
 var _vt: VoxelTool
 var _block_lib: BlockLibrary
-var _brush_radius: float = 2.0
+var _brush_radius: float = 1.0
 var _current_index: int = 6
 var _erase: bool = false
 var _first_stroke: bool = true
@@ -114,21 +114,6 @@ func _activate() -> void:
 	_panel.setup(self)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
 
-	# Create hover-preview ghost (no owner → transient, never saved).
-	# Mesh is swapped per-mode in _update_ghost(): unit cube for block paint/erase,
-	# the furniture def's mesh for furniture placement.
-	_ghost = MeshInstance3D.new()
-	_ghost.name = "__voxel_paint_ghost__"
-	_ghost_mat = StandardMaterial3D.new()
-	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_ghost_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.35)
-	_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_ghost.material_override = _ghost_mat
-	_box_mesh = BoxMesh.new()
-	_box_mesh.size = Vector3.ONE
-	_ghost.mesh = _box_mesh
-	_terrain.add_child(_ghost)
-
 	# Resolve map root and SpawnPoints for furniture mode.
 	# Walk up to the edited scene root — _terrain.get_parent() is VoxelGrid,
 	# its parent is the Map node that owns SpawnPoints.
@@ -147,6 +132,26 @@ func _activate() -> void:
 			# Disable furniture mode if bind failed (no SpawnPoints).
 			if _panel and _panel.has_method("set_furniture_enabled"):
 				_panel.set_furniture_enabled(false)
+
+	# Create hover-preview ghost (no owner → transient, never saved).
+	# Mesh is swapped per-mode in _refresh_ghost(): unit cube for block
+	# paint/erase, the furniture def's mesh for furniture placement.
+	# Parented to _map_root (a non-selected ancestor) rather than _terrain so
+	# the terrain's selection AABB gizmo doesn't expand to cover the ghost.
+	_ghost = MeshInstance3D.new()
+	_ghost.name = "__voxel_paint_ghost__"
+	_ghost_mat = StandardMaterial3D.new()
+	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ghost_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.35)
+	_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ghost.material_override = _ghost_mat
+	_box_mesh = BoxMesh.new()
+	_box_mesh.size = Vector3.ONE
+	_ghost.mesh = _box_mesh
+	if _map_root != null:
+		_map_root.add_child(_ghost)
+	else:
+		_terrain.add_child(_ghost)
 
 
 func _deactivate() -> void:

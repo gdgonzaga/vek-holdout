@@ -171,11 +171,11 @@ func _build_ui() -> void:
 	_radius_slider.min_value = 0.5
 	_radius_slider.max_value = 5.0
 	_radius_slider.step = 0.5
-	_radius_slider.value = 2.0
+	_radius_slider.value = 1.0
 	_radius_slider.custom_minimum_size.x = 100
 	_radius_slider.tooltip_text = "Sphere brush radius in voxels"
 	_radius_label = Label.new()
-	_radius_label.text = "2.0"
+	_radius_label.text = "1.0"
 	_radius_slider.value_changed.connect(_on_radius_changed)
 
 	var radius_row := HBoxContainer.new()
