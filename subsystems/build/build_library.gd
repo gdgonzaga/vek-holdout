@@ -83,3 +83,11 @@ func get_def(id: String) -> BuildableDef:
 
 func has_def(id: String) -> bool:
 	return _defs_by_id.has(id)
+
+
+## All defs in the catalog (for editor tooling — ignores unlock status).
+func get_all_defs() -> Array[BuildableDef]:
+	var out: Array[BuildableDef] = []
+	for def in _defs_by_id.values():
+		out.append(def)
+	return out

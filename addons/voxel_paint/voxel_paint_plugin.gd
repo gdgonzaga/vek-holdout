@@ -1,5 +1,6 @@
 @tool
 extends EditorPlugin
+class_name VoxelPaintPlugin
 ## WYSIWYG voxel painter for zylann VoxelTerrain.
 ##
 ## Toolbar button appears when a VoxelTerrain is selected. LMB paints, Shift+LMB
@@ -22,6 +23,19 @@ const MARCH_MAX_STEPS := 256
 const RETRY_DELAY := 0.1
 const MAX_RETRIES := 5
 
+# Furniture placement constants
+const FURNITURE_ROTATE_KEY := KEY_R
+
+# Modes
+enum PaintMode {
+	PAINT,
+	ERASE,
+	FURNITURE
+}
+
+# Preload the FurnitureAuthoring script
+const FurnitureAuthoring = preload("res://addons/voxel_paint/furniture_authoring.gd")
+
 var _toolbar_btn: Button
 var _panel: PanelContainer
 var _active: bool = false
@@ -32,6 +46,12 @@ var _brush_radius: float = 2.0
 var _current_index: int = 6
 var _erase: bool = false
 var _first_stroke: bool = true
+var _map_root: Node = null  # The Map node owning SpawnPoints
+var _furniture: FurnitureAuthoring = null  # Editor marker helper
+var _mode: int = PaintMode.PAINT  # Single source of truth
+
+# Furniture rotation state
+var _yaw: int = 0  # 0..3, cycled by R key
 
 
 func _enter_tree() -> void:
@@ -87,6 +107,18 @@ func _activate() -> void:
 	_panel.setup(self)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
 
+	# Resolve map root and SpawnPoints for furniture mode.
+	_yaw = 0
+	_map_root = _terrain.get_parent()
+	if _map_root and _furniture == null:
+		var furniture_auth := FurnitureAuthoring.new()
+		if furniture_auth.bind(_map_root):
+			_furniture = furniture_auth
+		else:
+			# Disable furniture mode if bind failed (no SpawnPoints).
+			if _panel and _panel.has_method("set_furniture_enabled"):
+				_panel.set_furniture_enabled(false)
+
 
 func _deactivate() -> void:
 	_active = false
@@ -96,6 +128,10 @@ func _deactivate() -> void:
 		_panel = null
 	_terrain = null
 	_vt = null
+	_map_root = null
+	if _furniture:
+		_furniture.unbind()
+		_furniture = null
 
 
 func _ensure_library() -> void:
@@ -169,25 +205,91 @@ func _assign_stream(path: String) -> void:
 		_panel.refresh_stream_label()
 
 
+# --- Input handling ---------------------------------------------------------
+
 func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 	if not _active or _vt == null:
 		return AFTER_GUI_INPUT_PASS
 
 	var mb := event as InputEventMouseButton
-	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
-		var erase: bool = mb.shift_pressed or (_panel != null and _panel.get_erase_mode())
-		_brush_radius = _panel.get_brush_radius() if _panel else 2.0
-		_current_index = _panel.get_current_index() if _panel else 6
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
+		if not mb.pressed:
+			return AFTER_GUI_INPUT_PASS
 
-		var hit := _march_to_voxel(camera, mb.position)
-		if hit.get("hit", false):
-			var target: Vector3i = hit.solid if erase else hit.prev
-			var value: int = 0 if erase else _current_index
-			_paint_with_retry(target, value)
-		return AFTER_GUI_INPUT_STOP
+		if _panel:
+			_brush_radius = _panel.get_brush_radius()
 
+		match _mode:
+			PaintMode.PAINT:
+				_current_index = _panel.get_current_index() if _panel else 6
+				var hit := _march_to_voxel(camera, mb.position)
+				if hit.get("hit", false):
+					var target: Vector3i = hit.prev if mb.shift_pressed else hit.solid
+					var value: int = 0 if mb.shift_pressed else _current_index
+					_paint_with_retry(target, value)
+				return AFTER_GUI_INPUT_STOP
+
+			PaintMode.ERASE:
+				var hit := _march_to_voxel(camera, mb.position)
+				if hit.get("hit", false):
+					var target: Vector3i = hit.solid if mb.shift_pressed else hit.prev
+					_paint_with_retry(target, 0)
+				return AFTER_GUI_INPUT_STOP
+
+			PaintMode.FURNITURE:
+				if _furniture == null:
+					return AFTER_GUI_INPUT_PASS
+				var hit := _march_to_voxel(camera, mb.position)
+				if hit.get("hit", false):
+					if mb.shift_pressed:
+						# Shift+LMB: remove furniture at the solid surface cell.
+						if _furniture.remove_at(hit.solid):
+							EditorInterface.save_scene()
+					else:
+						# LMB: place furniture at the air cell in front of surface.
+						var def_id: String = _panel.get_selected_furniture_id() if _panel else ""
+						if not def_id.is_empty():
+							var def := BuildLibrary.get_def(def_id)
+							if def and _furniture.place(def, hit.prev, _yaw):
+								EditorInterface.save_scene()
+				return AFTER_GUI_INPUT_STOP
+
+	# Default behavior: pass through
 	return AFTER_GUI_INPUT_PASS
 
+
+func _input(event: InputEvent) -> void:
+	if not _active or _mode != PaintMode.FURNITURE or _furniture == null:
+		return
+
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if key_event.pressed and not key_event.echo:
+			match key_event.keycode:
+				FURNITURE_ROTATE_KEY:
+					# Rotate the currently selected marker, or just cycle yaw.
+					var selection := get_editor_interface().get_selection()
+					if selection.get_selected_nodes().size() > 0:
+						var selected_node = selection.get_selected_nodes()[0]
+						if selected_node is Marker3D and selected_node.name.begins_with("Furniture_"):
+							_furniture.rotate_selected(selected_node)
+							EditorInterface.save_scene()
+							return
+					# No furniture selected — just cycle the yaw for next placement.
+					_yaw = (_yaw + 1) % 4
+
+				KEY_DELETE:
+					# Delete selected furniture marker.
+					var selection := get_editor_interface().get_selection()
+					if selection.get_selected_nodes().size() > 0:
+						var selected_node = selection.get_selected_nodes()[0]
+						if selected_node is Marker3D and selected_node.name.begins_with("Furniture_"):
+							var anchor: Vector3i = selected_node.get_meta("anchor", Vector3i())
+							if _furniture.remove_at(anchor):
+								EditorInterface.save_scene()
+
+
+# --- Implementation Methods -------------------------------------------------
 
 func _paint_with_retry(voxel_pos: Vector3i, value: int) -> void:
 	for attempt in MAX_RETRIES:
@@ -212,9 +314,9 @@ func _paint_sphere(voxel_pos: Vector3i, value: int) -> void:
 func _validate_transform() -> void:
 	var origin_world := _terrain.to_global(Vector3.ZERO)
 	if origin_world != Vector3.ZERO or _terrain.global_transform.basis != Basis.IDENTITY:
-		push_warning("VoxelPaint: terrain has non-identity transform (origin=%s). "
-				% str(origin_world),
-				"do_sphere uses world-space center; verify brush alignment.")
+		push_warning("VoxelPaint: terrain has non-identity transform (origin=%s). " \
+				+ "do_sphere uses world-space center; verify brush alignment." \
+				% str(origin_world))
 
 
 func _march_to_voxel(camera: Camera3D, screen_pos: Vector2) -> Dictionary:

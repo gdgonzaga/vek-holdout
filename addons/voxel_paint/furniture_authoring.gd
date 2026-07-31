@@ -1,0 +1,165 @@
+@tool
+class_name FurnitureAuthoring
+extends RefCounted
+## Editor-only helper for the voxel_paint Furniture mode. Owns Marker3D
+## create/rotate/delete under the map's SpawnPoints. Does NOT touch voxel_tool,
+## does NOT construct a FurnitureLayer (that's runtime-only). Pure scene-graph.
+##
+## Lifetime: one instance per plugin activation (created in _activate, freed in
+## _deactivate). Holds the SpawnPoints reference so individual ops don't re-find it.
+
+var _spawn_points: Node3D = null        # set by bind(); Marker3D parent
+var _counter: int = 0                   # monotonic name uniquifier
+var _index_by_cell: Dictionary = {}    # Vector3i cell → Marker3D
+
+
+## Resolve the SpawnPoints container for a freshly-activated map. Returns true if
+## the map has the expected structure (Map root + SpawnPoints child); false (with
+## a push_warning) otherwise — the panel uses this to disable Furniture mode.
+func bind(map_root: Node) -> bool:
+    _spawn_points = map_root.get_node("SpawnPoints")
+    if _spawn_points == null:
+        push_warning("FurnitureAuthoring.bind: SpawnPoints not found in map root")
+        return false
+
+    # Rebuild index_from_dirty flag
+    _index_by_cell = {}
+    # Seed counter from existing markers
+    _counter = 0
+    for child in _spawn_points.get_children():
+        if child is Marker3D and child.name.begins_with("Furniture_"):
+            var name_parts = child.name.split("_")
+            if name_parts.size() >= 3:
+                var n = int(name_parts[name_parts.size() - 1])
+                if n >= _counter:
+                    _counter = n + 1
+
+    return true
+
+
+## Release the reference (called on plugin deactivate). Does not free authored
+## markers — they persist in the scene.
+func unbind() -> void:
+    _spawn_points = null
+    _index_by_cell = {}
+
+
+## Place a furniture def at the given air anchor cell. Writes a Marker3D under
+## SpawnPoints named "Furniture_<def_id>_<n>", world-positioned via
+## FurnitureLayer.world_origin (reused for parity with runtime), rotated by yaw.
+## Performs overlap validity against existing Furniture_* markers (anchor +
+## footprint cells). Returns the created Marker3D, or null on overlap/invalid.
+func place(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Marker3D:
+    # Validate
+    var dims = FurnitureLayer.dimensions_of(def)
+    var offsets = FurnitureLayer.footprint_cells(dims, yaw_quarters)
+
+    # Check overlap with existing furniture
+    for off in offsets:
+        var cell = anchor + off
+        if _index_by_cell.has(cell):
+            push_warning("Furniture placement overlaps at cell " + str(cell))
+            return null
+
+    # Create marker
+    var marker = Marker3D.new()
+    var marker_name = "Furniture_" + def.id + "_" + str(_counter)
+    marker.name = marker_name
+    _counter += 1
+
+    # Set transform
+    var origin = FurnitureLayer.world_origin(anchor, dims, yaw_quarters)
+    marker.transform.origin = origin
+    marker.transform.basis = Basis(Vector3.UP, deg_to_rad(yaw_quarters * 90))
+
+    # Set metadata
+    marker.set_meta("def_id", def.id)
+    marker.set_meta("yaw_quarters", yaw_quarters)
+    marker.set_meta("anchor", anchor)
+
+    # Add to scene
+    _spawn_points.add_child(marker)
+
+    # Update index
+    for off in offsets:
+        _index_by_cell[anchor + off] = marker
+
+    return marker
+
+
+## Rotate the most-recently-placed (or selected) marker 90° on Y. Increments the
+## metadata yaw_quarters mod 4 and re-derives origin from the stored anchor so the
+## footprint pivot stays correct. Returns true if something rotated.
+func rotate_selected(marker: Marker3D) -> bool:
+    if marker == null:
+        return false
+
+    var current_yaw = marker.get_meta("yaw_quarters", 0)
+    var new_yaw = (current_yaw + 1) % 4
+    var def_id = marker.get_meta("def_id")
+    var def = BuildLibrary.get_def(def_id)
+    if def == null:
+        return false
+
+    var anchor = marker.get_meta("anchor", Vector3i())
+    var dims = FurnitureLayer.dimensions_of(def)
+
+    # Remove old cells from index
+    var old_offsets = FurnitureLayer.footprint_cells(dims, current_yaw)
+    for off in old_offsets:
+        _index_by_cell.erase(anchor + off)
+
+    # Update metadata
+    marker.set_meta("yaw_quarters", new_yaw)
+
+    # Update transform
+    var origin = FurnitureLayer.world_origin(anchor, dims, new_yaw)
+    marker.transform.origin = origin
+    marker.transform.basis = Basis(Vector3.UP, deg_to_rad(new_yaw * 90))
+
+    # Add new cells to index
+    var new_offsets = FurnitureLayer.footprint_cells(dims, new_yaw)
+    for off in new_offsets:
+        _index_by_cell[anchor + off] = marker
+
+    return true
+
+
+## Remove the furniture marker covering `cell` (any covered footprint cell resolves
+## to its anchor, mirroring FurnitureLayer.remove_at). Shift+LMB and Delete both
+## route here. Returns true if a marker was removed.
+func remove_at(cell: Vector3i) -> bool:
+    if not _index_by_cell.has(cell):
+        return false
+
+    var marker = _index_by_cell[cell]
+
+    # Remove from index
+    var def_id = marker.get_meta("def_id")
+    var def = BuildLibrary.get_def(def_id)
+    var anchor = marker.get_meta("anchor", Vector3i())
+    var yaw = marker.get_meta("yaw_quarters", 0)
+    var dims = FurnitureLayer.dimensions_of(def)
+    var offsets = FurnitureLayer.footprint_cells(dims, yaw)
+
+    for off in offsets:
+        _index_by_cell.erase(anchor + off)
+
+    # Remove from scene
+    marker.queue_free()
+
+    return true
+
+
+## Snapshot all authored furniture as plain Dictionaries (for SpawnHelpers parity).
+func export_records() -> Array[Dictionary]:
+    var records = []
+    for child in _spawn_points.get_children():
+        if child is Marker3D and child.name.begins_with("Furniture_"):
+            var record = {
+                "def_id": child.get_meta("def_id", ""),
+                "anchor": child.get_meta("anchor", Vector3i()),
+                "yaw": child.get_meta("yaw_quarters", 0)
+            }
+            records.append(record)
+    return records

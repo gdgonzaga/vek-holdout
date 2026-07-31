@@ -109,9 +109,21 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 	if m == null:
 		push_error("SceneManager: scene '%s' root is not a Map" % map_def.scene_path)
 		return
-	MapWiring.wire_build(m)
+	var furniture_layer: FurnitureLayer = MapWiring.wire_build(m)
+
+	# Read spawns once — used for both furniture replay and player positioning.
+	var spawns: Dictionary = SpawnHelpers.read_spawns(m)
+
+	# Replay authored furniture markers into the live FurnitureLayer.
+	if furniture_layer != null:
+		for rec in spawns.get("furniture", []):
+			var def := BuildLibrary.get_def(rec["def_id"])
+			if def == null:
+				push_warning("SceneManager: furniture def '%s' not in catalog" % rec["def_id"])
+				continue
+			furniture_layer.spawn(def, rec["anchor"], rec["yaw"])
+
 	if _player != null:
-		var spawns := SpawnHelpers.read_spawns(m)
 		var spawn_pos: Vector3 = spawns.player if spawns.player != Vector3.ZERO else map_def.player_spawn
 		# Reparent into the map BEFORE setting position — global_position
 		# requires the node to be inside the tree to resolve.

@@ -1,10 +1,16 @@
 @tool
 extends PanelContainer
 ## Side panel for the Voxel Paint EditorPlugin. Provides block selection, brush
-## radius, paint/erase mode toggle, and stream (database) management.
+## radius, paint/erase/furniture mode toggle, and stream (database) management.
 ##
 ## Created by voxel_paint_plugin.gd and added to CONTAINER_SPATIAL_EDITOR_SIDE_LEFT.
 ## Holds a reference back to the plugin to push state changes and read stream info.
+
+# Modes — kept as int constants here so the panel doesn't need to know the plugin's
+# enum. The plugin reads get_mode() and compares against its own PaintMode enum.
+const MODE_PAINT := 0
+const MODE_ERASE := 1
+const MODE_FURNITURE := 2
 
 var _plugin: EditorPlugin  # set by the plugin after instantiation
 
@@ -12,10 +18,17 @@ var _plugin: EditorPlugin  # set by the plugin after instantiation
 
 var _mode_paint: Button
 var _mode_erase: Button
+var _mode_furniture: Button
 var _block_select: OptionButton
 var _radius_slider: HSlider
 var _radius_label: Label
 var _info_label: Label
+# Furniture section.
+var _furniture_select: OptionButton
+var _rotate_hint: Label
+# Containers for show/hide based on mode.
+var _paint_controls: VBoxContainer
+var _furniture_controls: VBoxContainer
 
 # Stream section.
 var _stream_label: Label
@@ -25,18 +38,35 @@ var _file_dialog: FileDialog
 var _new_map_dialog: ConfirmationDialog
 var _new_map_input: LineEdit
 
+# Current mode (MODE_PAINT / MODE_ERASE / MODE_FURNITURE).
+var _mode: int = MODE_PAINT
+# Whether furniture mode is available (has SpawnPoints).
+var _furniture_enabled: bool = true
+
 
 func _ready() -> void:
 	_build_ui()
 	_populate_blocks()
+	_populate_furniture()
 	refresh_stream_label()
+	_update_mode_visibility()
 
 
 func setup(plugin: EditorPlugin) -> void:
 	_plugin = plugin
 
 
-# --- Block index -----------------------------------------------------------
+# --- Accessors (read by the plugin) -----------------------------------------
+
+func get_mode() -> int:
+	return _mode
+
+
+func get_selected_furniture_id() -> String:
+	if _mode != MODE_FURNITURE or _furniture_select.selected < 0:
+		return ""
+	return _furniture_select.get_item_metadata(_furniture_select.selected) if _furniture_select.get_item_metadata(_furniture_select.selected) is String else ""
+
 
 func get_current_index() -> int:
 	var sel := _block_select.selected
@@ -56,6 +86,21 @@ func get_erase_mode() -> bool:
 
 func get_brush_radius() -> float:
 	return _radius_slider.value
+
+
+## Grey out the Furniture mode button when no SpawnPoints container exists.
+func set_furniture_enabled(enabled: bool) -> void:
+	_furniture_enabled = enabled
+	_mode_furniture.disabled = not enabled
+	if not enabled and _mode == MODE_FURNITURE:
+		# Force back to paint mode.
+		_mode_furniture.button_pressed = false
+		_on_paint_toggled(true)
+
+
+## Re-scan BuildLibrary and repopulate the furniture selector.
+func refresh_furniture_list() -> void:
+	_populate_furniture()
 
 
 # --- Stream label refresh --------------------------------------------------
@@ -91,19 +136,25 @@ func _build_ui() -> void:
 	_mode_erase.text = "Erase"
 	_mode_erase.toggle_mode = true
 	_mode_erase.tooltip_text = "Left-click erases blocks (paints air)"
+	_mode_furniture = Button.new()
+	_mode_furniture.text = "Furniture"
+	_mode_furniture.toggle_mode = true
+	_mode_furniture.tooltip_text = "Left-click places furniture, Shift+LMB removes"
 	_mode_paint.toggled.connect(_on_paint_toggled)
 	_mode_erase.toggled.connect(_on_erase_toggled)
+	_mode_furniture.toggled.connect(_on_furniture_toggled)
 	mode_box.add_child(_mode_paint)
 	mode_box.add_child(_mode_erase)
+	mode_box.add_child(_mode_furniture)
 
-	# -- Block selector --
+	# -- Paint controls (block selector, brush radius) --
+	_paint_controls = VBoxContainer.new()
 	var block_label := Label.new()
 	block_label.text = "Block:"
 	_block_select = OptionButton.new()
 	_block_select.tooltip_text = "Voxel type to paint"
 	_block_select.item_selected.connect(_on_block_selected)
 
-	# -- Brush radius --
 	var radius_label_head := Label.new()
 	radius_label_head.text = "Brush Radius:"
 	_radius_slider = HSlider.new()
@@ -120,6 +171,24 @@ func _build_ui() -> void:
 	var radius_row := HBoxContainer.new()
 	radius_row.add_child(_radius_slider)
 	radius_row.add_child(_radius_label)
+
+	_paint_controls.add_child(block_label)
+	_paint_controls.add_child(_block_select)
+	_paint_controls.add_child(radius_label_head)
+	_paint_controls.add_child(radius_row)
+
+	# -- Furniture controls (selector + hint) --
+	_furniture_controls = VBoxContainer.new()
+	var furniture_label := Label.new()
+	furniture_label.text = "Furniture:"
+	_furniture_select = OptionButton.new()
+	_furniture_select.tooltip_text = "Furniture type to place"
+	_rotate_hint = Label.new()
+	_rotate_hint.text = "R: rotate | Shift+LMB: remove"
+	_rotate_hint.add_theme_font_size_override("font_size", 11)
+	_furniture_controls.add_child(furniture_label)
+	_furniture_controls.add_child(_furniture_select)
+	_furniture_controls.add_child(_rotate_hint)
 
 	# -- Info --
 	_info_label = Label.new()
@@ -174,11 +243,8 @@ func _build_ui() -> void:
 	# Assemble.
 	vbox.add_child(mode_box)
 	vbox.add_child(HSeparator.new())
-	vbox.add_child(block_label)
-	vbox.add_child(_block_select)
-	vbox.add_child(HSeparator.new())
-	vbox.add_child(radius_label_head)
-	vbox.add_child(radius_row)
+	vbox.add_child(_paint_controls)
+	vbox.add_child(_furniture_controls)
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(_info_label)
 	vbox.add_child(HSeparator.new())
@@ -214,14 +280,66 @@ func _populate_blocks() -> void:
 	_block_select.selected = 5  # default: wood
 
 
+## Populate the furniture selector from BuildLibrary. Shows only FurnitureDef
+## entries (not BlockDef, not plain BuildableDef).
+func _populate_furniture() -> void:
+	_furniture_select.clear()
+	if not Engine.has_singleton("BuildLibrary"):
+		return
+	var all_defs: Array = BuildLibrary.get_all_defs()
+	for def in all_defs:
+		if def is FurnitureDef:
+			_furniture_select.add_item(def.display_name)
+			_furniture_select.set_item_metadata(_furniture_select.item_count - 1, def.id)
+	if _furniture_select.item_count > 0:
+		_furniture_select.selected = 0
+
+
+## Show/hide paint and furniture control groups and update the info label.
+func _update_mode_visibility() -> void:
+	_paint_controls.visible = (_mode == MODE_PAINT or _mode == MODE_ERASE)
+	_furniture_controls.visible = (_mode == MODE_FURNITURE)
+	match _mode:
+		MODE_PAINT:
+			_info_label.text = "LMB: paint | Shift+LMB: erase"
+		MODE_ERASE:
+			_info_label.text = "LMB: erase | Shift+LMB: paint"
+		MODE_FURNITURE:
+			_info_label.text = "LMB: place | Shift+LMB: remove | R: rotate"
+
+
+# --- Signal handlers -------------------------------------------------------
+
 func _on_paint_toggled(pressed: bool) -> void:
 	if pressed:
+		_mode = MODE_PAINT
 		_mode_erase.button_pressed = false
+		_mode_furniture.button_pressed = false
+		_update_mode_visibility()
 
 
 func _on_erase_toggled(pressed: bool) -> void:
 	if pressed:
+		_mode = MODE_ERASE
 		_mode_paint.button_pressed = false
+		_mode_furniture.button_pressed = false
+		_update_mode_visibility()
+
+
+func _on_furniture_toggled(pressed: bool) -> void:
+	if pressed and _furniture_enabled:
+		_mode = MODE_FURNITURE
+		_mode_paint.button_pressed = false
+		_mode_erase.button_pressed = false
+		_update_mode_visibility()
+	elif not pressed and _mode == MODE_FURNITURE:
+		# User toggled off while in furniture mode — fall back to paint.
+		_mode = MODE_PAINT
+		_mode_paint.button_pressed = true
+		_update_mode_visibility()
+	elif not pressed:
+		# Toggled off while not in furniture mode — ignore (another button won).
+		_mode_paint.button_pressed = true
 
 
 func _on_block_selected(_index: int) -> void:
