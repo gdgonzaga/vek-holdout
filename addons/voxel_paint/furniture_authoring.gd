@@ -23,12 +23,11 @@ func bind(map_root: Node) -> bool:
         push_warning("FurnitureAuthoring.bind: SpawnPoints not found in map root")
         return false
 
-    # Cache the scene root (topmost node) so we can set `owner` on authored
-    # markers — save_scene only persists nodes whose owner is the scene root.
-    var root := map_root
-    while root.get_parent() != null:
-        root = root.get_parent()
-    _scene_root = root
+    # The edited scene root is the correct owner for authored markers:
+    # it's an ancestor of SpawnPoints (so the ancestor check passes) AND
+    # save_scene persists nodes owned by it. map_root is resolved by the
+    # plugin via get_edited_scene_root(), so it's exactly that node.
+    _scene_root = map_root
 
     # Rebuild index_from_dirty flag
     _index_by_cell = {}
@@ -93,11 +92,14 @@ func place(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Marker3D:
         mesh_inst.mesh = def.mesh
         mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         marker.add_child(mesh_inst)
-        mesh_inst.owner = _scene_root
 
-    # Add to scene tree; set owner so save_scene persists the marker.
+    # Add to scene tree first, then set owner on the marker and its mesh
+    # child. Owner can only be assigned once the node is in the tree AND the
+    # owner is an ancestor — both true now that the marker is under SpawnPoints.
     _spawn_points.add_child(marker)
     marker.owner = _scene_root
+    for child in marker.get_children():
+        child.owner = _scene_root
 
     # Update index
     for off in offsets:
