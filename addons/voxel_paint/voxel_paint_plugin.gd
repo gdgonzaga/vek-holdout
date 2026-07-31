@@ -114,19 +114,22 @@ func get_stream_path() -> String:
 	return ""
 
 
-## Derives an sqlite path from the current scene path (e.g. scene.tscn →
-## scene.sqlite). Creates a VoxelStreamSQLite and assigns it to the terrain.
-## Returns the derived path, or "" if no scene is open.
-func auto_create_stream() -> String:
-	var scene := EditorInterface.get_edited_scene_root()
-	if scene == null:
-		push_warning("VoxelPaint: no scene open — cannot auto-derive database path")
+## Creates a new map folder in data/maps/ with an empty SQLite database,
+## then assigns the stream to the terrain. Returns the database path, or ""
+## if the map already exists or the folder could not be created.
+func create_new_map(map_name: String) -> String:
+	if map_name.is_empty():
+		push_warning("VoxelPaint: empty map name")
 		return ""
-	var scene_path: String = scene.scene_file_path
-	if scene_path.is_empty():
-		push_warning("VoxelPaint: no scene open — cannot auto-derive database path")
+	var folder_path := "res://data/maps/%s/" % map_name
+	if DirAccess.dir_exists_absolute(folder_path):
+		push_warning("VoxelPaint: map '%s' already exists" % map_name)
 		return ""
-	var db_path := scene_path.get_basename() + ".sqlite"
+	var err := DirAccess.make_dir_recursive_absolute(folder_path.trim_suffix("/"))
+	if err != OK:
+		push_warning("VoxelPaint: failed to create folder '%s' (error %d)" % [map_name, err])
+		return ""
+	var db_path := folder_path + "map.sqlite"
 	_assign_stream(db_path)
 	return db_path
 

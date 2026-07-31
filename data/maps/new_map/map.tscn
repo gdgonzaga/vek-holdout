@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://bbnjhdaoolk0e"]
+
+[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_ahbwq"]
+[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_odd6u"]
+[ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_i8x44"]
+[ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_6by7w"]
+
+[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_agu13"]
+database_path = "res://data/maps/new_map/map.sqlite"
+
+[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_3vdvi"]
+channel = 0
+
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_bw284"]
+library = ExtResource("3_i8x44")
+
+[node name="MapTemplate" type="Node3D" unique_id=2138968762]
+script = ExtResource("1_ahbwq")
+
+[node name="VoxelGrid" type="Node" parent="." unique_id=1310510925]
+script = ExtResource("2_odd6u")
+
+[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=166703134]
+stream = SubResource("VoxelStreamSQLite_agu13")
+generator = SubResource("VoxelGeneratorFlat_3vdvi")
+mesher = SubResource("VoxelMesherBlocky_bw284")
+
+[node name="ColonistContainer" type="Node3D" parent="." unique_id=368642909]
+
+[node name="EnemyContainer" type="Node3D" parent="." unique_id=1989072534]
+
+[node name="FurnitureContainer" type="Node3D" parent="." unique_id=523018397]
+
+[node name="EnvironmentContainer" type="Node3D" parent="." unique_id=1409817812]
+
+[node name="BuildController" parent="." unique_id=1033573714 instance=ExtResource("4_6by7w")]
+
+[node name="SpawnPoints" type="Node3D" parent="." unique_id=1538480631]
+
+[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=1863086631]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)

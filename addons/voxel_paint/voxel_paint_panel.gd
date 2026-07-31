@@ -19,9 +19,11 @@ var _info_label: Label
 
 # Stream section.
 var _stream_label: Label
-var _stream_auto_btn: Button
+var _stream_new_btn: Button
 var _stream_pick_btn: Button
 var _file_dialog: FileDialog
+var _new_map_dialog: ConfirmationDialog
+var _new_map_input: LineEdit
 
 
 func _ready() -> void:
@@ -133,15 +135,15 @@ func _build_ui() -> void:
 	_stream_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	var stream_btn_row := HBoxContainer.new()
-	_stream_auto_btn = Button.new()
-	_stream_auto_btn.text = "Auto"
-	_stream_auto_btn.tooltip_text = "Create database alongside the scene file (.tscn → .sqlite)"
-	_stream_auto_btn.pressed.connect(_on_auto_stream)
+	_stream_new_btn = Button.new()
+	_stream_new_btn.text = "New"
+	_stream_new_btn.tooltip_text = "Create a new map with a database"
+	_stream_new_btn.pressed.connect(_on_new_stream)
 	_stream_pick_btn = Button.new()
 	_stream_pick_btn.text = "Pick..."
 	_stream_pick_btn.tooltip_text = "Choose an existing .sqlite file"
 	_stream_pick_btn.pressed.connect(_on_pick_stream)
-	stream_btn_row.add_child(_stream_auto_btn)
+	stream_btn_row.add_child(_stream_new_btn)
 	stream_btn_row.add_child(_stream_pick_btn)
 
 	# -- File dialog (for Pick) --
@@ -152,6 +154,22 @@ func _build_ui() -> void:
 	_file_dialog.filters = PackedStringArray(["*.sqlite ; SQLite Database"])
 	_file_dialog.file_selected.connect(_on_file_selected)
 	_file_dialog.min_size = Vector2i(500, 400)
+
+	# -- New Map dialog --
+	_new_map_dialog = ConfirmationDialog.new()
+	_new_map_dialog.title = "New Map"
+	_new_map_dialog.min_size = Vector2i(300, 120)
+	_new_map_dialog.ok_button_text = "Create"
+	var dialog_vbox := VBoxContainer.new()
+	var label := Label.new()
+	label.text = "Map name (no spaces):"
+	_new_map_input = LineEdit.new()
+	_new_map_input.placeholder_text = "e.g. abandoned_factory"
+	_new_map_input.caret_blink = true
+	dialog_vbox.add_child(label)
+	dialog_vbox.add_child(_new_map_input)
+	_new_map_dialog.add_child(dialog_vbox)
+	_new_map_dialog.confirmed.connect(_on_new_map_confirmed)
 
 	# Assemble.
 	vbox.add_child(mode_box)
@@ -170,6 +188,7 @@ func _build_ui() -> void:
 
 	add_child(vbox)
 	add_child(_file_dialog)
+	add_child(_new_map_dialog)
 
 
 func _populate_blocks() -> void:
@@ -213,10 +232,22 @@ func _on_radius_changed(value: float) -> void:
 	_radius_label.text = "%.1f" % value
 
 
-func _on_auto_stream() -> void:
+func _on_new_stream() -> void:
+	_new_map_input.text = ""
+	_new_map_input.grab_focus()
+	_new_map_dialog.popup_centered()
+
+
+func _on_new_map_confirmed() -> void:
+	var name: String = _new_map_input.text.strip_edges()
+	if name.is_empty():
+		return
+	if " " in name:
+		push_warning("VoxelPaint: map name must not contain spaces")
+		return
 	if _plugin == null:
 		return
-	var path: String = _plugin.auto_create_stream()
+	var path: String = _plugin.create_new_map(name)
 	if not path.is_empty():
 		refresh_stream_label()
 

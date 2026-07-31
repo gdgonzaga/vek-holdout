@@ -16,7 +16,7 @@ extends EditorScript
 ## The stream is wired by map.gd _ready() from the database_path export —
 ## no manual VoxelStreamSQLite sub-resource needed in the .tscn.
 
-const OUTPUT_PATH := "res://data/maps/new_map/map.tscn"
+const OUTPUT_PATH := "res://subsystems/maps/map_template.tscn"
 const LIBRARY_PATH := "res://data/blocks/voxel_library.tres"
 
 
