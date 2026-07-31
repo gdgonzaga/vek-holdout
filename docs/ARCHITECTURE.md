@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-07-31 (Voxel/World + Functional Rooms drift resolved)
+Last updated: 2026-07-31 (Map authoring system + runtime map loader landed)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
@@ -23,7 +23,8 @@ res://
 │   ├── combat/         # Damage resolution, weapons, durability, enemy base + archetypes
 │   ├── equipment/      # Equipment component, loadout templates, auto-equip/unequip
 │   ├── raids/          # Raid scheduler, threat direction, spawn manager
-│   ├── expeditions/    # Scavenge mission, world map, POI
+│   ├── expeditions/    # ExpeditionManager: POI discovery, expedition lifecycle
+│   ├── maps/           # MapLibrary catalog, MapWiring, SpawnHelpers, map_template.tscn
 │   ├── loot/           # Loot tables, container logic, Key Item pool
 │   ├── inventory/      # Items, stacks, inventory model
 │   └── crafting/       # Recipe model, station logic, craft-Job flow
@@ -50,26 +51,37 @@ res://
 │   ├── loadouts/       # Loadout templates (player-created + saved per run)
 │   ├── recipes/        # Recipe definitions (workbench.tres, forge.tres)
 │   ├── skills/         # Skill definitions (6 skills) + use-curves + level multipliers
+│   ├── maps/           # One subdirectory per map (<id>/map.sqlite + map_def.tres); see Maps subsystem
 │   ├── game_config.tres    # Engine-level constants
 │   ├── energy_config.tres      # Planned — Global Stamina thresholds/floors + Breath rates (Energy subsystem)
 │   ├── raid_curve.tres         # Planned — Raid escalation table (Raids subsystem)
 │   └── starting_conditions.tres # Planned — Day-1 resources/equipment/structure (§9; C7)
+├── addons/             # Editor plugins (dev tooling; not shipped gameplay). voxel_paint: WYSIWYG terrain authoring.
 ├── debug/              # Debug console (dev/playtest only; stripped from release)
 ├── tests/              # Automated unit/integration tests (run in CI / headless)
 └── testing/            # Manual playtest scenes (developer-run, not shipped)
 ```
 
-**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `subsystems/autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`. UI scenes live in `ui/` (project root), not under `subsystems/`.
+**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `subsystems/autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`. UI scenes live in `ui/` (project root), not under `subsystems/`. Editor-only tooling (no runtime code) goes in `addons/`.
+
+### Editor plugins (`addons/`)
+
+Dev-facing editor tooling, not shipped gameplay. Documented here because the map authoring flow depends on it (see `docs/HOWTO-create-a-map.md`).
+
+| Plugin | Purpose |
+|---|---|
+| `voxel_paint/` | WYSIWYG terrain painter (`EditorPlugin`). Toolbar button appears when a `VoxelTerrain` is selected; LMB paints, Shift+LMB erases, writes via `VoxelTool.do_sphere`, flushes with `save_modified_blocks()`. The **New** button creates a `data/maps/<id>/` folder with an empty `map.sqlite` + a default `map_def.tres` (POI, pointing at `map_template.tscn`); **Pick...** assigns an existing `.sqlite`. Hit detection is a `get_voxel()` ray-march (Godot physics raycast + `VoxelTool.raycast` are dead in the editor viewport — `VoxelTerrain` emits no chunks/collision there; see `docs/VOXEL-TOOL-NOTES.md`). |
 
 ## Scene Tree Overview
 
 - **Main** (`main.tscn`) — root scene, persists across entire game session. Owns the scene-transition machinery and the always-on CanvasLayers.
   - CanvasLayer (`layer=10`) — UI overlay layer
     - **HUD** (`hud.tscn`) — persistent in-game overlay (HP/Durability/Stamina/Breath bars, hotbar, build-mode ghost). Instanced by Main at startup; hidden during full-screen menus.
-  - CanvasLayer (`layer=20`) — Full-screen UI layer (Player/Colony/Map/Pause/MainMenu/GameOver/Settings). Only one present at a time.
-  - **WorldRoot** (`world.tscn`, root script `world.gd` — `World`) — the current game world; swapped by SceneManager on base↔POI transitions. Structural container only; no gameplay logic.
+  - CanvasLayer (`layer=20`) — Full-screen UI layer (Player/Colony/World Map/Pause/MainMenu/GameOver/Settings). Only one present at a time; managed by `SceneManager.open_screen` / `close_screen`.
+  - **MapRootSlot** (Node) — the mount point for the current map. Swapped by SceneManager on base↔POI transitions.
+    - **Map** (`map.tscn` / `map_template.tscn`, root script `map.gd` — `Map`) — the current game world; a structural container only (no gameplay logic). See Maps subsystem.
     - VoxelGrid (Node, `voxel_grid.gd`) — the `IBlockGrid` owner; sole voxel_tool access point
-      - VoxelTerrain (`voxel_tool` blocky mode)
+      - VoxelTerrain (`voxel_tool` blocky mode). Its `VoxelStreamSQLite` is injected/redirected by SceneManager at load time (runtime copy lives in `user://maps/<id>/`).
     - **Player** (`player.tscn`)
     - ColonistContainer (Node3D) — holds active colonist instances
     - EnemyContainer (Node3D) — holds active enemy instances
@@ -77,7 +89,7 @@ res://
     - BuildController (`build.tscn`) — active only in Blueprint mode
 - **Boot** (`boot.tscn`) — project entry point; loads Main + Main Menu. (Alternative: Main is the entry point and Main Menu is a CanvasLayer. Pick one in implementation — see Tech Debt.)
 
-**Scene transitions:** SceneManager swaps `WorldRoot` between the base scene and POI scenes. Full-screen UIs replace each other in the `layer=20` CanvasLayer. The HUD stays mounted throughout gameplay; hidden when any full-screen UI opens (pause/menu) per §12 "full pause everywhere."
+**Scene transitions:** SceneManager swaps the current `Map` under `MapRootSlot` between the base scene and POI scenes (single entry point: `swap_map(map_id)`). Full-screen UIs replace each other in the `layer=20` CanvasLayer via `open_screen` / `close_screen` (currently: world map, opened with **M**; Esc closes any open screen before toggling pause). The HUD stays mounted throughout gameplay; hidden when any full-screen UI opens (pause/menu) per §12 "full pause everywhere."
 
 ## Autoloads / Singletons
 
@@ -87,12 +99,14 @@ Only scripts genuinely needed across multiple unrelated scenes. Solo project —
 |---|---|---|
 | **GameState** | `game_state.gd` | Run-level state: current day, time-of-day, save slot, pause state, current scene (base vs POI). Emits state-change signals (NOT through EventBus). |
 | **EventBus** | `event_bus.gd` | Global signal relay for cross-scene events only (see registry). |
-| **SceneManager** | `scene_manager.gd` | Load/unload WorldRoot with transitions; manage UI layer swaps. |
+| **SceneManager** | `scene_manager.gd` | Load/unload the current Map with transitions; manage the full-screen UI layer; runtime SQLite stream redirect. |
 | **SaveSystem** | `save_system.gd` | Autosave on sleep/midnight/quit; load on Continue/New Game. |
 | **Colony** | `colony.gd` | The colony roster + Job Board. Cross-scene because base and POI scenes both need it (colonists stay in colony during expeditions). |
 | **TimeSystem** | `time_system.gd` | Continuous time advance, day boundary (midnight) event, links to Stamina accrual. Cross-scene because time advances in both base and POI. |
 | **RunProgress** | `run_progress.gd` | Run-scoped *earned* state. Currently holds buildable unlocks; **intended to grow into the home for Colony's run-state children** (Memorial, KeyItemPool, LoadoutManager, DiscoveredGear) and other run-earned state — migration ongoing. A "dumb bag" of ids only (no data-def reading). Reset by the New Game orchestrator, then reseeded by `EventBus.run_started`. Saved with the run, wiped on New Game. |
 | **BuildLibrary** | `build_library.gd` | The read-only catalog of everything buildable. Loads every `BuildableDef` subclass (`BlockDef`, `BuildableDef`, `FurnitureDef`) from `data/blocks/`, `data/buildables/`, `data/furniture/` into one `id → def` map. "What's unlocked" is delegated to `RunProgress` — this catalog seeds the default-unlocked defs at startup and on `EventBus.run_started`, then exposes `is_unlocked` / `get_unlocked` / `unlock` / `get_def`. Read-only after `_ready`. See Build subsystem. |
+| **MapLibrary** | `map_library.gd` | Read-only catalog of all loadable maps. Scans `data/maps/*/map_def.tres` at startup into an `id → MapDef` map. Looked up by `SceneManager.swap_map()` and `ExpeditionManager`. Read-only after `_ready`. See Maps subsystem. |
+| **ExpeditionManager** | `expedition_manager.gd` | Tracks discovered POIs and the on/off-expedition flag. `start_expedition()` / `end_expedition()` emit the EventBus signals and delegate map loading to `SceneManager.swap_map()`. Scaffold — hex-grid + crew logic deferred. See Expeditions subsystem. |
 | **Tools** | `tools.gd` | General cross-subsystem utilities. Currently: `generate_uuid() -> String` (cryptographically random RFC 4122 UUID v4). |
 
 **Deliberately NOT autoloads** (kept as scene-scoped references):
@@ -111,8 +125,11 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 | `day_rolled_over(new_day: int)` | `time_system.gd` | `save_system.gd`, HUD, raids scheduler | Midnight crossed; triggers autosave + Day Summary prep |
 | `raid_started(raid_data: Dictionary)` | raids subsystem | HUD, Colony (stance assignment), colonists | Begin raid sequence |
 | `raid_ended(outcome: Dictionary)` | raids subsystem | HUD, Colony, save_system | Raid resolved; unlock player control |
-| `expedition_started(crew: Array, poi_id: String)` | expeditions subsystem | SceneManager, Colony, colonists | Travel to POI scene |
-| `expedition_ended(result: Dictionary)` | expeditions subsystem | SceneManager, Colony, HUD | Return to base scene |
+| `expedition_started(crew: Array, poi_id: String)` | `ExpeditionManager` | Colony, colonists (SceneManager swap happens in `start_expedition` itself) | Travel to POI scene |
+| `expedition_ended(result: Dictionary)` | `ExpeditionManager` | Colony, HUD (SceneManager swap happens in `end_expedition` itself) | Return to base scene |
+| `map_loading(map_id: String)` | `SceneManager` (before instantiate) | HUD (loading screen, planned) | Map swap begins |
+| `map_loaded(map_id: String)` | `SceneManager` (after wiring) | world map UI, HUD, save_system | Map ready; actors wired, terrain streamed |
+| `map_unloading(map_id: String)` | `SceneManager` (before free) | save_system (autosave on leave, planned) | Current map about to be freed |
 | `colonist_died(colonist_id: String)` | combat subsystem | Colony, HUD, Memorial | Named colonist death; adds to memorial roster |
 | `player_died(context: String)` | combat subsystem | GameState, HUD | Player HP hit 0 (respawn handling) |
 | `game_over()` | GameState | SceneManager | All colonists + player dead; load Game Over scene |
@@ -137,7 +154,7 @@ Emitted by GameState when its own state changes. Connect directly — NOT throug
 ## Signal Flow Rules
 
 - **Same scene → direct references.** `@onready`, passed references, or parent methods. Player↔BuildController, Player↔Inventory, HUD↔its children all use direct refs.
-- **Cross-scene → EventBus.** Anything that must cross a WorldRoot swap (base↔POI) or reach a CanvasLayer from the world goes through EventBus.
+- **Cross-scene → EventBus.** Anything that must cross a map swap (base↔POI) or reach a CanvasLayer from the world goes through EventBus.
 - **GameState changes → GameState signals.** `day_changed`, `pause_state_changed` etc. are emitted by GameState and connected directly. Do NOT relay these through EventBus.
 - **Colonist/job state → Colony (autoload).** The roster and Job Board live on Colony; UI reads/writes via Colony's public methods. Colony emits its own signals for roster changes.
 - **Signals describe events, not commands.** `colonist_died`, not `kill_colonist`.
@@ -231,7 +248,7 @@ These data folders are *referenced* in Files tables but have no formal schema in
 - **C1** `data/furniture/` — 16 buildables (Clinic Bed, Workbench, Forge, etc.). Needs `is_functional` + `functional_area` fields per the Functional Rooms subsystem.
 - **C6** `data/tools/` — Hammer, Nailgun (repair value, RoF, range).
 - **C7** `data/starting_conditions.tres` — Day-1 resources/equipment/structure (GDD §9). Referenced in Core Files but never schema'd.
-- **C8** `data/pois/` — POI definitions (1 for MVP). Referenced in Expeditions Files.
+- **C8** ~~`data/pois/`~~ — **Resolved.** POI/map definitions now live in `data/maps/<id>/map_def.tres` as `MapDef` resources (schema'd below). `data/pois/` is no longer used.
 - **C9** Schemas for already-referenced folders: `data/labors/`, `data/weapons/`, `data/armor/`.
 
 ---
@@ -244,11 +261,11 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 | File | Type | Responsibility |
 |---|---|---|
-| `main.tscn` / `main.gd` | Scene/Script | Root scene; owns CanvasLayers and WorldRoot. Bootstraps HUD at startup. Does NOT contain gameplay logic. |
+| `main.tscn` / `main.gd` | Scene/Script | Root scene; owns CanvasLayers and MapRootSlot. Bootstraps the persistent Player, loads `base_colony` on startup (throwaway auto-load — move behind a Main Menu later), and auto-discovers POI maps at boot. Does NOT contain gameplay logic. |
 | `boot.tscn` (or Main as entry — TBD) | Scene | Project entry; loads Main + MainMenu. |
 | `../autoloads/game_state.gd` | Autoload | Run-level state + state-change signals. Does NOT own save logic (that's SaveSystem). |
 | `../autoloads/event_bus.gd` | Autoload | Cross-scene signal relay only. No state. |
-| `../autoloads/scene_manager.gd` | Autoload | Scene swap (base↔POI) + UI layer management. Does NOT own UI content (each screen is its own scene). |
+| `../autoloads/scene_manager.gd` | Autoload | Map swap (base↔POI) + full-screen UI layer management + runtime SQLite stream redirect. Does NOT own UI content (each screen is its own scene) or map metadata (that's `MapLibrary`). |
 | `../autoloads/save_system.gd` | Autoload | Autosave (sleep/midnight/quit) + load. Serializes run state: GameState (day/scene/slot), Colony (roster + job board + Memorial + KeyItemPool.found), voxel world, world-map reveal, player/colonist inventories + loadouts + raid stances. Does NOT decide when to save (callers do). |
 | `../autoloads/time_system.gd` | Autoload | Continuous time advance; emits `day_rolled_over`. Links to Stamina accrual. |
 | `../data/game_config.tres` | Data | Engine-level constants (gravity, target FPS). See Data Schema. |
@@ -262,6 +279,9 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 | `day_changed(new_day)` | `game_state.gd` | HUD | No (GameState signal) | — |
 | `pause_state_changed(paused)` | `game_state.gd` | All sim nodes | No (GameState signal) | Pause Menu |
 | `save_slot_changed(slot)` | `game_state.gd` | SaveSystem | No (GameState signal) | New Game / Load |
+| `map_loading(map_id)` | `scene_manager.gd` | HUD (loading screen, planned) | Yes | Map swap (load any map) |
+| `map_loaded(map_id)` | `scene_manager.gd` | world map UI, HUD | Yes | Map swap (load any map) |
+| `map_unloading(map_id)` | `scene_manager.gd` | save_system (autosave on leave, planned) | Yes | Map swap (load any map) |
 
 ### Flow Trace: Sleep → Day Summary → Save
 
@@ -277,17 +297,29 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 **End state:** New day begun, state saved, Durability reset, Stamina + Breath reset to 100%, Day Summary shown.
 
-### Flow Trace: Pause Menu (full pause)
+### Flow Trace: Pause / World Map input (Esc + M)
 
-**Trigger:** Player presses Esc during gameplay.
+**Trigger:** Player presses Esc or M during gameplay.
 
-1. Player input handler detects Esc → calls `GameState.set_paused(true)`.
-2. GameState emits `pause_state_changed(true)`.
-3. All simulation nodes (WorldRoot + children) get `process_mode = PROCESS_MODE_DISABLED`.
-4. PauseMenu scene loads in CanvasLayer 20; HUD hidden.
-5. Player clicks Resume → `GameState.set_paused(false)` → inverse of above.
+1. `Main._unhandled_input` routes both keys.
+2. **Esc** — if a full-screen UI is open, `SceneManager.close_screen()` and stop (so Esc closes the world map before it ever pauses). Otherwise toggle `GameState.set_paused(not paused)` → `pause_state_changed` → simulation nodes get `process_mode = PROCESS_MODE_DISABLED`. (Pause Menu screen planned — currently a flag only.)
+3. **M** (the `world_map` action) — if a screen is open, close it; otherwise `SceneManager.open_screen("world_map")` → loads `ui/world_map/world_map.tscn` into the layer-20 slot.
 
-**End state:** Simulation frozen, Pause Menu visible, Resume returns to prior state.
+**End state:** World map toggles open/closed; Esc always dismisses an open screen first, then pauses.
+
+### Flow Trace: Map swap (`swap_map`)
+
+**Trigger:** Base boot (`main.gd`), an expedition depart/return (`ExpeditionManager`), or any caller that needs to load a map. Single entry point.
+
+1. `SceneManager.swap_map(map_id)` looks up the `MapDef` in `MapLibrary`; emits `map_loading`.
+2. Frees the current map (emits `map_unloading` first); clears scene id.
+3. Instantiates `map_def.scene_path` under `MapRootSlot`; stores as current map + scene id.
+4. **Runtime SQLite redirect** (`_redirect_sqlite_stream`): ensures `user://maps/<id>/` exists; if the terrain's stream is a `VoxelStreamSQLite` backed by a `res://` path, copies the pristine database to `user://maps/<id>/map.sqlite` (only if the runtime copy doesn't already exist) and repoints the stream there; if the terrain has **no stream** (the template case), injects a `VoxelStreamSQLite` pointing at the runtime path.
+5. Awaits one frame (`process_frame`) — NOT for voxel writes; only so child `_ready` calls (esp. CameraRig camera build) run before wiring reads them.
+6. `MapWiring.wire_build` (adapter→grid, strategy→adapter, FurnitureLayer→container) + `wire_player` (reparent persistent Player, set spawn from `SpawnHelpers` or def fallback, wire camera/exclude into BuildController, reuse the player's `VoxelViewer`).
+7. Sets `GameState.map_root`; `set_scene_id`; emits `map_loaded` (world map UI repopulates, return-to-base visibility updates).
+
+**End state:** New map mounted, terrain streaming from its runtime `user://` copy (authored `res://` database untouched), player spawned + wired, subsystems live.
 
 ### Class Reference
 
@@ -303,10 +335,10 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 | Property | Type | Description |
 |---|---|---|
 | `current_day` | `int` | [export default 1] Current in-game day. |
-| `current_scene_id` | `String` | `"base"` or `"poi_<id>"`. |
+| `current_scene_id` | `String` | The `MapDef.id` of the current map (e.g. `"base_colony"`, a POI id). |
 | `paused` | `bool` | True when any full-screen menu is open. |
 | `save_slot` | `String` | Current save slot name; empty if none loaded. |
-| `world_root` | `Node` | Reference to the WorldRoot whose children get `process_mode`-toggled on pause. Set by Main when it mounts the WorldRoot; `null` until then. |
+| `map_root` | `Node` | Reference to the current `Map` whose children get `process_mode`-toggled on pause. Set by SceneManager at swap completion; `null` until then. |
 
 **Signals:**
 
@@ -321,10 +353,29 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 | Function | Description |
 |---|---|
-| `set_paused(p: bool) -> void` | Toggles pause; emits `pause_state_changed`; sets `process_mode` on `world_root` (and its children). |
+| `set_paused(p: bool) -> void` | Toggles pause; emits `pause_state_changed`; sets `process_mode` on `map_root` (and its children). |
 | `advance_day() -> void` | Increments `current_day`; emits `day_changed`. Called by TimeSystem. |
 | `set_scene_id(scene_id: String) -> void` | Sets `current_scene_id`; emits `scene_changed`. Called by SceneManager on swap completion. |
 | `set_save_slot(slot_name: String) -> void` | Sets `save_slot`; emits `save_slot_changed`. Called on New Game / Load. |
+
+#### Class: SceneManager
+
+**Extends:** Node (autoload)
+**Script:** `scene_manager.gd`
+**Description:** The single entry point for loading any map and managing full-screen UI. `swap_map(map_id)` looks up a `MapDef` in `MapLibrary`, frees the current map, instantiates the new scene, performs copy-on-load SQLite redirect, and wires subsystems via `MapWiring`. `open_screen` / `close_screen` manage the layer-20 UI slot.
+**Used by:** `main.gd` (base boot), `ExpeditionManager` (depart/return), `main.gd._unhandled_input` (world map toggle), future callers (New Game / Continue).
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `setup(map_parent: Node, ui_layer: CanvasLayer) -> void` | Wiring — Main hands over the MapRootSlot node and the layer-20 CanvasLayer. |
+| `set_player(player: Player) -> void` | Wiring — registers the persistent player (reparented into each map by `_wire_map`). |
+| `swap_map(scene_id: String) -> void` | The single swap point. Looks up `MapDef`, frees current map, instantiates the new scene, redirects the SQLite stream (copy-on-load), awaits one frame, wires subsystems, sets `GameState.map_root` + scene id, emits `map_loaded`. `scene_id` is a `MapDef.id`. |
+| `get_current_scene_id() -> String` | The current map's id. |
+| `open_screen(screen_id: String) -> void` | Loads `res://ui/<id>/<id>.tscn` into the layer-20 slot; closes any open screen first. |
+| `close_screen() -> void` | Frees the current full-screen UI. |
+| `is_screen_open() -> bool` | Whether a full-screen UI is currently mounted. |
 
 ---
 
@@ -332,12 +383,14 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel coupling lives here — other subsystems (Build) interact via the `IBlockGrid` interface, never `voxel_tool` directly.
 
+> **Voxel-tool gotchas & verified facts** (editor hit-detection, the 40-frame settle, library/stream behavior, Blender export) live in `docs/VOXEL-TOOL-NOTES.md`.
+
 ### Files
 
 | File | Type | Responsibility |
 |---|---|---|
-| `world.tscn` / `world.gd` | Scene/Script | The WorldRoot (`World`, structural container only — no gameplay logic). Holds VoxelGrid + containers for player/colonists/enemies/furniture. |
-| `voxel_grid.gd` | Script | Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the Godot-physics raycast (see `gotchas/voxel_tool_raycast.md`). Owns block get/set, per-cell HP, and the damage surface. Does NOT own placement UX (that's Build). |
+| `map.tscn` / `map.gd` | Scene/Script | The MapRoot — the current game world (`Map`, structural container only — no gameplay logic). Swapped by SceneManager on base↔POI transitions. Holds VoxelGrid + containers for player/colonists/enemies/furniture. The shared POI scene lives at `subsystems/maps/map_template.tscn` (see Maps subsystem). |
+| `voxel_grid.gd` | Script | Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the Godot-physics raycast (see `docs/VOXEL-TOOL-NOTES.md`). Owns block get/set, per-cell HP, and the damage surface. Does NOT own placement UX (that's Build). |
 | `block_library.gd` | Script (Resource) | Owns the `VoxelBlockyLibrary` the mesher renders with; maps string block_id ↔ integer library index, and id → `BlockDef`. Enforces the index convention (0 = air, terrain = 1) and bakes the library from `data/blocks/`. |
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, terrain). See Data Schema. |
 
@@ -361,11 +414,11 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 
 ### Class Reference
 
-#### Class: World
+#### Class: Map
 
 **Extends:** Node3D
-**Script:** `world.gd`
-**Description:** The WorldRoot — the current game world, swapped by SceneManager on base↔POI transitions. A structural container only; holds no gameplay logic. The voxel world's behavior lives in `VoxelGrid` / `BlockLibrary`.
+**Script:** `map.gd`
+**Description:** The MapRoot — the current game world, swapped by SceneManager on base↔POI transitions. A structural container only; holds no gameplay logic. The voxel world's behavior lives in `VoxelGrid` / `BlockLibrary`. Both the base scene (`map.tscn`) and the shared POI scene (`maps/map_template.tscn`) use this root script.
 **Used by:** SceneManager (swaps the whole node), subsystems that fetch their containers/grid via the accessors.
 **Lifecycle:** `@onready` resolves its child refs at `_ready`.
 
@@ -1416,7 +1469,7 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 
 | File | Type | Responsibility |
 |---|---|---|
-| `raid_scheduler.gd` | Script (on WorldRoot, base scene only) | Triggers raids per escalation curve; emits `raid_started`. Does NOT own enemy spawning (SpawnManager does). |
+| `raid_scheduler.gd` | Script (on the base Map, base scene only) | Triggers raids per escalation curve; emits `raid_started`. Does NOT own enemy spawning (SpawnManager does). |
 | `threat_model.gd` | Script (on Colony autoload) | Per-edge threat weights; POI visit bump, decay, random floor. |
 | `spawn_manager.gd` | Script | Spawns enemies at chosen edge; enforces 24-enemy cap; throttles waves. |
 | `../data/raid_curve.tres` | Data | Escalation table (D1–D20+ waves/enemies/shooter %). |
@@ -1467,31 +1520,141 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 
 ---
 
-## Subsystem: Expeditions
+## Subsystem: Maps
 
-Scavenge mission (Timed Extraction), world map, POI scene. GDD §17 Expeditions.
+The catalog, wiring, and shared scene for loadable maps. Hosts the `MapLibrary` autoload (the `id → MapDef` registry that `SceneManager` and `ExpeditionManager` read), `MapWiring` + `SpawnHelpers` (the runtime setup extracted from the proven build-test wiring), and `map_template.tscn` (the shared POI scene). This subsystem is the **map authoring + loading backbone**; see `docs/HOWTO-create-a-map.md` for the end-to-end authoring workflow.
+
+**Authoring vs. runtime split (the core invariant):**
+- Authored maps live under `res://data/maps/<id>/` as `map.sqlite` (terrain DB) + `map_def.tres` (catalog entry). **These are never written at runtime** — `res://` is read-only at export.
+- On first runtime load, `SceneManager._redirect_sqlite_stream()` copies the pristine `map.sqlite` to `user://maps/<id>/map.sqlite` and repoints the terrain's `VoxelStreamSQLite` there. Subsequent loads reuse the runtime copy (preserving mutations like builds / combat damage). To reset a map, delete the `user://` copy.
+- The shared `map_template.tscn` ships with **no stream baked in** — `SceneManager` injects a `VoxelStreamSQLite` pointing at the runtime path at load time. (A scene with a stale `res://` stream baked in is what caused the 11k boot errors — never leave a `VoxelStreamSQLite` sub-resource pointing at a moved/deleted DB.)
 
 ### Files
 
 | File | Type | Responsibility |
 |---|---|---|
-| `world_map.tscn` / `world_map.gd` | Scene/Script | Hex-grid sector map; fog states; POI icons; travel cost display. Full-screen UI (CanvasLayer 20). |
-| `poi_scene.tscn` | Scene | Generic POI scene; parameterized by POI data. Contains `LootContainer` instances (see Loot subsystem). Loaded by SceneManager on expedition start. |
-| `scavenge_mission.gd` | Script | Phase timer (free-loot → waves), extraction at vehicle. Container counts per zone are placed here (4–6 total: 1 Zone A, 2 Zone B, 2 Zone C per GDD §17 map layout). |
-| `../data/pois/` | Data | POI definitions (1 for MVP). |
+| `map_library.gd` | Autoload | Read-only `id → MapDef` catalog. `_ready` scans `data/maps/*/map_def.tres` (subdirectories only — loose top-level `.tres` are ignored). Exposes `get_def` / `has_def` / `get_all` / `get_maps_by_type`. Tolerates a missing `data/maps/` (silent-null DirAccess, like `build_library.gd`). Read-only after `_ready`. |
+| `map_wiring.gd` (`MapWiring`) | Script (`RefCounted`, static) | Extracted wiring utilities: `wire_build(map)` (adapter→grid, strategy→adapter, FurnitureLayer→container) + `wire_player(map, player)` (reparent persistent Player, wire camera/exclude into BuildController, reuse the player's `VoxelViewer` so repeated swaps don't stack viewers). The single source of truth for post-instantiate setup. |
+| `spawn_helpers.gd` (`SpawnHelpers`) | Script (`RefCounted`, static) | `read_spawns(map)` reads the `SpawnPoints` container: `PlayerSpawn` Marker3D → player spawn, `EnemySpawn_*` → enemy spawns. Scene markers override `MapDef` fallback values (non-zero wins). |
+| `map_template.tscn` | Scene | The shared POI scene — root `Map` with VoxelGrid/VoxelTerrain (no stream — injected at runtime), the standard containers, a BuildController, and `SpawnPoints/PlayerSpawn`. Every authored POI loads this scene; only the `map.sqlite` differs. |
+| `../voxel/map.tscn` | Scene | The base colony scene — same `Map` root structure, but the base's own scene (not the template). Uses `VoxelGeneratorFlat` only (no authored terrain DB). |
+| `../data/maps/map_def.gd` | Data (script) | `MapDef` Resource class. See Data Schemas. |
+| `../data/maps/<id>/map_def.tres` | Data | One `MapDef` per map. `id` **must equal the folder name** — `SceneManager` derives the runtime sqlite path from it. |
+| `../data/maps/<id>/map.sqlite` | Data | The authored terrain database (Zylann `VoxelStreamSQLite`). Created by the Voxel Paint "New" button. |
+
+### Signals
+
+Maps has no signals of its own — it's read by `SceneManager` (load) and `ExpeditionManager` (POI discovery) and reacts to `EventBus.map_loaded` (the world map UI repopulates on it). The map swap lifecycle signals live on EventBus (`map_loading` / `map_loaded` / `map_unloading`, emitted by SceneManager).
+
+### Flow Trace: Boot discovers POIs
+
+**Trigger:** `Main._ready`, after `swap_map("base_colony")`.
+
+1. `main.gd` iterates `MapLibrary.get_maps_by_type(MapDef.MapType.POI)`.
+2. For each, calls `ExpeditionManager.discover(def.id)` (appends to the discovered list, idempotent).
+3. Every POI-type map is therefore visible in the world map from the start. (Per-map unlock gating via `unlock_condition` is deferred.)
+
+**End state:** All POI defs are discoverable; opening the world map (M) lists them.
+
+### Class Reference
+
+#### Class: MapLibrary
+
+**Extends:** Node (autoload)
+**Script:** `map_library.gd`
+**Description:** Read-only registry of all loadable maps. Scans `data/maps/*/map_def.tres` at startup into an `id → MapDef` map.
+**Used by:** `SceneManager.swap_map` (def lookup), `ExpeditionManager` (POI lookup + discovery loop), world map UI (via `ExpeditionManager.get_available_pois`).
+**Lifecycle:** `_ready` scans; if `data/maps/` doesn't exist yet it returns early (no error). Read-only after.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_def(id: String) -> MapDef` | The def for `id`, or `null`. |
+| `has_def(id: String) -> bool` | Catalog membership. |
+| `get_all() -> Array` | All defs. |
+| `get_maps_by_type(type: int) -> Array` | Defs filtered by `MapType` (e.g. all POIs). |
+
+#### Class: MapWiring
+
+**Extends:** RefCounted (static class)
+**Script:** `map_wiring.gd`
+**Description:** The single source of truth for wiring a freshly-instantiated `Map`. Extracted from `testing/build/build_test.gd` so `SceneManager` reuses one path instead of duplicating adapter/strategy/FurnitureLayer/camera plumbing per swap.
+**Used by:** `SceneManager._wire_map`.
+
+**Static functions:**
+
+| Function | Description |
+|---|---|
+| `wire_build(map: Map) -> FurnitureLayer` | Wires BuildController deps (adapter→grid, strategy→adapter, FurnitureLayer→container). Returns the layer or `null` if no BuildController / incomplete. |
+| `wire_player(map: Map, player: Player) -> void` | Attaches the player, wires its camera into BuildController, adds the player's exclude body. Reuses an existing `VoxelViewer` child (creates one on first swap) so repeated swaps don't stack viewers. |
+
+#### Class: SpawnHelpers
+
+**Extends:** RefCounted (static class)
+**Script:** `spawn_helpers.gd`
+**Description:** Reads authored spawn positions from a `Map`'s `SpawnPoints` container. Scene markers override `MapDef` values when present (non-zero) — an authored POI scene can place `PlayerSpawn` / `EnemySpawn_*` Marker3Ds to control exactly where actors enter.
+**Used by:** `SceneManager._wire_map` (player spawn resolution).
+
+**Static functions:**
+
+| Function | Description |
+|---|---|
+| `read_spawns(map: Map) -> Dictionary` | `{ "player": Vector3, "enemies": Array[Vector3] }` from the `SpawnPoints` node's Marker3D children. Zeros/empty if absent. |
+
+---
+
+## Subsystem: Expeditions
+
+Scavenge mission (Timed Extraction), world map, POI scene. GDD §17 Expeditions.
+
+> **Implementation status: scaffold.** `ExpeditionManager` (POI discovery + the on/off-expedition flag + depart/return map swaps) and the **list-based** world map UI are live. The hex-grid sector map, fog-of-war, crew selection, threat-edge bump, and the `scavenge_mission.gd` phase timer (free-loot → waves → extraction) are **planned, not yet built**. POI scenes today are just the shared `map_template.tscn` loaded with their own `map.sqlite` (see Maps subsystem) — no `LootContainer`s or mission timer yet. The depart/return loop itself works end-to-end.
+
+### Files
+
+| File | Type | Responsibility |
+|---|---|---|
+| `expedition_manager.gd` | Autoload | Tracks discovered POIs (`Array[String]`) + `_on_expedition` flag. `start_expedition` / `end_expedition` emit the EventBus signals and delegate map loading to `SceneManager.swap_map()`. Reset on `EventBus.run_started`. |
+| `../maps/map_template.tscn` | Scene | The shared POI scene loaded on depart (owned by Maps subsystem — listed here because it's the expedition destination). `SceneManager` injects the per-map `VoxelStreamSQLite` at runtime. |
+| `../ui/world_map/world_map.tscn` / `world_map.gd` | Scene/Script | Full-screen overlay (layer-20). Lists discovered POIs from `ExpeditionManager.get_available_pois()`; each row can Depart; a Return-to-Base button appears when on an expedition. Repopulates on `EventBus.map_loaded`. |
+| `../ui/world_map/poi_entry.tscn` / `poi_entry.gd` | Scene/Script | One POI row (name, description, difficulty, Depart button). Emits `depart_requested(poi_id)`. |
+| `scavenge_mission.gd` | Script *(planned — not yet implemented)* | Phase timer (free-loot → waves), extraction at vehicle. Container counts per zone placed here (4–6 total: 1 Zone A, 2 Zone B, 2 Zone C per GDD §17 map layout). |
 
 ### Signals
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `expedition_started(crew, poi_id)` | `scavenge_mission.gd` | SceneManager, Colony, colonists | Yes | Start Expedition |
-| `expedition_ended(result)` | `scavenge_mission.gd` | SceneManager, Colony, HUD | Yes | End Expedition |
+| `expedition_started(crew, poi_id)` | `ExpeditionManager` | Colony, colonists *(planned listeners; SceneManager swap happens inside `start_expedition` itself)* | Yes | Start Expedition |
+| `expedition_ended(result)` | `ExpeditionManager` | Colony, HUD *(planned listeners; SceneManager swap happens inside `end_expedition` itself)* | Yes | End Expedition |
 
-### Flow Trace: Scavenge mission (Timed Extraction)
+### Flow Trace: Depart to a POI
+
+**Trigger:** Player opens the world map (M) and clicks a POI's **Depart**.
+
+1. `poi_entry.gd` emits `depart_requested(poi_id)` → `world_map.gd._on_depart_requested`.
+2. `ExpeditionManager.start_expedition(poi_id)`: validates (not already on one, POI known), sets `_on_expedition = true`, emits `expedition_started([], poi_id)` via EventBus.
+3. Calls `SceneManager.swap_map(poi_id)` → MapLibrary lookup → instantiates `map_template.tscn` → copy-on-load SQLite redirect to `user://maps/<poi_id>/` → `MapWiring` → `map_loaded`.
+4. World map screen is closed (map swap reparents the player; the screen was dismissed by the input handler or remains until Esc/M closes it).
+
+**End state:** Player standing in the POI's terrain (loaded from its runtime `user://` copy); `_on_expedition == true`.
+
+### Flow Trace: Return to base
+
+**Trigger:** Player opens the world map and clicks **Return to Base** (visible only when on an expedition).
+
+1. `world_map.gd._on_return_pressed` → `ExpeditionManager.end_expedition()`.
+2. Clears `_on_expedition`; emits `expedition_ended({})`; calls `SceneManager.swap_map("base_colony")`.
+3. Base colony loads; `map_loaded` fires; the world map repopulates and the Return button hides.
+
+**End state:** Back at base; return button gone; expedition flag clear. *(Loot banking, crew restore, threat-edge bump are planned — not yet wired.)*
+
+### Flow Trace: Scavenge mission (Timed Extraction) — *planned*
+
+> **Not yet built.** The shape below is the design target once `scavenge_mission.gd` and crew selection land.
 
 **Trigger:** Player selects a POI on the world map + crew, confirms.
 
-1. `world_map.gd` calls SceneManager to swap WorldRoot → `poi_scene.tscn`.
+1. `world_map.gd` calls `ExpeditionManager.start_expedition` → SceneManager swaps to the POI scene.
 2. EventBus emits `expedition_started(crew, poi_id)`.
 3. Colony marks crew as "on expedition" (removed from base scene).
 4. ThreatModel bumps the POI's edge weight +15.
@@ -1500,6 +1663,33 @@ Scavenge mission (Timed Extraction), world map, POI scene. GDD §17 Expeditions.
 7. SceneManager swaps back to base scene; crew restored.
 
 **End state:** Back at base; loot banked; crew restored; edge weight raised.
+
+### Class Reference
+
+#### Class: ExpeditionManager
+
+**Extends:** Node (autoload)
+**Script:** `expedition_manager.gd`
+**Description:** Tracks discovered POIs and the on/off-expedition flag. The thin orchestration layer between the world map UI and `SceneManager`: depart/return emit the EventBus signals and call `swap_map`. Holds no crew/loot/threat state yet (planned).
+**Used by:** `main.gd` (boot discovery loop), `world_map.gd` (depart/return + list source).
+**Lifecycle:** `_ready` connects `run_started` (resets discovery + flag on New Game).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `_discovered_pois` | `Array[String]` | POI ids the player can travel to. Populated by `discover()` (idempotent). |
+| `_on_expedition` | `bool` | True while the player is away from base. Gates the Return button. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_available_pois() -> Array[MapDef]` | Discovered POIs that resolve to a `MapDef` with `map_type == POI`. Source for the world map list. |
+| `is_on_expedition() -> bool` | Whether the player is currently away from base. |
+| `discover(poi_id: String) -> void` | Add a POI to the discovered list (no-op if already present). |
+| `start_expedition(poi_id: String, crew: Array = []) -> void` | Validates, sets the flag, emits `expedition_started`, calls `SceneManager.swap_map(poi_id)`. No-op if already on one or POI unknown. |
+| `end_expedition(result: Dictionary = {}) -> void` | Clears the flag, emits `expedition_ended`, calls `SceneManager.swap_map("base_colony")`. No-op if not on one. |
 
 ---
 
@@ -1564,7 +1754,7 @@ Loot is local to the POI scene + Inventory — no cross-scene signals. The Key I
 **Extends:** Node3D (or Area3D for proximity prompt)
 **Script:** `loot_container.gd` (in `loot/`)
 **Description:** A lootable object placed in a POI scene. Holds a `LootTable` reference; rolls on interact; offers results to Inventory. Does NOT own table data or the Key Item pool.
-**Used by:** Expeditions (containers placed in `poi_scene.tscn`), Inventory (pickup flow).
+**Used by:** Expeditions (containers placed in POI scenes — currently the shared `map_template.tscn`), Inventory (pickup flow).
 
 **Properties:**
 
@@ -1958,6 +2148,22 @@ Full list of registered commands. GDD §17 Debug Console + §17 Scavenge-specifi
 | `target_fps` | `int` | 60 (floor 30). |
 | `loop_length_minutes` | `float` | 30 (1 in-game day). |
 | `max_enemies_on_screen` | `int` | 24. |
+
+### `data/maps/<id>/map_def.tres` (Resource: `map_def.gd`)
+
+One `MapDef` per loadable map. Scanned from `data/maps/*/map_def.tres` by `MapLibrary`. The catalog entry that picks which scene to load and where actors spawn; the `.tscn` is the runtime contract. **`id` must equal the folder name** — `SceneManager` derives the runtime sqlite path from it. Maps are hybrid: `.tscn` for visual layout/nodes, this `.tres` for metadata + spawn config. Authored via the Voxel Paint "New" button (see `docs/HOWTO-create-a-map.md`).
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Map id; **must match the folder name** (`data/maps/<id>/`). Drives the runtime sqlite path. |
+| `display_name` | `String` | Player-facing name (world map list). |
+| `description` | `String` | One-liner shown under the name in the world map. |
+| `scene_path` | `String` | The `Map` scene to instantiate. POIs → `res://subsystems/maps/map_template.tscn`; base → `res://subsystems/voxel/map.tscn`. |
+| `map_type` | `MapType` enum | `BASE` / `POI` / `BUILDING` / `TOWN`. `POI` maps are auto-discovered at boot and listed in the world map. |
+| `player_spawn` | `Vector3` | Fallback player spawn (default `(0, 5, 0)`). Overridden by a `SpawnPoints/PlayerSpawn` Marker3D if present. |
+| `enemy_spawns` | `Array[Dictionary]` | `[{ "pos": Vector3, "count": int }]`. Overridden by `SpawnPoints/EnemySpawn_*` markers. |
+| `unlock_condition` | `String` | *(Unused — reserved for gated discovery.)* |
+| `difficulty` | `int` | 1–N; shown in the world map row. |
 
 ### `data/characters/<type>.tres` (Resource: `character_def.gd`)
 
