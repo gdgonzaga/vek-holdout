@@ -50,6 +50,13 @@ var _map_root: Node = null  # The Map node owning SpawnPoints
 var _furniture: FurnitureAuthoring = null  # Editor marker helper
 var _mode: int = PaintMode.PAINT  # Single source of truth
 
+# Hover preview ghost.
+var _ghost: MeshInstance3D = null  # transient preview, no owner (never saved)
+var _ghost_mat: StandardMaterial3D = null  # cached so hover can tint without a cast
+var _box_mesh: BoxMesh  # unit-cube mesh reused for block paint/erase previews
+var _last_camera: Camera3D = null  # cached so key events can refresh the ghost
+var _last_screen_pos: Vector2 = Vector2.ZERO
+
 # Furniture rotation state
 var _yaw: int = 0  # 0..3, cycled by R key
 
@@ -107,6 +114,21 @@ func _activate() -> void:
 	_panel.setup(self)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
 
+	# Create hover-preview ghost (no owner → transient, never saved).
+	# Mesh is swapped per-mode in _update_ghost(): unit cube for block paint/erase,
+	# the furniture def's mesh for furniture placement.
+	_ghost = MeshInstance3D.new()
+	_ghost.name = "__voxel_paint_ghost__"
+	_ghost_mat = StandardMaterial3D.new()
+	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ghost_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.35)
+	_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ghost.material_override = _ghost_mat
+	_box_mesh = BoxMesh.new()
+	_box_mesh.size = Vector3.ONE
+	_ghost.mesh = _box_mesh
+	_terrain.add_child(_ghost)
+
 	# Resolve map root and SpawnPoints for furniture mode.
 	# Walk up to the edited scene root — _terrain.get_parent() is VoxelGrid,
 	# its parent is the Map node that owns SpawnPoints.
@@ -133,6 +155,9 @@ func _deactivate() -> void:
 		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
 		_panel.queue_free()
 		_panel = null
+	if _ghost:
+		_ghost.queue_free()
+		_ghost = null
 	_terrain = null
 	_vt = null
 	_map_root = null
@@ -268,8 +293,55 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 							EditorInterface.save_scene()
 				return AFTER_GUI_INPUT_STOP
 
-	# Default behavior: pass through
+	# Update hover preview ghost on mouse motion.
+	var mm := event as InputEventMouseMotion
+	if mm != null and _ghost != null:
+		_last_camera = camera
+		_last_screen_pos = mm.position
+		_refresh_ghost(mm.shift_pressed)
 	return AFTER_GUI_INPUT_PASS
+
+
+## Re-run the ghost preview against the last-known camera/pointer, e.g. after
+## the yaw changes on R. Pass the current shift state so paint/erase tinting
+## stays correct.
+func _refresh_ghost(shift: bool) -> void:
+	if _ghost == null or _last_camera == null:
+		return
+	var hit := _march_to_voxel(_last_camera, _last_screen_pos)
+	if not hit.get("hit", false):
+		_ghost.visible = false
+		return
+	var mode: int = _panel.get_mode() if _panel else PaintMode.PAINT
+	if _panel:
+		_brush_radius = _panel.get_brush_radius()
+	_ghost.visible = true
+	match mode:
+		PaintMode.PAINT, PaintMode.ERASE:
+			_ghost.mesh = _box_mesh
+			_ghost.scale = Vector3(_brush_radius, _brush_radius, _brush_radius)
+			# Shift inverts the mode: paint→erase, erase→paint.
+			var erase: bool = shift if mode == PaintMode.PAINT else not shift
+			var target: Vector3i = hit.solid if erase else hit.prev
+			# BoxMesh is centered on its origin; Vector3(target) is the cell corner.
+			# Add half a cell so the cube fills the target cell exactly.
+			_ghost.global_position = _terrain.to_global(Vector3(target) + Vector3(0.5, 0.5, 0.5))
+			if _ghost_mat != null:
+				_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.35) if erase else Color(0.2, 1.0, 0.2, 0.35)
+
+		PaintMode.FURNITURE:
+			var def: FurnitureDef = _panel.get_selected_furniture_def() if _panel else null
+			if def == null or def.mesh == null:
+				_ghost.visible = false
+				return
+			_ghost.mesh = def.mesh
+			_ghost.scale = Vector3.ONE
+			var dims := FurnitureLayer.dimensions_of(def)
+			var origin := FurnitureLayer.world_origin(hit.prev, dims, _yaw)
+			_ghost.global_position = _terrain.to_global(origin)
+			_ghost.global_rotation = Vector3(0, deg_to_rad(_yaw * 90), 0)
+			if _ghost_mat != null:
+				_ghost_mat.albedo_color = Color(0.4, 0.8, 1.0, 0.4)
 
 
 func _input(event: InputEvent) -> void:
@@ -294,6 +366,8 @@ func _input(event: InputEvent) -> void:
 							return
 					# No furniture selected — just cycle the yaw for next placement.
 					_yaw = (_yaw + 1) % 4
+					# Refresh the ghost so the preview reflects the new rotation.
+					_refresh_ghost(false)
 
 				KEY_DELETE:
 					# Delete selected furniture marker.
