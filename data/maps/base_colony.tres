@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="MapDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/maps/map_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "base_colony"
+display_name = "Base Colony"
+description = "The colony home base."
+scene_path = "res://subsystems/voxel/world.tscn"

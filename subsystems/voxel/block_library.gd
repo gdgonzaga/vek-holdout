@@ -48,10 +48,13 @@ func _build() -> void:
 			ordered.append(p)
 
 	for path in ordered:
-		var def: BlockDef = load(path)
-		if def == null:
-			push_error("BlockLibrary: failed to load %s" % path)
+		# data/blocks/ holds the baked VoxelBlockyLibrary alongside the BlockDefs;
+		# only the latter are models we add to our own library. Skip anything that
+		# isn't a BlockDef (a typed load would throw on the baked library).
+		var res = load(path)
+		if not (res is BlockDef):
 			continue
+		var def: BlockDef = res
 		var index := _add_model_for(def)
 		_index_by_id[def.id] = index
 		_defs_by_id[def.id] = def

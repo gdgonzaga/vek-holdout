@@ -26,6 +26,7 @@ TimeSystem="*res://subsystems/autoloads/time_system.gd"
 RunProgress="*res://subsystems/autoloads/run_progress.gd"
 BuildLibrary="*res://subsystems/build/build_library.gd"
 Tools="*uid://cs8e048tik2yn"
+MapLibrary="*res://subsystems/maps/map_library.gd"
 
 [display]
 

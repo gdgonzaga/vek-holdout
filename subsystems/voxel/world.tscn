@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/world.gd" id="1_world"]
 [ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_voxel_grid"]
+[ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="3_build_scene"]
 
 [sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_terrain"]
 channel = 0
@@ -23,3 +24,12 @@ mesher = SubResource("VoxelMesherBlocky_default")
 [node name="EnemyContainer" type="Node3D" parent="." unique_id=83114285]
 
 [node name="FurnitureContainer" type="Node3D" parent="." unique_id=882416250]
+
+[node name="EnvironmentContainer" type="Node3D" parent="."]
+
+[node name="BuildController" parent="." instance=ExtResource("3_build_scene")]
+
+[node name="SpawnPoints" type="Node3D" parent="."]
+
+[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)

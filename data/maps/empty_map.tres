@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="MapDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/maps/map_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "empty_map"
+display_name = "Empty Map"
+description = "Blank authored map (map_template). Used as a starting point for new POI scenes."
+scene_path = "res://subsystems/maps/map_template.tscn"

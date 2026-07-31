@@ -1,0 +1,32 @@
+[gd_resource type="VoxelBlockyLibrary" format=3 uid="uid://da8bhey7irku4"]
+
+[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="1_84u81"]
+
+[sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_jidlt"]
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_wu8p7"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_rvp8c"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_1xm2f"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_mcmtk"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_s4abc"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ryyfx"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[resource]
+models = Array[VoxelBlockyModel]([SubResource("VoxelBlockyModelEmpty_jidlt"), SubResource("VoxelBlockyModelMesh_wu8p7"), SubResource("VoxelBlockyModelMesh_rvp8c"), SubResource("VoxelBlockyModelMesh_1xm2f"), SubResource("VoxelBlockyModelMesh_mcmtk"), SubResource("VoxelBlockyModelMesh_s4abc"), SubResource("VoxelBlockyModelMesh_ryyfx")])

@@ -39,9 +39,12 @@ func _load_dir(dir_path: String) -> void:
 	var fname := dir.get_next()
 	while fname != "":
 		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			var def: BuildableDef = load(dir_path + fname)
-			if def != null and def.id != "":
-				_defs_by_id[def.id] = def
+			# Untyped load + `is` check: data/blocks/ also holds non-def resources
+			# (the baked VoxelBlockyLibrary from bake_voxel_library.gd). A typed
+			# assignment would throw on those, so filter by actual runtime type.
+			var res = load(dir_path + fname)
+			if res is BuildableDef and res.id != "":
+				_defs_by_id[res.id] = res
 		fname = dir.get_next()
 
 

@@ -12,7 +12,7 @@ var _main: Node
 var _label: Label
 
 func _ready() -> void:
-	_main = preload("res://core/main.tscn").instantiate()
+	_main = preload("res://subsystems/core/main.tscn").instantiate()
 	add_child(_main)
 
 	# Drop the player into the base WorldRoot that main just loaded.
