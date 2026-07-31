@@ -234,16 +234,22 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 				_current_index = _panel.get_current_index() if _panel else 6
 				var hit := _march_to_voxel(camera, mb.position)
 				if hit.get("hit", false):
-					var target: Vector3i = hit.prev if mb.shift_pressed else hit.solid
-					var value: int = 0 if mb.shift_pressed else _current_index
+					# Shift inverts the mode: paint→erase (carve the solid cell).
+					var erase := mb.shift_pressed
+					var target: Vector3i = hit.solid if erase else hit.prev
+					var value: int = 0 if erase else _current_index
 					_paint_with_retry(target, value)
 				return AFTER_GUI_INPUT_STOP
 
 			PaintMode.ERASE:
+				_current_index = _panel.get_current_index() if _panel else 6
 				var hit := _march_to_voxel(camera, mb.position)
 				if hit.get("hit", false):
-					var target: Vector3i = hit.solid if mb.shift_pressed else hit.prev
-					_paint_with_retry(target, 0)
+					# Shift inverts the mode: erase→paint (fill the air cell).
+					var paint := mb.shift_pressed
+					var target: Vector3i = hit.prev if paint else hit.solid
+					var value: int = _current_index if paint else 0
+					_paint_with_retry(target, value)
 				return AFTER_GUI_INPUT_STOP
 
 			PaintMode.FURNITURE:
