@@ -29,6 +29,8 @@ var _rotate_hint: Label
 # Containers for show/hide based on mode.
 var _paint_controls: VBoxContainer
 var _furniture_controls: VBoxContainer
+# Cached FurnitureDef resources by id, keyed when _populate_furniture loads them.
+var _furniture_defs_by_id: Dictionary = {}
 
 # Stream section.
 var _stream_label: Label
@@ -66,6 +68,14 @@ func get_selected_furniture_id() -> String:
 	if _mode != MODE_FURNITURE or _furniture_select.selected < 0:
 		return ""
 	return _furniture_select.get_item_metadata(_furniture_select.selected) if _furniture_select.get_item_metadata(_furniture_select.selected) is String else ""
+
+
+## Returns the cached FurnitureDef for the selected dropdown entry, or null.
+func get_selected_furniture_def() -> FurnitureDef:
+	var def_id := get_selected_furniture_id()
+	if def_id.is_empty():
+		return null
+	return _furniture_defs_by_id.get(def_id)
 
 
 func get_current_index() -> int:
@@ -280,17 +290,38 @@ func _populate_blocks() -> void:
 	_block_select.selected = 5  # default: wood
 
 
-## Populate the furniture selector from BuildLibrary. Shows only FurnitureDef
-## entries (not BlockDef, not plain BuildableDef).
+## Scan res://data/furniture/ directly for .tres FurnitureDef resources.
+## Editor-side loader, independent of the runtime BuildLibrary autoload —
+## autoloads aren't reliably reachable from @tool context (the panel lives in
+## the editor UI tree, not the game scene tree). Mirrors how _populate_blocks
+## loads voxel_library.tres directly rather than via BuildLibrary.
+func _load_furniture_defs() -> Array:
+	var out: Array = []
+	var dir_path := "res://data/furniture/"
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		push_warning("VoxelPaintPanel: could not open %s" % dir_path)
+		return out
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".tres"):
+			var res = load(dir_path + fname)
+			if res is FurnitureDef:
+				out.append(res)
+		fname = dir.get_next()
+	return out
+
+
+## Populate the furniture selector from disk. Shows only FurnitureDef entries.
 func _populate_furniture() -> void:
 	_furniture_select.clear()
-	if not Engine.has_singleton("BuildLibrary"):
-		return
-	var all_defs: Array = BuildLibrary.get_all_defs()
-	for def in all_defs:
-		if def is FurnitureDef:
-			_furniture_select.add_item(def.display_name)
-			_furniture_select.set_item_metadata(_furniture_select.item_count - 1, def.id)
+	_furniture_defs_by_id.clear()
+	var defs := _load_furniture_defs()
+	for def in defs:
+		_furniture_defs_by_id[def.id] = def
+		_furniture_select.add_item(def.display_name)
+		_furniture_select.set_item_metadata(_furniture_select.item_count - 1, def.id)
 	if _furniture_select.item_count > 0:
 		_furniture_select.selected = 0
 

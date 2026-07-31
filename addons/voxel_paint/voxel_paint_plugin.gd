@@ -108,8 +108,15 @@ func _activate() -> void:
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
 
 	# Resolve map root and SpawnPoints for furniture mode.
+	# Walk up to the edited scene root — _terrain.get_parent() is VoxelGrid,
+	# its parent is the Map node that owns SpawnPoints.
 	_yaw = 0
-	_map_root = _terrain.get_parent()
+	_map_root = get_editor_interface().get_edited_scene_root()
+	if _map_root == null:
+		_map_root = _terrain.get_parent().get_parent()
+	elif not _map_root.has_node("SpawnPoints"):
+		# Edited root isn't the map — fall back to terrain's grandparent.
+		_map_root = _terrain.get_parent().get_parent()
 	if _map_root and _furniture == null:
 		var furniture_auth := FurnitureAuthoring.new()
 		if furniture_auth.bind(_map_root):
@@ -219,7 +226,10 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 		if _panel:
 			_brush_radius = _panel.get_brush_radius()
 
-		match _mode:
+		# Mode is the single source of truth on the panel — read it here rather
+		# than mirroring into a plugin member that can drift out of sync.
+		var mode: int = _panel.get_mode() if _panel else PaintMode.PAINT
+		match mode:
 			PaintMode.PAINT:
 				_current_index = _panel.get_current_index() if _panel else 6
 				var hit := _march_to_voxel(camera, mb.position)
@@ -247,11 +257,9 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 							EditorInterface.save_scene()
 					else:
 						# LMB: place furniture at the air cell in front of surface.
-						var def_id: String = _panel.get_selected_furniture_id() if _panel else ""
-						if not def_id.is_empty():
-							var def := BuildLibrary.get_def(def_id)
-							if def and _furniture.place(def, hit.prev, _yaw):
-								EditorInterface.save_scene()
+						var def: FurnitureDef = _panel.get_selected_furniture_def() if _panel else null
+						if def and _furniture.place(def, hit.prev, _yaw):
+							EditorInterface.save_scene()
 				return AFTER_GUI_INPUT_STOP
 
 	# Default behavior: pass through
@@ -259,7 +267,10 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 
 
 func _input(event: InputEvent) -> void:
-	if not _active or _mode != PaintMode.FURNITURE or _furniture == null:
+	if not _active or _furniture == null:
+		return
+	# Furniture-only key handling; bail unless the panel is in furniture mode.
+	if _panel == null or _panel.get_mode() != PaintMode.FURNITURE:
 		return
 
 	if event is InputEventKey:

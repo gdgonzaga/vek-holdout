@@ -9,6 +9,7 @@ extends RefCounted
 ## _deactivate). Holds the SpawnPoints reference so individual ops don't re-find it.
 
 var _spawn_points: Node3D = null        # set by bind(); Marker3D parent
+var _scene_root: Node = null            # owner for authored markers (scene save)
 var _counter: int = 0                   # monotonic name uniquifier
 var _index_by_cell: Dictionary = {}    # Vector3i cell → Marker3D
 
@@ -21,6 +22,13 @@ func bind(map_root: Node) -> bool:
     if _spawn_points == null:
         push_warning("FurnitureAuthoring.bind: SpawnPoints not found in map root")
         return false
+
+    # Cache the scene root (topmost node) so we can set `owner` on authored
+    # markers — save_scene only persists nodes whose owner is the scene root.
+    var root := map_root
+    while root.get_parent() != null:
+        root = root.get_parent()
+    _scene_root = root
 
     # Rebuild index_from_dirty flag
     _index_by_cell = {}
@@ -41,6 +49,7 @@ func bind(map_root: Node) -> bool:
 ## markers — they persist in the scene.
 func unbind() -> void:
     _spawn_points = null
+    _scene_root = null
     _index_by_cell = {}
 
 
@@ -77,8 +86,18 @@ func place(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Marker3D:
     marker.set_meta("yaw_quarters", yaw_quarters)
     marker.set_meta("anchor", anchor)
 
-    # Add to scene
+    # Add preview mesh so the author can see what they placed.
+    if def.mesh != null:
+        var mesh_inst := MeshInstance3D.new()
+        mesh_inst.name = "PreviewMesh"
+        mesh_inst.mesh = def.mesh
+        mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        marker.add_child(mesh_inst)
+        mesh_inst.owner = _scene_root
+
+    # Add to scene tree; set owner so save_scene persists the marker.
     _spawn_points.add_child(marker)
+    marker.owner = _scene_root
 
     # Update index
     for off in offsets:
@@ -96,23 +115,24 @@ func rotate_selected(marker: Marker3D) -> bool:
 
     var current_yaw = marker.get_meta("yaw_quarters", 0)
     var new_yaw = (current_yaw + 1) % 4
-    var def_id = marker.get_meta("def_id")
-    var def = BuildLibrary.get_def(def_id)
-    if def == null:
-        return false
 
-    var anchor = marker.get_meta("anchor", Vector3i())
-    var dims = FurnitureLayer.dimensions_of(def)
+    # Try to resolve def for dimensions — gracefully degrade if unavailable
+    # (BuildLibrary autoload unreachable in @tool context).
+    var def_id: String = marker.get_meta("def_id", "")
+    var dims := Vector3i.ONE
+    var def_res = load("res://data/furniture/%s.tres" % def_id)
+    if def_res is FurnitureDef:
+        dims = (def_res as FurnitureDef).dimensions
+
+    var anchor: Vector3i = marker.get_meta("anchor", Vector3i())
 
     # Remove old cells from index
     var old_offsets = FurnitureLayer.footprint_cells(dims, current_yaw)
     for off in old_offsets:
         _index_by_cell.erase(anchor + off)
 
-    # Update metadata
+    # Update metadata and transform
     marker.set_meta("yaw_quarters", new_yaw)
-
-    # Update transform
     var origin = FurnitureLayer.world_origin(anchor, dims, new_yaw)
     marker.transform.origin = origin
     marker.transform.basis = Basis(Vector3.UP, deg_to_rad(new_yaw * 90))
@@ -134,16 +154,18 @@ func remove_at(cell: Vector3i) -> bool:
 
     var marker = _index_by_cell[cell]
 
-    # Remove from index
-    var def_id = marker.get_meta("def_id")
-    var def = BuildLibrary.get_def(def_id)
-    var anchor = marker.get_meta("anchor", Vector3i())
-    var yaw = marker.get_meta("yaw_quarters", 0)
-    var dims = FurnitureLayer.dimensions_of(def)
-    var offsets = FurnitureLayer.footprint_cells(dims, yaw)
+    # Remove from index — read anchor/yaw from metadata rather than re-resolving
+    # the def (BuildLibrary autoload is unreachable in @tool context).
+    var anchor: Vector3i = marker.get_meta("anchor", Vector3i())
+    var yaw: int = marker.get_meta("yaw_quarters", 0)
 
-    for off in offsets:
-        _index_by_cell.erase(anchor + off)
+    # Clear every cell that maps to this marker (safe even if dims unknown).
+    var cells_to_clear: Array = []
+    for c in _index_by_cell.keys():
+        if _index_by_cell[c] == marker:
+            cells_to_clear.append(c)
+    for c in cells_to_clear:
+        _index_by_cell.erase(c)
 
     # Remove from scene
     marker.queue_free()
