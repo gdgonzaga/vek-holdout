@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Isometric voxel cube icon -->
+  <path d="M8 1 L14 4.5 L14 11.5 L8 15 L2 11.5 L2 4.5 Z" fill="#6b8cce" stroke="#3a5ba0" stroke-width="0.8"/>
+  <path d="M8 1 L8 8 L14 4.5 Z" fill="#8aaae0" stroke="#3a5ba0" stroke-width="0.5"/>
+  <path d="M8 8 L2 4.5 L2 11.5 L8 15 Z" fill="#5070b0" stroke="#3a5ba0" stroke-width="0.5"/>
+  <path d="M8 8 L14 11.5 L14 4.5 Z" fill="#4a65a8" stroke="#3a5ba0" stroke-width="0.5"/>
+</svg>
