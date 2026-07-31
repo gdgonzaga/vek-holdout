@@ -1,7 +1,7 @@
 extends Node3D
 ## Player controller feel-test: walk over the voxel terrain + mouse-look.
 ##
-## Instances world.tscn (the terrain) and player.tscn, adds a VoxelViewer so the
+## Instances map.tscn (the terrain) and player.tscn, adds a VoxelViewer so the
 ## terrain streams collision around the player (player.tscn must stay
 ## voxel-agnostic per ARCH line 138, so the viewer lives here in the test).
 ## Also scatters colored beacon landmarks so movement/speed is visible against an
@@ -28,13 +28,13 @@ func _ready() -> void:
 	light.shadow_enabled = true
 	add_child(light)
 
-	var world: Node3D = preload("res://subsystems/voxel/world.tscn").instantiate()
-	add_child(world)
+	var map: Node3D = preload("res://subsystems/voxel/map.tscn").instantiate()
+	add_child(map)
 
 	# Player drops in a couple meters above the terrain so it settles onto it.
 	var player: Node3D = preload("res://subsystems/player/player.tscn").instantiate()
 	player.global_position = Vector3(0, 5, 0)
-	world.add_child(player)
+	map.add_child(player)
 
 	# VoxelViewer parented to the player so terrain streams + generates collision
 	# wherever the player is. (The camera is a child of the player via the rig, so
@@ -45,15 +45,15 @@ func _ready() -> void:
 		viewer.set("requires_collision", true)
 	player.add_child(viewer)
 
-	_spawn_landmarks(world)
+	_spawn_landmarks(map)
 
 ## Scatter colored beacon rings around spawn so walking has visible reference
 ## points (terrain is otherwise one flat color to the horizon). These are plain
 ## MeshInstance3D markers, not voxel blocks — they're test scaffolding, not game
 ## content, so they don't go through VoxelGrid or the block data.
-func _spawn_landmarks(world: Node) -> void:
+func _spawn_landmarks(map: Node) -> void:
 	# A tall marker at spawn so the origin is unmistakable from anywhere.
-	_add_beacon(world, Vector3.ZERO, Color(1, 1, 1), _BEACON_HEIGHT * 1.5, _BEACON_SIZE * 1.2)
+	_add_beacon(map, Vector3.ZERO, Color(1, 1, 1), _BEACON_HEIGHT * 1.5, _BEACON_SIZE * 1.2)
 	for ring_i in _RING_RADIUS.size():
 		var r: float = _RING_RADIUS[ring_i]
 		var color: Color = _RING_COLORS[ring_i]
@@ -62,7 +62,7 @@ func _spawn_landmarks(world: Node) -> void:
 		for i in 8:
 			var angle := TAU * i / 8.0
 			var pos := Vector3(cos(angle) * r, 0.0, sin(angle) * r)
-			_add_beacon(world, pos, color, _BEACON_HEIGHT, _BEACON_SIZE)
+			_add_beacon(map, pos, color, _BEACON_HEIGHT, _BEACON_SIZE)
 
 func _add_beacon(parent: Node, pos: Vector3, color: Color, height: float, size: float) -> void:
 	var mi := MeshInstance3D.new()

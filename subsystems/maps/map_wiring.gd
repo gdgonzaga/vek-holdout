@@ -1,12 +1,12 @@
-class_name WorldWiring
+class_name MapWiring
 extends RefCounted
-## Static utilities for wiring a World's subsystems at runtime.
+## Static utilities for wiring a Map's subsystems at runtime.
 ##
 ## Extracts the canonical wiring pattern proven in testing/build/build_test.gd
 ## (lines 40-55) so SceneManager reuses one source of truth instead of
 ## duplicating adapter/strategy/FurnitureLayer/camera plumbing per swap.
 ##
-## Requires a one-frame deferral (await get_tree().process_frame) AFTER world
+## Requires a one-frame deferral (await get_tree().process_frame) AFTER map
 ## instantiation so child _ready calls (esp. CameraRig camera build) have run
 ## before wire_build/wire_player read them. NOTE: that deferral is for camera
 ## wiring ONLY — not for voxel writes (those need the region streamed, ~40 frames
@@ -14,13 +14,13 @@ extends RefCounted
 
 
 ## Wire BuildController deps (adapter -> grid, strategy -> adapter,
-## FurnitureLayer -> container). Returns the FurnitureLayer (or null if the world
+## FurnitureLayer -> container). Returns the FurnitureLayer (or null if the map
 ## has no BuildController or the wiring is incomplete).
-static func wire_build(world: World) -> FurnitureLayer:
-	var ctrl := world.find_child("BuildController") as BuildController
+static func wire_build(map: Map) -> FurnitureLayer:
+	var ctrl := map.find_child("BuildController") as BuildController
 	if ctrl == null:
 		return null
-	var grid: VoxelGrid = world.get_grid()
+	var grid: VoxelGrid = map.get_grid()
 	var adapter := VoxelGridAdapter.new()
 	adapter.set_grid(grid)
 	ctrl.grid_adapter = adapter
@@ -28,16 +28,16 @@ static func wire_build(world: World) -> FurnitureLayer:
 	strategy.set_grid(adapter)
 	ctrl.strategy = strategy
 	var fl := FurnitureLayer.new()
-	fl.set_container(world.get_furniture_container())
+	fl.set_container(map.get_furniture_container())
 	ctrl.furniture_layer = fl
 	return fl
 
 
-## Attach the player to the world and wire its camera into BuildController.
-## Reuses an existing VoxelViewer on the player so repeated world swaps don't
+## Attach the player to the map and wire its camera into BuildController.
+## Reuses an existing VoxelViewer on the player so repeated map swaps don't
 ## stack viewers (one per swap) — the first swap adds it, subsequent swaps find
 ## it already parented.
-static func wire_player(world: World, player: Player) -> void:
+static func wire_player(map: Map, player: Player) -> void:
 	# VoxelViewer streams terrain + collision around the player. BuildController's
 	# physics raycast (VoxelGrid.raycast_to_voxel) only hits something once chunks
 	# exist there, so the viewer must precede any build interaction.
@@ -53,7 +53,7 @@ static func wire_player(world: World, player: Player) -> void:
 		if "requires_collision" in viewer:
 			viewer.set("requires_collision", true)
 		player.add_child(viewer)
-	var ctrl := world.find_child("BuildController") as BuildController
+	var ctrl := map.find_child("BuildController") as BuildController
 	if ctrl != null:
 		ctrl.set_camera(player.get_camera())
 		ctrl.add_exclude_body(player)

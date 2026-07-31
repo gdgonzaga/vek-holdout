@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://boii6trikli4f"]
 
-[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/world.gd" id="1_world"]
+[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_map"]
 [ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_voxel_grid"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="3_build_scene"]
 
@@ -9,8 +9,8 @@ channel = 0
 
 [sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_default"]
 
-[node name="World" type="Node3D" unique_id=378224630]
-script = ExtResource("1_world")
+[node name="Map" type="Node3D" unique_id=378224630]
+script = ExtResource("1_map")
 
 [node name="VoxelGrid" type="Node" parent="." unique_id=167104052]
 script = ExtResource("2_voxel_grid")

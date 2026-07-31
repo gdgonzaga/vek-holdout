@@ -14,19 +14,19 @@ var current_scene_id: String = "base"
 var paused: bool = false
 var save_slot: String = ""
 
-## Reference to the WorldRoot whose children get process_mode-toggled on pause.
-## Set by Main when it mounts the WorldRoot. Null until then.
-var world_root: Node = null
+## Reference to the MapRoot whose children get process_mode-toggled on pause.
+## Set by Main when it mounts the MapRoot. Null until then.
+var map_root: Node = null
 
 
 ## Toggles pause. Per ARCH line 307/270, GameState itself sets process_mode on
-## sim nodes (WorldRoot + children); UI keeps PROCESS_MODE_ALWAYS.
+## sim nodes (MapRoot + children); UI keeps PROCESS_MODE_ALWAYS.
 func set_paused(p: bool) -> void:
 	if paused == p:
 		return
 	paused = p
-	if world_root != null:
-		world_root.process_mode = Node.PROCESS_MODE_DISABLED if p else Node.PROCESS_MODE_INHERIT
+	if map_root != null:
+		map_root.process_mode = Node.PROCESS_MODE_DISABLED if p else Node.PROCESS_MODE_INHERIT
 	pause_state_changed.emit(p)
 
 

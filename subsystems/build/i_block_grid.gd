@@ -1,7 +1,7 @@
 class_name IBlockGrid
 ## Voxel-agnostic block-grid contract (docs/ARCHITECTURE.md, Build subsystem).
 ##
-## The Build subsystem talks to the world through this interface only — it never
+## The Build subsystem talks to the map through this interface only — it never
 ## touches voxel_tool directly. The voxel/ subsystem provides the concrete
 ## VoxelGrid implementation; build/voxel_grid_adapter.gd adapts it onto VoxelGrid
 ## (per the Build subsystem Files table).

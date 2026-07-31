@@ -20,9 +20,9 @@ signal raid_ended(outcome: Dictionary)            # raids -> HUD, Colony, save_s
 signal expedition_started(crew: Array, poi_id: String)  # expeditions -> SceneManager, Colony, colonists
 signal expedition_ended(result: Dictionary)             # expeditions -> SceneManager, Colony, HUD
 
-# --- Map / World swaps ---
+# --- Map swaps ---
 signal map_loading(map_id: String)            # SceneManager -> HUD (loading screen)
-signal map_loaded(map_id: String)             # SceneManager -> everyone (world ready)
+signal map_loaded(map_id: String)             # SceneManager -> everyone (map ready)
 signal map_unloading(map_id: String)          # SceneManager -> save/cleanup
 
 # --- Character death ---

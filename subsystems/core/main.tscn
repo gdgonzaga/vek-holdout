@@ -12,4 +12,4 @@ layer = 10
 layer = 20
 groups = ["ui_layer"]
 
-[node name="WorldRootSlot" type="Node" parent="."]
+[node name="MapRootSlot" type="Node" parent="."]

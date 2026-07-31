@@ -7,4 +7,4 @@ script = ExtResource("1_script")
 id = "base_colony"
 display_name = "Base Colony"
 description = "The colony home base."
-scene_path = "res://subsystems/voxel/world.tscn"
+scene_path = "res://subsystems/voxel/map.tscn"

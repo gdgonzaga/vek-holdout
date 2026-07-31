@@ -4,7 +4,7 @@ extends EditorScript
 ## map scene that VoxelPaint writes into.
 ##
 ## Run via editor File → Run (Ctrl+Shift+X) with any scene open. Produces:
-##   MapTemplate (Node3D, world.gd, database_path exported)
+##   MapTemplate (Node3D, map.gd, database_path exported)
 ##     VoxelGrid (Node, voxel_grid.gd)
 ##       VoxelTerrain (generator, mesher with library)
 ##     ColonistContainer, EnemyContainer, FurnitureContainer, EnvironmentContainer
@@ -13,17 +13,17 @@ extends EditorScript
 ##
 ## The baked mesher library (data/blocks/voxel_library.tres) is the decisive
 ## ingredient for in-editor rendering (Fact 5).
-## The stream is wired by world.gd _ready() from the database_path export —
+## The stream is wired by map.gd _ready() from the database_path export —
 ## no manual VoxelStreamSQLite sub-resource needed in the .tscn.
 
-const OUTPUT_PATH := "res://data/maps/new_map/ : d:8map.tscn"
+const OUTPUT_PATH := "res://data/maps/new_map/map.tscn"
 const LIBRARY_PATH := "res://data/blocks/voxel_library.tres"
 
 
 func _run() -> void:
 	var root := Node3D.new()
 	root.name = "MapTemplate"
-	root.set_script(load("res://subsystems/voxel/world.gd"))
+	root.set_script(load("res://subsystems/voxel/map.gd"))
 
 	# -- VoxelGrid --
 	var grid := Node.new()
@@ -36,7 +36,7 @@ func _run() -> void:
 	var terrain := VoxelTerrain.new()
 	terrain.name = "VoxelTerrain"
 
-	# Generator: flat ground (same as base world).
+	# Generator: flat ground (same as base map).
 	var gen := VoxelGeneratorFlat.new()
 	gen.channel = 0
 	terrain.generator = gen
@@ -51,12 +51,12 @@ func _run() -> void:
 		push_warning("MapTemplate: could not load ", LIBRARY_PATH, " — editor rendering will be blank")
 	terrain.mesher = mesher
 
-	# No stream set here — world.gd _ready() creates it from database_path export.
+	# No stream set here — map.gd _ready() creates it from database_path export.
 
 	grid.add_child(terrain)
 	terrain.owner = root
 
-	# -- Containers (match world.tscn structure) --
+	# -- Containers (match map.tscn structure) --
 	for container_name in ["ColonistContainer", "EnemyContainer", "FurnitureContainer", "EnvironmentContainer"]:
 		var c := Node3D.new()
 		c.name = container_name

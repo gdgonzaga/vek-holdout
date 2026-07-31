@@ -1,8 +1,8 @@
 extends Node
 ## Build subsystem ghost-preview test.
 ##
-## Instances world.tscn + player.tscn + build.tscn, wires the BuildController's
-## grid adapter to the world's VoxelGrid and its camera to the player's rig.
+## Instances map.tscn + player.tscn + build.tscn, wires the BuildController's
+## grid adapter to the map's VoxelGrid and its camera to the player's rig.
 ##
 ## Controls: B toggles build mode (ghost appears/disappears). Look at the terrain
 ## — the ghost follows the cursor and tints green (valid) / red (invalid). LMB
@@ -15,13 +15,13 @@ func _ready() -> void:
 	light.shadow_enabled = true
 	add_child(light)
 
-	var world: Node = preload("res://subsystems/voxel/world.tscn").instantiate()
-	add_child(world)
+	var map: Node = preload("res://subsystems/voxel/map.tscn").instantiate()
+	add_child(map)
 
 	# Player onto the terrain.
 	var player: Node3D = preload("res://subsystems/player/player.tscn").instantiate()
 	player.global_position = Vector3(0, 5, 0)
-	world.add_child(player)
+	map.add_child(player)
 
 	# VoxelViewer so terrain streams + collision around the player.
 	var viewer := VoxelViewer.new()
@@ -30,15 +30,15 @@ func _ready() -> void:
 		viewer.set("requires_collision", true)
 	player.add_child(viewer)
 
-	# BuildController as a sibling of the player under WorldRoot (ARCH line 67).
+	# BuildController as a sibling of the player under MapRoot (ARCH line 67).
 	var build: Node = preload("res://subsystems/build/build.tscn").instantiate()
-	world.add_child(build)
+	map.add_child(build)
 
-	# Wire the adapter to the world's VoxelGrid and the controller's camera to the
+	# Wire the adapter to the map's VoxelGrid and the controller's camera to the
 	# player's rig. Deferred a frame so child _ready calls (rig camera build) have
 	# run before we ask for the camera.
 	await get_tree().process_frame
-	var grid: VoxelGrid = world.get_grid()
+	var grid: VoxelGrid = map.get_grid()
 	var adapter := VoxelGridAdapter.new()
 	adapter.set_grid(grid)
 	build.grid_adapter = adapter
@@ -46,9 +46,9 @@ func _ready() -> void:
 	var strategy := InstantPlacementStrategy.new()
 	strategy.set_grid(adapter)
 	build.strategy = strategy
-	# FurnitureLayer parents spawned Node3Ds under the world's FurnitureContainer.
+	# FurnitureLayer parents spawned Node3Ds under the map's FurnitureContainer.
 	var furniture := FurnitureLayer.new()
-	furniture.set_container(world.get_furniture_container())
+	furniture.set_container(map.get_furniture_container())
 	build.furniture_layer = furniture
 	build.set_camera(player.get_camera())
 	# Exclude the player capsule so the camera ray hits terrain, not the player.

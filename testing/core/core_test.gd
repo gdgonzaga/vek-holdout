@@ -1,8 +1,8 @@
 extends Node
 ## Core skeleton test: verifies autoloads load, day rolls, pause freezes the sim.
 ##
-## Instances main.tscn (which brings the autoloads + a base WorldRoot), drops the
-## player into the world, and shows live state: current day, paused flag, and a
+## Instances main.tscn (which brings the autoloads + a base MapRoot), drops the
+## player into the map, and shows live state: current day, paused flag, and a
 ## hint. Keys:
 ##   Esc       toggle pause (Core-owned; sim should freeze when paused)
 ##   M         force midnight (TimeSystem.advance_to_midnight -> day++ + autosave stub)
@@ -15,11 +15,11 @@ func _ready() -> void:
 	_main = preload("res://subsystems/core/main.tscn").instantiate()
 	add_child(_main)
 
-	# Drop the player into the base WorldRoot that main just loaded.
-	var world: Node = GameState.world_root
-	var player: Node3D = preload("res://player/player.tscn").instantiate()
+	# Drop the player into the base MapRoot that main just loaded.
+	var map: Node = GameState.map_root
+	var player: Node3D = preload("res://subsystems/player/player.tscn").instantiate()
 	player.global_position = Vector3(0, 5, 0)
-	world.add_child(player)
+	map.add_child(player)
 
 	# VoxelViewer so terrain streams + collision around the player.
 	var viewer := VoxelViewer.new()

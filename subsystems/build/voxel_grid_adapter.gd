@@ -3,7 +3,7 @@ extends RefCounted
 ## IBlockGrid implementation wrapping voxel/voxel_grid.gd (ARCH "Build", line 456).
 ## Keeps BuildController voxel-agnostic: it talks to this adapter, never to
 ## voxel_tool or VoxelGrid directly. Holds a VoxelGrid reference set at wiring
-## time (world mounts the controller + hands it the grid).
+## time (map mounts the controller + hands it the grid).
 
 var _grid: VoxelGrid = null
 

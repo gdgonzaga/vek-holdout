@@ -1,6 +1,6 @@
 extends Node3D
-## Integration test for the Voxel / World subsystem.
-## Loads the real world.tscn, flies a camera through it, and exercises VoxelGrid:
+## Integration test for the Voxel / Map subsystem.
+## Loads the real map.tscn, flies a camera through it, and exercises VoxelGrid:
 ##   - places one block of every buildable type (wood/scrap/stone/metal/reinforced)
 ##   - verifies get_block_at round-trips the block_id
 ##   - verifies raycast_to_voxel hits placed blocks
@@ -10,21 +10,21 @@ extends Node3D
 
 const BLOCK_TYPES := ["wood", "scrap", "stone", "metal", "reinforced"]
 
-var _world: World
+var _map: Map
 var _camera: Camera3D
 var _label: Label
 var _diagnostics := PackedStringArray()
 
 func _ready() -> void:
-	# Lighting + sky so the world is visible.
+	# Lighting + sky so the map is visible.
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-45, 30, 0)
 	light.shadow_enabled = true
 	add_child(light)
 
-	# The real WorldRoot.
-	_world = preload("res://subsystems/voxel/world.tscn").instantiate()
-	add_child(_world)
+	# The real MapRoot.
+	_map = preload("res://subsystems/voxel/map.tscn").instantiate()
+	add_child(_map)
 
 	# Fly camera + viewer (drives terrain streaming + collision for raycasts).
 	_camera = Camera3D.new()
@@ -56,8 +56,8 @@ func _run_tests() -> void:
 	# Let terrain stream in before we read/write.
 	await get_tree().create_timer(0.5).timeout
 
-	var grid: VoxelGrid = _world.get_grid()
-	_diagnostics.append("=== Voxel/World subsystem test ===")
+	var grid: VoxelGrid = _map.get_grid()
+	_diagnostics.append("=== Voxel/Map subsystem test ===")
 
 	# 1) Place one of each buildable type in a row on top of the terrain (y=1).
 	var y := 1

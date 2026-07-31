@@ -20,7 +20,7 @@ const DEBUG_RAYCAST := true
 
 # Runtime-wired (not @export: VoxelGridAdapter/InstantPlacementStrategy/
 # FurnitureLayer extend RefCounted, which Godot can't export). Set by the
-# world/test after instantiation.
+# map/test after instantiation.
 var grid_adapter: VoxelGridAdapter
 var strategy: InstantPlacementStrategy
 var furniture_layer: FurnitureLayer
@@ -103,7 +103,7 @@ func set_active(active: bool) -> void:
 
 
 ## Runtime camera wiring (controller is a sibling of the player, so it can't use
-## a relative path). Called by the world/test after the player exists.
+## a relative path). Called by the map/test after the player exists.
 func set_camera(camera: Camera3D) -> void:
 	_camera = camera
 

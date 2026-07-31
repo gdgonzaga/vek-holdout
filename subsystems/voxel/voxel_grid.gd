@@ -15,8 +15,8 @@ extends Node
 signal block_placed(pos: Vector3i, block_id: String)
 signal block_destroyed(pos: Vector3i)
 
-## Path/name of the VoxelTerrain node, relative to this VoxelGrid. The WorldRoot
-## (world.tscn) parents VoxelTerrain as a direct child of VoxelGrid.
+## Path/name of the VoxelTerrain node, relative to this VoxelGrid. The MapRoot
+## (map.tscn) parents VoxelTerrain as a direct child of VoxelGrid.
 @export var terrain_path: NodePath = ^"VoxelTerrain"
 
 @onready var _terrain: VoxelTerrain = get_node(terrain_path)

@@ -14,7 +14,7 @@ extends RefCounted
 ## registered so overlapping placement is rejected and removal by pointing at any
 ## occupied cell works.
 ##
-## Runtime-wired (RefCounted can't be @export'd): the world/test constructs it,
+## Runtime-wired (RefCounted can't be @export'd): the map/test constructs it,
 ## calls set_container(), and assigns it to BuildController.furniture_layer.
 
 var _container: Node3D = null   # set via set_container(); where spawned nodes parent.
@@ -110,7 +110,7 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	mesh_node.create_trimesh_collision()
 	
 	var mesh_static_body: StaticBody3D = mesh_node.get_child(0) as StaticBody3D
-	mesh_static_body.name = "WorldStaticBody"
+	mesh_static_body.name = "MapStaticBody"
 	mesh_static_body.set_collision_layer_value(1, true)
 	mesh_static_body.collision_mask = 0
 	
