@@ -30,10 +30,22 @@ func _ready() -> void:
 	# something to show. Move behind the Main Menu (New Game / Continue) when the
 	# UI subsystem lands — contradicts boot.gd's "boot -> Main -> Menu" decision.
 	SceneManager.swap_map("base_colony")
+	# Discover any POI-type maps registered in MapLibrary.
+	for def in MapLibrary.get_maps_by_type(MapDef.MapType.POI):
+		ExpeditionManager.discover(def.id)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	# Pause toggle. UI nodes keep PROCESS_MODE_ALWAYS so the pause menu (when it
 	# lands) still works; the MapRoot + children get disabled by GameState.
 	if event.is_action_pressed("ui_cancel"):
+		# Close screen if one is open, otherwise toggle pause.
+		if SceneManager.is_screen_open():
+			SceneManager.close_screen()
+			return
 		GameState.set_paused(not GameState.paused)
+	elif event.is_action_pressed("world_map"):
+		if SceneManager.is_screen_open():
+			SceneManager.close_screen()
+		else:
+			SceneManager.open_screen("world_map")

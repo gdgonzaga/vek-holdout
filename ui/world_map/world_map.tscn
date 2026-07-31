@@ -1,0 +1,51 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/world_map/world_map.gd" id="1_script"]
+
+[node name="WorldMap" type="PanelContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="VBox" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "World Map"
+
+[node name="POIList" type="VBoxContainer" parent="MarginContainer/VBox"]
+layout_mode = 2
+size_flags_vertical = Control.SIZE_EXPAND_FILL
+unique_name_in_owner = true
+theme_override_constants/separation = 8
+
+[node name="NoPoisLabel" type="Label" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "No expeditions available."
+unique_name_in_owner = true
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBox"]
+layout_mode = 2
+
+[node name="ReturnButton" type="Button" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "Return to Base"
+unique_name_in_owner = true
+
+[node name="CloseButton" type="Button" parent="MarginContainer/VBox"]
+layout_mode = 2
+text = "Close"
+unique_name_in_owner = true

@@ -1,6 +1,6 @@
 extends Resource
 class_name MapDef
-## Loadable map/environment definition. Scanned from data/maps/*.tres by
+## Loadable map/environment definition. Scanned from data/maps/*/map_def.tres by
 ## MapLibrary. Points to a Map .tscn and carries metadata used by SceneManager
 ## and ExpeditionManager.
 ##

@@ -115,8 +115,9 @@ func get_stream_path() -> String:
 
 
 ## Creates a new map folder in data/maps/ with an empty SQLite database,
-## then assigns the stream to the terrain. Returns the database path, or ""
-## if the map already exists or the folder could not be created.
+## assigns the stream to the terrain, and writes a map_def.tres catalog entry
+## (scene_path -> map_template.tscn). Returns the database path, or "" if the
+## map already exists or the folder could not be created.
 func create_new_map(map_name: String) -> String:
 	if map_name.is_empty():
 		push_warning("VoxelPaint: empty map name")
@@ -131,7 +132,26 @@ func create_new_map(map_name: String) -> String:
 		return ""
 	var db_path := folder_path + "map.sqlite"
 	_assign_stream(db_path)
+	_create_map_def(map_name, folder_path)
 	return db_path
+
+
+## Writes a map_def.tres for a freshly authored map. Defaults: map_type POI,
+## scene_path -> the shared map_template.tscn. Caller can edit the .tres later.
+func _create_map_def(map_name: String, folder_path: String) -> void:
+	var def := MapDef.new()
+	def.id = map_name
+	def.display_name = map_name.capitalize()
+	def.description = "Authored via voxel paint."
+	def.map_type = MapDef.MapType.POI
+	def.scene_path = "res://subsystems/maps/map_template.tscn"
+	var tres_path := folder_path + "map_def.tres"
+	var save_err := ResourceSaver.save(def, tres_path)
+	if save_err != OK:
+		push_warning("VoxelPaint: failed to write map_def.tres (error %d)" % save_err)
+		return
+	# Make the new resource visible in the editor's FileSystem dock.
+	EditorInterface.get_resource_filesystem().scan()
 
 
 ## Creates a VoxelStreamSQLite with the given path and assigns it to the terrain.

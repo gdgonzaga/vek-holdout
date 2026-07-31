@@ -11,6 +11,7 @@ var _map_root_parent: Node = null    # set by Main; where MapRoot mounts
 var _ui_layer: CanvasLayer = null      # set by Main; the layer-20 slot
 var _current_map: Node = null
 var _current_scene_id: String = ""
+var _current_screen: Node = null       # currently open full-screen UI
 var _player: Player = null
 
 
@@ -51,6 +52,11 @@ func swap_map(scene_id: String) -> void:
 	_current_map = map
 	_current_scene_id = scene_id
 
+	# Copy-on-load: if the map has a SQLite stream with a res:// database, copy
+	# the pristine .sqlite to user://maps/<id>/ and redirect the stream path.
+	# This keeps authored maps untouched while allowing runtime mutations.
+	_redirect_sqlite_stream(map, map_def.id)
+
 	# One-frame deferral: child _ready (CameraRig builds its camera) must run
 	# before wire_build/wire_player read it. NOT for voxel writes.
 	await get_tree().process_frame
@@ -59,6 +65,41 @@ func swap_map(scene_id: String) -> void:
 	GameState.map_root = map
 	GameState.set_scene_id(scene_id)
 	EventBus.map_loaded.emit(scene_id)
+
+
+## If the map's VoxelTerrain uses a VoxelStreamSQLite backed by a res:// path,
+## copy the pristine database to user://maps/<map_id>/ and redirect the stream.
+## If the terrain has no stream, inject one pointing at user://maps/<map_id>/.
+## This keeps authored maps untouched while allowing runtime mutations.
+func _redirect_sqlite_stream(map: Node, map_id: String) -> void:
+	var m: Map = map as Map
+	if m == null:
+		return
+	var terrain := m.get_terrain()
+	if terrain == null:
+		return
+	# Ensure the runtime directory exists.
+	var runtime_dir := "user://maps/%s/" % map_id
+	var runtime_path := runtime_dir + "map.sqlite"
+	DirAccess.make_dir_recursive_absolute(runtime_dir.trim_suffix("/"))
+
+	if terrain.stream is VoxelStreamSQLite:
+		var stream: VoxelStreamSQLite = terrain.stream
+		var src_path: String = stream.database_path
+		# Only copy res:// sources — user:// is already a runtime copy.
+		if src_path.begins_with("res://"):
+			if not FileAccess.file_exists(runtime_path) and FileAccess.file_exists(src_path):
+				var err := DirAccess.copy_absolute(src_path, runtime_path)
+				if err != OK:
+					push_error("SceneManager: failed to copy '%s' -> '%s' (error %d)" \
+							% [src_path, runtime_path, err])
+					return
+		stream.database_path = runtime_path
+	elif terrain.stream == null:
+		# Template-based map with no baked stream: inject one at runtime.
+		var stream := VoxelStreamSQLite.new()
+		stream.database_path = runtime_path
+		terrain.stream = stream
 
 
 ## Wire the instantiated map's subsystems and reparent the player. Extracted
@@ -83,13 +124,27 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 		MapWiring.wire_player(m, _player)
 
 
-## Open a full-screen UI screen by id in the layer-20 slot. STUB.
+## Open a full-screen UI screen by id in the layer-20 slot.
+## Closes any currently open screen first.
 func open_screen(screen_id: String) -> void:
-	# TODO: instance ui/<screen_id>/<screen_id>.tscn, replace current in _ui_layer.
-	push_warning("SceneManager.open_screen('%s'): not implemented (stub)" % screen_id)
+	close_screen()
+	var scene_path := "res://ui/%s/%s.tscn" % [screen_id, screen_id]
+	var scene: PackedScene = load(scene_path)
+	if scene == null:
+		push_error("SceneManager: failed to load screen '%s' from '%s'" % [screen_id, scene_path])
+		return
+	var screen: Node = scene.instantiate()
+	_ui_layer.add_child(screen)
+	_current_screen = screen
 
 
-## Close the current full-screen UI screen. STUB.
+## Close the current full-screen UI screen, if any.
 func close_screen() -> void:
-	# TODO: free the current screen node in _ui_layer.
-	push_warning("SceneManager.close_screen(): not implemented (stub)")
+	if _current_screen != null:
+		_current_screen.queue_free()
+		_current_screen = null
+
+
+## Returns true if a full-screen UI screen is currently open.
+func is_screen_open() -> bool:
+	return _current_screen != null

@@ -1,0 +1,22 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/world_map/poi_entry.gd" id="1_script"]
+
+[node name="POIEntry" type="HBoxContainer"]
+script = ExtResource("1_script")
+alignment = BoxContainer.ALIGNMENT_CENTER
+
+[node name="VBox" type="VBoxContainer" parent="."]
+size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+[node name="NameLabel" type="Label" parent="VBox"]
+text = "POI Name"
+
+[node name="DescLabel" type="Label" parent="VBox"]
+text = "Description"
+
+[node name="DifficultyLabel" type="Label" parent="."]
+text = "Difficulty: 1"
+
+[node name="DepartButton" type="Button" parent="."]
+text = "Depart"
