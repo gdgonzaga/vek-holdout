@@ -70,7 +70,7 @@ Dev-facing editor tooling, not shipped gameplay. Documented here because the map
 
 | Plugin | Purpose |
 |---|---|
-| `voxel_paint/` | WYSIWYG terrain painter (`EditorPlugin`). Toolbar button appears when a `VoxelTerrain` is selected; LMB paints, Shift+LMB erases, writes via `VoxelTool.do_sphere`, flushes with `save_modified_blocks()`. The **New** button creates a `data/maps/<id>/` folder with an empty `map.sqlite` + a default `map_def.tres` (POI, pointing at `map_template.tscn`); **Pick...** assigns an existing `.sqlite`. Hit detection is a `get_voxel()` ray-march (Godot physics raycast + `VoxelTool.raycast` are dead in the editor viewport — `VoxelTerrain` emits no chunks/collision there; see `docs/VOXEL-TOOL-NOTES.md`). |
+| `voxel_paint/` | WYSIWYG terrain + furniture painter (`EditorPlugin`). Toolbar button visible for any node selection; LMB paints, Shift+LMB erases, writes via `VoxelTool.do_sphere`, flushes with `save_modified_blocks()`. Each map owns its own `.tscn` stamped from a pristine template (with a per-map `VoxelStreamSQLite`), so furniture markers are isolated per map. The panel's **Maps** section lists existing maps (open to edit) and **+ New Map** creates a new per-map scene + sqlite + catalog entry. Hit detection is a `get_voxel()` ray-march (Godot physics raycast + `VoxelTool.raycast` are dead in the editor viewport — `VoxelTerrain` emits no chunks/collision there; see `docs/VOXEL-TOOL-NOTES.md`). |
 
 ## Scene Tree Overview
 
@@ -79,7 +79,7 @@ Dev-facing editor tooling, not shipped gameplay. Documented here because the map
     - **HUD** (`hud.tscn`) — persistent in-game overlay (HP/Durability/Stamina/Breath bars, hotbar, build-mode ghost). Instanced by Main at startup; hidden during full-screen menus.
   - CanvasLayer (`layer=20`) — Full-screen UI layer (Player/Colony/World Map/Pause/MainMenu/GameOver/Settings). Only one present at a time; managed by `SceneManager.open_screen` / `close_screen`.
   - **MapRootSlot** (Node) — the mount point for the current map. Swapped by SceneManager on base↔POI transitions.
-    - **Map** (`map.tscn` / `map_template.tscn`, root script `map.gd` — `Map`) — the current game world; a structural container only (no gameplay logic). See Maps subsystem.
+    - **Map** (`map.tscn` / per-map `data/maps/<id>/map.tscn`, root script `map.gd` — `Map`) — the current game world; a structural container only (no gameplay logic). See Maps subsystem.
     - VoxelGrid (Node, `voxel_grid.gd`) — the `IBlockGrid` owner; sole voxel_tool access point
       - VoxelTerrain (`voxel_tool` blocky mode). Its `VoxelStreamSQLite` is injected/redirected by SceneManager at load time (runtime copy lives in `user://maps/<id>/`).
     - **Player** (`player.tscn`)
@@ -389,7 +389,7 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 
 | File | Type | Responsibility |
 |---|---|---|
-| `map.tscn` / `map.gd` | Scene/Script | The MapRoot — the current game world (`Map`, structural container only — no gameplay logic). Swapped by SceneManager on base↔POI transitions. Holds VoxelGrid + containers for player/colonists/enemies/furniture. The shared POI scene lives at `subsystems/maps/map_template.tscn` (see Maps subsystem). |
+| `map.tscn` / `map.gd` | Scene/Script | The MapRoot — the current game world (`Map`, structural container only — no gameplay logic). Swapped by SceneManager on base↔POI transitions. Holds VoxelGrid + containers for player/colonists/enemies/furniture. Authored POIs have per-map scenes at `data/maps/<id>/map.tscn` (see Maps subsystem); the pristine template lives at `subsystems/maps/map_template.tscn`. |
 | `voxel_grid.gd` | Script | Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the Godot-physics raycast (see `docs/VOXEL-TOOL-NOTES.md`). Owns block get/set, per-cell HP, and the damage surface. Does NOT own placement UX (that's Build). |
 | `block_library.gd` | Script (Resource) | Owns the `VoxelBlockyLibrary` the mesher renders with; maps string block_id ↔ integer library index, and id → `BlockDef`. Enforces the index convention (0 = air, terrain = 1) and bakes the library from `data/blocks/`. |
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, terrain). See Data Schema. |
@@ -418,7 +418,7 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 
 **Extends:** Node3D
 **Script:** `map.gd`
-**Description:** The MapRoot — the current game world, swapped by SceneManager on base↔POI transitions. A structural container only; holds no gameplay logic. The voxel world's behavior lives in `VoxelGrid` / `BlockLibrary`. Both the base scene (`map.tscn`) and the shared POI scene (`maps/map_template.tscn`) use this root script.
+**Description:** The MapRoot — the current game world, swapped by SceneManager on base↔POI transitions. A structural container only; holds no gameplay logic. The voxel world's behavior lives in `VoxelGrid` / `BlockLibrary`. The base scene (`map.tscn`) and each authored POI (per-map `data/maps/<id>/map.tscn` stamped from `maps/map_template.tscn`) use this root script.
 **Used by:** SceneManager (swaps the whole node), subsystems that fetch their containers/grid via the accessors.
 **Lifecycle:** `@onready` resolves its child refs at `_ready`.
 
@@ -1522,12 +1522,12 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 
 ## Subsystem: Maps
 
-The catalog, wiring, and shared scene for loadable maps. Hosts the `MapLibrary` autoload (the `id → MapDef` registry that `SceneManager` and `ExpeditionManager` read), `MapWiring` + `SpawnHelpers` (the runtime setup extracted from the proven build-test wiring), and `map_template.tscn` (the shared POI scene). This subsystem is the **map authoring + loading backbone**; see `docs/HOWTO-create-a-map.md` for the end-to-end authoring workflow.
+The catalog, wiring, and per-map scenes for loadable maps. Hosts the `MapLibrary` autoload (the `id → MapDef` registry that `SceneManager` and `ExpeditionManager` read), `MapWiring` + `SpawnHelpers` (the runtime setup extracted from the proven build-test wiring), and `map_template.tscn` (the pristine template — each authored POI gets its own copy stamped to `data/maps/<id>/map.tscn` with a per-map `VoxelStreamSQLite` injected). This subsystem is the **map authoring + loading backbone**; see `docs/HOWTO-create-a-map.md` for the end-to-end authoring workflow.
 
 **Authoring vs. runtime split (the core invariant):**
-- Authored maps live under `res://data/maps/<id>/` as `map.sqlite` (terrain DB) + `map_def.tres` (catalog entry). **These are never written at runtime** — `res://` is read-only at export.
-- On first runtime load, `SceneManager._redirect_sqlite_stream()` copies the pristine `map.sqlite` to `user://maps/<id>/map.sqlite` and repoints the terrain's `VoxelStreamSQLite` there. Subsequent loads reuse the runtime copy (preserving mutations like builds / combat damage). To reset a map, delete the `user://` copy.
-- The shared `map_template.tscn` ships with **no stream baked in** — `SceneManager` injects a `VoxelStreamSQLite` pointing at the runtime path at load time. (A scene with a stale `res://` stream baked in is what caused the 11k boot errors — never leave a `VoxelStreamSQLite` sub-resource pointing at a moved/deleted DB.)
+- Authored maps live under `res://data/maps/<id>/` as `map.tscn` (per-map scene with furniture markers) + `map.sqlite` (terrain DB) + `map_def.tres` (catalog entry). **These are never written at runtime** — `res://` is read-only at export.
+- The pristine `map_template.tscn` ships with **no stream baked in** and no furniture markers. The Voxel Paint plugin stamps a copy per map, injecting a `VoxelStreamSQLite` pointing at that map's `map.sqlite`. `SceneManager` additionally copies the sqlite to `user://` at runtime (copy-on-load) to preserve authored data from runtime mutations.
+- Furniture isolation is automatic: each map's `.tscn` has its own `Furniture_*` markers under `SpawnPoints`. `SpawnHelpers.read_spawns()` scans the loaded scene's markers, so furniture placed in one map never bleeds into another.
 
 ### Files
 
@@ -1536,11 +1536,12 @@ The catalog, wiring, and shared scene for loadable maps. Hosts the `MapLibrary` 
 | `map_library.gd` | Autoload | Read-only `id → MapDef` catalog. `_ready` scans `data/maps/*/map_def.tres` (subdirectories only — loose top-level `.tres` are ignored). Exposes `get_def` / `has_def` / `get_all` / `get_maps_by_type`. Tolerates a missing `data/maps/` (silent-null DirAccess, like `build_library.gd`). Read-only after `_ready`. |
 | `map_wiring.gd` (`MapWiring`) | Script (`RefCounted`, static) | Extracted wiring utilities: `wire_build(map)` (adapter→grid, strategy→adapter, FurnitureLayer→container) + `wire_player(map, player)` (reparent persistent Player, wire camera/exclude into BuildController, reuse the player's `VoxelViewer` so repeated swaps don't stack viewers). The single source of truth for post-instantiate setup. |
 | `spawn_helpers.gd` (`SpawnHelpers`) | Script (`RefCounted`, static) | `read_spawns(map)` reads the `SpawnPoints` container: `PlayerSpawn` Marker3D → player spawn, `EnemySpawn_*` → enemy spawns. Scene markers override `MapDef` fallback values (non-zero wins). |
-| `map_template.tscn` | Scene | The shared POI scene — root `Map` with VoxelGrid/VoxelTerrain (no stream — injected at runtime), the standard containers, a BuildController, and `SpawnPoints/PlayerSpawn`. Every authored POI loads this scene; only the `map.sqlite` differs. |
+| `map_template.tscn` | Scene | Pristine template — root `Map` with VoxelGrid/VoxelTerrain (no stream — injected per-map), the standard containers, a BuildController, and `SpawnPoints/PlayerSpawn`. Never edited directly; the Voxel Paint plugin stamps a copy into each `data/maps/<id>/map.tscn` on map creation. |
+| `../data/maps/<id>/map.tscn` | Scene | Per-map authored scene — stamped from the template with a `VoxelStreamSQLite` pointing at `data/maps/<id>/map.sqlite`. Furniture `Furniture_*` markers accumulate under `SpawnPoints` as you author. This is the file `MapDef.scene_path` points at; `SceneManager.swap_map()` loads this. |
 | `../voxel/map.tscn` | Scene | The base colony scene — same `Map` root structure, but the base's own scene (not the template). Uses `VoxelGeneratorFlat` only (no authored terrain DB). |
 | `../data/maps/map_def.gd` | Data (script) | `MapDef` Resource class. See Data Schemas. |
 | `../data/maps/<id>/map_def.tres` | Data | One `MapDef` per map. `id` **must equal the folder name** — `SceneManager` derives the runtime sqlite path from it. |
-| `../data/maps/<id>/map.sqlite` | Data | The authored terrain database (Zylann `VoxelStreamSQLite`). Created by the Voxel Paint "New" button. |
+| `../data/maps/<id>/map.sqlite` | Data | The authored terrain database (Zylann `VoxelStreamSQLite`). Created by the Voxel Paint "+ New Map" button. |
 
 ### Signals
 
@@ -1608,14 +1609,14 @@ Maps has no signals of its own — it's read by `SceneManager` (load) and `Exped
 
 Scavenge mission (Timed Extraction), world map, POI scene. GDD §17 Expeditions.
 
-> **Implementation status: scaffold.** `ExpeditionManager` (POI discovery + the on/off-expedition flag + depart/return map swaps) and the **list-based** world map UI are live. The hex-grid sector map, fog-of-war, crew selection, threat-edge bump, and the `scavenge_mission.gd` phase timer (free-loot → waves → extraction) are **planned, not yet built**. POI scenes today are just the shared `map_template.tscn` loaded with their own `map.sqlite` (see Maps subsystem) — no `LootContainer`s or mission timer yet. The depart/return loop itself works end-to-end.
+> **Implementation status: scaffold.** `ExpeditionManager` (POI discovery + the on/off-expedition flag + depart/return map swaps) and the **list-based** world map UI are live. The hex-grid sector map, fog-of-war, crew selection, threat-edge bump, and the `scavenge_mission.gd` phase timer (free-loot → waves → extraction) are **planned, not yet built**. POI scenes today are per-map `.tscn` files loaded with their own `map.sqlite` (see Maps subsystem) — no `LootContainer`s or mission timer yet. The depart/return loop itself works end-to-end.
 
 ### Files
 
 | File | Type | Responsibility |
 |---|---|---|
 | `expedition_manager.gd` | Autoload | Tracks discovered POIs (`Array[String]`) + `_on_expedition` flag. `start_expedition` / `end_expedition` emit the EventBus signals and delegate map loading to `SceneManager.swap_map()`. Reset on `EventBus.run_started`. |
-| `../maps/map_template.tscn` | Scene | The shared POI scene loaded on depart (owned by Maps subsystem — listed here because it's the expedition destination). `SceneManager` injects the per-map `VoxelStreamSQLite` at runtime. |
+| `../maps/map_template.tscn` | Scene | The pristine POI template (owned by Maps subsystem — listed here because it's the expedition destination source). Each POI has its own stamped copy at `data/maps/<id>/map.tscn`; `SceneManager` copies the sqlite to `user://` at runtime. |
 | `../ui/world_map/world_map.tscn` / `world_map.gd` | Scene/Script | Full-screen overlay (layer-20). Lists discovered POIs from `ExpeditionManager.get_available_pois()`; each row can Depart; a Return-to-Base button appears when on an expedition. Repopulates on `EventBus.map_loaded`. |
 | `../ui/world_map/poi_entry.tscn` / `poi_entry.gd` | Scene/Script | One POI row (name, description, difficulty, Depart button). Emits `depart_requested(poi_id)`. |
 | `scavenge_mission.gd` | Script *(planned — not yet implemented)* | Phase timer (free-loot → waves), extraction at vehicle. Container counts per zone placed here (4–6 total: 1 Zone A, 2 Zone B, 2 Zone C per GDD §17 map layout). |
@@ -1633,7 +1634,7 @@ Scavenge mission (Timed Extraction), world map, POI scene. GDD §17 Expeditions.
 
 1. `poi_entry.gd` emits `depart_requested(poi_id)` → `world_map.gd._on_depart_requested`.
 2. `ExpeditionManager.start_expedition(poi_id)`: validates (not already on one, POI known), sets `_on_expedition = true`, emits `expedition_started([], poi_id)` via EventBus.
-3. Calls `SceneManager.swap_map(poi_id)` → MapLibrary lookup → instantiates `map_template.tscn` → copy-on-load SQLite redirect to `user://maps/<poi_id>/` → `MapWiring` → `map_loaded`.
+3. Calls `SceneManager.swap_map(poi_id)` → MapLibrary lookup → instantiates the per-map `data/maps/<poi_id>/map.tscn` → copy-on-load SQLite redirect to `user://maps/<poi_id>/` → `MapWiring` → `map_loaded`.
 4. World map screen is closed (map swap reparents the player; the screen was dismissed by the input handler or remains until Esc/M closes it).
 
 **End state:** Player standing in the POI's terrain (loaded from its runtime `user://` copy); `_on_expedition == true`.
@@ -1754,7 +1755,7 @@ Loot is local to the POI scene + Inventory — no cross-scene signals. The Key I
 **Extends:** Node3D (or Area3D for proximity prompt)
 **Script:** `loot_container.gd` (in `loot/`)
 **Description:** A lootable object placed in a POI scene. Holds a `LootTable` reference; rolls on interact; offers results to Inventory. Does NOT own table data or the Key Item pool.
-**Used by:** Expeditions (containers placed in POI scenes — currently the shared `map_template.tscn`), Inventory (pickup flow).
+**Used by:** Expeditions (containers placed in per-map POI scenes), Inventory (pickup flow).
 
 **Properties:**
 
@@ -2151,14 +2152,14 @@ Full list of registered commands. GDD §17 Debug Console + §17 Scavenge-specifi
 
 ### `data/maps/<id>/map_def.tres` (Resource: `map_def.gd`)
 
-One `MapDef` per loadable map. Scanned from `data/maps/*/map_def.tres` by `MapLibrary`. The catalog entry that picks which scene to load and where actors spawn; the `.tscn` is the runtime contract. **`id` must equal the folder name** — `SceneManager` derives the runtime sqlite path from it. Maps are hybrid: `.tscn` for visual layout/nodes, this `.tres` for metadata + spawn config. Authored via the Voxel Paint "New" button (see `docs/HOWTO-create-a-map.md`).
+One `MapDef` per loadable map. Scanned from `data/maps/*/map_def.tres` by `MapLibrary`. The catalog entry that picks which scene to load and where actors spawn; the `.tscn` is the runtime contract. **`id` must equal the folder name** — `SceneManager` derives the runtime sqlite path from it. Maps are hybrid: per-map `.tscn` for visual layout/nodes (terrain stream + furniture markers), this `.tres` for metadata + spawn config. Authored via the Voxel Paint "+ New Map" button (see `docs/HOWTO-create-a-map.md`).
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | `String` | Map id; **must match the folder name** (`data/maps/<id>/`). Drives the runtime sqlite path. |
 | `display_name` | `String` | Player-facing name (world map list). |
 | `description` | `String` | One-liner shown under the name in the world map. |
-| `scene_path` | `String` | The `Map` scene to instantiate. POIs → `res://subsystems/maps/map_template.tscn`; base → `res://subsystems/voxel/map.tscn`. |
+| `scene_path` | `String` | The `Map` scene to instantiate. POIs → per-map `res://data/maps/<id>/map.tscn`; base → `res://subsystems/voxel/map.tscn`. |
 | `map_type` | `MapType` enum | `BASE` / `POI` / `BUILDING` / `TOWN`. `POI` maps are auto-discovered at boot and listed in the world map. |
 | `player_spawn` | `Vector3` | Fallback player spawn (default `(0, 5, 0)`). Overridden by a `SpawnPoints/PlayerSpawn` Marker3D if present. |
 | `enemy_spawns` | `Array[Dictionary]` | `[{ "pos": Vector3, "count": int }]`. Overridden by `SpawnPoints/EnemySpawn_*` markers. |
