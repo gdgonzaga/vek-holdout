@@ -421,8 +421,14 @@ func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
 				var hit := _march_to_voxel(camera, mb.position)
 				if hit.get("hit", false):
 					if mb.shift_pressed:
-						# Shift+LMB: remove furniture at the solid surface cell.
-						if _furniture.remove_at(hit.solid):
+						# Shift+LMB: remove furniture. The march samples voxels, not
+						# meshes, so clicking a furniture's PreviewMesh keeps going
+						# until it hits the solid voxel behind/below it. Furniture is
+						# indexed by its footprint air cells (anchor + offsets), so we
+						# remove by the air cell in front of the surface — the same
+						# cell placement anchors to. hit.solid (the ground block) is
+						# never a footprint cell and would always miss.
+						if _furniture.remove_at(hit.prev):
 							EditorInterface.save_scene()
 					else:
 						# LMB: place furniture at the air cell in front of surface.

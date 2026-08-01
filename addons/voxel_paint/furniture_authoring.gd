@@ -29,17 +29,29 @@ func bind(map_root: Node) -> bool:
     # plugin via get_edited_scene_root(), so it's exactly that node.
     _scene_root = map_root
 
-    # Rebuild index_from_dirty flag
+    # Rebuild the cell->marker index AND the counter from existing markers.
+    # Without this, furniture loaded from the scene has no index entries, so
+    # remove_at() can't find them (place() only adds entries it creates itself).
     _index_by_cell = {}
-    # Seed counter from existing markers
     _counter = 0
     for child in _spawn_points.get_children():
         if child is Marker3D and child.name.begins_with("Furniture_"):
+            # Seed counter from the trailing index in the name.
             var name_parts = child.name.split("_")
             if name_parts.size() >= 3:
                 var n = int(name_parts[name_parts.size() - 1])
                 if n >= _counter:
                     _counter = n + 1
+            # Re-index the marker's footprint cells from its metadata.
+            var anchor: Vector3i = child.get_meta("anchor", Vector3i())
+            var yaw: int = child.get_meta("yaw_quarters", 0)
+            var def_id: String = child.get_meta("def_id", "")
+            var def_res = load("res://data/furniture/%s.tres" % def_id)
+            var dims := Vector3i.ONE
+            if def_res is FurnitureDef:
+                dims = (def_res as FurnitureDef).dimensions
+            for off in FurnitureLayer.footprint_cells(dims, yaw):
+                _index_by_cell[anchor + off] = child
 
     return true
 
