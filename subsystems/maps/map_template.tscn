@@ -5,9 +5,6 @@
 [ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_be0qe"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_il18e"]
 
-[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_j3qyj"]
-database_path = "res://data/maps/test6/map.sqlite"
-
 [sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_o3no4"]
 channel = 0
 
@@ -21,7 +18,6 @@ script = ExtResource("1_o3no4")
 script = ExtResource("2_dr4yq")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=361631236]
-stream = SubResource("VoxelStreamSQLite_j3qyj")
 generator = SubResource("VoxelGeneratorFlat_o3no4")
 mesher = SubResource("VoxelMesherBlocky_dr4yq")
 

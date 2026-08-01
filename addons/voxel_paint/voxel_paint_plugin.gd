@@ -1,21 +1,29 @@
 @tool
 extends EditorPlugin
 class_name VoxelPaintPlugin
-## WYSIWYG voxel painter for zylann VoxelTerrain.
+## WYSIWYG voxel painter for zylann VoxelTerrain + per-map scene authoring.
 ##
-## Toolbar button appears when a VoxelTerrain is selected. LMB paints, Shift+LMB
-## (or Erase mode) removes. Writes integer voxel indices via VoxelTool (same path
-## as the proven persistence experiment — Fact 2) and flushes with
-## VoxelTerrain.save_modified_blocks() so edits persist through the terrain's
-## VoxelStreamSQLite.
+## Two concerns:
+##   1. MAP LIFECYCLE — create/open maps. Each map owns its own .tscn stamped
+##      from subsystems/maps/map_template.tscn, with a per-map VoxelStreamSQLite
+##      pointing at data/maps/<id>/map.sqlite. Furniture lives as Marker3Ds in
+##      that .tscn, so per-map isolation is automatic at runtime (SceneManager
+##      scans the loaded scene's SpawnPoints via SpawnHelpers).
+##   2. PAINTING — LMB paints, Shift+LMB (or Erase mode) removes voxels;
+##      furniture mode places/removes/rotates Furniture_* markers. Bound to the
+##      VoxelTerrain of the currently open map scene.
+##
+## The toolbar button is visible for any node selection so map authoring is
+## reachable without first selecting a VoxelTerrain. Painting binds to a terrain
+## once one is selected or a map is opened.
 ##
 ## Block indices (from BlockLibrary, stable): 0 air, 1 terrain, 2 metal,
 ## 3 reinforced, 4 scrap, 5 stone, 6 wood.
 ##
 ## Hit detection uses a get_voxel() RAY-MARCH along the camera ray — NOT a Godot
 ## physics raycast and NOT VoxelTool.raycast(). Both of those are dead in the
-## editor viewport: VoxelTerrain emits no chunks/collision/mesh there (Fact 4),
-## so intersect_ray has nothing to hit and VoxelTool.raycast returns null. The
+## editor viewport: VoxelTerrain emits no chunks/collision/mesh there, so
+## intersect_ray has nothing to hit and VoxelTool.raycast returns null. The
 ## march samples the generator's data layer directly, which IS queryable.
 
 const MARCH_STEP := 0.25
@@ -25,6 +33,10 @@ const MAX_RETRIES := 5
 
 # Furniture placement constants
 const FURNITURE_ROTATE_KEY := KEY_R
+
+# Map authoring paths.
+const TEMPLATE_PATH := "res://subsystems/maps/map_template.tscn"
+const MAPS_DIR := "res://data/maps/"
 
 # Modes
 enum PaintMode {
@@ -44,11 +56,10 @@ var _vt: VoxelTool
 var _block_lib: BlockLibrary
 var _brush_radius: float = 1.0
 var _current_index: int = 6
-var _erase: bool = false
 var _first_stroke: bool = true
 var _map_root: Node = null  # The Map node owning SpawnPoints
 var _furniture: FurnitureAuthoring = null  # Editor marker helper
-var _mode: int = PaintMode.PAINT  # Single source of truth
+var _mode: int = PaintMode.PAINT  # Single source of truth (read from panel)
 
 # Hover preview ghost.
 var _ghost: MeshInstance3D = null  # transient preview, no owner (never saved)
@@ -67,7 +78,6 @@ func _enter_tree() -> void:
 	_toolbar_btn.toggle_mode = true
 	_toolbar_btn.toggled.connect(_on_toggle)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_MENU, _toolbar_btn)
-	_toolbar_btn.visible = false
 
 
 func _exit_tree() -> void:
@@ -77,28 +87,29 @@ func _exit_tree() -> void:
 		_toolbar_btn.queue_free()
 
 
+# Claim any node so the toolbar stays visible throughout 3D authoring (selecting
+# a furniture marker must not hide the panel). Painting binds to a terrain
+# separately, via _edit or open_map_scene.
 func _handles(object: Object) -> bool:
-	return object is VoxelTerrain
+	return object is Node
 
 
+# Bind to a freshly selected terrain; never unbind on other selections so the
+# paint target stays stable while the user edits markers etc.
 func _edit(object: Object) -> void:
-	_toolbar_btn.visible = object is VoxelTerrain
-	if not (object is VoxelTerrain):
-		if _toolbar_btn.button_pressed:
-			_toolbar_btn.set_pressed_no_signal(false)
+	if _active and object is VoxelTerrain:
+		_bind_terrain(object)
 
 
+# The toolbar button follows the 3D editor's visibility (hidden in 2D/Script),
+# but unlike the old version it no longer requires a VoxelTerrain to be selected
+# — the Maps section is reachable from any node selection.
 func _make_visible(visible: bool) -> void:
 	_toolbar_btn.visible = visible
 
 
 func _on_toggle(pressed: bool) -> void:
 	if pressed:
-		var sel := EditorInterface.get_selection().get_selected_nodes()
-		_terrain = sel.front() as VoxelTerrain if not sel.is_empty() else null
-		if _terrain == null:
-			_toolbar_btn.set_pressed_no_signal(false)
-			return
 		_activate()
 	else:
 		_deactivate()
@@ -108,36 +119,108 @@ func _activate() -> void:
 	_active = true
 	_first_stroke = true
 	_ensure_library()
-	_vt = _terrain.get_voxel_tool()
-	_vt.mode = VoxelTool.MODE_SET
 	_panel = preload("res://addons/voxel_paint/voxel_paint_panel.gd").new()
 	_panel.setup(self)
 	add_control_to_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
+	# Bind whatever terrain is available: prefer the selection, else the first
+	# VoxelTerrain in the open scene. May be null (panel shows a "no terrain"
+	# hint and map creation still works).
+	_bind_terrain(_find_scene_terrain())
 
-	# Resolve map root and SpawnPoints for furniture mode.
+
+func _deactivate() -> void:
+	_active = false
+	if _panel:
+		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
+		_panel.queue_free()
+		_panel = null
+	_unbind_terrain()
+
+
+func _ensure_library() -> void:
+	if _block_lib == null:
+		_block_lib = BlockLibrary.new()
+
+
+# --- Terrain binding --------------------------------------------------------
+
+## Returns the VoxelTerrain to bind on activation: the selected one if any,
+## otherwise the first VoxelTerrain in the edited scene, else null.
+func _find_scene_terrain() -> VoxelTerrain:
+	var sel := EditorInterface.get_selection().get_selected_nodes()
+	for n in sel:
+		if n is VoxelTerrain:
+			return n
+	var root := EditorInterface.get_edited_scene_root()
+	if root != null:
+		return root.find_child("VoxelTerrain", true, false) as VoxelTerrain
+	return null
+
+
+## Bind painting to a terrain. Recreates the ghost + furniture helper; the panel
+## is refreshed to reflect terrain availability. No-op if t is null or already
+## bound.
+func _bind_terrain(t: VoxelTerrain) -> void:
+	if t == null or _terrain == t:
+		return
+	_teardown_paint_attachments()  # drop old ghost/furniture, keep terrain ref
+	_terrain = t
+	_first_stroke = true
+	_vt = _terrain.get_voxel_tool()
+	_vt.mode = VoxelTool.MODE_SET
+	if _terrain.mesher != null and _terrain.mesher.library == null:
+		_terrain.mesher.library = _block_lib.get_voxel_library()
+	_resolve_map_root_and_furniture()
+	if _active:
+		_create_ghost()
+	if _panel:
+		_panel.refresh_terrain_status()
+
+
+func _unbind_terrain() -> void:
+	_teardown_paint_attachments()
+	_terrain = null
+	_vt = null
+	_map_root = null
+	if _panel:
+		_panel.refresh_terrain_status()
+
+
+## Drop the ghost + furniture binding (the terrain ref is kept by the caller).
+func _teardown_paint_attachments() -> void:
+	if _ghost:
+		_ghost.queue_free()
+		_ghost = null
+	if _furniture:
+		_furniture.unbind()
+		_furniture = null
+
+
+## Resolve the map root (scene root owning SpawnPoints) and bind the furniture
+## authoring helper to it.
+func _resolve_map_root_and_furniture() -> void:
+	_yaw = 0
 	# Walk up to the edited scene root — _terrain.get_parent() is VoxelGrid,
 	# its parent is the Map node that owns SpawnPoints.
-	_yaw = 0
-	_map_root = get_editor_interface().get_edited_scene_root()
-	if _map_root == null:
-		_map_root = _terrain.get_parent().get_parent()
-	elif not _map_root.has_node("SpawnPoints"):
+	_map_root = EditorInterface.get_edited_scene_root()
+	if _map_root == null or not _map_root.has_node("SpawnPoints"):
 		# Edited root isn't the map — fall back to terrain's grandparent.
-		_map_root = _terrain.get_parent().get_parent()
+		var p := _terrain.get_parent()
+		_map_root = p.get_parent() if p != null else null
 	if _map_root and _furniture == null:
-		var furniture_auth := FurnitureAuthoring.new()
-		if furniture_auth.bind(_map_root):
-			_furniture = furniture_auth
+		var fa := FurnitureAuthoring.new()
+		if fa.bind(_map_root):
+			_furniture = fa
 		else:
 			# Disable furniture mode if bind failed (no SpawnPoints).
 			if _panel and _panel.has_method("set_furniture_enabled"):
 				_panel.set_furniture_enabled(false)
 
-	# Create hover-preview ghost (no owner → transient, never saved).
-	# Mesh is swapped per-mode in _refresh_ghost(): unit cube for block
-	# paint/erase, the furniture def's mesh for furniture placement.
-	# Parented to _map_root (a non-selected ancestor) rather than _terrain so
-	# the terrain's selection AABB gizmo doesn't expand to cover the ghost.
+
+## Create the hover-preview ghost (no owner → transient, never saved). Mesh is
+## swapped per-mode in _refresh_ghost(). Parented to _map_root (a non-selected
+## ancestor) so the terrain's selection AABB gizmo doesn't expand to cover it.
+func _create_ghost() -> void:
 	_ghost = MeshInstance3D.new()
 	_ghost.name = "__voxel_paint_ghost__"
 	_ghost_mat = StandardMaterial3D.new()
@@ -150,52 +233,70 @@ func _activate() -> void:
 	_ghost.mesh = _box_mesh
 	if _map_root != null:
 		_map_root.add_child(_ghost)
-	else:
+	elif _terrain != null:
 		_terrain.add_child(_ghost)
 
 
-func _deactivate() -> void:
-	_active = false
-	if _panel:
-		remove_control_from_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, _panel)
-		_panel.queue_free()
-		_panel = null
-	if _ghost:
-		_ghost.queue_free()
-		_ghost = null
-	_terrain = null
-	_vt = null
-	_map_root = null
-	if _furniture:
-		_furniture.unbind()
-		_furniture = null
+# --- Terrain/stream info (read by the panel) --------------------------------
 
-
-func _ensure_library() -> void:
-	if _block_lib == null:
-		_block_lib = BlockLibrary.new()
-	if _terrain.mesher != null and _terrain.mesher.library == null:
-		_terrain.mesher.library = _block_lib.get_voxel_library()
-
-
-# --- Stream management (called by panel) ------------------------------------
-
-## Returns the current database path, or "" if no stream is assigned.
+## Returns the bound terrain's database path, or "" if none.
 func get_stream_path() -> String:
 	if _terrain != null and _terrain.stream is VoxelStreamSQLite:
 		return _terrain.stream.database_path
 	return ""
 
 
-## Creates a new map folder in data/maps/ with an empty SQLite database,
-## assigns the stream to the terrain, and writes a map_def.tres catalog entry
-## (scene_path -> map_template.tscn). Returns the database path, or "" if the
-## map already exists or the folder could not be created.
+## True when a terrain is bound and still live in the scene tree. Clears stale
+## references (e.g. after the scene was closed/replaced).
+func is_terrain_bound() -> bool:
+	if _terrain == null:
+		return false
+	if not is_instance_valid(_terrain) or not _terrain.is_inside_tree():
+		_terrain = null
+		_vt = null
+		return false
+	return true
+
+
+# --- Map lifecycle (called by panel) ----------------------------------------
+
+## Scans data/maps/*/map_def.tres and returns catalog entries for the panel:
+## [{ id, display_name, scene_path }, ...], sorted by id. Editor-side scan
+## (autoloads aren't reliably reachable from @tool context — see _populate_furniture).
+func list_maps() -> Array:
+	var out: Array = []
+	var dir := DirAccess.open(MAPS_DIR)
+	if dir == null:
+		return out
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if dir.current_is_dir() and not fname.begins_with("."):
+			var def_path := MAPS_DIR + fname + "/map_def.tres"
+			if ResourceLoader.exists(def_path, "Resource"):
+				var def: MapDef = load(def_path) as MapDef
+				if def != null and def.id != "":
+					out.append({
+						"id": def.id,
+						"display_name": def.display_name if def.display_name != "" else def.id,
+						"scene_path": def.scene_path,
+					})
+		fname = dir.get_next()
+	out.sort_custom(func(a, b): return String(a["id"]) < String(b["id"]))
+	return out
+
+
+## Create a new map: stamp the template into data/maps/<id>/map.tscn with a
+## per-map sqlite stream, write map_def.tres, then open the scene for painting.
+## Returns the new tscn path, or "" on failure.
 func create_new_map(map_name: String) -> String:
 	if map_name.is_empty():
 		push_warning("VoxelPaint: empty map name")
 		return ""
-	var folder_path := "res://data/maps/%s/" % map_name
+	if " " in map_name:
+		push_warning("VoxelPaint: map name must not contain spaces")
+		return ""
+	var folder_path := MAPS_DIR + map_name + "/"
 	if DirAccess.dir_exists_absolute(folder_path):
 		push_warning("VoxelPaint: map '%s' already exists" % map_name)
 		return ""
@@ -203,49 +304,81 @@ func create_new_map(map_name: String) -> String:
 	if err != OK:
 		push_warning("VoxelPaint: failed to create folder '%s' (error %d)" % [map_name, err])
 		return ""
+	var tscn_path := folder_path + "map.tscn"
 	var db_path := folder_path + "map.sqlite"
-	_assign_stream(db_path)
-	_create_map_def(map_name, folder_path)
-	return db_path
+	_stamp_map_scene(TEMPLATE_PATH, tscn_path, db_path)
+	_create_map_def(map_name, folder_path, tscn_path)
+	EditorInterface.get_resource_filesystem().scan()
+	_open_scene_and_bind(tscn_path)
+	return tscn_path
 
 
-## Writes a map_def.tres for a freshly authored map. Defaults: map_type POI,
-## scene_path -> the shared map_template.tscn. Caller can edit the .tres later.
-func _create_map_def(map_name: String, folder_path: String) -> void:
+## Open an existing map's scene and bind its terrain for painting.
+func open_map_scene(scene_path: String) -> void:
+	if scene_path.is_empty():
+		return
+	if not ResourceLoader.exists(scene_path):
+		push_warning("VoxelPaint: scene not found '%s'" % scene_path)
+		return
+	_open_scene_and_bind(scene_path)
+
+
+## Instantiate the template, inject a per-map VoxelStreamSQLite, and save as a
+## new .tscn. Pure file op — does not touch the currently bound terrain.
+func _stamp_map_scene(src_path: String, dst_path: String, db_path: String) -> void:
+	var packed: PackedScene = load(src_path)
+	if packed == null:
+		push_error("VoxelPaint: could not load template '%s'" % src_path)
+		return
+	var instance := packed.instantiate()
+	var terrain := instance.find_child("VoxelTerrain", true, false) as VoxelTerrain
+	if terrain != null:
+		var stream := VoxelStreamSQLite.new()
+		stream.database_path = db_path
+		terrain.stream = stream
+	else:
+		push_warning("VoxelPaint: stamped map has no VoxelTerrain")
+	var out := PackedScene.new()
+	out.pack(instance)
+	var err := ResourceSaver.save(out, dst_path)
+	if err != OK:
+		push_warning("VoxelPaint: failed to write '%s' (error %d)" % [dst_path, err])
+	instance.queue_free()
+
+
+## Writes map_def.tres pointing scene_path at the per-map .tscn.
+func _create_map_def(map_name: String, folder_path: String, tscn_path: String) -> void:
 	var def := MapDef.new()
 	def.id = map_name
 	def.display_name = map_name.capitalize()
 	def.description = "Authored via voxel paint."
 	def.map_type = MapDef.MapType.POI
-	def.scene_path = "res://subsystems/maps/map_template.tscn"
+	def.scene_path = tscn_path
 	var tres_path := folder_path + "map_def.tres"
-	var save_err := ResourceSaver.save(def, tres_path)
-	if save_err != OK:
-		push_warning("VoxelPaint: failed to write map_def.tres (error %d)" % save_err)
+	var err := ResourceSaver.save(def, tres_path)
+	if err != OK:
+		push_warning("VoxelPaint: failed to write map_def.tres (error %d)" % err)
+
+
+## Open a scene in the editor and bind its terrain once it has loaded. The brief
+## timer lets the editor instantiate the new scene before we search its tree.
+func _open_scene_and_bind(scene_path: String) -> void:
+	EditorInterface.open_scene_from_path(scene_path)
+	await Engine.get_main_loop().create_timer(0.2).timeout
+	if not _active:
 		return
-	# Make the new resource visible in the editor's FileSystem dock.
-	EditorInterface.get_resource_filesystem().scan()
-
-
-## Creates a VoxelStreamSQLite with the given path and assigns it to the terrain.
-func set_stream(path: String) -> void:
-	_assign_stream(path)
-
-
-func _assign_stream(path: String) -> void:
-	var stream := VoxelStreamSQLite.new()
-	stream.database_path = path
-	_terrain.stream = stream
-	EditorInterface.save_scene()
-	# Notify the panel to refresh its label.
-	if _panel and _panel.has_method("refresh_stream_label"):
-		_panel.refresh_stream_label()
+	_bind_terrain(_find_scene_terrain())
 
 
 # --- Input handling ---------------------------------------------------------
 
 func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
-	if not _active or _vt == null:
+	if not _active:
+		return AFTER_GUI_INPUT_PASS
+	# Drop stale terrain references (scene switched manually).
+	if _terrain != null and not is_instance_valid(_terrain):
+		_unbind_terrain()
+	if _vt == null:
 		return AFTER_GUI_INPUT_PASS
 
 	var mb := event as InputEventMouseButton

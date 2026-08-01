@@ -1,10 +1,16 @@
 @tool
 extends PanelContainer
-## Side panel for the Voxel Paint EditorPlugin. Provides block selection, brush
-## radius, paint/erase/furniture mode toggle, and stream (database) management.
+## Side panel for the Voxel Paint EditorPlugin.
+##
+## Two sections:
+##   1. MAPS — list/open existing maps, create new ones. Each map owns a .tscn
+##      stamped from subsystems/maps/map_template.tscn plus a per-map sqlite
+##      stream. Creation + open are delegated to the plugin.
+##   2. PAINT — block/brush selection, paint/erase/furniture modes. Dormant
+##      until a VoxelTerrain is bound (after opening a map).
 ##
 ## Created by voxel_paint_plugin.gd and added to CONTAINER_SPATIAL_EDITOR_SIDE_LEFT.
-## Holds a reference back to the plugin to push state changes and read stream info.
+## Holds a reference back to the plugin to delegate map ops and read state.
 
 # Modes — kept as int constants here so the panel doesn't need to know the plugin's
 # enum. The plugin reads get_mode() and compares against its own PaintMode enum.
@@ -16,6 +22,18 @@ var _plugin: EditorPlugin  # set by the plugin after instantiation
 
 # --- Controls (populated in _ready) ----------------------------
 
+# Maps section.
+var _maps_grid: GridContainer
+var _no_maps_label: Label
+var _new_map_btn: Button
+var _refresh_maps_btn: Button
+var _new_map_dialog: ConfirmationDialog
+var _new_map_input: LineEdit
+
+# Terrain status (bound db path, or "no terrain").
+var _terrain_status_label: Label
+
+# Paint modes.
 var _mode_paint: Button
 var _mode_erase: Button
 var _mode_furniture: Button
@@ -32,14 +50,6 @@ var _furniture_controls: VBoxContainer
 # Cached FurnitureDef resources by id, keyed when _populate_furniture loads them.
 var _furniture_defs_by_id: Dictionary = {}
 
-# Stream section.
-var _stream_label: Label
-var _stream_new_btn: Button
-var _stream_pick_btn: Button
-var _file_dialog: FileDialog
-var _new_map_dialog: ConfirmationDialog
-var _new_map_input: LineEdit
-
 # Current mode (MODE_PAINT / MODE_ERASE / MODE_FURNITURE).
 var _mode: int = MODE_PAINT
 # Whether furniture mode is available (has SpawnPoints).
@@ -50,7 +60,8 @@ func _ready() -> void:
 	_build_ui()
 	_populate_blocks()
 	_populate_furniture()
-	refresh_stream_label()
+	refresh_maps()
+	refresh_terrain_status()
 	_update_mode_visibility()
 
 
@@ -113,20 +124,45 @@ func refresh_furniture_list() -> void:
 	_populate_furniture()
 
 
-# --- Stream label refresh --------------------------------------------------
+# --- Maps section -----------------------------------------------------------
 
-## Updates the stream path label to reflect the current terrain stream state.
-## Called after auto/pick and after the plugin assigns a stream.
-func refresh_stream_label() -> void:
-	if _plugin == null:
+## Rebuild the maps grid from the plugin's catalog scan. Safe to call when no
+## plugin is bound (shows the empty hint).
+func refresh_maps() -> void:
+	for child in _maps_grid.get_children():
+		child.queue_free()
+	var maps: Array = _plugin.list_maps() if _plugin != null else []
+	if maps.is_empty():
+		_no_maps_label.visible = true
+		_maps_grid.visible = false
+		return
+	_no_maps_label.visible = false
+	_maps_grid.visible = true
+	for entry in maps:
+		var btn := Button.new()
+		btn.text = String(entry["display_name"])
+		btn.tooltip_text = "Open %s\nscene: %s" % [entry["id"], entry["scene_path"]]
+		btn.custom_minimum_size = Vector2(110, 0)
+		btn.pressed.connect(_on_map_clicked.bind(String(entry["scene_path"])))
+		_maps_grid.add_child(btn)
+
+
+# --- Terrain status ---------------------------------------------------------
+
+## Reflect whether painting is bound to a terrain. Called by the plugin after
+## binding/unbinding and safe to call with no plugin.
+func refresh_terrain_status() -> void:
+	if _plugin == null or not _plugin.is_terrain_bound():
+		_terrain_status_label.text = "No terrain — open or create a map"
+		_terrain_status_label.add_theme_color_override("font_color", Color(1, 0.5, 0.3))
 		return
 	var path: String = _plugin.get_stream_path()
 	if path.is_empty():
-		_stream_label.text = "No database — edits won't persist"
-		_stream_label.add_theme_color_override("font_color", Color(1, 0.5, 0.3))
+		_terrain_status_label.text = "Terrain bound — no database (edits won't persist)"
+		_terrain_status_label.add_theme_color_override("font_color", Color(1, 0.5, 0.3))
 	else:
-		_stream_label.text = path
-		_stream_label.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
+		_terrain_status_label.text = path
+		_terrain_status_label.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
 
 
 # --- Private ----------------------------------------------------------------
@@ -134,6 +170,56 @@ func refresh_stream_label() -> void:
 func _build_ui() -> void:
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
+
+	# -- Maps section --
+	var maps_head := HBoxContainer.new()
+	var maps_title := Label.new()
+	maps_title.text = "Maps"
+	maps_head.add_child(maps_title)
+	maps_head.add_child(Control.new())  # spacer
+	_refresh_maps_btn = Button.new()
+	_refresh_maps_btn.text = "⟳"
+	_refresh_maps_btn.tooltip_text = "Rescan data/maps/"
+	_refresh_maps_btn.custom_minimum_size = Vector2(24, 0)
+	_refresh_maps_btn.pressed.connect(refresh_maps)
+	maps_head.add_child(_refresh_maps_btn)
+
+	_maps_grid = GridContainer.new()
+	_maps_grid.columns = 3
+	_maps_grid.add_theme_constant_override("h_separation", 4)
+	_maps_grid.add_theme_constant_override("v_separation", 4)
+
+	_no_maps_label = Label.new()
+	_no_maps_label.text = "No maps yet — create one below."
+	_no_maps_label.add_theme_font_size_override("font_size", 11)
+	_no_maps_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+
+	_new_map_btn = Button.new()
+	_new_map_btn.text = "+ New Map"
+	_new_map_btn.tooltip_text = "Create a new map from the template"
+	_new_map_btn.pressed.connect(_on_new_map)
+
+	# -- New Map dialog --
+	_new_map_dialog = ConfirmationDialog.new()
+	_new_map_dialog.title = "New Map"
+	_new_map_dialog.min_size = Vector2i(300, 120)
+	_new_map_dialog.ok_button_text = "Create"
+	var dialog_vbox := VBoxContainer.new()
+	var label := Label.new()
+	label.text = "Map name (no spaces):"
+	_new_map_input = LineEdit.new()
+	_new_map_input.placeholder_text = "e.g. abandoned_factory"
+	_new_map_input.caret_blink = true
+	dialog_vbox.add_child(label)
+	dialog_vbox.add_child(_new_map_input)
+	_new_map_dialog.add_child(dialog_vbox)
+	_new_map_dialog.confirmed.connect(_on_new_map_confirmed)
+
+	# -- Terrain status --
+	_terrain_status_label = Label.new()
+	_terrain_status_label.text = "No terrain — open or create a map"
+	_terrain_status_label.add_theme_color_override("font_color", Color(1, 0.5, 0.3))
+	_terrain_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	# -- Mode toggle --
 	var mode_box := HBoxContainer.new()
@@ -205,65 +291,21 @@ func _build_ui() -> void:
 	_info_label.text = "LMB: paint | Shift+LMB: erase"
 	_info_label.add_theme_font_size_override("font_size", 11)
 
-	# -- Stream section --
-	var stream_head := Label.new()
-	stream_head.text = "Database:"
-	_stream_label = Label.new()
-	_stream_label.text = "No database — edits won't persist"
-	_stream_label.add_theme_color_override("font_color", Color(1, 0.5, 0.3))
-	_stream_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-
-	var stream_btn_row := HBoxContainer.new()
-	_stream_new_btn = Button.new()
-	_stream_new_btn.text = "New"
-	_stream_new_btn.tooltip_text = "Create a new map with a database"
-	_stream_new_btn.pressed.connect(_on_new_stream)
-	_stream_pick_btn = Button.new()
-	_stream_pick_btn.text = "Pick..."
-	_stream_pick_btn.tooltip_text = "Choose an existing .sqlite file"
-	_stream_pick_btn.pressed.connect(_on_pick_stream)
-	stream_btn_row.add_child(_stream_new_btn)
-	stream_btn_row.add_child(_stream_pick_btn)
-
-	# -- File dialog (for Pick) --
-	_file_dialog = FileDialog.new()
-	_file_dialog.title = "Select SQLite Database"
-	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	_file_dialog.access = FileDialog.ACCESS_RESOURCES
-	_file_dialog.filters = PackedStringArray(["*.sqlite ; SQLite Database"])
-	_file_dialog.file_selected.connect(_on_file_selected)
-	_file_dialog.min_size = Vector2i(500, 400)
-
-	# -- New Map dialog --
-	_new_map_dialog = ConfirmationDialog.new()
-	_new_map_dialog.title = "New Map"
-	_new_map_dialog.min_size = Vector2i(300, 120)
-	_new_map_dialog.ok_button_text = "Create"
-	var dialog_vbox := VBoxContainer.new()
-	var label := Label.new()
-	label.text = "Map name (no spaces):"
-	_new_map_input = LineEdit.new()
-	_new_map_input.placeholder_text = "e.g. abandoned_factory"
-	_new_map_input.caret_blink = true
-	dialog_vbox.add_child(label)
-	dialog_vbox.add_child(_new_map_input)
-	_new_map_dialog.add_child(dialog_vbox)
-	_new_map_dialog.confirmed.connect(_on_new_map_confirmed)
-
-	# Assemble.
-	vbox.add_child(mode_box)
+	# Assemble: maps at top, then terrain status, then paint controls.
+	vbox.add_child(maps_head)
+	vbox.add_child(_maps_grid)
+	vbox.add_child(_no_maps_label)
+	vbox.add_child(_new_map_btn)
 	vbox.add_child(HSeparator.new())
+	vbox.add_child(_terrain_status_label)
+	vbox.add_child(HSeparator.new())
+	vbox.add_child(mode_box)
 	vbox.add_child(_paint_controls)
 	vbox.add_child(_furniture_controls)
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(_info_label)
-	vbox.add_child(HSeparator.new())
-	vbox.add_child(stream_head)
-	vbox.add_child(_stream_label)
-	vbox.add_child(stream_btn_row)
 
 	add_child(vbox)
-	add_child(_file_dialog)
 	add_child(_new_map_dialog)
 
 
@@ -341,6 +383,30 @@ func _update_mode_visibility() -> void:
 
 # --- Signal handlers -------------------------------------------------------
 
+func _on_map_clicked(scene_path: String) -> void:
+	if _plugin == null:
+		return
+	_plugin.open_map_scene(scene_path)
+
+
+func _on_new_map() -> void:
+	_new_map_input.text = ""
+	_new_map_input.grab_focus()
+	_new_map_dialog.popup_centered()
+
+
+func _on_new_map_confirmed() -> void:
+	var name: String = _new_map_input.text.strip_edges()
+	if name.is_empty():
+		return
+	if _plugin == null:
+		return
+	var path: String = _plugin.create_new_map(name)
+	if not path.is_empty():
+		refresh_maps()
+		refresh_terrain_status()
+
+
 func _on_paint_toggled(pressed: bool) -> void:
 	if pressed:
 		_mode = MODE_PAINT
@@ -379,34 +445,3 @@ func _on_block_selected(_index: int) -> void:
 
 func _on_radius_changed(value: float) -> void:
 	_radius_label.text = "%.1f" % value
-
-
-func _on_new_stream() -> void:
-	_new_map_input.text = ""
-	_new_map_input.grab_focus()
-	_new_map_dialog.popup_centered()
-
-
-func _on_new_map_confirmed() -> void:
-	var name: String = _new_map_input.text.strip_edges()
-	if name.is_empty():
-		return
-	if " " in name:
-		push_warning("VoxelPaint: map name must not contain spaces")
-		return
-	if _plugin == null:
-		return
-	var path: String = _plugin.create_new_map(name)
-	if not path.is_empty():
-		refresh_stream_label()
-
-
-func _on_pick_stream() -> void:
-	_file_dialog.popup_centered()
-
-
-func _on_file_selected(path: String) -> void:
-	if _plugin == null:
-		return
-	_plugin.set_stream(path)
-	refresh_stream_label()
