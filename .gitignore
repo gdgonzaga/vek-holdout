@@ -22,3 +22,9 @@ tmp/
 
 # ZCode agent state (plans, scratch)
 .zcode/
+
+# MkDocs build output
+site/
+
+# Python cache
+__pycache__/

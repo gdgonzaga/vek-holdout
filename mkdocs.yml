@@ -1,0 +1,63 @@
+site_name: "Vek: Holdout — Architecture"
+site_description: "Architecture docs for Vek: Holdout, a Godot voxel base-building game"
+site_author: gdgonzaga
+docs_dir: docs/architecture
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: amber
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - "Architecture — Vek: Holdout": index.md
+  - Overview: overview.md
+  - Subsystems:
+    - Core: core.md
+    - "Voxel / World": voxel-world.md
+    - Player: player.md
+    - Build: build.md
+    - "Functional Rooms": functional-rooms.md
+    - Colonists: colonists.md
+    - Skills: skills.md
+    - Combat: combat.md
+    - "Equipment & Loadouts": equipment.md
+    - Energy: energy.md
+    - "Permadeath & Memorial": permadeath-memorial.md
+    - Raids: raids.md
+    - Maps: maps.md
+    - Expeditions: expeditions.md
+    - Loot: loot.md
+    - Inventory: inventory.md
+    - Crafting: crafting.md
+    - UI: ui.md
+    - "Debug Console": debug-console.md
+  - Reference:
+    - "Data Schemas": data-schemas.md
+    - "Debug Commands": debug-commands.md
+  - Tracking:
+    - "Tech Debt & Unimplemented": tech-debt.md
+  - About:
+    - "Adding a page": contributing.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
