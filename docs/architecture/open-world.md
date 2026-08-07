@@ -19,10 +19,10 @@ persistence — not a rewrite — but real work, correctly deferred past MVP.
 
 | Asset | Where | Why it matters |
 |---|---|---|
-| `IBlockGrid` interface | `build/i_block_grid.gd` (see [Voxel/World](architecture/voxel-world.md)) | Build and gameplay talk to the interface, not `voxel_tool` directly. The voxel *backend* can be swapped without rewiring gameplay. The single most important seam for open-world. |
+| `IBlockGrid` interface | `build/i_block_grd.gd` (see [Voxel/World](voxel-world.md)) | Build and gameplay talk to the interface, not `voxel_tool` directly. The voxel *backend* can be swapped without rewiring gameplay. The single most important seam for open-world. |
 | Global `BlockLibrary` | `block_library.gd` | Block definitions are not per-map — they carry over unchanged. |
 | `VoxelGeneratorFlat` base terrain | `map.tscn` | voxel_tool's `VoxelGenerator` family is exactly the mechanism open-world games use (noise generators → infinite terrain). The tech stack supports it natively; we already use it for the base colony. |
-| Persistent Player reparent + VoxelViewer reuse | `MapWiring.wire_player` ([Maps](architecture/maps.md)) | The Player already survives transitions and the viewer doesn't stack on repeated swaps. |
+| Persistent Player reparent + VoxelViewer reuse | `MapWiring.wire_player` ([Maps](maps.md)) | The Player already survives transitions and the viewer doesn't stack on repeated swaps. |
 
 voxel_tool (Zylann) also natively supports chunk paging and LOD streaming for
 large/infinite worlds. The plugin is not the blocker.
@@ -35,7 +35,7 @@ ends; all are deferred work.
 ### 1. World/session model: swap vs. stream
 
 Today `Map` is the current world node and `SceneManager.swap_map()` loads/unloads
-entire scenes (see [Voxel/World](architecture/voxel-world.md), [Maps](architecture/maps.md)).
+entire scenes (see [Voxel/World](voxel-world.md), [Maps](maps.md)).
 `EventBus` carries `map_loading` / `map_loaded` / `map_unloading`.
 
 Open world is the inverse: **one persistent world that streams chunks in/out
@@ -47,7 +47,7 @@ change.
 
 Colonists, enemies, and furniture parent into Map-owned containers
 (`colonist_container`, `enemy_container`, `furniture_container` — see
-[Voxel/World](architecture/voxel-world.md)). In an open world they'd need a
+[Voxel/World](voxel-world.md)). In an open world they'd need a
 persistent world root plus spatial activation/deactivation — not "loaded with
 the map." Furniture isolation today is per-scene authored markers; that authoring
 model doesn't extend to a continuous world.
@@ -55,14 +55,14 @@ model doesn't extend to a continuous world.
 ### 3. Block HP is an in-memory, per-VoxelGrid Dictionary
 
 `VoxelGrid._hp_by_pos` (`Vector3i -> int`) works for MVP but grows unbounded and
-doesn't survive area unload (see [Voxel/World](architecture/voxel-world.md)).
+doesn't survive area unload (see [Voxel/World](voxel-world.md)).
 Open world needs block HP **chunk-keyed and persisted** — ideally into/alongside
 the voxel stream so damage survives paging out and back in.
 
 ### 4. Furniture is stored as scene markers, not spatial data
 
 Authored POIs accumulate `Furniture_*` Marker3Ds under `SpawnPoints`
-(see [Maps](architecture/maps.md)). An open world needs furniture keyed by
+(see [Maps](maps.md)). An open world needs furniture keyed by
 **world position in a spatial store**, not authored `.tscn` nodes.
 
 ### 5. Spawn model is authored points
@@ -73,7 +73,7 @@ Authored POIs accumulate `Furniture_*` Marker3Ds under `SpawnPoints`
 ### 6. Copy-on-load sqlite pattern assumes a bounded world
 
 `SceneManager` copies each map's `map.sqlite` to `user://` at runtime to preserve
-authored data (see [Maps](architecture/maps.md)). A huge open world wouldn't copy
+authored data (see [Maps](maps.md)). A huge open world wouldn't copy
 wholesale — it would **stream chunks on demand**. voxel_tool supports this, but
 the copy-on-load plumbing would be removed.
 
