@@ -48,6 +48,8 @@ nav:
     - "Debug Commands": debug-commands.md
   - Tracking:
     - "Tech Debt & Unimplemented": tech-debt.md
+  - Planned:
+      "Open world": open-world.md
   - About:
     - "Adding a page": contributing.md
 
