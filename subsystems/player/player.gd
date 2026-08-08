@@ -19,12 +19,17 @@ enum State { IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD }
 @export var gravity := 9.8
 @export var jump_force := 5.0
 @export var jump_move_speed := 0.5
+@export var interact_distance := 8.0
 
 var mode := Mode.NORMAL
 var state := State.IDLE
 
+## The InteractionComponent currently under the crosshair (or null).
+var _current_interactable: InteractionComponent = null
+
 @onready var _rig: CameraRig = $CameraRig
 @onready var _mesh: MeshInstance3D = $MeshInstance3D
+@onready var _camera: Camera3D = _rig.get_camera()
 
 
 ## The player's active Camera3D (via the rig). Used by BuildController for its
@@ -50,6 +55,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	# release the cursor; for now the mouse stays captured during pause.
 	if event.is_action_pressed("build_toggle"):
 		_open_build_menu()
+		return
+	if event.is_action_pressed("interact"):
+		_try_interact()
 		return
 	# Click to recapture the mouse if it was released (e.g. alt-tab).
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
@@ -102,7 +110,61 @@ func exit_blueprint_mode() -> void:
 	EventBus.blueprint_mode_toggled.emit(false)
 
 
+## Act on the currently-targeted interactable (called on E press).
+## The actual raycast runs every frame in _physics_process via
+## _update_interaction_target so the HUD can display context.
+func _try_interact() -> void:
+	if _current_interactable and not _current_interactable.action_options.is_empty():
+		_current_interactable.interact(self)
+
+
+## Screen-center physics raycast for interaction. Returns the raw hit dict
+## (empty if nothing struck). Shared by _update_interaction_target.
+func _interaction_raycast() -> Dictionary:
+	if _camera == null:
+		return {}
+	var center := get_viewport().get_visible_rect().size / 2.0
+	var origin := _camera.project_ray_origin(center)
+	var dir := _camera.project_ray_normal(center)
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * interact_distance)
+	query.collide_with_bodies = true
+	query.collide_with_areas = false
+	query.exclude = [get_rid()]
+	return space.intersect_ray(query)
+
+
+## Every-frame crosshair check. Updates _current_interactable so the HUD can
+## display what the player is looking at, and E press can act on it.
+func _update_interaction_target() -> void:
+	if mode != Mode.NORMAL:
+		_current_interactable = null
+		return
+	var hit := _interaction_raycast()
+	if hit.is_empty():
+		_current_interactable = null
+		return
+	var component := _find_interaction_component(hit.collider)
+	if component != _current_interactable:
+		_current_interactable = component
+		if component:
+			print("[interact] targeting: %s" % component.get_parent().name)
+
+
+## Walk up from the hit collider looking for a sibling InteractionComponent.
+## Handles any nesting depth (RigidBody3D > MeshInstance3D > CollisionShape, etc.).
+func _find_interaction_component(node: Node) -> InteractionComponent:
+	var current: Node = node
+	while current != null:
+		var component := current.get_node_or_null("InteractionComponent") as InteractionComponent
+		if component:
+			return component
+		current = current.get_parent()
+	return null
+
+
 func _physics_process(delta: float) -> void:
+	_update_interaction_target()
 	_handle_move_keys(delta)
 	_handle_jump()
 

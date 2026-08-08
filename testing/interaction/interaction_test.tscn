@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://a"]
+
+[ext_resource type="Script" uid="uid://c4aapt0apwp3u" path="res://testing/interaction/interaction_test.gd" id="1_script"]
+
+[node name="InteractionTest" type="Node3D" unique_id=491744069]
+script = ExtResource("1_script")

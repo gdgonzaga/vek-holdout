@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="PrintAction" format=3 uid="uid://bjs2gn4drce63"]
+
+[ext_resource type="Script" uid="uid://bo7airfdegdak" path="res://data/actions/print_action.gd" id="1_script"]
+
+[resource]
+resource_name = "Print message"
+script = ExtResource("1_script")
+label = "Print message"

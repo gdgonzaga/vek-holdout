@@ -1,7 +1,6 @@
 class_name ActionOption
 extends Resource
 
-@export var label: String
 @export var conditions: Array[Condition] = []
 @export var action: GameAction
 
