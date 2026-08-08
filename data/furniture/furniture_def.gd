@@ -3,8 +3,8 @@ class_name FurnitureDef
 ## Free-standing buildable (GDD §7.2) — stations (Workbench, Forge, Clinic Bed),
 ## beds, doors, and larger structures like posts. Distinct from BlockDef: furniture
 ## is authored with a 3D dimensions cell-box and (eventually) its own Node3D scene
-## rather than a single unit-cube voxel. Schema: docs/ARCHITECTURE.md Functional
-## Rooms C1 ("data/furniture/").
+## rather than a single unit-cube voxel. Schema: docs/architecture/data-schemas.md
+## (FurnitureDef); Functional Rooms C1 tracking in docs/architecture/tech-debt.md.
 ##
 ## Inherits id/display_name/hp/mesh/material_cost/unlocked_by_default from
 ## BuildableDef. `mesh` is the ghost-preview shape (same as blocks); it does not
@@ -21,3 +21,11 @@ class_name FurnitureDef
 ## Rotation (R) swaps x/z (the floor plane); y is vertical and unchanged.
 ## Even-sized x or z shift the placement pivot 0.5m (GDD §7.4).
 @export var dimensions: Vector3i = Vector3i.ONE
+
+## Interaction options offered when the player points at this furniture and
+## presses E. Each entry is an ActionOption resource (data/actions/options/*.tres)
+## referencing a GameAction plus optional Conditions. FurnitureLayer copies these
+## verbatim onto the spawned furniture's InteractionComponent, so empty (the
+## default) means non-interactable. BlockDef intentionally has no equivalent —
+## voxel blocks resolve through the voxel grid, not as Node3D instances.
+@export var action_options: Array[ActionOption] = []

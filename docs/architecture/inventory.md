@@ -22,14 +22,15 @@ Items, stacks, inventory model. GDD §4.5, §7.3.
 
 **Trigger:** Player presses E on a world item, or takes from a container.
 
-1. Player emits `interact_started(target)` → target's interact handler.
-2. World item / crate offers `{item_id, count}` to `Player.inventory.add(item_id, count)`.
-3. Inventory runs stacking algorithm:
+> **Implementation status: pickup interaction not yet built.** World-item pickup will resolve through the [Actions & Interaction](actions.md) chain (a `GameAction` that calls `inventory.add`), not a dedicated `interact_started` signal. The stacking algorithm below is the intended shape.
+
+1. Player interacts with the world item / crate (E) → an `ActionOption`'s `GameAction.execute` offers `{item_id, count}` to `Player.inventory.add(item_id, count)`.
+2. Inventory runs stacking algorithm:
    - Fill existing same-type stacks to cap.
    - Overflow → new non-hotbar slot (prefer non-hotbar).
    - If no slot: container subtracts transferred; world item re-drops remainder.
-4. Inventory emits `inventory_changed()` (direct) + `item_picked_up` via EventBus.
-5. Inventory screen / HUD hotbar refresh.
+3. Inventory emits `inventory_changed()` (direct) + `item_picked_up` via EventBus.
+4. Inventory screen / HUD hotbar refresh.
 
 **End state:** Item in inventory (full or partial); source updated; UI refreshed.
 

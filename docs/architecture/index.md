@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-07-31 (Map authoring system + runtime map loader landed)
+Last updated: 2026-08-09 (Interaction system + Actions chain + Furniture node class landed)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
@@ -20,6 +20,7 @@ Last updated: 2026-07-31 (Map authoring system + runtime map loader landed)
 | [Voxel / World](voxel-world.md) | Blocky-voxel world, VoxelGrid, BlockLibrary | — |
 | [Player](player.md) | Third-person controller, camera rig, Mode+State | §4 |
 | [Build](build.md) | Blueprint mode, BuildLibrary, ghost preview, furniture layer | §7.4 |
+| [Actions & Interaction](actions.md) | E-key menu, GameAction/Condition/ActionOption chain | §4 |
 | [Functional Rooms](functional-rooms.md) | Furniture-count tracking, capability unlocks | §7.8 |
 | [Colonists](colonists.md) | Roster, Job Board, labor AI, raid stances | §6 |
 | [Skills](skills.md) | Per-entity L1–L5 progression, work-speed multipliers | §6.3 |

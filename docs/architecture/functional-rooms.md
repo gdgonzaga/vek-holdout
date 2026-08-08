@@ -2,7 +2,7 @@
 
 Tracks which functional-furniture types are placed in the colony and how many of each. Gates capability unlocks (world map, crafting, smelting, etc.) and feeds the raid visibility bonus. GDD §7.8.
 
-> **Implementation status: planned, not yet built.** The design below is the intended shape, but **none of it exists in `colony.gd` yet** — there is no `functional_counts` state, no `_on_block_placed` / `_on_block_destroyed` listeners, and no `count_functional_furniture()` / `count_of()` / `has_functional()` surface. The `data/furniture/` schema (`is_functional` + `functional_area`) is also still pending (C1). Treat this section as the spec to implement against, not a description of current code. The pieces it depends on *do* exist: `VoxelGrid` emits `block_placed` / `block_destroyed`, and `FurnitureLayer` emits `furniture_placed` / `furniture_removed` (the more likely source once furniture is non-block — see note below).
+> **Implementation status: planned, not yet built.** The design below is the intended shape, but **none of it exists in `colony.gd` yet** — there is no `functional_counts` state, no `_on_block_placed` / `_on_block_destroyed` listeners, and no `count_functional_furniture()` / `count_of()` / `has_functional()` surface. The `FurnitureDef` class exists (with `dimensions` + `action_options`), but the `is_functional` / `functional_area` fields this subsystem needs are still pending (C1). Treat this section as the spec to implement against, not a description of current code. The pieces it depends on *do* exist: `VoxelGrid` emits `block_placed` / `block_destroyed`, and `FurnitureLayer` emits `furniture_placed` / `furniture_removed` (the more likely source once furniture is non-block — see note below).
 
 **Design notes:**
 - **No room detection** — there's no bounding-box or enclosure check. "Functional area unlocked" means *at least one of the furniture type exists in the colony*, placed anywhere.
@@ -15,7 +15,7 @@ Tracks which functional-furniture types are placed in the colony and how many of
 | File | Type | Responsibility |
 |---|---|---|
 | *(no separate script — functionality folded into Colony autoload)* | — | Colony tracks `functional_counts: Dictionary[String, int]` directly; the placement/destroy listeners + query methods are Colony methods. Documented here because the *feature* is distinct even though the code lives on Colony. |
-| `../data/furniture/` | Data | FurnitureDef per type — includes `is_functional: bool` flag + `functional_area: String` so the registry knows which placements to count. Schema pending (C1). |
+| `../data/furniture/` | Data | `FurnitureDef` per type — currently adds `dimensions: Vector3i` + `action_options: Array[ActionOption]` (interaction). The `is_functional: bool` + `functional_area: String` fields this subsystem needs to know which placements to count are still pending (C1). |
 
 ## Signals
 

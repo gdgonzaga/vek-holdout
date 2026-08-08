@@ -25,9 +25,11 @@ res://
 │   ├── maps/           # MapLibrary catalog, MapWiring, SpawnHelpers, map_template.tscn
 │   ├── loot/           # Loot tables, container logic, Key Item pool
 │   ├── inventory/      # Items, stacks, inventory model
-│   └── crafting/       # Recipe model, station logic, craft-Job flow
+│   ├── crafting/       # Recipe model, station logic, craft-Job flow
+│   └── actions/        # Interaction runtime + data: InteractionComponent, GameAction, Condition, ActionOption
 ├── ui/                 # HUD + all full-screen UIs (kept at project root for now)
 │   ├── hud/
+│   ├── interaction/    # E-key pop-up menu (InteractionUi)
 │   ├── build_menu/
 │   ├── player_screen/
 │   ├── colony_screen/
@@ -43,7 +45,7 @@ res://
 │   ├── blocks/         # Block definitions (wood/scrap/stone/metal/reinforced)
 │   ├── buildables/     # BuildableDef (player-placed objects: pole, etc.)
 │   ├── colonists/      # Colonist definitions + AI (ColonistDef, colonist_ai)
-│   ├── furniture/      # FurnitureDef (is_functional + functional_area) — schema pending (C1)
+│   ├── furniture/      # FurnitureDef (dimensions + action_options) — partial (C1)
 │   ├── items/          # Item definitions
 │   ├── loot/           # Loot tables (standard.tres, deep.tres) + key_items.tres pool
 │   ├── loadouts/       # Loadout templates (player-created + saved per run)

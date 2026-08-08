@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="NotCondition" format=3 uid="uid://cpijgydaa36wg"]
+
+[ext_resource type="Resource" uid="uid://blperlumswa2m" path="res://data/conditions/true.tres" id="1_uislb"]
+[ext_resource type="Script" uid="uid://bjw6qufc566ij" path="res://subsystems/actions/not.gd" id="2_02ko6"]
+
+[resource]
+script = ExtResource("2_02ko6")
+condition = ExtResource("1_uislb")
+metadata/_custom_type_script = "uid://bjw6qufc566ij"

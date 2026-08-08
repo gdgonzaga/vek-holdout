@@ -17,7 +17,8 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 |---|---|---|---|---|
 | `blueprint_mode_toggled(active)` | `player.gd` | BuildController, HUD | Yes | Enter Blueprint Mode |
 | `player_died(context)` | `player.gd` *(planned — not yet emitted)* | GameState, HUD | Yes | Player Death / Respawn |
-| `interact_started(target)` | `player.gd` *(planned — not yet emitted)* | (target's interact handler) | No | Loot / Door / Bed |
+
+> **Interaction** is not signal-driven. The player resolves a target via crosshair raycast and calls `InteractionComponent.interact(self)` directly — see the "Interact (E key)" flow and the [Actions & Interaction](actions.md) subsystem.
 
 ## Flow Trace: Enter Blueprint Mode
 
@@ -32,6 +33,17 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 7. Dismissing the build menu without selecting → re-captures cursor; mode stays `NORMAL`.
 
 **End state:** Build UX active; LMB/RMB repurposed; movement unaffected. Exit is via Esc, not B.
+
+## Flow Trace: Interact (E key)
+
+**Trigger:** Player presses E (`"interact"` input action) in Normal mode while the crosshair is over an interactable.
+
+1. Every `_physics_process` tick, `_update_interaction_target` runs a screen-center physics raycast (`interact_distance` 8.0, bodies only, the player RID excluded). Skipped entirely when `mode != NORMAL` (no targeting in Blueprint mode).
+2. On a hit, `_find_interaction_component(hit.collider)` walks **up** the parent chain looking for a direct child named exactly `"InteractionComponent"`. The result is cached in `_current_interactable`.
+3. E press → `_try_interact`: if `_current_interactable` is non-null **and** its `action_options` is non-empty, calls `_current_interactable.interact(self)`.
+4. The `InteractionComponent` builds and mounts the interaction menu — see [Actions & Interaction](actions.md) for the rest of the chain (UI mount, button building, `GameAction.execute`).
+
+**End state:** The interaction menu is open (or the action has run). Interaction does **not** change movement state — `State.INTERACT` is defined in the enum but never assigned; the player keeps walking/idle underneath.
 
 ## Flow Trace: Sprint and Breath
 
@@ -82,6 +94,8 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `jump_move_speed` | `float` | `[export default 0.5]` Mid-air nudge speed for axis braking. |
 | `mode` | `Mode` enum | `NORMAL` or `BLUEPRINT`. |
 | `state` | `State` enum | Movement/action state (`IDLE`, `WALK`, `SPRINT`, `ATTACK`, `INTERACT`, `SLEEP`, `DEAD`). Only `IDLE`/`WALK`/`SPRINT` are actively assigned at runtime; the rest are placeholders. |
+| `interact_distance` | `float` | `[export default 8.0]` Max range for the interaction crosshair raycast. |
+| `_current_interactable` | `InteractionComponent` | The component currently under the crosshair (or `null`). Refreshed every tick by `_update_interaction_target`. |
 | `character_def` | `CharacterDef` *(planned)* | Loaded resource (player.tres): max_hp, base_move_speed, sprint_multiplier, stamina_drain_rate, breath costs. |
 | `breath_component` | `BreathComponent` *(planned)* | @onready ref; queried for sprint gating + burst-action spending. |
 | `stamina_component` | `StaminaComponent` *(planned)* | @onready ref; queried for work/movement multipliers. |
@@ -94,4 +108,8 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `exit_blueprint_mode() -> void` | One-way exit: sets `mode = NORMAL`; emits `blueprint_mode_toggled(false)`. Called on `ui_cancel` (Esc) in Blueprint mode. |
 | `_open_build_menu() -> void` | Instantiates `build_menu.tscn` on a CanvasLayer; releases cursor for menu interaction. |
 | `_on_buildable_selected(id: String) -> void` | Enters Blueprint mode on menu selection: sets `mode = BLUEPRINT`; emits `blueprint_mode_toggled(true)`. |
+| `_try_interact() -> void` | E-key handler: calls `_current_interactable.interact(self)` if a target is cached and offers actions. |
+| `_interaction_raycast() -> Dictionary` | Screen-center physics raycast (`interact_distance`, bodies only, player excluded). Returns the raw hit dict (empty if nothing struck). |
+| `_update_interaction_target() -> void` | Per-tick crosshair check; updates `_current_interactable` via `_find_interaction_component`. Skipped in Blueprint mode. |
+| `_find_interaction_component(node: Node) -> InteractionComponent` | Walks up the parent chain from a hit collider looking for a child named exactly `"InteractionComponent"`. |
 | `take_damage(amount: int, source: Node) -> void` *(planned)* | Forwards to Combat's damage resolver. |

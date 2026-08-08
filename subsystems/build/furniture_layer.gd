@@ -101,9 +101,11 @@ func spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D:
 	EventBus.furniture_placed.emit(def.id, anchor)
 	return node
 
-func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int) -> Node3D:
+func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int) -> Furniture:
 	# Create a parent Node3D to hold mesh and collision.
-	var root := _new_furniture_template.instantiate()
+	var root: Furniture = _new_furniture_template.instantiate()
+	root.def_id = def.id
+	root.def = def
 	var mesh_node: MeshInstance3D = root.find_child("Mesh")
 	mesh_node.mesh = def.mesh
 	
@@ -127,6 +129,15 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	# Apply rotation to root so both mesh and collision rotate together.
 	if yaw_quarters != 0:
 		root.rotate_y(float(yaw_quarters) * PI * 0.5)
+
+	# Attach interaction only when the def offers actions (FurnitureDef only).
+	# Player._find_interaction_component expects a direct child named exactly
+	# "InteractionComponent"; component.display_name is the UI fallback.
+	if def is FurnitureDef and not (def as FurnitureDef).action_options.is_empty():
+		var interaction := InteractionComponent.new()
+		interaction.name = "InteractionComponent"
+		root.add_child(interaction)
+		interaction.action_options = (def as FurnitureDef).action_options
 	return root
 
 
@@ -136,8 +147,8 @@ func remove_at(cell: Vector3i) -> bool:
 	var anchor: Variant = _anchor_by_cell.get(cell)
 	if anchor == null:
 		return false
-	var node: Node3D = _node_by_anchor.get(anchor)
-	var def_id := node.name.substr("Furniture_".length()) if node != null else ""
+	var node: Furniture = _node_by_anchor.get(anchor)
+	var def_id := node.def_id if node != null else ""
 	if node != null:
 		node.queue_free()
 	# Clear every cell this anchor covered (we don't know dims here, so sweep by value).

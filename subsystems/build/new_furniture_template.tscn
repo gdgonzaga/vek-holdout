@@ -1,6 +1,9 @@
 [gd_scene format=3 uid="uid://81jrm3co56eg"]
 
+[ext_resource type="Script" uid="uid://cpd2oh6lh3x5" path="res://subsystems/furniture/furniture.gd" id="1_furniture"]
+
 [node name="NewFurnitureTemplate" type="Node3D" unique_id=1577644227]
+script = ExtResource("1_furniture")
 
 [node name="Mesh" type="MeshInstance3D" parent="." unique_id=74667330]
 

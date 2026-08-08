@@ -1,13 +1,16 @@
 extends Node3D
-## Interaction system test: walk up to a cube and press E to interact.
+## Interaction system test: walk up to a piece of furniture and press E to interact.
 ##
-## Spawns map + player + VoxelViewer (same boilerplate as player_test.gd) plus a
-## simple StaticBody3D cube with an InteractionComponent. The component offers one
-## ActionOption (PrintAction). Pressing E opens the interaction UI; clicking the
-## button prints "Action executed" to output.
+## Spawns map + player + VoxelViewer (same boilerplate as player_test.gd), then
+## places the authored `data/furniture/test_block_furniture_with_interaction.tres`
+## FurnitureDef via FurnitureLayer.spawn. Because that def carries action_options,
+## spawn() auto-attaches an InteractionComponent (named exactly
+## "InteractionComponent") copied from the def — no manual component wiring here.
+## Pressing E opens the interaction UI; clicking a button runs the bound GameAction
+## (prints "Action executed" to output).
 ##
 ## The every-frame crosshair check in Player should also print
-## "[interact] targeting: <name>" when the cube is under the crosshair.
+## "[interact] targeting: <name>" when the furniture is under the crosshair.
 
 
 func _ready() -> void:
@@ -30,36 +33,17 @@ func _ready() -> void:
 		viewer.set("requires_collision", true)
 	player.add_child(viewer)
 
-	# -- Interactable cube -----------------------------------------------------
-	var body := StaticBody3D.new()
-	body.name = "TestCube"
-	body.position = Vector3(3, 1.0, 0)
-	map.add_child(body)
-
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3.ONE
-	mesh.mesh = box
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.2, 0.6, 1.0)
-	mat.emission_enabled = true
-	mat.emission = Color(0.2, 0.6, 1.0)
-	mat.emission_energy_multiplier = 0.3
-	mesh.material_override = mat
-	body.add_child(mesh)
-
-	var col := CollisionShape3D.new()
-	col.shape = BoxShape3D.new()
-	body.add_child(col)
-
-	var interaction := InteractionComponent.new()
-	interaction.name = "InteractionComponent"
-	interaction.display_name = "Test Cube"
-	body.add_child(interaction)
-
-	var option := ActionOption.new()
-	option.action = load("res://data/actions/print_action.tres")
-	interaction.action_options = [option]
+	# -- Interactable furniture ------------------------------------------------
+	# Spawn the authored FurnitureDef via FurnitureLayer — the real placement path.
+	# spawn() builds the Furniture node (mesh + collision) and, because the def has
+	# non-empty action_options, attaches the InteractionComponent the player's
+	# crosshair resolves. anchor (2,0,-1) + dims (2,1,2) centers it at world (3,0,0).
+	var def := load("res://data/furniture/test_block_furniture_with_interaction.tres") as FurnitureDef
+	var furniture := FurnitureLayer.new()
+	furniture.set_container(map.get_furniture_container())
+	var node: Node3D = furniture.spawn(def, Vector3i(2, 0, -1), 0)
+	if node == null:
+		push_error("interaction_test: furniture spawn failed (check def mesh / container wiring)")
 
 	# -- HUD hint ---------------------------------------------------------------
 	var layer := CanvasLayer.new()
@@ -67,7 +51,7 @@ func _ready() -> void:
 	add_child(layer)
 	var label := Label.new()
 	label.position = Vector2(10, 10)
-	label.text = "E: interact with the blue cube\nLook at the cube: console prints targeting info"
+	label.text = "E: interact with the Test block furniture\nLook at it: console prints targeting info\nSpawned via FurnitureLayer from test_block_furniture_with_interaction.tres"
 	label.add_theme_font_size_override("font_size", 16)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.add_theme_color_override("font_shadow_color", Color.BLACK)

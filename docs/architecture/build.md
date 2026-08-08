@@ -4,7 +4,7 @@ Blueprint mode UX: cursor raycast, rotation state, ghost preview, validity check
 
 **Two-kind placement model:** a single `BuildController` routes commit by the selected def's runtime kind (per the `BuildableDef` hierarchy in `data/`):
 - **`BlockDef`** (voxel block: wood/scrap/stone/metal/reinforced) → `InstantPlacementStrategy` → `VoxelGridAdapter` → voxel grid.
-- **everything else** — a plain `BuildableDef` (e.g. `pole`) or a `FurnitureDef` (e.g. `workbench`) → `FurnitureLayer`, which spawns a free-standing `Node3D` under the world's `FurnitureContainer`.
+- **everything else** — a plain `BuildableDef` (e.g. `pole`) or a `FurnitureDef` (e.g. `workbench`) → `FurnitureLayer`, which spawns a free-standing `Furniture` node (see Class Reference) under the world's `FurnitureContainer`.
 
 The def's shape drives routing everywhere: `BuildController._is_furniture(id)` is `def != null and not (def is BlockDef)`, the ghost uses the same test to pick a single-cell preview vs. a footprint-center preview, and `FurnitureLayer` reads `FurnitureDef.dimensions` for multi-cell validity + placement.
 
@@ -21,11 +21,11 @@ The def's shape drives routing everywhere: `BuildController._is_furniture(id)` i
 | `instant_placement_strategy.gd` | Script (`RefCounted`) | MVP block strategy: resolves the cell from `transform.origin`, calls `VoxelGridAdapter.set_block_at`. Cost deduction deferred (TODO). |
 | `blueprint_then_build_strategy.gd` | Script *(planned — not yet implemented)* | Post-MVP block strategy: spawns a blueprint ghost → registers a construction Job on the Job Board (colonist builds it over time). Will be the second `IPlacementStrategy` impl alongside `InstantPlacementStrategy`. |
 | `voxel_grid_adapter.gd` | Script (`RefCounted`) | `IBlockGrid` impl wrapping `voxel/voxel_grid.gd`. Adds `is_valid_placement` + `snap_transform` + raycast `exclude` passthrough (for player-body exclusion). |
-| `furniture_layer.gd` | Script (`RefCounted`) | Free-standing furniture layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns an `Node3D` (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model (cell-box `dimensions`, yaw swaps x/z), overlap rejection, and removal-by-pointing-at-any-covered-cell. Emits `furniture_placed` / `furniture_removed` on EventBus. |
-| `new_furniture_template.tscn` | Scene | Node template for spawned furniture: a root `Node3D` holding a `Mesh` `MeshInstance3D` (gets a runtime trimesh `StaticBody3D` on collision layer 1) + a `BuildBody` `StaticBody3D` with a footprint-sized `BoxShape3D` (collision layer 3). Rotated as a unit by yaw. |
+| `furniture_layer.gd` | Script (`RefCounted`) | Free-standing furniture layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns a `Furniture` node (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model (cell-box `dimensions`, yaw swaps x/z), overlap rejection, and removal-by-pointing-at-any-covered-cell. Emits `furniture_placed` / `furniture_removed` on EventBus. |
+| `new_furniture_template.tscn` | Scene | Node template for spawned furniture: a root `Furniture` node (`subsystems/furniture/furniture.gd`) holding a `Mesh` `MeshInstance3D` (gets a runtime trimesh `StaticBody3D` on collision layer 1) + a `BuildBody` `StaticBody3D` with a footprint-sized `BoxShape3D` (collision layer 3). Rotated as a unit by yaw. |
 | `../data/blocks/` | Data | `BlockDef` per block type (wood, scrap, stone, metal, reinforced, terrain). See [Data Schemas](data-schemas.md). |
 | `../data/buildables/` | Data | Plain `BuildableDef` (player-placed objects not on the voxel grid — e.g. `pole`). |
-| `../data/furniture/` | Data | `FurnitureDef` per furniture type (workbench, etc.); adds `dimensions: Vector3i`. Schema pending (C1). |
+| `../data/furniture/` | Data | `FurnitureDef` per furniture type (workbench, etc.); adds `dimensions: Vector3i` + `action_options: Array[ActionOption]`. Partial (C1) — see [Actions & Interaction](actions.md). |
 
 ## Signals
 
@@ -59,7 +59,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 2. Routes to `_commit_furniture` (the def is not a `BlockDef`).
 3. `_is_footprint_free(anchor, def)`: for every cell in the (yaw-rotated) footprint, confirms `grid_adapter.is_valid_placement(cell)` AND `furniture_layer.has_at(cell)` is false. Rejects overlap with terrain, blocks, or existing furniture.
 4. On success, `FurnitureLayer.spawn(def, anchor, rotation_state.step)`:
-   - Instantiates `new_furniture_template.tscn`; assigns `def.mesh` to the `Mesh` node and builds a footprint-sized `BoxShape3D` collision on the `BuildBody` (layer 3) + a trimesh body (layer 1).
+   - Instantiates `new_furniture_template.tscn` (a `Furniture` root); assigns `root.def_id = def.id` and `root.def = def` (the runtime back-ref static data is read through). Assigns `def.mesh` to the `Mesh` node and builds a footprint-sized `BoxShape3D` collision on the `BuildBody` (layer 3) + a trimesh body (layer 1).
+   - When `def is FurnitureDef` and its `action_options` is non-empty, attaches an `InteractionComponent` child named exactly `"InteractionComponent"` and copies the options onto it — see [Actions & Interaction](actions.md) flow trace.
    - Positions at `FurnitureLayer.world_origin(anchor, dims, yaw)` (footprint center on XZ, anchor Y).
    - Registers every covered cell in `anchor_by_cell` (so removal by pointing at any covered cell resolves to the item) and the node in `node_by_anchor`.
    - Emits `furniture_placed(def.id, anchor)` on EventBus → Colony's Functional Rooms counter increments.
@@ -145,7 +146,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 **Extends:** RefCounted
 **Script:** `furniture_layer.gd`
-**Description:** Free-standing furniture placement layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns an `Node3D` (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model. Never touches `voxel_tool` — it asks `VoxelGridAdapter` whether candidate cells are free.
+**Description:** Free-standing furniture placement layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns a `Furniture` node (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model. Never touches `voxel_tool` — it asks `VoxelGridAdapter` whether candidate cells are free.
 **Used by:** `BuildController` (non-block commit/remove), Colony (Functional Rooms, via `furniture_placed`/`furniture_removed`).
 
 **Static helpers:**
@@ -161,6 +162,24 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | Function | Description |
 |---|---|
 | `set_container(container: Node3D) -> void` | Wiring: where spawned nodes parent. |
-| `spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D` | Place an item; returns the node or `null` if unwired/overlapping/no mesh. Emits `furniture_placed(def.id, anchor)`. |
-| `remove_at(cell: Vector3i) -> bool` | Remove the item covering `cell` (any covered cell resolves to its anchor). Emits `furniture_removed`. |
+| `spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D` | Place an item; returns the node (runtime type `Furniture`) or `null` if unwired/overlapping/no mesh. Emits `furniture_placed(def.id, anchor)`. |
+| `remove_at(cell: Vector3i) -> bool` | Remove the item covering `cell` (any covered cell resolves to its anchor). Reads `node.def_id` for the emitted id — the canonical key, not the cosmetic node name. Emits `furniture_removed`. |
 | `has_at(cell: Vector3i) -> bool` | Whether any item covers `cell`. |
+
+### Class: Furniture
+
+**Extends:** Node3D
+**Script:** `subsystems/furniture/furniture.gd`
+**Description:** Runtime instance of one placed furniture item (GDD §7.2). Holds a back-ref to its definition so static data (mesh, `display_name`, `hp`, `dimensions`) is read through the def and `.tres` balance changes propagate to already-placed instances without respawning. Only per-instance state lands here as subsystems are built.
+**Used by:** `FurnitureLayer` (creates + parents instances), [Actions & Interaction](actions.md) (the interaction menu's target; `label` is the UI label source).
+**Lifecycle:** Instantiated from `new_furniture_template.tscn` by `FurnitureLayer._create_furniture_node`, which sets `def_id` and `def` immediately after instantiation.
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `def_id` | `String` | `[export default ""]` Canonical def id (e.g. `"workbench"`). The emitted id source in `remove_at` and the future save/load key. |
+| `def` | `BuildableDef` | Runtime back-ref to the definition (not serialized). Read static data through this (`def.hp`, `def.dimensions`, `def.action_options`). |
+| `label` | `String` | `[export, getter only]` Returns `def.display_name` (or `""` if `def` is null). The interaction menu reads this via `target.get("label")` so the UI stays decoupled from `FurnitureDef`. |
+
+> **Deferred:** per-instance HP/damage (GDD §7.7), Functional Rooms counting fields (§7.8), and crafting/storage/door/bed component slots (§7.9–§7.11) are not on this class yet — added as the owning subsystems land. Placement bookkeeping (anchor → node maps, cell ownership) stays in `FurnitureLayer`.

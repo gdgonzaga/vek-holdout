@@ -7,6 +7,7 @@ HUD + all full-screen UIs. Each screen is its own `.tscn` scene; reusable subsce
 | File | Type | Responsibility |
 |---|---|---|
 | `hud/hud.tscn` / `hud.gd` | Scene/Script | Persistent in-game overlay (CanvasLayer 10): HP/Durability/Stamina/Breath bars, hotbar, build overlay, day counter. |
+| `interaction/interaction_ui.tscn` | Scene | E-key pop-up menu: `Label` + button list, one `Button` per `ActionOption` (disabled if its `Condition`s fail). Instantiated by the [Actions & Interaction](actions.md) `InteractionComponent` on a CanvasLayer; label resolved from the target's `label` property (e.g. `Furniture.label`) with `component.display_name` / node-name fallbacks. |
 | `player_screen/player_screen.tscn` | Scene | Tabbed: Player Info / Inventory / Gear / Skills(empty). |
 | `colony_screen/colony_screen.tscn` | Scene | Tabs: Roster / Labor / Defense / Loadouts / Expeditions. |
 | `world_map/world_map.tscn` | Scene | Hex-grid map (also referenced by Expeditions subsystem). |

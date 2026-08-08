@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://cvw4ve18pc6af"]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_2h1e1"]
+[ext_resource type="Resource" uid="uid://dbggjl5xmcc5b" path="res://data/action_options/test_action_option.tres" id="2_bi4nr"]
+[ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="3_j645s"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="4_mx8ar"]
+
+[resource]
+script = ExtResource("4_mx8ar")
+dimensions = Vector3i(2, 1, 2)
+action_options = Array[ExtResource("1_2h1e1")]([ExtResource("2_bi4nr"), ExtResource("2_bi4nr")])
+id = "test_block"
+display_name = "Test block !!"
+hp = 100
+mesh = ExtResource("3_j645s")
+unlocked_by_default = true
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ActionOption" format=3 uid="uid://dbggjl5xmcc5b"]
+
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_7ugu2"]
+[ext_resource type="Resource" uid="uid://bjs2gn4drce63" path="res://data/actions/print_action.tres" id="1_y5tna"]
+[ext_resource type="Resource" uid="uid://blperlumswa2m" path="res://data/conditions/true.tres" id="2_2iyan"]
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="2_c7ri4"]
+[ext_resource type="Script" uid="uid://beebxjnducjuw" path="res://subsystems/actions/any_of.gd" id="3_2iyan"]
+[ext_resource type="Resource" uid="uid://cpijgydaa36wg" path="res://data/conditions/false.tres" id="3_y5tna"]
+[ext_resource type="Script" uid="uid://kb780f11kc6i" path="res://subsystems/actions/all_of.gd" id="4_y5tna"]
+
+[sub_resource type="Resource" id="Resource_47eur"]
+script = ExtResource("3_2iyan")
+conditions = Array[ExtResource("1_7ugu2")]([ExtResource("2_2iyan"), ExtResource("3_y5tna")])
+metadata/_custom_type_script = "uid://beebxjnducjuw"
+
+[sub_resource type="Resource" id="Resource_ev6b8"]
+script = ExtResource("4_y5tna")
+conditions = Array[ExtResource("1_7ugu2")]([SubResource("Resource_47eur")])
+metadata/_custom_type_script = "uid://kb780f11kc6i"
+
+[resource]
+script = ExtResource("2_c7ri4")
+conditions = Array[ExtResource("1_7ugu2")]([SubResource("Resource_ev6b8")])
+action = ExtResource("1_y5tna")
+metadata/_custom_type_script = "uid://bpf22i1m773qh"

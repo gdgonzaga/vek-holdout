@@ -70,6 +70,62 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 | `mesh` | `Mesh` | Blocky-mode mesh (unit cube). |
 | `material_cost` | `Dictionary` | Resource → count (e.g. `{wood: 3}`). |
 
+## `data/buildables/<id>.tres` (Resource: `buildable_def.gd`)
+
+Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`). Also the parent class of `BlockDef` and `FurnitureDef`, which is where `id` / `display_name` / `hp` / `mesh` / `material_cost` / `unlocked_by_default` are inherited from.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique buildable id (e.g. `"pole"`, `"workbench"`, `"wood"`). Catalog key for `BuildLibrary`. |
+| `display_name` | `String` | UI label. `Furniture.label` exposes this to the interaction menu via a getter. |
+| `hp` | `int` | Durability-before-HP buffer (GDD §6.11). |
+| `mesh` | `Mesh` | Preview/placement mesh; for voxel blocks MUST occupy `(0,0,0)→(1,1,1)`. |
+| `material_cost` | `Dictionary` | `{resource_id: count}` (e.g. `{"wood": 3}`). Consumed at placement (deferred). |
+| `unlocked_by_default` | `bool` | Available without earning an unlock this run; seeded by `BuildLibrary`. |
+
+**Methods:** `get_cost() -> Dictionary`, `get_cost_of(resource_id: String) -> int`.
+
+## `data/furniture/<id>.tres` (Resource: `furniture_def.gd`)
+
+`FurnitureDef` `extends BuildableDef` — free-standing buildables (Workbench, Forge, Clinic Bed, etc.). Inherits all `BuildableDef` fields. Partial (C1) — see [Actions & Interaction](actions.md) and [Build](build.md).
+
+| Field | Type | Description |
+|---|---|---|
+| `dimensions` | `Vector3i` | `[export default ONE]` Cell-box the item occupies: x=width, y=height, z=depth (GDD §7.2). Rotation (R) swaps x/z; even-sized x or z shift the placement pivot 0.5m (GDD §7.4). |
+| `action_options` | `Array[ActionOption]` | `[export default []]` Interaction options offered on E-press. Each entry is an `ActionOption` `.tres` (see below). Empty (default) means non-interactable — `FurnitureLayer` attaches no `InteractionComponent`. |
+
+## `data/actions/<id>.tres` (Resource: `game_action.gd`)
+
+One `.tres` per concrete `GameAction` — "what happens" when the player picks the option. Subclasses override `execute(actor, target)`. Currently only `print_action.tres` (`PrintAction`, a smoke test). See [Actions & Interaction](actions.md).
+
+| Field | Type | Description |
+|---|---|---|
+| `label` | `String` | `[export]` Button text shown in the interaction menu. |
+
+**Virtual method:** `execute(actor: Node, target: Node) -> void` — override in a subclass. `actor` is the player; `target` is the interactable node.
+
+## Condition resources (Resource: `condition.gd`)
+
+`Condition` `extends Resource` — gates an `ActionOption`. One `.tres` per condition instance. Only composites exist so far (no leaf conditions like `HasItem`); see [Actions & Interaction](actions.md).
+
+| Class | File | Fields | Semantics |
+|---|---|---|---|
+| `Condition` (base) | `subsystems/actions/condition.gd` | — | Virtual `is_met(actor, target) -> bool` (default `true`). |
+| `AnyOf` | `subsystems/actions/any_of.gd` | `conditions: Array[Condition]` | true if **any** child `is_met`. |
+| `AllOf` | `subsystems/actions/all_of.gd` | `conditions: Array[Condition]` | true only if **all** children `is_met` (redundant inside an option, which already ANDs). |
+| `NotCondition` | `subsystems/actions/not.gd` | `condition: Condition` | Inverts a single child. |
+
+## `data/actions/options/<id>.tres` (Resource: `action_option.gd`)
+
+One `.tres` per `ActionOption` — one row in the interaction menu. Binds a `GameAction` to its gating `Condition`s. Directory does not exist yet (`furniture_def.gd` cites it as the planned location). See [Actions & Interaction](actions.md); authoring walkthrough: `docs/HOWTO-author-interactions.md`.
+
+| Field | Type | Description |
+|---|---|---|
+| `action` | `GameAction` | `[export]` The action to execute when the button is pressed. |
+| `conditions` | `Array[Condition]` | `[export default []]` Gates the option. All must be met for the button to be enabled. |
+
+**Method:** `is_available(actor: Node, target: Node) -> bool` — returns `false` on the first failing condition; `true` if empty. Drives each button's `disabled` state.
+
 ## `data/raid_curve.tres` (Resource: `raid_curve.gd`)
 
 Array of `{day_threshold, waves, enemies_per_wave, shooter_percent}` rows. See GDD §17 Raids for values.

@@ -28,6 +28,7 @@ nav:
     - "Voxel / World": voxel-world.md
     - Player: player.md
     - Build: build.md
+    - "Actions & Interaction": actions.md
     - "Functional Rooms": functional-rooms.md
     - Colonists: colonists.md
     - Skills: skills.md
@@ -49,7 +50,7 @@ nav:
   - Tracking:
     - "Tech Debt & Unimplemented": tech-debt.md
   - Planned:
-      "Open world": open-world.md
+    - "Open world": open-world.md
   - About:
     - "Adding a page": contributing.md
 

@@ -1,0 +1,152 @@
+# Subsystem: Actions & Interaction
+
+The E-key interaction flow: the player points the crosshair at an interactable, presses E, and a pop-up menu lists the actions available on that target. Each action is a data-driven `Resource` chain — a `GameAction` (what happens) wrapped in an `ActionOption` (which button, gated by `Condition`s) — so designers add interactions by authoring `.tres` files, not by touching the player or the UI. Maps to GDD §4 (interaction interrupt rule + the E keybind) and §7.2 (interactable furniture). Authoring walkthrough: `docs/HOWTO-author-interactions.md`.
+
+> **Design notes:**
+> - **The whole chain is composable Resources.** `GameAction`, `Condition`, and `ActionOption` all extend `Resource`; each is authored as its own `.tres`. An `ActionOption` references one `GameAction` plus zero-or-more `Condition`s; a `FurnitureDef` references one-or-more `ActionOption`s.
+> - **The UI never references `FurnitureDef`.** The menu label is resolved via the target's `label` property (`Furniture.label` getter returns `def.display_name`), falling back to `InteractionComponent.display_name`, then the node name. This keeps `ui/interaction/` decoupled from the data layer.
+> - **Interaction is disabled in Blueprint mode.** `Player._update_interaction_target` early-returns when `mode != NORMAL`, so the crosshair never picks a target while building.
+> - **Conditions gate at menu-open time, not execute time.** `ActionOption.is_available` only sets each button's `disabled` state when the menu is built. Pressing an enabled button calls `GameAction.execute` directly — conditions are not re-checked. A condition that should block execution must keep the option disabled (or the action must re-validate internally).
+> - **`BlockDef` has no interactions.** Voxel blocks resolve through the voxel grid, not as `Node3D` instances. Only `FurnitureDef` carries `action_options`.
+
+## Files
+
+| File | Type | Responsibility |
+|---|---|---|
+| `subsystems/actions/interaction_component.gd` | Script (Node) | The runtime attachment. Parented under a Furniture node (named exactly `"InteractionComponent"`); `interact(actor)` spawns the UI, mounting it on a CanvasLayer. Owns the actor/target cache and mouse-mode toggling. |
+| `subsystems/actions/game_action.gd` | Script (Resource) | Base class for "what happens". One `label: String` export (the button text) + a virtual `execute(actor, target)`. |
+| `subsystems/actions/condition.gd` | Script (Resource) | Base class for gating. A virtual `is_met(actor, target) -> bool` (default `true`). |
+| `subsystems/actions/action_option.gd` | Script (Resource) | One menu button. References a `GameAction` plus an `Array[Condition]`; `is_available` ANDs all conditions. |
+| `subsystems/actions/any_of.gd` | Script (Resource) | Condition composite — true if any child `is_met`. |
+| `subsystems/actions/all_of.gd` | Script (Resource) | Condition composite — true only if all children `is_met` (redundant inside an option, which already ANDs its conditions). |
+| `subsystems/actions/not.gd` | Script (Resource) | Condition composite (`class_name NotCondition`) — inverts a single child `condition`. |
+| `../ui/interaction/interaction_ui.tscn` / `.gd` | Scene/Script | Pop-up `Control` (Label + button list). Built by `InteractionComponent`; one `Button` per `ActionOption`. See [UI](ui.md). |
+| `../data/actions/` | Data | `GameAction` subclasses + their `.tres`. Currently only `print_action.gd` / `print_action.tres` (a smoke test). See [Data Schemas](data-schemas.md). |
+| `../data/actions/options/` | Data *(planned — directory does not exist yet)* | `ActionOption` `.tres` resources. Path is cited in `furniture_def.gd` as the intended location. |
+
+## Signals
+
+*(No EventBus signals — the chain is direct calls: `Player → InteractionComponent.interact → InteractionUI → ActionOption.action.execute`. Furniture placement/removal is still broadcast via the existing `furniture_placed` / `furniture_removed` signals on EventBus, owned by the [Build](build.md) subsystem.)*
+
+## Flow Trace: Player interacts with furniture
+
+**Trigger:** Player points the crosshair at a furniture node carrying an `InteractionComponent` and presses E (`"interact"` input action) in Normal mode.
+
+1. Every `_physics_process` tick, `Player._update_interaction_target` raycasts from the screen center (`interact_distance` 8.0, bodies only, player RID excluded). Skipped entirely when `mode != NORMAL`.
+2. On a hit, `Player._find_interaction_component(hit.collider)` walks **up** the parent chain looking for a direct child named exactly `"InteractionComponent"` (handles any nesting depth). The result is cached in `_current_interactable`.
+3. E press → `Player._try_interact`: if `_current_interactable` is non-null **and** its `action_options` is non-empty, calls `_current_interactable.interact(self)`.
+4. `InteractionComponent.interact(actor)` calls `_open_interaction_ui(actor, get_parent(), action_options, self)` — note the target is the component's **parent** (the Furniture node).
+5. `_open_interaction_ui` releases the mouse, instantiates `interaction_ui.tscn`, connects its `action_selected` / `closed` signals, and mounts it on a CanvasLayer (group `"hud_layer"`, falling back to `"ui_layer"`; in the shipped `main.tscn` only `UILayer` is grouped, so the menu mounts there). The mount happens **before** `setup()` so `@onready` refs resolve.
+6. `InteractionUI.setup(actor, target, options, component)` clears the list, sets the label (`target.get("label")` → falls back to `component.display_name` → then `target.name`), and builds one `Button` per option — text from `option.action.label`, `disabled = not option.is_available(actor, target)`. If the list ends up empty, the UI frees itself immediately.
+7. Player clicks a button → `_on_option_pressed` emits `action_selected(option)` → `_on_action_selected` calls `option.action.execute(actor, target)` → `close()`. Esc (`ui_cancel`) or an empty list also call `close()`.
+
+**End state:** The selected `GameAction.execute` has run (with the player as `actor` and the Furniture node as `target`); the menu is freed and the mouse re-captured.
+
+## Flow Trace: Furniture spawns with an InteractionComponent
+
+**Trigger:** A furniture def with non-empty `action_options` is placed via the [Build](build.md) subsystem.
+
+1. `FurnitureLayer._create_furniture_node(def, dims, yaw)` instantiates `new_furniture_template.tscn` (a `Furniture` root) and assigns `root.def_id = def.id`, `root.def = def`.
+2. After mesh/collision/yaw wiring, if `def is FurnitureDef and not def.action_options.is_empty()`, it creates an `InteractionComponent`, sets `interaction.name = "InteractionComponent"`, adds it as a child of the Furniture root, and copies `def.action_options` onto it verbatim.
+
+**End state:** The spawned Furniture node carries a discoverable `InteractionComponent` child (the exact name `Player._find_interaction_component` looks for) pre-populated with the def's options.
+
+## Class Reference
+
+### Class: InteractionComponent
+
+**Extends:** Node
+**Script:** `subsystems/actions/interaction_component.gd`
+**Description:** The runtime handle the player's raycast resolves to. Parented under a Furniture node (or any interactable); `interact(actor)` builds and mounts the interaction menu. Owns actor/target caching and the mouse-mode flip while the menu is open.
+**Used by:** `Player._try_interact` (calls `interact`), `FurnitureLayer._create_furniture_node` (creates + populates it), `InteractionUI` (the component wires the UI's signals to its own callbacks).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `action_options` | `Array[ActionOption]` | The options offered by this target. Plain `var` (not `@export`) — runtime-populated by `FurnitureLayer`, copied from `FurnitureDef.action_options`. |
+| `display_name` | `String` | `[export default ""]` UI label fallback for targets without a `label` property (test cubes, ad-hoc bodies). |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `interact(actor: Node) -> void` | Entry point. Opens the UI on `get_parent()` (the target) with `action_options`. |
+| `close() -> void` | Re-captures the mouse after the menu closes. |
+
+### Class: GameAction
+
+**Extends:** Resource
+**Script:** `subsystems/actions/game_action.gd`
+**Description:** Base class for "what happens when the player picks this option". Subclasses override `execute`. One concrete impl exists: `PrintAction` (`data/actions/print_action.gd`).
+**Used by:** `ActionOption.action`, invoked by `InteractionComponent._on_action_selected`.
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `label` | `String` | `[export]` The button text shown in the menu. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `execute(actor: Node, target: Node) -> void` | Virtual — override in a subclass to perform the action. `actor` is the player; `target` is the interactable node. |
+
+### Class: Condition
+
+**Extends:** Resource
+**Script:** `subsystems/actions/condition.gd`
+**Description:** Base class for option gating. Subclasses (or the composites below) override `is_met`. No leaf condition (e.g. `HasItem`) exists yet — only the three composites.
+**Used by:** `ActionOption.conditions`.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `is_met(actor: Node, target: Node) -> bool` | Virtual — default `true`. ANDed by `ActionOption.is_available`. |
+
+### Class: ActionOption
+
+**Extends:** Resource
+**Script:** `subsystems/actions/action_option.gd`
+**Description:** One row in the interaction menu. Binds a `GameAction` to its gating `Condition`s. Authored as a `.tres` and referenced from `FurnitureDef.action_options`.
+**Used by:** `FurnitureDef.action_options`, copied onto `InteractionComponent.action_options` at spawn; read by `InteractionUI.setup`.
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `conditions` | `Array[Condition]` | `[export default []]` Gates the option. All must be met for the button to be enabled. |
+| `action` | `GameAction` | `[export]` The action to execute when the button is pressed. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `is_available(actor: Node, target: Node) -> bool` | Returns `false` on the first failing condition; `true` if empty. Drives each button's `disabled` state. |
+
+### Class: AnyOf
+
+**Extends:** Condition
+**Script:** `subsystems/actions/any_of.gd`
+**Description:** Condition composite — true if **any** child `is_met`, false if none.
+**Properties:** `conditions: Array[Condition]` `[export]`.
+
+### Class: AllOf
+
+**Extends:** Condition
+**Script:** `subsystems/actions/all_of.gd`
+**Description:** Condition composite — true only if **all** children `is_met`. Redundant inside an `ActionOption` (which already ANDs its `conditions`), but useful where a single condition slot must combine several checks.
+**Properties:** `conditions: Array[Condition]` `[export]`.
+
+### Class: NotCondition
+
+**Extends:** Condition
+**Script:** `subsystems/actions/not.gd` (note: filename `not.gd`, class `NotCondition`)
+**Description:** Condition composite — inverts a single child.
+**Properties:** `condition: Condition` `[export]`.
+
+## Authoring
+
+See `docs/HOWTO-author-interactions.md` for the step-by-step recipe: write a `GameAction` subclass + `.tres` → (optionally) author `Condition` `.tres` resources → create an `ActionOption.tres` binding them → drag it into a `FurnitureDef.action_options`. Schemas for each resource are in [Data Schemas](data-schemas.md).

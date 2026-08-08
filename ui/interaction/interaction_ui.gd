@@ -24,7 +24,17 @@ func setup(actor: Node, target: Node, options: Array[ActionOption], component: I
 	for child in _list.get_children():
 		child.queue_free()
 
-	_label.text = component.display_name if component.display_name != "" else target.name
+	# Prefer a scripted label on the target (Furniture.label, via getter) so the
+	# UI stays decoupled from FurnitureDef. Fall back to the component's
+	# display_name (test cube, ad-hoc bodies) then the node name. get() is
+	# null-safe for targets without a label property and invokes the getter.
+	var tlabel = target.get("label")
+	if tlabel != null and tlabel != "":
+		_label.text = tlabel
+	elif component.display_name != "":
+		_label.text = component.display_name
+	else:
+		_label.text = target.name
 
 	for option in options:
 		var btn := Button.new()
