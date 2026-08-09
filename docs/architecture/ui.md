@@ -12,7 +12,8 @@ HUD + all full-screen UIs. Each screen is its own `.tscn` scene; reusable subsce
 | `colony_screen/colony_screen.tscn` | Scene | Tabs: Roster / Labor / Defense / Loadouts / Expeditions. |
 | `world_map/world_map.tscn` | Scene | Hex-grid map (also referenced by Expeditions subsystem). |
 | `pause_menu/pause_menu.tscn` | Scene | Resume / Settings / Quit. |
-| `main_menu/main_menu.tscn` | Scene | New / Continue / Load / Settings / Quit. |
+| `main_menu/main_menu.tscn` | Scene | Title screen after splash. **New Game** button only for now (Continue / Load / Settings / Quit land later). New Game resets run state, emits `run_started`, discovers POIs, and `swap_map("base_colony")`. |
+| `splash/splash.tscn` | Scene | Full-screen splash shown on boot. Auto-advances after `duration` (default 0.2s, inspector-tunable) or on any key/mouse press, then opens the Main Menu. Image auto-loaded from `res://assets/ui/splash.png` (solid-bg fallback if absent). |
 | `game_over/game_over.tscn` | Scene | Stats + memorial roster (reads from Memorial) + buttons. |
 | `day_summary/day_summary.tscn` | Scene | Post-sleep screen (CanvasLayer 20): day's resource changes, expeditions, Fallen section (reads Memorial), construction, raids survived. See [Core](core.md) "Sleep → Day Summary → Save" flow. |
 | `settings/settings.tscn` | Scene | Video / Audio tabs. |

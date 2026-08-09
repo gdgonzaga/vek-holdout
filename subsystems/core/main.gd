@@ -26,13 +26,9 @@ func _ready() -> void:
 	# Persistent player: created once, reparented into each map on swap.
 	_player = preload("res://subsystems/player/player.tscn").instantiate()
 	SceneManager.set_player(_player)
-	# Throwaway auto-base-load: load the colony on startup so the skeleton has
-	# something to show. Move behind the Main Menu (New Game / Continue) when the
-	# UI subsystem lands — contradicts boot.gd's "boot -> Main -> Menu" decision.
-	SceneManager.swap_map("base_colony")
-	# Discover any POI-type maps registered in MapLibrary.
-	for def in MapLibrary.get_maps_by_type(MapDef.MapType.POI):
-		ExpeditionManager.discover(def.id)
+	# No map is loaded here — the Main Menu's New Game button drives the base
+	# load (see ui/main_menu/main_menu.gd). base_colony + POI discovery moved
+	# behind the menu so the menu gates gameplay.
 
 
 func _unhandled_input(event: InputEvent) -> void:

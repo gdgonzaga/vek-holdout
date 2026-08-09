@@ -35,7 +35,8 @@ res://
 │   ├── colony_screen/
 │   ├── world_map/
 │   ├── pause_menu/
-│   ├── main_menu/
+│   ├── main_menu/       # New Game (splash → menu → base_colony)
+│   ├── splash/          # Boot splash → auto-advances to Main Menu
 │   ├── game_over/
 │   ├── day_summary/
 │   ├── settings/
@@ -89,7 +90,7 @@ Dev-facing editor tooling, not shipped gameplay. Documented here because the map
     - EnemyContainer (Node3D) — holds active enemy instances
     - FurnitureContainer (Node3D) — holds free-standing furniture placed at runtime (Build subsystem)
     - BuildController (`build.tscn`) — active only in Blueprint mode
-- **Boot** (`boot.tscn`) — project entry point; loads Main + Main Menu. (Alternative: Main is the entry point and Main Menu is a CanvasLayer. Pick one in implementation — see [Tech Debt & Unimplemented](tech-debt.md).)
+- **Boot** (`boot.tscn`) — project entry point; loads Main, then opens the Splash → Main Menu. The menu gates gameplay (New Game → `swap_map("base_colony")`).
 
 **Scene transitions:** SceneManager swaps the current `Map` under `MapRootSlot` between the base scene and POI scenes (single entry point: `swap_map(map_id)`). Full-screen UIs replace each other in the `layer=20` CanvasLayer via `open_screen` / `close_screen` (currently: world map, opened with **M**; Esc closes any open screen before toggling pause). The HUD stays mounted throughout gameplay; hidden when any full-screen UI opens (pause/menu) per §12 "full pause everywhere."
 

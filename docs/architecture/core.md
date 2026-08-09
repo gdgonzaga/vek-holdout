@@ -6,8 +6,8 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 | File | Type | Responsibility |
 |---|---|---|
-| `main.tscn` / `main.gd` | Scene/Script | Root scene; owns CanvasLayers and MapRootSlot. Bootstraps the persistent Player, loads `base_colony` on startup (throwaway auto-load — move behind a Main Menu later), and auto-discovers POI maps at boot. Does NOT contain gameplay logic. |
-| `boot.tscn` (or Main as entry — TBD) | Scene | Project entry; loads Main + MainMenu. |
+| `main.tscn` / `main.gd` | Scene/Script | Root scene; owns CanvasLayers and MapRootSlot. Bootstraps the persistent Player. Does NOT load any map on startup — the Main Menu's New Game button drives the base load (see [UI](ui.md)). Does NOT contain gameplay logic. |
+| `boot.tscn` / `boot.gd` | Scene/Script | Project entry; loads Main, then opens the Splash screen (`SceneManager.open_screen("splash")`). The Splash auto-advances to the Main Menu. |
 | `../autoloads/game_state.gd` | Autoload | Run-level state + state-change signals. Does NOT own save logic (that's SaveSystem). |
 | `../autoloads/event_bus.gd` | Autoload | Cross-scene signal relay only. No state. |
 | `../autoloads/scene_manager.gd` | Autoload | Map swap (base↔POI) + full-screen UI layer management + runtime SQLite stream redirect. Does NOT own UI content (each screen is its own scene) or map metadata (that's `MapLibrary`). |
@@ -42,6 +42,23 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 **End state:** New day begun, state saved, Durability reset, Stamina + Breath reset to 100%, Day Summary shown.
 
+## Flow Trace: Boot → Splash → Main Menu → New Game
+
+**Trigger:** Player launches the game (Play).
+
+1. `boot.tscn` is the `run/main_scene`. `boot.gd._ready()` instantiates `main.tscn` and adds it as a child. `Main._ready()` runs synchronously during `add_child()`, handing the MapRootSlot + layer-20 CanvasLayer to `SceneManager` and registering the persistent `Player`.
+2. `boot.gd` calls `SceneManager.open_screen("splash")` → loads `ui/splash/splash.tscn` into the layer-20 slot.
+3. The Splash shows its image (auto-loaded from `res://assets/ui/splash.png` if present, else a solid background) and starts a `duration` timer (default 0.2s, inspector-tunable). Any key/mouse press skips early.
+4. On advance, the Splash calls `SceneManager.close_screen()` then `SceneManager.open_screen("main_menu")` → loads `ui/main_menu/main_menu.tscn`.
+5. Player clicks **New Game** → `main_menu.gd._start_new_game()`:
+   - `RunProgress.reset_for_new_game()` (wipe earned state)
+   - `EventBus.run_started.emit()` → `BuildLibrary` re-seeds default unlocks; `ExpeditionManager` resets discovered POIs
+   - discover initial POIs (`MapLibrary.get_maps_by_type(POI)` → `ExpeditionManager.discover`)
+   - `SceneManager.swap_map("base_colony")` → mounts the base map, reparents the Player, wires subsystems (see "Map swap" flow)
+   - `SceneManager.close_screen()` (dismiss the menu)
+
+**End state:** Base colony loaded, player spawned + wired, build/world-map keys live. `set_save_slot` is skipped (SaveSystem is stubbed); when Continue/Load land, lift `_start_new_game` into a shared "enter run" path.
+
 ## Flow Trace: Pause / World Map input (Esc + M)
 
 **Trigger:** Player presses Esc or M during gameplay.
@@ -54,7 +71,7 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 ## Flow Trace: Map swap (`swap_map`)
 
-**Trigger:** Base boot (`main.gd`), an expedition depart/return (`ExpeditionManager`), or any caller that needs to load a map. Single entry point.
+**Trigger:** Main Menu "New Game" (`main_menu.gd`), an expedition depart/return (`ExpeditionManager`), or any caller that needs to load a map. Single entry point.
 
 1. `SceneManager.swap_map(map_id)` looks up the `MapDef` in `MapLibrary`; emits `map_loading`.
 2. Frees the current map (emits `map_unloading` first); clears scene id.
@@ -108,7 +125,7 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 **Extends:** Node (autoload)
 **Script:** `scene_manager.gd`
 **Description:** The single entry point for loading any map and managing full-screen UI. `swap_map(map_id)` looks up a `MapDef` in `MapLibrary`, frees the current map, instantiates the new scene, performs copy-on-load SQLite redirect, and wires subsystems via `MapWiring`. `open_screen` / `close_screen` manage the layer-20 UI slot.
-**Used by:** `main.gd` (base boot), `ExpeditionManager` (depart/return), `main.gd._unhandled_input` (world map toggle), future callers (New Game / Continue).
+**Used by:** `boot.gd` (open splash), `main_menu.gd` (New Game → swap_map), `ExpeditionManager` (depart/return), `main.gd._unhandled_input` (world map toggle), future callers (Continue / Load).
 
 **Functions:**
 
