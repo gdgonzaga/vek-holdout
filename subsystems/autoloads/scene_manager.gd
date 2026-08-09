@@ -67,6 +67,30 @@ func swap_map(scene_id: String) -> void:
 	EventBus.map_loaded.emit(scene_id)
 
 
+## Wipe the user://maps/ cache so the next swap_map(s) pull fresh copies
+## from res://. Called at New Game start so authored edits are always picked up.
+## POI round-trips within a session still preserve runtime changes because this
+## only runs once (at New Game, not on every swap).
+func wipe_map_cache() -> void:
+	var dir := DirAccess.open("user://maps/")
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var name := dir.get_next()
+	while name != "":
+		if not dir.current_is_dir() or name.begins_with("."):
+			name = dir.get_next()
+			continue
+		var full := "user://maps/" + name
+		dir.list_dir_end()
+		DirAccess.remove_absolute(full)
+		dir.list_dir_begin()
+		name = dir.get_next()
+	dir.list_dir_end()
+	# Also remove the now-empty parent (harmless if not empty).
+	DirAccess.remove_absolute("user://maps/")
+
+
 ## If the map's VoxelTerrain uses a VoxelStreamSQLite backed by a res:// path,
 ## copy the pristine database to user://maps/<map_id>/ and redirect the stream.
 ## If the terrain has no stream, inject one pointing at user://maps/<map_id>/.

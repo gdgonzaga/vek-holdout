@@ -31,5 +31,6 @@ func _start_new_game() -> void:
 	# from main.gd, which used to do this unconditionally on boot).
 	for def in MapLibrary.get_maps_by_type(MapDef.MapType.POI):
 		ExpeditionManager.discover(def.id)
+	SceneManager.wipe_map_cache()
 	SceneManager.swap_map("base_colony")
 	SceneManager.close_screen()
