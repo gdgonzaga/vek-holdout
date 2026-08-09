@@ -14,6 +14,10 @@ library = ExtResource("3_be0qe")
 [node name="MapTemplate" type="Node3D" unique_id=980704247]
 script = ExtResource("1_o3no4")
 
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1353170001]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
 [node name="VoxelGrid" type="Node" parent="." unique_id=137639313]
 script = ExtResource("2_dr4yq")
 

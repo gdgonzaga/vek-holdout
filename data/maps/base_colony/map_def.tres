@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="MapDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="MapDef" format=3 uid="uid://bldudi34xmgjv"]
 
-[ext_resource type="Script" path="res://data/maps/map_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://du7misylvvk7b" path="res://data/maps/map_def.gd" id="1_d667f"]
 
 [resource]
-script = ExtResource("1_script")
+script = ExtResource("1_d667f")
 id = "base_colony"
-display_name = "Base Colony"
-description = "The colony home base."
-scene_path = "res://subsystems/voxel/map.tscn"
+display_name = "Base"
+description = "Authored via voxel paint."
+scene_path = "res://data/maps/base_colony/map.tscn"
+map_type = 0
