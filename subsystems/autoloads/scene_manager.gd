@@ -72,23 +72,41 @@ func swap_map(scene_id: String) -> void:
 ## POI round-trips within a session still preserve runtime changes because this
 ## only runs once (at New Game, not on every swap).
 func wipe_map_cache() -> void:
-	var dir := DirAccess.open("user://maps/")
+	var maps_dir := DirAccess.open("user://maps/")
+	if maps_dir == null:
+		return
+	# Collect subdirectories first so we don't mutate the listing while iterating.
+	var subdirs: Array[String] = []
+	maps_dir.list_dir_begin()
+	var name := maps_dir.get_next()
+	while name != "":
+		if maps_dir.current_is_dir() and not name.begins_with("."):
+			subdirs.append(name)
+		name = maps_dir.get_next()
+	maps_dir.list_dir_end()
+	# Delete each map subdirectory recursively.
+	for subdir in subdirs:
+		_remove_recursive("user://maps/" + subdir)
+	# Remove the now-empty parent (harmless if not empty).
+	DirAccess.remove_absolute("user://maps/")
+
+
+## Recursively remove a directory tree under user://.
+func _remove_recursive(path: String) -> void:
+	var dir := DirAccess.open(path)
 	if dir == null:
 		return
 	dir.list_dir_begin()
-	var name := dir.get_next()
-	while name != "":
-		if not dir.current_is_dir() or name.begins_with("."):
-			name = dir.get_next()
-			continue
-		var full := "user://maps/" + name
-		dir.list_dir_end()
-		DirAccess.remove_absolute(full)
-		dir.list_dir_begin()
-		name = dir.get_next()
+	var entry := dir.get_next()
+	while entry != "":
+		var full := path + "/" + entry
+		if dir.current_is_dir():
+			_remove_recursive(full)
+		else:
+			DirAccess.remove_absolute(full)
+		entry = dir.get_next()
 	dir.list_dir_end()
-	# Also remove the now-empty parent (harmless if not empty).
-	DirAccess.remove_absolute("user://maps/")
+	DirAccess.remove_absolute(path)
 
 
 ## If the map's VoxelTerrain uses a VoxelStreamSQLite backed by a res:// path,
