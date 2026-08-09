@@ -32,5 +32,5 @@ func _start_new_game() -> void:
 	for def in MapLibrary.get_maps_by_type(MapDef.MapType.POI):
 		ExpeditionManager.discover(def.id)
 	SceneManager.wipe_map_cache()
-	SceneManager.swap_map("base_colony")
+	SceneManager.swap_map("base")
 	SceneManager.close_screen()

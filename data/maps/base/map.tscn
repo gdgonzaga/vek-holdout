@@ -1,12 +1,12 @@
-[gd_scene format=3 uid="uid://cfpmdtqp1lvu5"]
+[gd_scene format=3 uid="uid://bevgw352dsrg5"]
 
 [ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_vqmwu"]
 [ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_8a6na"]
 [ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_vb1k7"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_i4gsa"]
 
-[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_ww4ut"]
-database_path = "res://data/maps/Base/map.sqlite"
+[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_pn4ft"]
+database_path = "res://data/maps/base/map.sqlite"
 
 [sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_o3no4"]
 channel = 0
@@ -25,7 +25,7 @@ shadow_enabled = true
 script = ExtResource("2_8a6na")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=361631236]
-stream = SubResource("VoxelStreamSQLite_ww4ut")
+stream = SubResource("VoxelStreamSQLite_pn4ft")
 generator = SubResource("VoxelGeneratorFlat_o3no4")
 mesher = SubResource("VoxelMesherBlocky_dr4yq")
 
