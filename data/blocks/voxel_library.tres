@@ -1,23 +1,23 @@
 [gd_resource type="VoxelBlockyLibrary" format=3 uid="uid://da8bhey7irku4"]
 
 [ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="1_84u81"]
+[ext_resource type="Shader" uid="uid://bhg3shr4ys7pn" path="res://assets/blocks/block_shader.gdshader" id="1_rvp8c"]
+[ext_resource type="Texture2D" uid="uid://sva3g88oguv4" path="res://assets/ground.png" id="2_1xm2f"]
+[ext_resource type="Texture2D" uid="uid://bfu0588dkiia3" path="res://assets/wood.png" id="4_mcmtk"]
 
-[sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_jidlt"]
+[sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_rvp8c"]
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_wu8p7"]
-mesh = ExtResource("1_84u81")
-collision_enabled_0 = true
-
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_rvp8c"]
-mesh = ExtResource("1_84u81")
-collision_enabled_0 = true
-
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_1xm2f"]
-mesh = ExtResource("1_84u81")
-collision_enabled_0 = true
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_1xm2f"]
+render_priority = 0
+shader = ExtResource("1_rvp8c")
+shader_parameter/albedo_tex = ExtResource("2_1xm2f")
+shader_parameter/uv_offset_strength = 0.16
+shader_parameter/color_variation = 0.08
+shader_parameter/rotation_strength = 0.16
 
 [sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_mcmtk"]
 mesh = ExtResource("1_84u81")
+material_override_0 = SubResource("ShaderMaterial_1xm2f")
 collision_enabled_0 = true
 
 [sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_s4abc"]
@@ -28,5 +28,21 @@ collision_enabled_0 = true
 mesh = ExtResource("1_84u81")
 collision_enabled_0 = true
 
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_hmlhr"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_5l2ah"]
+mesh = ExtResource("1_84u81")
+collision_enabled_0 = true
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l2f63"]
+albedo_texture = ExtResource("4_mcmtk")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_x3cxf"]
+mesh = ExtResource("1_84u81")
+material_override_0 = SubResource("StandardMaterial3D_l2f63")
+collision_enabled_0 = true
+
 [resource]
-models = Array[VoxelBlockyModel]([SubResource("VoxelBlockyModelEmpty_jidlt"), SubResource("VoxelBlockyModelMesh_wu8p7"), SubResource("VoxelBlockyModelMesh_rvp8c"), SubResource("VoxelBlockyModelMesh_1xm2f"), SubResource("VoxelBlockyModelMesh_mcmtk"), SubResource("VoxelBlockyModelMesh_s4abc"), SubResource("VoxelBlockyModelMesh_ryyfx")])
+models = Array[VoxelBlockyModel]([SubResource("VoxelBlockyModelEmpty_rvp8c"), SubResource("VoxelBlockyModelMesh_mcmtk"), SubResource("VoxelBlockyModelMesh_s4abc"), SubResource("VoxelBlockyModelMesh_ryyfx"), SubResource("VoxelBlockyModelMesh_hmlhr"), SubResource("VoxelBlockyModelMesh_5l2ah"), SubResource("VoxelBlockyModelMesh_x3cxf")])
