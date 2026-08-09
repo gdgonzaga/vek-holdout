@@ -29,3 +29,10 @@ class_name FurnitureDef
 ## default) means non-interactable. BlockDef intentionally has no equivalent —
 ## voxel blocks resolve through the voxel grid, not as Node3D instances.
 @export var action_options: Array[ActionOption] = []
+
+## Composition-pattern placeholder for capability-specific parameters (crafting
+## speed, tier, etc.). Null means no capability data. Real capabilities
+## (CraftingParams, StorageParams, ...) will be sibling nullable sub-resources
+## of the same shape; see docs/architecture/data-schemas.md "FurnitureDef
+## capability parameters" for why composition was chosen over subclassing.
+@export var test_params: TestParams

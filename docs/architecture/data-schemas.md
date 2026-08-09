@@ -93,6 +93,18 @@ Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`
 |---|---|---|
 | `dimensions` | `Vector3i` | `[export default ONE]` Cell-box the item occupies: x=width, y=height, z=depth (GDD §7.2). Rotation (R) swaps x/z; even-sized x or z shift the placement pivot 0.5m (GDD §7.4). |
 | `action_options` | `Array[ActionOption]` | `[export default []]` Interaction options offered on E-press. Each entry is an `ActionOption` `.tres` (see below). Empty (default) means non-interactable — `FurnitureLayer` attaches no `InteractionComponent`. |
+| `test_params` | `TestParams` | `[export, nullable]` Composition-pattern placeholder for capability-specific parameters. Null = no capability data. See "FurnitureDef capability parameters" below. |
+
+> **FurnitureDef capability parameters** *(decided, partially seeded — `test_params` is not yet read by any GameAction)*
+>
+> When two furniture defs differ only in parameters a `GameAction` reads (e.g. a Workbench vs Workbench-T2 differing in craft speed and max recipe tier), those parameters live on **nullable sub-resources referenced from `FurnitureDef`**, not on the def itself. The pattern: each capability gets a small `Resource` subclass (`CraftingParams`, `StorageParams`, …) exposed as a nullable `@export` on `FurnitureDef`; a placed furniture reads it via `def.crafting` (null if absent). Param schemas live in `data/capability_params/`; `test_params` is the seed of this pattern.
+>
+> **Why this shape:**
+> - **Over `CrafterDef extends FurnitureDef`** — single inheritance dead-ends when a station needs two capabilities (a Workbench that crafts *and* stores ingredients). Composition composes.
+> - **Over a flat `params: Dictionary`** on the base — loses typing, inspector ergonomics, and discoverability (a `Dictionary` field is a key-value table of `Variant`; typos like `work_sped` fail silently at runtime, and the UI can't show a tier badge without knowing the magic key). Typed sub-resources give autocompleteable, named fields per capability.
+> - **Chosen for the multi-capability case specifically.** For a single capability on a single furniture type, a `CrafterDef` subclass would also be fine; composition wins once combinations are plausible (Workbench, Clinic Bed, Storage Crate per GDD §7.9–§7.11).
+>
+> **Escape hatch:** a `params: Dictionary` on the base `FurnitureDef` remains valid for genuinely one-off, action-local values that no other system will ever read (e.g. a signal fire's smoke color). Typed, named, cross-consumer data goes on a sub-resource; truly bespoke single-action data goes in the dict.
 
 ## `data/actions/<id>.tres` (Resource: `game_action.gd`)
 

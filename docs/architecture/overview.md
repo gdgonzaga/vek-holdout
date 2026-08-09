@@ -46,6 +46,7 @@ res://
 │   ├── buildables/     # BuildableDef (player-placed objects: pole, etc.)
 │   ├── colonists/      # Colonist definitions (ColonistDef)
 │   ├── furniture/      # FurnitureDef (dimensions + action_options) — partial (C1)
+│   ├── capability_params/ # Capability parameter schemas (CraftingParams, StorageParams, …) — composition-pattern sub-resources for FurnitureDef
 │   ├── items/          # Item definitions
 │   ├── loot/           # Loot tables (standard.tres, deep.tres) + key_items.tres pool
 │   ├── loadouts/       # Loadout templates (player-created + saved per run)

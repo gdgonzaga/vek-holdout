@@ -71,7 +71,7 @@ Zylann's `voxel_tool` has its own save format; integrating it with the game's sa
 
 These data folders are *referenced* in Files tables but have no formal schema in the Data Schemas section. Low-decision work; mostly mechanical once the owning subsystem is settled:
 
-- [~] **C1** `data/furniture/` — 16 buildables (Clinic Bed, Workbench, Forge, etc.). **Partially resolved:** the `FurnitureDef` class + `workbench.tres` exist, with `dimensions` + `action_options` (interaction) fields. Still missing: the `is_functional` + `functional_area` fields the Functional Rooms subsystem needs to count placed furniture, plus defs for the remaining 15 buildables.
+- [~] **C1** `data/furniture/` — 16 buildables (Clinic Bed, Workbench, Forge, etc.). **Partially resolved:** the `FurnitureDef` class + `workbench.tres` exist, with `dimensions` + `action_options` (interaction) fields. Still missing: the `is_functional` + `functional_area` fields the Functional Rooms subsystem needs to count placed furniture, plus defs for the remaining 15 buildables. **Capability parameters** (crafting speed/tier, etc.) land as nullable sub-resources on `FurnitureDef` (seed: `test_params`), not subclass fields or a free-form dict — full rationale in [Data Schemas](data-schemas.md).
 - **C6** `data/tools/` — Hammer, Nailgun (repair value, RoF, range).
 - **C7** `data/starting_conditions.tres` — Day-1 resources/equipment/structure (GDD §9). Referenced in Core Files but never schema'd.
 - **C8** ~~`data/pois/`~~ — **Resolved.** POI/map definitions now live in `data/maps/<id>/map_def.tres` as `MapDef` resources (schema'd below). `data/pois/` is no longer used.
