@@ -44,7 +44,7 @@ res://
 │   ├── characters/     # CharacterDef per type (player, colonist, companion, brawler, shooter)
 │   ├── blocks/         # Block definitions (wood/scrap/stone/metal/reinforced)
 │   ├── buildables/     # BuildableDef (player-placed objects: pole, etc.)
-│   ├── colonists/      # Colonist definitions + AI (ColonistDef, colonist_ai)
+│   ├── colonists/      # Colonist definitions (ColonistDef)
 │   ├── furniture/      # FurnitureDef (dimensions + action_options) — partial (C1)
 │   ├── items/          # Item definitions
 │   ├── loot/           # Loot tables (standard.tres, deep.tres) + key_items.tres pool
@@ -59,10 +59,11 @@ res://
 ├── addons/             # Editor plugins (dev tooling; not shipped gameplay). voxel_paint: WYSIWYG terrain authoring.
 ├── debug/              # Debug console (dev/playtest only; stripped from release)
 ├── tests/              # Automated unit/integration tests (run in CI / headless)
-└── testing/            # Manual playtest scenes (developer-run, not shipped)
+├── testing/            # Manual playtest scenes (developer-run, not shipped)
+└── tools/              # Editor/build utilities (EditorScript tools — not shipped)
 ```
 
-**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `subsystems/autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`. UI scenes live in `ui/` (project root), not under `subsystems/`. Editor-only tooling (no runtime code) goes in `addons/`.
+**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `subsystems/autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`. UI scenes live in `ui/` (project root), not under `subsystems/`. Editor-only tooling (no runtime code) goes in `addons/`; standalone `EditorScript` build/bake utilities go in `tools/`.
 
 ### Editor plugins (`addons/`)
 
