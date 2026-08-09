@@ -1,0 +1,45 @@
+[gd_scene format=3 uid="uid://cfpmdtqp1lvu5"]
+
+[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_vqmwu"]
+[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_8a6na"]
+[ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_vb1k7"]
+[ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_i4gsa"]
+
+[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_ww4ut"]
+database_path = "res://data/maps/Base/map.sqlite"
+
+[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_o3no4"]
+channel = 0
+
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_dr4yq"]
+library = ExtResource("3_vb1k7")
+
+[node name="MapTemplate" type="Node3D" unique_id=980704247]
+script = ExtResource("1_vqmwu")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1353170001]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="VoxelGrid" type="Node" parent="." unique_id=137639313]
+script = ExtResource("2_8a6na")
+
+[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=361631236]
+stream = SubResource("VoxelStreamSQLite_ww4ut")
+generator = SubResource("VoxelGeneratorFlat_o3no4")
+mesher = SubResource("VoxelMesherBlocky_dr4yq")
+
+[node name="ColonistContainer" type="Node3D" parent="." unique_id=191660248]
+
+[node name="EnemyContainer" type="Node3D" parent="." unique_id=1915942896]
+
+[node name="FurnitureContainer" type="Node3D" parent="." unique_id=472471718]
+
+[node name="EnvironmentContainer" type="Node3D" parent="." unique_id=861624579]
+
+[node name="BuildController" parent="." unique_id=1033573714 instance=ExtResource("4_i4gsa")]
+
+[node name="SpawnPoints" type="Node3D" parent="." unique_id=427080245]
+
+[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=689601636]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
