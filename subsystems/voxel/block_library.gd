@@ -66,6 +66,16 @@ func _build() -> void:
 func _add_model_for(def: BlockDef) -> int:
 	var model := VoxelBlockyModelMesh.new()
 	model.mesh = def.mesh
+	if def.texture != null:
+		if def.texture_variation:
+			var mat := ShaderMaterial.new()
+			mat.shader = preload("res://assets/blocks/block_shader.gdshader")
+			mat.set_shader_parameter("albedo_tex", def.texture)
+			model.material_override_0 = mat
+		else:
+			var mat := StandardMaterial3D.new()
+			mat.albedo_texture = def.texture
+			model.material_override_0 = mat
 	# Collision generation property name varies across voxel_tool versions.
 	if "collision_enabled_0" in model:
 		model.set("collision_enabled_0", true)

@@ -9,6 +9,10 @@ class_name BuildableDef
 ## `id` is the canonical identifier across all buildable kinds (inherited by
 ## subclasses; do not redeclare as block_id/furniture_id/etc.). `mesh` lives here
 ## so the build ghost can preview any buildable's shape, not just voxel blocks.
+## `texture` is the albedo only — BlockLibrary builds a StandardMaterial3D from
+## it, so you don't need a separate material .tres for every block type.
+## `texture_variation` opts into a per-block randomization shader that offsets UVs,
+## rotates them, and modulates brightness so repeating textures don't tile visibly.
 ##
 ## Fields kept out: material-tier (targeting is HP-derived, GDD §17) and
 ## construction-time-modifier (build time = HP × tool, GDD §7.4).
@@ -17,6 +21,8 @@ class_name BuildableDef
 @export var display_name: String                   # UI label
 @export var hp: int                                # Durability-before-HP buffer (GDD §6.11)
 @export var mesh: Mesh                             # Preview/placement mesh; voxel blocks MUST occupy (0,0,0)->(1,1,1)
+@export var texture: Texture2D                     # Albedo texture; BlockLibrary builds a StandardMaterial3D from this
+@export var texture_variation: bool = false        # True → use per-block UV/brightness randomization shader
 @export var material_cost: Dictionary = {}         # resource_id (String) -> count (int), e.g. {"wood": 3}
 @export var unlocked_by_default: bool = false      # available without earning an unlock this run
 
