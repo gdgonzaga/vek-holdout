@@ -29,9 +29,14 @@ var _new_map_btn: Button
 var _refresh_maps_btn: Button
 var _new_map_dialog: ConfirmationDialog
 var _new_map_input: LineEdit
+var _new_map_type: OptionButton
 
 # Terrain status (bound db path, or "no terrain").
 var _terrain_status_label: Label
+
+# Open-map type editor (writes map_type to the open map's map_def.tres).
+var _map_type_label: Label
+var _map_type_select: OptionButton
 
 # Paint modes.
 var _mode_paint: Button
@@ -62,6 +67,7 @@ func _ready() -> void:
 	_populate_furniture()
 	refresh_maps()
 	refresh_terrain_status()
+	refresh_map_type()
 	_update_mode_visibility()
 
 
@@ -73,6 +79,24 @@ func setup(plugin: EditorPlugin) -> void:
 
 func get_mode() -> int:
 	return _mode
+
+
+# MapType entries the author can assign. Indexed in enum order (BASE=0 ...), so
+# the OptionButton selected index maps 1:1 to a MapType value. Mirrors MapDef.
+const _MAP_TYPE_NAMES := ["Base", "POI", "Building", "Town"]
+
+
+## Populate an OptionButton with MapType entries. index → MapType int (BASE=0 ...).
+func _populate_map_types(select: OptionButton) -> void:
+	select.clear()
+	for name in _MAP_TYPE_NAMES:
+		select.add_item(name)
+	select.selected = 0
+
+
+## Selected MapType int from the New Map dialog picker.
+func get_new_map_type() -> int:
+	return _new_map_type.selected
 
 
 func get_selected_furniture_id() -> String:
@@ -165,6 +189,34 @@ func refresh_terrain_status() -> void:
 		_terrain_status_label.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
 
 
+## Reflect the open map's type in the type editor, or disable it when no map is
+## open. Called by the plugin after binding/unbinding and after create/open.
+func refresh_map_type() -> void:
+	if _plugin == null:
+		_map_type_select.disabled = true
+		return
+	var t: int = _plugin.get_open_map_type()
+	if t < 0:
+		_map_type_select.disabled = true
+		_map_type_select.selected = 0
+		return
+	_map_type_select.disabled = false
+	# Guard against signals firing during programmatic selection.
+	_map_type_select.block_signals()
+	_map_type_select.selected = clamp(t, 0, _MAP_TYPE_NAMES.size() - 1)
+	_map_type_select.unblock_signals()
+
+
+## Selection-changed handler for the open-map type editor. Writes the new type
+## back to the open map's map_def.tres via the plugin.
+func _on_map_type_changed(_index: int) -> void:
+	if _plugin == null:
+		return
+	if not _plugin.set_open_map_type(_map_type_select.selected):
+		# Save failed — re-read to revert the dropdown to the on-disk value.
+		refresh_map_type()
+
+
 # --- Private ----------------------------------------------------------------
 
 func _build_ui() -> void:
@@ -210,8 +262,16 @@ func _build_ui() -> void:
 	_new_map_input = LineEdit.new()
 	_new_map_input.placeholder_text = "e.g. abandoned_factory"
 	_new_map_input.caret_blink = true
+	var type_label := Label.new()
+	type_label.text = "Type:"
+	_new_map_type = OptionButton.new()
+	_new_map_type.tooltip_text = "BASE: home colony (never a POI). POI: expedition destination."
+	_populate_map_types(_new_map_type)
+	_new_map_type.selected = MapDef.MapType.POI  # default: most new maps are POIs
 	dialog_vbox.add_child(label)
 	dialog_vbox.add_child(_new_map_input)
+	dialog_vbox.add_child(type_label)
+	dialog_vbox.add_child(_new_map_type)
 	_new_map_dialog.add_child(dialog_vbox)
 	_new_map_dialog.confirmed.connect(_on_new_map_confirmed)
 
@@ -220,6 +280,21 @@ func _build_ui() -> void:
 	_terrain_status_label.text = "No terrain — open or create a map"
 	_terrain_status_label.add_theme_color_override("font_color", Color(1, 0.5, 0.3))
 	_terrain_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	# -- Open-map type editor --
+	# Lets the author fix map_type on an already-authored map (e.g. mark the base
+	# map BASE so it isn't a discoverable expedition POI). Disabled until a map
+	# with a loadable map_def.tres is open.
+	var map_type_row := HBoxContainer.new()
+	_map_type_label = Label.new()
+	_map_type_label.text = "Type:"
+	_map_type_select = OptionButton.new()
+	_map_type_select.tooltip_text = "Sets map_type on this map's map_def.tres. BASE: home colony. POI: expedition destination."
+	_map_type_select.disabled = true
+	_populate_map_types(_map_type_select)
+	_map_type_select.item_selected.connect(_on_map_type_changed)
+	map_type_row.add_child(_map_type_label)
+	map_type_row.add_child(_map_type_select)
 
 	# -- Mode toggle --
 	var mode_box := HBoxContainer.new()
@@ -298,6 +373,7 @@ func _build_ui() -> void:
 	vbox.add_child(_new_map_btn)
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(_terrain_status_label)
+	vbox.add_child(map_type_row)
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(mode_box)
 	vbox.add_child(_paint_controls)
@@ -401,10 +477,11 @@ func _on_new_map_confirmed() -> void:
 		return
 	if _plugin == null:
 		return
-	var path: String = _plugin.create_new_map(name)
+	var path: String = _plugin.create_new_map(name, get_new_map_type())
 	if not path.is_empty():
 		refresh_maps()
 		refresh_terrain_status()
+		refresh_map_type()
 
 
 func _on_paint_toggled(pressed: bool) -> void:

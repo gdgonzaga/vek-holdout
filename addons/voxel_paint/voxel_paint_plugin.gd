@@ -175,6 +175,7 @@ func _bind_terrain(t: VoxelTerrain) -> void:
 		_create_ghost()
 	if _panel:
 		_panel.refresh_terrain_status()
+		_panel.refresh_map_type()
 
 
 func _unbind_terrain() -> void:
@@ -184,6 +185,7 @@ func _unbind_terrain() -> void:
 	_map_root = null
 	if _panel:
 		_panel.refresh_terrain_status()
+		_panel.refresh_map_type()
 
 
 ## Drop the ghost + furniture binding (the terrain ref is kept by the caller).
@@ -211,6 +213,10 @@ func _resolve_map_root_and_furniture() -> void:
 		var fa := FurnitureAuthoring.new()
 		if fa.bind(_map_root):
 			_furniture = fa
+			# Re-enable furniture mode — reflects the current map and recovers
+			# from an earlier bind failure (e.g. a scene-switch race).
+			if _panel and _panel.has_method("set_furniture_enabled"):
+				_panel.set_furniture_enabled(true)
 		else:
 			# Disable furniture mode if bind failed (no SpawnPoints).
 			if _panel and _panel.has_method("set_furniture_enabled"):
@@ -258,6 +264,56 @@ func is_terrain_bound() -> bool:
 	return true
 
 
+# --- Open-map metadata (read/written by the panel) --------------------------
+
+## Derive the map_def.tres path for the currently open map scene, or "" if no map
+## scene is open. The convention is data/maps/<id>/map.tscn → map_def.tres in the
+## same directory.
+func _get_open_map_def_path() -> String:
+	var root := EditorInterface.get_edited_scene_root()
+	if root == null:
+		return ""
+	var scene_path: String = root.scene_file_path
+	if scene_path.is_empty() or not scene_path.begins_with(MAPS_DIR):
+		return ""
+	var dir := scene_path.get_base_dir()
+	return dir + "/map_def.tres"
+
+
+## Returns the MapType of the currently open map, or -1 if no map is open or its
+## def can't be loaded. Used by the panel to populate the type editor.
+func get_open_map_type() -> int:
+	var def := _load_open_map_def()
+	if def == null:
+		return -1
+	return def.map_type
+
+
+## Sets map_type on the currently open map's def and saves it. Returns true on
+## success. Used by the panel's type editor; keeps the .tres consistent with what
+## the author intends (e.g. marking the base map BASE so it isn't a POI target).
+func set_open_map_type(type: int) -> bool:
+	var def := _load_open_map_def()
+	if def == null:
+		return false
+	def.map_type = type
+	var path := _get_open_map_def_path()
+	var err := ResourceSaver.save(def, path)
+	if err != OK:
+		push_warning("VoxelPaint: failed to save map_def.tres (error %d)" % err)
+		return false
+	EditorInterface.get_resource_filesystem().scan()
+	return true
+
+
+## Load the MapDef for the currently open map scene, or null if none/missing.
+func _load_open_map_def() -> MapDef:
+	var path := _get_open_map_def_path()
+	if path.is_empty() or not ResourceLoader.exists(path, "Resource"):
+		return null
+	return load(path) as MapDef
+
+
 # --- Map lifecycle (called by panel) ----------------------------------------
 
 ## Scans data/maps/*/map_def.tres and returns catalog entries for the panel:
@@ -288,8 +344,11 @@ func list_maps() -> Array:
 
 ## Create a new map: stamp the template into data/maps/<id>/map.tscn with a
 ## per-map sqlite stream, write map_def.tres, then open the scene for painting.
+## map_type is written to map_def.tres (defaults to POI — most authored maps are
+## expedition destinations; pick BASE for the home colony so it doesn't surface
+## as a discoverable POI, see expedition_manager.gd get_available_pois).
 ## Returns the new tscn path, or "" on failure.
-func create_new_map(map_name: String) -> String:
+func create_new_map(map_name: String, map_type: int = MapDef.MapType.POI) -> String:
 	if map_name.is_empty():
 		push_warning("VoxelPaint: empty map name")
 		return ""
@@ -307,7 +366,7 @@ func create_new_map(map_name: String) -> String:
 	var tscn_path := folder_path + "map.tscn"
 	var db_path := folder_path + "map.sqlite"
 	_stamp_map_scene(TEMPLATE_PATH, tscn_path, db_path)
-	_create_map_def(map_name, folder_path, tscn_path)
+	_create_map_def(map_name, folder_path, tscn_path, map_type)
 	EditorInterface.get_resource_filesystem().scan()
 	_open_scene_and_bind(tscn_path)
 	return tscn_path
@@ -346,13 +405,16 @@ func _stamp_map_scene(src_path: String, dst_path: String, db_path: String) -> vo
 	instance.queue_free()
 
 
-## Writes map_def.tres pointing scene_path at the per-map .tscn.
-func _create_map_def(map_name: String, folder_path: String, tscn_path: String) -> void:
+## Writes map_def.tres pointing scene_path at the per-map .tscn. map_type defaults
+## to POI since most authored maps are expedition content; pass BASE for the home
+## colony so it doesn't appear as a discoverable POI.
+func _create_map_def(map_name: String, folder_path: String, tscn_path: String, \
+		map_type: int = MapDef.MapType.POI) -> void:
 	var def := MapDef.new()
 	def.id = map_name
 	def.display_name = map_name.capitalize()
 	def.description = "Authored via voxel paint."
-	def.map_type = MapDef.MapType.POI
+	def.map_type = map_type
 	def.scene_path = tscn_path
 	var tres_path := folder_path + "map_def.tres"
 	var err := ResourceSaver.save(def, tres_path)
@@ -364,9 +426,16 @@ func _create_map_def(map_name: String, folder_path: String, tscn_path: String) -
 ## timer lets the editor instantiate the new scene before we search its tree.
 func _open_scene_and_bind(scene_path: String) -> void:
 	EditorInterface.open_scene_from_path(scene_path)
-	await Engine.get_main_loop().create_timer(0.2).timeout
-	if not _active:
-		return
+	# Wait until the editor has actually swapped to the new scene before
+	# binding — a fixed delay races the scene loader and can bind to the
+	# previously open scene instead (which disables furniture authoring).
+	for i in MAX_RETRIES:
+		await Engine.get_main_loop().create_timer(RETRY_DELAY).timeout
+		if not _active:
+			return
+		var root := EditorInterface.get_edited_scene_root()
+		if root != null and root.scene_file_path == scene_path:
+			break
 	_bind_terrain(_find_scene_terrain())
 
 
