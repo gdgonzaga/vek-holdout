@@ -36,9 +36,12 @@ func _run() -> void:
 	var terrain := VoxelTerrain.new()
 	terrain.name = "VoxelTerrain"
 
-	# Generator: flat ground (same as base map).
+	# Generator: flat ground (same as base map). voxel_type must be 1 (terrain's
+	# library index) — VoxelGeneratorFlat defaults to 0 (air), which renders
+	# nothing. See docs/VOXEL-TOOL-NOTES.md "Save the scene after setting voxel_type".
 	var gen := VoxelGeneratorFlat.new()
 	gen.channel = 0
+	gen.voxel_type = 1
 	terrain.generator = gen
 
 	# Mesher: blocky with baked library.

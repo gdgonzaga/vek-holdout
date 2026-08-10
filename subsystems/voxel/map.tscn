@@ -6,6 +6,7 @@
 
 [sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_terrain"]
 channel = 0
+voxel_type = 1
 
 [sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_default"]
 
