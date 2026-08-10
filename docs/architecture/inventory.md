@@ -1,38 +1,29 @@
 # Subsystem: Inventory
 
-Items, stacks, inventory model. GDD §4.5, §7.3.
+Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; capacity enforced by total weight. GDD §4.5, §7.3.
 
 ## Files
 
 | File | Type | Responsibility |
 |---|---|---|
-| `inventory.gd` | Script (on Player node) | Player's inventory: 30 slots (10 hotbar + 20 general). Owns stacking algorithm. Does NOT own UI (Inventory screen reads this). |
-| `item_stack.gd` | Script | A stack of one item type; count up to cap. |
-| `storage_crate.gd` | Script | Shared colony storage node; proximity access (2m); 32-stack cap per crate. |
-| `../data/items/` | Data | Item definitions (id, name, icon, stack cap, usable flag). |
+| `inventory.gd` | Script (`class_name Inventory`, extends Node) | Base inventory: weight capacity, add/remove/has_item/get_item_count/current_weight/transfer_to. Looks up `ItemDef` via `_get_def()` (delegates to `ItemDB` by default). Emits `inventory_changed` on mutation. |
+| `character_inventory.gd` | Script (`class_name CharacterInventory`, extends Inventory) | Character-specific inventory with `base_capacity` (export, default 50.0) + `bonus_capacity` (set by bag equipment). Recalculates `capacity` on ready and on bag equipment change. |
+| `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by filename stem (e.g. `"wood"` from `wood.tres`). Read-only after `_ready`. |
+| `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `weight: float`. The item_id is the `.tres` filename (no id field on the resource itself). |
+| `../data/items/` | Data | Item definition `.tres` files (one per item type). |
+
+## Autoloads
+
+| Name | Script | Responsibility |
+|---|---|---|
+| **ItemDB** | `item_db.gd` | Global catalog of `ItemDef` resources loaded from `data/items/`. Read-only after `_ready`. `get_def(item_id) -> ItemDef`, `has_def(item_id) -> bool`. |
 
 ## Signals
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `inventory_changed()` | `inventory.gd` | Inventory screen, HUD hotbar | No (same scene / direct ref) | Pickup Item |
-| `item_picked_up(item_id, count)` | `inventory.gd` | HUD (refresh) | Yes (for HUD when Player screen closed) | Pickup Item |
-
-## Flow Trace: Pickup item (no auto-pickup; interact or container)
-
-**Trigger:** Player presses E on a world item, or takes from a container.
-
-> **Implementation status: pickup interaction not yet built.** World-item pickup will resolve through the [Actions & Interaction](actions.md) chain (a `GameAction` that calls `inventory.add`), not a dedicated `interact_started` signal. The stacking algorithm below is the intended shape.
-
-1. Player interacts with the world item / crate (E) → an `ActionOption`'s `GameAction.execute` offers `{item_id, count}` to `Player.inventory.add(item_id, count)`.
-2. Inventory runs stacking algorithm:
-   - Fill existing same-type stacks to cap.
-   - Overflow → new non-hotbar slot (prefer non-hotbar).
-   - If no slot: container subtracts transferred; world item re-drops remainder.
-3. Inventory emits `inventory_changed()` (direct) + `item_picked_up` via EventBus.
-4. Inventory screen / HUD hotbar refresh.
-
-**End state:** Item in inventory (full or partial); source updated; UI refreshed.
+| `inventory_changed()` | `Inventory` | Inventory screen, HUD hotbar | No (direct ref or scene-scoped) | Any item add/remove/transfer |
+| `item_picked_up(item_id, count)` | inventory subsystem | HUD (refresh) | Yes (for HUD when Player screen closed) | Pickup Item |
 
 ## Class Reference
 
@@ -40,20 +31,53 @@ Items, stacks, inventory model. GDD §4.5, §7.3.
 
 **Extends:** Node
 **Script:** `inventory.gd`
-**Description:** Player's inventory model. 30 slots; stacking per GDD §4.5. Owned by Player; UI reads/writes via public methods.
-**Used by:** UI (Inventory screen, HUD hotbar), Combat (weapon/ammo consumption).
+**Description:** Base weight-based inventory. Items stored as `{item_id: count}`; `capacity` (float, kg) enforced by `current_weight()`. Looks up `ItemDef.weight` via `_get_def(item_id)`. Child classes override `_get_def` for test mocking or extend capacity logic.
+**Used by:** `CharacterInventory`, future `StorageInventory` (crates/chests), UI (Inventory screen, HUD hotbar), Combat (ammo consumption), Crafting (material consumption).
 
 **Properties:**
 
 | Property | Type | Description |
 |---|---|---|
-| `slots` | `Array[ItemStack]` | 30 slots; first 10 = hotbar. |
-| `slot_count` | `int` | [export] 30. |
+| `capacity` | `float` | Max carry weight (kg). Set by child classes. |
+| `items` | `Dictionary` | `{item_id: String -> count: int}`. |
+
+**Signals:**
+
+| Signal | Description |
+|---|---|
+| `inventory_changed()` | Emitted after any successful add/remove/transfer mutation. |
 
 **Functions:**
 
-| Function | Description |
-|---|---|
-| `add(item_id: String, count: int) -> int` | Stacks per algorithm; returns overflow not stored. |
-| `remove(item_id: String, count: int) -> int` | Returns actually removed. |
-| `get_hotbar() -> Array[ItemStack]` | First 10 slots. |
+| Function | Returns | Description |
+|---|---|---|
+| `add(item_id, count)` | `int` | Adds items; returns overflow (items that didn't fit). Handles unknown items (returns all as overflow) and negative/zero counts (noop). |
+| `remove(item_id, count)` | `int` | Removes items; returns items NOT removed (excess request). Erases key when count hits zero. |
+| `can_add(item_id, count)` | `bool` | True if the items would fit by weight. False for unknown items. |
+| `has_item(item_id, count)` | `bool` | True if `items[item_id] >= count`. |
+| `get_item_count(item_id)` | `int` | Current count of the item (0 if absent). |
+| `current_weight()` | `float` | Sum of `count × weight` for all stored items. |
+| `transfer_to(target, item_id, count)` | `int` | Moves items to another `Inventory`. Removes from self first, adds to target, returns overflow to self. Returns items that did NOT end up in the target. |
+| `_get_def(item_id)` | `ItemDef` | Virtual. Default: `ItemDB.get_def(item_id)`. Override in tests or subclasses. |
+
+### Class: CharacterInventory
+
+**Extends:** Inventory
+**Script:** `character_inventory.gd`
+**Description:** Character inventory with equipment-driven capacity. `capacity = base_capacity + bonus_capacity`. Bag equipment changes trigger `_recalc_capacity()`.
+**Used by:** Player, ColonistBase (as a component node).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `base_capacity` | `float` | [export] Default 50.0 kg. Base carry weight. |
+| `bonus_capacity` | `float` | Additional capacity from equipped bag items. |
+
+## Design Notes
+
+- **Weight-based, not slot-based.** No `ItemStack` or fixed slot array. Items accumulate freely; the only constraint is total weight.
+- **transfer_to() uses remove-first-then-add.** Prevents item duplication. If the target is full, overflow items are returned to the source.
+- **transfer_to() return value:** Returns the number of items that did **not** end up in the target. This covers both "target was full" (partial transfer) and "source didn't have enough" (requested 10, source had 3 → returns 7).
+- **`_get_def()` is the test seam.** Unit tests subclass `Inventory` and override `_get_def()` with a mock dictionary; no `.tres` files needed in the test suite.
+- **ItemDB autoload** follows the same pattern as `BuildLibrary` and `MapLibrary`: scan a `data/` directory at startup, key by filename stem, read-only after `_ready`.

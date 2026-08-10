@@ -27,16 +27,41 @@ var state := State.IDLE
 ## The InteractionComponent currently under the crosshair (or null).
 var _current_interactable: InteractionComponent = null
 
+## Emitted when _current_interactable changes (target gained or lost).
+signal interactable_changed(component: InteractionComponent)
+
 @onready var _input: InputComponent = $InputComponent
 @onready var _rig: CameraRig = $CameraRig
 @onready var _mesh: MeshInstance3D = $MeshInstance3D
 @onready var _camera: Camera3D = _rig.get_camera()
+@onready var inventory: CharacterInventory = $Inventory
 
 
 ## The player's active Camera3D (via the rig). Used by BuildController for its
 ## screen-center raycast (ARCH line 335).
 func get_camera() -> Camera3D:
 	return _rig.get_camera()
+
+
+## Add items to the player's inventory. Returns the overflow (items that didn't fit).
+func add_item(item_id: String, count: int) -> int:
+	return inventory.add(item_id, count)
+
+
+## Remove items from the player's inventory. Returns the shortfall (items that
+## weren't there to remove).
+func remove_item(item_id: String, count: int) -> int:
+	return inventory.remove(item_id, count)
+
+
+## Check whether the player is carrying at least `count` of the given item.
+func has_item(item_id: String, count: int) -> bool:
+	return inventory.has_item(item_id, count)
+
+
+## Check whether the player's inventory can fit `count` of the given item.
+func can_carry(item_id: String, count: int) -> bool:
+	return inventory.can_add(item_id, count)
 
 var _velocity_on_jump := Vector3.ZERO  # horizontal world-velocity frozen at jump (y=0)
 var _speed_on_jump := 0.0              # walk_speed or sprint_speed, frozen at takeoff
@@ -135,15 +160,20 @@ func _interaction_raycast() -> Dictionary:
 ## display what the player is looking at, and E press can act on it.
 func _update_interaction_target() -> void:
 	if mode != Mode.NORMAL:
-		_current_interactable = null
+		if _current_interactable != null:
+			_current_interactable = null
+			interactable_changed.emit(null)
 		return
 	var hit := _interaction_raycast()
 	if hit.is_empty():
-		_current_interactable = null
+		if _current_interactable != null:
+			_current_interactable = null
+			interactable_changed.emit(null)
 		return
 	var component := _find_interaction_component(hit.collider)
 	if component != _current_interactable:
 		_current_interactable = component
+		interactable_changed.emit(component)
 		if component:
 			print("[interact] targeting: %s" % component.get_parent().name)
 

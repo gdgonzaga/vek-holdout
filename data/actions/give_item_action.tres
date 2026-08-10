@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="GiveItemAction" format=3 uid="uid://brkj6g7iu81f1"]
+
+[ext_resource type="Script" uid="uid://cljr47jfy0xfa" path="res://data/actions/give_item_action.gd" id="1_k8cxy"]
+
+[resource]
+resource_name = "Give item"
+script = ExtResource("1_k8cxy")
+label = "Give item"

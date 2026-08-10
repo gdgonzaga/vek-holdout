@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://ddfj4xloaeiox"]
+
+[node name="Item" type="RigidBody3D" unique_id=556426861]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1224126561]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=2133468679]

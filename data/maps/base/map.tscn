@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_8a6na"]
 [ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_vb1k7"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_i4gsa"]
+[ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="5_vqmwu"]
 
 [sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_pn4ft"]
 database_path = "res://data/maps/base/map.sqlite"
@@ -43,3 +44,13 @@ mesher = SubResource("VoxelMesherBlocky_dr4yq")
 
 [node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=689601636]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
+
+[node name="Furniture_wood_block_dispenser_0" type="Marker3D" parent="SpawnPoints" unique_id=1381698731]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 1)
+metadata/def_id = "wood_block_dispenser"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(3, 0, 0)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_wood_block_dispenser_0" unique_id=1705769120]
+cast_shadow = 0
+mesh = ExtResource("5_vqmwu")

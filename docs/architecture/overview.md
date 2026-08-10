@@ -24,7 +24,7 @@ res://
 │   ├── expeditions/    # ExpeditionManager: POI discovery, expedition lifecycle
 │   ├── maps/           # MapLibrary catalog, MapWiring, SpawnHelpers, map_template.tscn
 │   ├── loot/           # Loot tables, container logic, Key Item pool
-│   ├── inventory/      # Items, stacks, inventory model
+│   ├── inventory/      # Weight-based inventory, ItemDef, ItemDB
 │   ├── crafting/       # Recipe model, station logic, craft-Job flow
 │   └── actions/        # Interaction runtime + data: InteractionComponent, GameAction, Condition, ActionOption
 ├── ui/                 # HUD + all full-screen UIs (kept at project root for now)
@@ -110,11 +110,11 @@ Only scripts genuinely needed across multiple unrelated scenes. Solo project —
 | **BuildLibrary** | `build_library.gd` | The read-only catalog of everything buildable. Loads every `BuildableDef` subclass (`BlockDef`, `BuildableDef`, `FurnitureDef`) from `data/blocks/`, `data/buildables/`, `data/furniture/` into one `id → def` map. "What's unlocked" is delegated to `RunProgress` — this catalog seeds the default-unlocked defs at startup and on `EventBus.run_started`, then exposes `is_unlocked` / `get_unlocked` / `unlock` / `get_def`. Read-only after `_ready`. See [Build](build.md) subsystem. |
 | **MapLibrary** | `map_library.gd` | Read-only catalog of all loadable maps. Scans `data/maps/*/map_def.tres` at startup into an `id → MapDef` map. Looked up by `SceneManager.swap_map()` and `ExpeditionManager`. Read-only after `_ready`. See [Maps](maps.md) subsystem. |
 | **ExpeditionManager** | `expedition_manager.gd` | Tracks discovered POIs and the on/off-expedition flag. `start_expedition()` / `end_expedition()` emit the EventBus signals and delegate map loading to `SceneManager.swap_map()`. Scaffold — hex-grid + crew logic deferred. See [Expeditions](expeditions.md) subsystem. |
+| **ItemDB** | `item_db.gd` | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by filename stem. Read-only after `_ready`. `get_def(item_id) -> ItemDef`, `has_def(item_id) -> bool`. See [Inventory](inventory.md) subsystem. |
 | **Tools** | `tools.gd` | General cross-subsystem utilities. Currently: `generate_uuid() -> String` (cryptographically random RFC 4122 UUID v4). |
 
 **Deliberately NOT autoloads** (kept as scene-scoped references):
-- Inventory — belongs to the player; accessed via the Player node.
-- Inventory (shared colony storage) — accessed via StorageCrate nodes; no global needed.
+- CharacterInventory — belongs to the player/colonist node; accessed via the entity node.
 - Raid scheduler — base-scene only; expeditions don't trigger base raids during the mission (raid resolves on return).
 - Threat-direction weights — part of Colony state, but only base scene reads them at raid time.
 

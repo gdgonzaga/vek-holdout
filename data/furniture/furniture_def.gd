@@ -36,3 +36,4 @@ class_name FurnitureDef
 ## of the same shape; see docs/architecture/data-schemas.md "FurnitureDef
 ## capability parameters" for why composition was chosen over subclassing.
 @export var test_params: TestParams
+@export var item_dispenser_params: ItemDispenserParams

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://dyr46jresvn48"]
+
+[ext_resource type="Texture2D" uid="uid://b1o54y7jqy7bq" path="res://assets/item_icons/stone_block.png" id="1_4keqy"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_qucrc"]
+
+[resource]
+resource_name = "Stone block"
+script = ExtResource("1_qucrc")
+weight = 3.0
+icon = ExtResource("1_4keqy")
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

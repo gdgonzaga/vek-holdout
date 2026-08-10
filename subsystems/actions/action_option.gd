@@ -6,6 +6,6 @@ extends Resource
 
 
 func is_available(actor: Node, target: Node) -> bool:
-    for c in conditions:
-        if not c.is_met(actor, target): return false
-    return true
+	for c in conditions:
+		if not c.is_met(actor, target): return false
+	return true

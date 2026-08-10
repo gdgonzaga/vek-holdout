@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://loga05k3250f"]
+
+[ext_resource type="Texture2D" uid="uid://c4j4kkwdhgluf" path="res://assets/item_icons/metal_block.png" id="1_ll5iv"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_t7cxg"]
+
+[resource]
+resource_name = "Metal block"
+script = ExtResource("1_t7cxg")
+weight = 4.0
+icon = ExtResource("1_ll5iv")
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

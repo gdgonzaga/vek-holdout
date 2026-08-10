@@ -144,13 +144,11 @@ Array of `{day_threshold, waves, enemies_per_wave, shooter_percent}` rows. See G
 
 ## `data/items/<id>.tres` (Resource: `item_def.gd`)
 
+One `ItemDef` per item type. The **item_id is the `.tres` filename** (e.g. `"wood"` from `wood.tres`); there is no `id` field on the resource. Scanned at startup by the `ItemDB` autoload. Currently only `weight` is implemented; `display_name`, `icon`, `usable` etc. will be added as needed.
+
 | Field | Type | Description |
 |---|---|---|
-| `item_id` | `String` | Unique. |
-| `display_name` | `String` | UI label. |
-| `icon` | `Texture2D` | Inventory icon. |
-| `stack_cap` | `int` | Max per stack. |
-| `usable` | `bool` | True if usable (healing, etc.). |
+| `weight` | `float` | Weight per unit (kg). Used by `Inventory` for capacity enforcement. |
 
 ## `data/loot/<table>.tres` (Resource: `loot_table.gd`)
 

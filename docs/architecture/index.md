@@ -32,7 +32,7 @@ Last updated: 2026-08-09 (Interaction system + Actions chain + Furniture node cl
 | [Maps](maps.md) | MapLibrary, wiring, per-map scenes, authoring | — |
 | [Expeditions](expeditions.md) | POI discovery, depart/return, scavenge missions | §17 |
 | [Loot](loot.md) | Loot tables, containers, Key Item pool | §17 |
-| [Inventory](inventory.md) | Items, stacks, 30-slot player inventory | §4.5, §7.3 |
+| [Inventory](inventory.md) | Weight-based inventory, ItemDef, ItemDB autoload | §4.5, §7.3 |
 | [Crafting](crafting.md) | Recipes, Workbench/Forge, craft Jobs | §7.9 |
 | [UI](ui.md) | HUD + all full-screen screens | §12 |
 | [Debug Console](debug-console.md) | Command registry, dev-only tools | §17 |
