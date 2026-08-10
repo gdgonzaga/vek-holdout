@@ -6,35 +6,39 @@
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_il18e"]
 [ext_resource type="Script" uid="uid://dhq4hyx8nxo8n" path="res://subsystems/build/build_controller.gd" id="5_o3no4"]
 
-[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_o3no4"]
+[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_dr4yq"]
 channel = 0
 
 voxel_type = 1
-[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_dr4yq"]
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_be0qe"]
 library = ExtResource("3_be0qe")
 
-[node name="MapTemplate" type="Node3D" unique_id=650561069]
+[node name="MapTemplate" type="Node3D" unique_id=1931621002]
 script = ExtResource("1_o3no4")
 
-[node name="VoxelGrid" type="Node" parent="." unique_id=625764918]
+[node name="VoxelGrid" type="Node" parent="." unique_id=483989422]
 script = ExtResource("2_dr4yq")
 
-[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=127125178]
-generator = SubResource("VoxelGeneratorFlat_o3no4")
-mesher = SubResource("VoxelMesherBlocky_dr4yq")
+[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=925542311]
+generator = SubResource("VoxelGeneratorFlat_dr4yq")
+mesher = SubResource("VoxelMesherBlocky_be0qe")
 
-[node name="ColonistContainer" type="Node3D" parent="." unique_id=420717533]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1816968915]
+transform = Transform3D(-0.8660254, 0, -0.50000006, -0.43301278, 0.49999997, 0.75, 0.25, 0.86602545, -0.43301266, 0, 0, 0)
+shadow_enabled = true
 
-[node name="EnemyContainer" type="Node3D" parent="." unique_id=88443363]
+[node name="ColonistContainer" type="Node3D" parent="." unique_id=1234585508]
 
-[node name="FurnitureContainer" type="Node3D" parent="." unique_id=1378448968]
+[node name="EnemyContainer" type="Node3D" parent="." unique_id=1669932653]
 
-[node name="EnvironmentContainer" type="Node3D" parent="." unique_id=757473080]
+[node name="FurnitureContainer" type="Node3D" parent="." unique_id=1558064455]
+
+[node name="EnvironmentContainer" type="Node3D" parent="." unique_id=456346051]
 
 [node name="BuildController" type="Node3D" parent="." unique_id=1033573714 instance=ExtResource("4_il18e")]
 script = ExtResource("5_o3no4")
 
-[node name="SpawnPoints" type="Node3D" parent="." unique_id=1054575841]
+[node name="SpawnPoints" type="Node3D" parent="." unique_id=1437700444]
 
-[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=1808266210]
+[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=1064301555]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)

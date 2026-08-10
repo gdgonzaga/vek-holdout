@@ -63,6 +63,22 @@ func _run() -> void:
 	grid.add_child(terrain)
 	terrain.owner = root
 
+	# -- DirectionalLight3D (sun) --
+	# Transform mirrors the light in the old hand-authored map scenes: a ~60°
+	# sun angle with shadows on. Without a light the editor viewport and any
+	# runtime scene stamped from this template render pitch black.
+	var light := DirectionalLight3D.new()
+	light.name = "DirectionalLight3D"
+	light.transform = Transform3D(
+		Vector3(-0.8660254, -0.43301278, 0.25),
+		Vector3(0, 0.49999997, 0.86602545),
+		Vector3(-0.50000006, 0.75, -0.43301266),
+		Vector3.ZERO
+	)
+	light.shadow_enabled = true
+	root.add_child(light)
+	light.owner = root
+
 	# -- Containers (match map.tscn structure) --
 	for container_name in ["ColonistContainer", "EnemyContainer", "FurnitureContainer", "EnvironmentContainer"]:
 		var c := Node3D.new()
