@@ -26,6 +26,10 @@ func _ready() -> void:
 	# Persistent player: created once, reparented into each map on swap.
 	_player = preload("res://subsystems/player/player.tscn").instantiate()
 	SceneManager.set_player(_player)
+	# Mount the persistent HUD on the HUDLayer.
+	var hud: Control = preload("res://ui/hud/hud.tscn").instantiate()
+	_hud_layer.add_child(hud)
+	hud.setup(_player)
 	# No map is loaded here — the Main Menu's New Game button drives the base
 	# load (see ui/main_menu/main_menu.gd). base_colony + POI discovery moved
 	# behind the menu so the menu gates gameplay.
