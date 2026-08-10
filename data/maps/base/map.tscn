@@ -5,6 +5,7 @@
 [ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_vb1k7"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_i4gsa"]
 [ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="5_vqmwu"]
+[ext_resource type="ArrayMesh" uid="uid://vvw2v2uwwjax" path="res://tmp/Polygon-Mega Survival Construction/Models/Other/extracted/SM_Box_01.SM_Box_01.mesh" id="6_8a6na"]
 
 [sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_pn4ft"]
 database_path = "res://data/maps/base/map.sqlite"
@@ -54,3 +55,13 @@ metadata/anchor = Vector3i(3, 0, 0)
 [node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_wood_block_dispenser_0" unique_id=1705769120]
 cast_shadow = 0
 mesh = ExtResource("5_vqmwu")
+
+[node name="Furniture_storage_crate_1" type="Marker3D" parent="SpawnPoints" unique_id=1725801875]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, -1.5)
+metadata/def_id = "storage_crate"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(2, 0, -2)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_storage_crate_1" unique_id=927059470]
+cast_shadow = 0
+mesh = ExtResource("6_8a6na")
