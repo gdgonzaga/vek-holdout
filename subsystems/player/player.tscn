@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bvunjvyry03ui" path="res://subsystems/player/player.gd" id="1_i0iyb"]
 [ext_resource type="Script" uid="uid://cc4nhj4oth8vo" path="res://subsystems/player/camera_rig.gd" id="2_wfstl"]
+[ext_resource type="Script" path="res://subsystems/player/input_component.gd" id="3_input"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
@@ -26,3 +27,6 @@ shape = SubResource("CapsuleShape3D_body")
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=157783146]
 script = ExtResource("2_wfstl")
+
+[node name="InputComponent" type="Node" parent="."]
+script = ExtResource("3_input")

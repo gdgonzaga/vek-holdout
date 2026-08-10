@@ -65,7 +65,7 @@ Brawlers attack the lowest-HP block in range; Shooters path through the lowest-r
 **Save serializes voxel world** — flagged in Tech Debt
 Zylann's `voxel_tool` has its own save format; integrating it with the game's save slots needs design. Currently a Tech Debt item; may warrant elevation to a real decision before the save system is built.
 
-**Player input map data file** — GDD §4 has a full key map; ARCH has no corresponding `data/input_map.tres` or similar. Minor — could be hardcoded in InputMap at the project level rather than a data file, but the GDD implies it's data.
+**Player input map data file** — GDD §4 has a full key map; ARCH has no corresponding `data/input_map.tres` or similar. **Partially resolved:** player input reading is now centralized in `InputComponent` (`subsystems/player/input_component.gd`), but the action bindings themselves are still defined in `project.godot`'s `[input]` section. A data file would allow runtime rebinding.
 
 ### Data schemas still missing (C-items)
 
