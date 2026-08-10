@@ -1,0 +1,98 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/storage/storage_panel.gd" id="1_storage"]
+
+[node name="StoragePanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+script = ExtResource("1_storage")
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -220.0
+offset_right = 300.0
+offset_bottom = 220.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Panel/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Storage"
+
+[node name="CloseButton" type="Button" parent="Panel/VBox/Header"]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 0)
+text = "X"
+
+[node name="Body" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 3
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PlayerColumn" type="VBoxContainer" parent="Panel/VBox/Body"]
+layout_mode = 3
+size_flags_horizontal = 3
+
+[node name="PlayerHeader" type="HBoxContainer" parent="Panel/VBox/Body/PlayerColumn"]
+layout_mode = 2
+
+[node name="PlayerTitle" type="Label" parent="Panel/VBox/Body/PlayerColumn/PlayerHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "You"
+
+[node name="PlayerWeight" type="Label" parent="Panel/VBox/Body/PlayerColumn/PlayerHeader"]
+layout_mode = 2
+horizontal_alignment = 2
+
+[node name="PlayerScroll" type="ScrollContainer" parent="Panel/VBox/Body/PlayerColumn"]
+layout_mode = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 320)
+
+[node name="PlayerList" type="VBoxContainer" parent="Panel/VBox/Body/PlayerColumn/PlayerScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StorageColumn" type="VBoxContainer" parent="Panel/VBox/Body"]
+layout_mode = 3
+size_flags_horizontal = 3
+
+[node name="StorageHeader" type="HBoxContainer" parent="Panel/VBox/Body/StorageColumn"]
+layout_mode = 2
+
+[node name="StorageTitle" type="Label" parent="Panel/VBox/Body/StorageColumn/StorageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Container"
+
+[node name="StorageWeight" type="Label" parent="Panel/VBox/Body/StorageColumn/StorageHeader"]
+layout_mode = 2
+horizontal_alignment = 2
+
+[node name="StorageScroll" type="ScrollContainer" parent="Panel/VBox/Body/StorageColumn"]
+layout_mode = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 320)
+
+[node name="StorageList" type="VBoxContainer" parent="Panel/VBox/Body/StorageColumn/StorageScroll"]
+layout_mode = 2
+size_flags_horizontal = 3

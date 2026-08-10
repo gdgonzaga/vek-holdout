@@ -255,10 +255,86 @@ func test_transfer_conserves_total() -> void:
 	assert_int(total_after).is_equal(total_before)
 
 
+# ── StorageInventory: capacity loading + player<->crate transfer ───────────────
+
+## StorageInventory copies def.storage_params.capacity into its base capacity.
+## We call _apply_storage_params() directly (the method _ready delegates to)
+## because _ready only fires once a node enters the scene tree, which the unit
+## harness can't provide.
+func test_storage_inventory_loads_capacity_from_def() -> void:
+	var params := StorageParams.new()
+	params.capacity = 42.0
+	auto_free(params)
+	var def := FurnitureDef.new()
+	def.storage_params = params
+	auto_free(def)
+	var furniture := Furniture.new()
+	auto_free(furniture)
+	furniture.def = def
+	var storage := TestStorageInventory.new()
+	storage._defs = {"wood": _wood}
+	furniture.add_child(storage)
+	auto_free(storage)
+	storage._apply_storage_params()
+	assert_float(storage.capacity).is_equal(42.0)
+
+## Without storage_params, capacity stays at the Inventory default (0.0).
+func test_storage_inventory_no_params_leaves_capacity_default() -> void:
+	var furniture := Furniture.new()
+	auto_free(furniture)
+	furniture.def = FurnitureDef.new()      # storage_params == null
+	auto_free(furniture.def)
+	var storage := TestStorageInventory.new()
+	storage._defs = {"wood": _wood}
+	furniture.add_child(storage)
+	auto_free(storage)
+	storage._apply_storage_params()
+	assert_float(storage.capacity).is_equal(0.0)
+
+## No parent Furniture (orphan) — capacity stays at the default.
+func test_storage_inventory_no_parent_leaves_capacity_default() -> void:
+	var storage := TestStorageInventory.new()
+	storage._defs = {"wood": _wood}
+	auto_free(storage)
+	storage._apply_storage_params()
+	assert_float(storage.capacity).is_equal(0.0)
+
+## Player (CharacterInventory-style) and crate (StorageInventory) interoperate
+## via transfer_to — the storage path the UI actually uses.
+func test_transfer_between_inventory_and_storage() -> void:
+	var defs := {"wood": _wood}
+	var player := _make_inventory(50.0, defs)
+	var crate := TestStorageInventory.new()
+	crate._defs = defs
+	crate.capacity = 8.0   # bypass _ready; set capacity directly
+	auto_free(crate)
+	player.add("wood", 10)
+	# Player -> crate: crate fits 4 wood (4 × 2 = 8).
+	var unplaced := player.transfer_to(crate, "wood", 10)
+	assert_int(unplaced).is_equal(6)
+	assert_int(player.get_item_count("wood")).is_equal(6)
+	assert_int(crate.get_item_count("wood")).is_equal(4)
+	# Crate -> player: move it all back.
+	var unplaced2 := crate.transfer_to(player, "wood", 4)
+	assert_int(unplaced2).is_equal(0)
+	assert_int(player.get_item_count("wood")).is_equal(10)
+	assert_int(crate.get_item_count("wood")).is_equal(0)
+
+
 # ── TestInventory subclass ─────────────────────────────────────────────────────
 
 ## Inventory with mockable item definitions for testing.
 class TestInventory extends Inventory:
+	var _defs: Dictionary = {}
+
+	func _get_def(item_id: String) -> ItemDef:
+		return _defs.get(item_id)
+
+
+## StorageInventory with mockable item definitions for testing. Extends the
+## real StorageInventory so transfer_to/can_add run the production code path;
+## only _get_def is overridden to avoid needing .tres files in ItemDB.
+class TestStorageInventory extends StorageInventory:
 	var _defs: Dictionary = {}
 
 	func _get_def(item_id: String) -> ItemDef:

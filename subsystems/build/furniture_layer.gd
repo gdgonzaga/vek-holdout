@@ -138,6 +138,14 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		interaction.name = "InteractionComponent"
 		root.add_child(interaction)
 		interaction.action_options = (def as FurnitureDef).action_options
+
+	# Attach storage contents only when the def declares storage params.
+	# StorageInventory reads def.storage_params.capacity in its _ready, so it
+	# must be added after root.def is set (above) and enter the tree.
+	if def is FurnitureDef and (def as FurnitureDef).storage_params != null:
+		var storage := StorageInventory.new()
+		storage.name = "StorageInventory"
+		root.add_child(storage)
 	return root
 
 
