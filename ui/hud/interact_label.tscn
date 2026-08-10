@@ -1,24 +1,23 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://b11tjkfqq68l3"]
 
-[ext_resource type="Script" path="res://ui/hud/interact_label.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://b8nt5b8oik82k" path="res://ui/hud/interact_label.gd" id="1_script"]
 
-[node name="InteractLabel" type="VBoxContainer"]
-layout_mode = 0
-anchor_left = 0.0
-anchor_right = 1.0
+[node name="InteractLabel" type="VBoxContainer" unique_id=1921028937]
+anchors_preset = 14
 anchor_top = 0.5
+anchor_right = 1.0
 anchor_bottom = 0.5
 offset_top = 24.0
 offset_bottom = 72.0
 grow_horizontal = 2
 script = ExtResource("1_script")
 
-[node name="NameLabel" type="Label" parent="."]
+[node name="NameLabel" type="Label" parent="." unique_id=439891212]
 layout_mode = 2
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="ActionLabel" type="Label" parent="."]
+[node name="ActionLabel" type="Label" parent="." unique_id=2047143339]
 layout_mode = 2
 horizontal_alignment = 1
 vertical_alignment = 1
