@@ -75,7 +75,6 @@ func _ready() -> void:
 	EventBus.buildable_selected.connect(_on_buildable_selected)
 	# Wire discrete input actions from the InputComponent child.
 	_input.build_toggle_pressed.connect(open_build_menu)
-	_input.interact_pressed.connect(_try_interact)
 	_input.recapture_requested.connect(_recapture_mouse)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
 
@@ -132,10 +131,17 @@ func exit_blueprint_mode() -> void:
 	EventBus.blueprint_mode_toggled.emit(false)
 
 
-## Act on the currently-targeted interactable (called on E press).
-## The actual raycast runs every frame in _physics_process via
-## _update_interaction_target so the HUD can display context.
-func _try_interact() -> void:
+## Execute the first action option immediately (quick-tap E).
+func execute_default_action() -> void:
+	if _current_interactable and not _current_interactable.action_options.is_empty():
+		var option: ActionOption = _current_interactable.action_options[0]
+		if option.action != null:
+			option.action.execute(self, _current_interactable.get_parent())
+			interactable_changed.emit(_current_interactable)
+
+
+## Open the full interaction menu for the targeted interactable (long-press E).
+func open_interaction_menu() -> void:
 	if _current_interactable and not _current_interactable.action_options.is_empty():
 		_current_interactable.interact(self)
 

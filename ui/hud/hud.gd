@@ -3,27 +3,39 @@ extends Control
 ##
 ## Contains:
 ##   - Crosshair (center screen)
-##   - Interactable name label (below crosshair)
+##   - Interactable label (name + default action hint, below crosshair)
 ##   - Inventory side panel (left edge, toggled with I)
+##
+## Handles quick-tap vs long-press for the interact key (E):
+##   - Quick tap (< 0.3s): executes the first action option on the targeted
+##     interactable furniture.
+##   - Long press (≥ 0.3s): opens the full action menu.
+
+const _HOLD_THRESHOLD := 0.3
 
 @onready var _crosshair: TextureRect = $Crosshair
-@onready var _interact_label: Label = $InteractLabel
+@onready var _interact_display: Control = $InteractLabel
 @onready var _inventory_panel: PanelContainer = $InventoryPanel
 @onready var _weight_label: Label = $InventoryPanel/VBox/Header/WeightLabel
 @onready var _item_list: VBoxContainer = $InventoryPanel/VBox/ScrollContainer/ItemList
 
 var _player: Player = null
+var _input_component: InputComponent = null
 var _inventory: Inventory = null
 var _inventory_open := false
 
+var _hold_timer := 0.0
+var _holding_interact := false
+
 
 func _ready() -> void:
-	_interact_label.visible = false
+	pass
 
 
 ## Called by Main after mounting the HUD on the HUDLayer.
 func setup(player: Player) -> void:
 	_player = player
+	_input_component = player.get_node_or_null("InputComponent") as InputComponent
 	if _player.inventory != null:
 		_wire_signals()
 	else:
@@ -39,22 +51,44 @@ func _wire_signals() -> void:
 	_inventory = _player.inventory
 	_player.interactable_changed.connect(_on_interactable_changed)
 	_inventory.inventory_changed.connect(_refresh_inventory)
+	# Connect to InputComponent's interact press/release for hold detection.
+	if _input_component != null:
+		_input_component.interact_pressed.connect(_on_interact_pressed)
+		_input_component.interact_released.connect(_on_interact_released)
 
 
 func _on_interactable_changed(component: InteractionComponent) -> void:
-	if component == null:
-		_interact_label.visible = false
+	_interact_display.update_display(component, _player)
+
+
+func _process(delta: float) -> void:
+	if _holding_interact:
+		_hold_timer += delta
+		if _hold_timer >= _HOLD_THRESHOLD:
+			_holding_interact = false
+			_hold_timer = 0.0
+			_player.open_interaction_menu()
+
+
+func _on_interact_pressed() -> void:
+	if _inventory_open:
 		return
-	_interact_label.visible = true
-	var target: Node = component.get_parent()
-	# Same resolution order as interaction_ui.gd: label > display_name > node name.
-	var tlabel = target.get("label")
-	if tlabel != null and tlabel != "":
-		_interact_label.text = str(tlabel)
-	elif component.display_name != "":
-		_interact_label.text = component.display_name
+	_holding_interact = true
+	_hold_timer = 0.0
+
+
+func _on_interact_released() -> void:
+	if _inventory_open:
+		return
+	if _holding_interact:
+		# Released before threshold — quick tap, execute default action.
+		_holding_interact = false
+		_hold_timer = 0.0
+		_player.execute_default_action()
 	else:
-		_interact_label.text = target.name
+		# Long-press already fired (menu opening handled in _process).
+		_holding_interact = false
+		_hold_timer = 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:

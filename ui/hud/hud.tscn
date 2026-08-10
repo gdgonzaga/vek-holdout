@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://ui/hud/hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" path="res://assets/crosshair.png" id="2_cross"]
+[ext_resource type="PackedScene" path="res://ui/hud/interact_label.tscn" id="3_interact"]
 
 [node name="HUD" type="Control"]
 layout_mode = 3
@@ -27,16 +28,7 @@ texture = ExtResource("2_cross")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="InteractLabel" type="Label" parent="."]
-layout_mode = 0
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_top = 24.0
-offset_bottom = 48.0
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="InteractLabel" parent="." instance=ExtResource("3_interact")]
 
 [node name="InventoryPanel" type="PanelContainer" parent="."]
 visible = false

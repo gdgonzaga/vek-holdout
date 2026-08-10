@@ -13,6 +13,9 @@ signal build_toggle_pressed()
 ## Emitted when the player presses the interact key (E).
 signal interact_pressed()
 
+## Emitted when the player releases the interact key (E).
+signal interact_released()
+
 ## Emitted when the player clicks while the cursor is visible (requesting
 ## mouse recapture).
 signal recapture_requested()
@@ -27,6 +30,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("interact"):
 		interact_pressed.emit()
+		return
+	if event.is_action_released("interact"):
+		interact_released.emit()
 		return
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		recapture_requested.emit()
