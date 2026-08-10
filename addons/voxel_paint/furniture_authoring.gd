@@ -103,6 +103,15 @@ func place(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Marker3D:
         mesh_inst.name = "PreviewMesh"
         mesh_inst.mesh = def.mesh
         mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        # Match runtime: build the albedo material from def.texture so the preview
+        # shows the texture rather than Godot's white default (material-less meshes).
+        # Access `texture` directly — do NOT call a build_material() helper on the
+        # def here: editor tool-script instances load stale compiled bytecode after
+        # a script edit, so has_method() returns true but the call throws.
+        if def.texture != null:
+            var mat := StandardMaterial3D.new()
+            mat.albedo_texture = def.texture
+            mesh_inst.material_override = mat
         marker.add_child(mesh_inst)
 
     # Add to scene tree first, then set owner on the marker and its mesh

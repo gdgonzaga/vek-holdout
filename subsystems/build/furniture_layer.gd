@@ -108,7 +108,17 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	root.def = def
 	var mesh_node: MeshInstance3D = root.find_child("Mesh")
 	mesh_node.mesh = def.mesh
-	
+	# Build the albedo material from def.texture. Skipped when null so meshes that
+	# carry their own embedded material (e.g. OBJ with .mtl) keep it; without this,
+	# material-less meshes (e.g. extracted GLTF) render with Godot's white default.
+	# NOTE: do not call a build_material() helper on the def from a @tool context —
+	# editor tool-script instances load stale compiled bytecode after a script edit
+	# (has_method returns true but the call throws). Access `texture` directly.
+	if def.texture != null:
+		var mat := StandardMaterial3D.new()
+		mat.albedo_texture = def.texture
+		mesh_node.material_override = mat
+
 	mesh_node.create_trimesh_collision()
 	
 	var mesh_static_body: StaticBody3D = mesh_node.get_child(0) as StaticBody3D

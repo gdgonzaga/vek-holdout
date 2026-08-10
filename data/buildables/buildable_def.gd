@@ -10,9 +10,15 @@ class_name BuildableDef
 ## subclasses; do not redeclare as block_id/furniture_id/etc.). `mesh` lives here
 ## so the build ghost can preview any buildable's shape, not just voxel blocks.
 ## `texture` is the albedo only — BlockLibrary builds a StandardMaterial3D from
-## it, so you don't need a separate material .tres for every block type.
+## it (no separate material .tres per block type); the furniture authoring path
+## does the same inline (see furniture_authoring.gd). Do NOT add a build_material()
+## helper to this class and call it from @tool code: editor tool-script instances
+## loaded from .tres bind to stale compiled bytecode after a script edit, so
+## has_method() returns true but the call throws — access `texture` directly.
 ## `texture_variation` opts into a per-block randomization shader that offsets UVs,
 ## rotates them, and modulates brightness so repeating textures don't tile visibly.
+## (Block-only: the shader hashes `floor(world_pos+0.5)`, which assumes unit-cube
+## voxel blocks, so it is handled in BlockLibrary, not the furniture path.)
 ##
 ## Fields kept out: material-tier (targeting is HP-derived, GDD §17) and
 ## construction-time-modifier (build time = HP × tool, GDD §7.4).

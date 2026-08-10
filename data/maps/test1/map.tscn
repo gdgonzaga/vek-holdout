@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://dwj0alv1a8kyo"]
+
+[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_hkn75"]
+[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_mdvp8"]
+[ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_8kd1g"]
+[ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_vejhx"]
+[ext_resource type="Script" uid="uid://dhq4hyx8nxo8n" path="res://subsystems/build/build_controller.gd" id="5_xo7lm"]
+
+[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_mus66"]
+database_path = "res://data/maps/test1/map.sqlite"
+
+[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_o3no4"]
+channel = 0
+
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_dr4yq"]
+library = ExtResource("3_8kd1g")
+
+[node name="MapTemplate" type="Node3D" unique_id=650561069]
+script = ExtResource("1_hkn75")
+
+[node name="VoxelGrid" type="Node" parent="." unique_id=625764918]
+script = ExtResource("2_mdvp8")
+
+[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=127125178]
+stream = SubResource("VoxelStreamSQLite_mus66")
+generator = SubResource("VoxelGeneratorFlat_o3no4")
+mesher = SubResource("VoxelMesherBlocky_dr4yq")
+
+[node name="ColonistContainer" type="Node3D" parent="." unique_id=420717533]
+
+[node name="EnemyContainer" type="Node3D" parent="." unique_id=88443363]
+
+[node name="FurnitureContainer" type="Node3D" parent="." unique_id=1378448968]
+
+[node name="EnvironmentContainer" type="Node3D" parent="." unique_id=757473080]
+
+[node name="BuildController" type="Node3D" parent="." unique_id=1033573714 instance=ExtResource("4_vejhx")]
+script = ExtResource("5_xo7lm")
+
+[node name="SpawnPoints" type="Node3D" parent="." unique_id=1054575841]
+
+[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=1808266210]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)

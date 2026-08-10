@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="ColonistDef" format=3 uid="uid://swxec3k1ua6j"]
+
+[ext_resource type="Script" uid="uid://bh0hou41lremh" path="res://data/colonists/colonist_def.gd" id="1_34um5"]
+
+[resource]
+script = ExtResource("1_34um5")
+metadata/_custom_type_script = "uid://bh0hou41lremh"
