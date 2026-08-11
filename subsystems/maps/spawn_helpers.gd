@@ -30,3 +30,18 @@ static func read_spawns(map: Map) -> Dictionary:
 				continue
 			result.furniture.append({"def_id": def_id, "anchor": anchor, "yaw": yaw})
 	return result
+
+
+## Free the authored `Furniture_*` markers after their placement metadata has been
+## replayed into the live FurnitureLayer. The markers exist only to carry
+## def_id/anchor/yaw into runtime; each also has an editor `PreviewMesh` child
+## that would otherwise duplicate the spawned furniture's mesh and survive
+## deconstruct (which only frees the spawned copy under FurnitureContainer).
+## No-op if the map has no SpawnPoints.
+static func clear_furniture_markers(map: Map) -> void:
+	var root := map.find_child("SpawnPoints") as Node3D
+	if root == null:
+		return
+	for child in root.get_children():
+		if child.name.begins_with("Furniture_"):
+			child.queue_free()

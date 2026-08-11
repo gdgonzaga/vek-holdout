@@ -164,6 +164,9 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 				push_warning("SceneManager: furniture def '%s' not in catalog" % rec["def_id"])
 				continue
 			furniture_layer.spawn(def, rec["anchor"], rec["yaw"])
+		# The markers carry an editor-only PreviewMesh that would duplicate the
+		# spawned mesh and survive deconstruct; now that they're replayed, drop them.
+		SpawnHelpers.clear_furniture_markers(m)
 
 	if _player != null:
 		var spawn_pos: Vector3 = spawns.player if spawns.player != Vector3.ZERO else map_def.player_spawn
