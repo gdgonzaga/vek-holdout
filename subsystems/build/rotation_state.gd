@@ -18,9 +18,14 @@ func cycle_axis() -> void:
 	axis = (axis + 1) % 3 as Axis
 
 
-## Advance the 90-degree step (mouse wheel). 0 -> 1 -> 2 -> 3 -> 0.
+## Advance the 90-degree step (mouse wheel up). 0 -> 1 -> 2 -> 3 -> 0.
 func cycle_step() -> void:
 	step = (step + 1) % 4
+
+
+## Reverse the 90-degree step (mouse wheel down). 0 -> 3 -> 2 -> 1 -> 0.
+func cycle_step_back() -> void:
+	step = (step - 1 + 4) % 4
 
 
 ## The current yaw rotation in degrees, derived from axis + step.

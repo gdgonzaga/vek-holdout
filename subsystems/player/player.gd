@@ -27,6 +27,10 @@ var state := State.IDLE
 ## The InteractionComponent currently under the crosshair (or null).
 var _current_interactable: InteractionComponent = null
 
+## The currently open BuildMenu (null when no menu is open). Tracked so B can
+## close it and so we know whether B means "open" or "close".
+var _build_menu: BuildMenu = null
+
 ## Emitted when _current_interactable changes (target gained or lost).
 signal interactable_changed(component: InteractionComponent)
 
@@ -74,15 +78,34 @@ func _ready() -> void:
 	# to BuildController via the same signal — Player doesn't carry it.
 	EventBus.buildable_selected.connect(_on_buildable_selected)
 	# Wire discrete input actions from the InputComponent child.
-	_input.build_toggle_pressed.connect(open_build_menu)
+	_input.build_toggle_pressed.connect(_on_build_toggle)
 	_input.recapture_requested.connect(_recapture_mouse)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
+
+
+## B is the single navigation key across the three blueprint states (GDD §4
+## controls table, line 202: "Toggle Blueprint mode — B"):
+##   - Normal        -> open the build menu
+##   - Menu open     -> close the menu, back to Normal
+##   - Placement     -> leave placement, reopen the build menu
+func _on_build_toggle() -> void:
+	if mode == Mode.BLUEPRINT:
+		# Placement -> menu. Drop the selected buildable and reopen the menu.
+		exit_blueprint_mode()
+		open_build_menu()
+	elif _build_menu != null:
+		# Menu open -> normal. Menu closed() will recapture the mouse.
+		_build_menu.close()
+	else:
+		open_build_menu()
 
 
 ## Open the build menu. Selecting a buildable closes it and enters Blueprint mode
 ## with that buildable selected (ARCH Player flow, line 388 — now driven by menu
 ## selection rather than a direct B-toggle). Movement still applies in Blueprint.
 func open_build_menu() -> void:
+	if _build_menu != null:
+		return
 	var menu: BuildMenu = preload("res://ui/build_menu/build_menu.tscn").instantiate()
 	# Mount on a UI CanvasLayer. Prefer the one Main owns; fall back to creating one
 	# under the world root so this works in test scenes without Main.
@@ -100,18 +123,24 @@ func open_build_menu() -> void:
 	# Selection is broadcast via EventBus (menu emits directly); only the
 	# no-selection dismissal is handled locally.
 	menu.closed.connect(_on_build_menu_closed)
+	_build_menu = menu
 
 
 func _on_buildable_selected(_id: String) -> void:
 	# The selected id flows menu -> EventBus -> BuildController directly; Player
 	# only reacts to the event to flip its own mode and recapture the mouse.
+	# The menu frees itself on selection without emitting closed(), so clear the
+	# tracked ref here.
+	_build_menu = null
 	mode = Mode.BLUEPRINT
 	EventBus.blueprint_mode_toggled.emit(true)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _on_build_menu_closed() -> void:
-	# Menu closed without a selection (Esc / B-toggle) — recapture the mouse.
+	# Menu closed without a selection (B-toggle from menu, or menu freed). Clear
+	# the tracked ref and recapture the mouse.
+	_build_menu = null
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -120,8 +149,9 @@ func _recapture_mouse() -> void:
 
 
 func _on_ui_cancel() -> void:
-	if mode == Mode.BLUEPRINT:
-		exit_blueprint_mode()
+	# Esc is reserved for the Pause Menu (GDD §4 controls table, line 214). It no
+	# longer exits blueprint mode — B handles all blueprint navigation.
+	pass
 
 
 ## Exit Blueprint mode (e.g. when the player wants to stop building). Re-entering

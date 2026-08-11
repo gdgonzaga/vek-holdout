@@ -4,10 +4,11 @@ extends Node
 ## Instances map.tscn + player.tscn + build.tscn, wires the BuildController's
 ## grid adapter to the map's VoxelGrid and its camera to the player's rig.
 ##
-## Controls: B toggles build mode (ghost appears/disappears). Look at the terrain
-## — the ghost follows the cursor and tints green (valid) / red (invalid). LMB
-## places a block on a valid cell (InstantPlacementStrategy -> VoxelGrid).
-## Movement/sprint/jump work as before.
+## Controls: B opens the build menu (ghost appears after picking a buildable).
+## B again from placement returns to the menu; B from the menu exits build mode.
+## Look at the terrain — the ghost follows the cursor and tints green (valid) /
+## red (invalid). LMB places a block on a valid cell. Wheel rotates (furniture),
+## R cycles the rotation axis. Movement/sprint/jump work as before.
 
 func _ready() -> void:
 	var light := DirectionalLight3D.new()
@@ -60,7 +61,7 @@ func _ready() -> void:
 	add_child(layer)
 	var label := Label.new()
 	label.position = Vector2(10, 10)
-	label.text = "B: open build menu -> pick a buildable -> ghost appears\nEsc: close menu without building\nLMB: place (blocks = voxel, pole/workbench = free-standing)\nRMB: remove\nWASD/Shift/Space: move"
+	label.text = "B: open build menu -> pick a buildable -> ghost appears\nB again: back to menu (placing) or exit (in menu)\nLMB: place (blocks = voxel, pole/workbench = free-standing)\nRMB: remove\nWheel: rotate (visible on furniture) · R: cycle axis\nWASD/Shift/Space: move"
 	label.add_theme_font_size_override("font_size", 16)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.add_theme_color_override("font_shadow_color", Color.BLACK)

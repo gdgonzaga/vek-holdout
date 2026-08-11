@@ -13,7 +13,8 @@ extends Node3D
 ## This pass: ghost-follows-cursor works for both kinds (single cell for blocks,
 ## footprint center for furniture). LMB places via the kind path. RMB removes
 ## (blocks at the struck voxel, furniture at the adjacent air cell). Rotation is
-## a stub (rotation_state.step is read, but no key is wired to change it yet).
+## wired: mouse wheel cycles the 90° step (visible on furniture), R cycles the
+## rotation axis (no visible effect on cube blocks yet).
 
 const _RAY_DISTANCE := 30.0
 const DEBUG_RAYCAST := true
@@ -55,12 +56,18 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _active:
 		return
-	# LMB = place (routed to the strategy), RMB = remove (stub).
-	# Rotation keys (R / mouse wheel) would route to rotation_state here.
+	# LMB = place (routed to the strategy), RMB = remove.
+	# Wheel = rotate 90° step, R = cycle rotation axis (GDD §4 controls table).
 	if event.is_action_pressed("build_place"):
 		_try_commit()
 	elif event.is_action_pressed("build_remove"):
 		_try_remove()
+	elif event.is_action_pressed("build_rotate_cw"):
+		rotation_state.cycle_step()
+	elif event.is_action_pressed("build_rotate_ccw"):
+		rotation_state.cycle_step_back()
+	elif event.is_action_pressed("build_rotate_axis"):
+		rotation_state.cycle_axis()
 
 
 func _physics_process(_delta: float) -> void:
@@ -94,6 +101,9 @@ func _physics_process(_delta: float) -> void:
 		if DEBUG_RAYCAST:
 			print("[DEBUG] block ghost_pos=%s valid=%s" % [ghost_pos, valid])
 	_ghost.show_at(ghost_pos, valid)
+	# Rotate the ghost mesh to match the current step (visible for furniture;
+	# harmless for rotation-symmetric cube blocks).
+	_ghost.rotation_degrees.y = rotation_state.get_yaw_degrees()
 
 
 ## Enable/disable the controller (called on blueprint_mode_toggled).

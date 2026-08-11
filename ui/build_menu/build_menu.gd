@@ -34,15 +34,9 @@ func _on_button_pressed(id: String) -> void:
 	queue_free()
 
 
-## Called by the opener when the menu should close without a selection (Esc, B).
+## Called by the opener when the menu should close without a selection (B-toggle
+## from the menu state). Esc no longer closes it — it's reserved for the Pause
+## Menu (GDD §4 controls table, line 214), and B is owned by the Player.
 func close() -> void:
 	closed.emit()
 	queue_free()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	# Esc closes the menu without entering build mode. (B-toggle is handled by the
-	# opener, not here, so we don't double-handle.)
-	if event.is_action_pressed("ui_cancel"):
-		close()
-		get_viewport().set_input_as_handled()
