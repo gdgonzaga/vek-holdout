@@ -11,3 +11,4 @@ func execute(actor: Node, target: Node) -> void:
 	for entry in params.items:
 		var item_id := entry.item_def.resource_path.get_file().trim_suffix(".tres")
 		actor.add_item(item_id, entry.count)
+		GameLog.log("Received %d %s to %s" % [entry.count, item_id, actor.name])
