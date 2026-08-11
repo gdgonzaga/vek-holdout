@@ -24,6 +24,13 @@ signal recapture_requested()
 signal ui_cancel_pressed()
 
 
+# Wheel events are InputEventMouseButton with pressed == true; exclude them from
+# the click-to-recapture trigger so scrolling a visible-cursor UI (e.g. the build
+# menu) doesn't yank the cursor back into MOUSE_MODE_CAPTURED.
+const _WHEEL_BUTTONS := [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN,
+		MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("build_toggle"):
 		build_toggle_pressed.emit()
@@ -34,7 +41,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_released("interact"):
 		interact_released.emit()
 		return
-	if event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
+	if event is InputEventMouseButton and event.pressed \
+			and not event.button_index in _WHEEL_BUTTONS \
+			and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		recapture_requested.emit()
 		return
 	if event.is_action_pressed("ui_cancel"):
