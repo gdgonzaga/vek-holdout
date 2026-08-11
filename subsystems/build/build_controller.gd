@@ -58,8 +58,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# LMB = place (routed to the strategy), RMB = remove.
 	# Wheel = rotate 90° step, R = cycle rotation axis (GDD §4 controls table).
+	# In Deconstruct, LMB also removes — the mode is removal-only.
 	if event.is_action_pressed("build_place"):
-		_try_commit()
+		if BuildLibrary.is_deconstruct(selected_id):
+			_try_remove()
+		else:
+			_try_commit()
 	elif event.is_action_pressed("build_remove"):
 		_try_remove()
 	elif event.is_action_pressed("build_rotate_cw"):
@@ -80,6 +84,16 @@ func _physics_process(_delta: float) -> void:
 	var hit := grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
 	if not hit.get("hit", false):
 		_ghost.hide_()
+		return
+	if BuildLibrary.is_deconstruct(selected_id):
+		# The physics ray hits the target's collision directly (furniture has its
+		# own bodies), so the hit cell is itself the block cell or a furniture-
+		# occupied cell.
+		var struck: Vector3i = hit["position"]
+		if grid_adapter.get_block_at(struck) != "" or (furniture_layer != null and furniture_layer.has_at(struck)):
+			_ghost.show_remove_at(Vector3(struck))
+		else:
+			_ghost.hide_()
 		return
 	# Placement cell = the struck voxel + the face normal (the adjacent empty cell
 	# where a new block/furniture anchor would go).
@@ -147,7 +161,10 @@ func _on_build_placement_toggled(active: bool) -> void:
 
 func _on_buildable_selected(id: String) -> void:
 	selected_id = id
-	_set_ghost_mesh()
+	# Deconstruct has no def mesh; _physics_process drives show_remove_at (which
+	# resets the mesh itself) every frame.
+	if not BuildLibrary.is_deconstruct(id):
+		_set_ghost_mesh()
 
 
 func _set_ghost_mesh():
@@ -206,15 +223,14 @@ func _try_remove() -> void:
 	var hit := grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
 	if not hit.get("hit", false):
 		return
-	# Blocks occupy the struck voxel itself; furniture occupies the adjacent air
-	# cell (it has no collision body yet — removal targets the floor cell under
-	# it, consistent with placement). Try both so RMB works on either kind.
+	# The physics ray hits the target's collision directly (furniture has its own
+	# bodies, not just the floor beneath it), so the hit cell is itself the block
+	# cell or a furniture-occupied cell. Try block first, then furniture.
 	var struck: Vector3i = hit["position"]
 	if grid_adapter.get_block_at(struck) != "":
 		grid_adapter.remove_block_at(struck)
 		return
-	var adj: Vector3i = struck + hit["normal"]
-	if furniture_layer != null and furniture_layer.remove_at(adj):
+	if furniture_layer != null and furniture_layer.remove_at(struck):
 		return
 
 

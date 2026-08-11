@@ -12,6 +12,9 @@ const _COLOR_VALID := Color(0.2, 0.9, 0.3, 0.4)
 const _COLOR_INVALID := Color(0.9, 0.2, 0.2, 0.4)
 
 var _material: StandardMaterial3D
+# The unit-box mesh authored in build.tscn. Captured so show_remove_at() can
+# restore it after _set_ghost_mesh() swapped in a def's mesh for placement.
+var _default_mesh: Mesh
 
 
 func _ready() -> void:
@@ -21,6 +24,7 @@ func _ready() -> void:
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.albedo_color = _COLOR_VALID
 	material_override = _material
+	_default_mesh = mesh
 	hide()
 
 
@@ -30,6 +34,19 @@ func _ready() -> void:
 func show_at(world_pos: Vector3, valid: bool) -> void:
 	global_position = world_pos
 	set_valid(valid)
+	show()
+
+
+## Red unit-box preview on the cell a Deconstruct click would remove. Mirrors
+## the erase ghost in addons/voxel_paint/. world_pos is the cell corner, same
+## convention as show_at(); _default_mesh restores the unit box so a previously
+## selected buildable's mesh doesn't bleed through. The unit BoxMesh is centered
+## on its origin (unlike authored def meshes, which use the (0,0,0)->(1,1,1)
+## corner convention), so offset by half a cell to align it with the cell.
+func show_remove_at(world_pos: Vector3) -> void:
+	mesh = _default_mesh
+	global_position = world_pos + Vector3(0.5, 0.5, 0.5)
+	set_valid(false)
 	show()
 
 

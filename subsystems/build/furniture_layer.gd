@@ -126,13 +126,19 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	mesh_static_body.set_collision_layer_value(1, true)
 	mesh_static_body.collision_mask = 0
 	
-	var build_collider := root.get_node("BuildBody/BuildCollider") as CollisionObject3D
-	if build_collider != null:
+	# BuildCollider is a CollisionShape3D (a CollisionObject3D's child), NOT a
+	# CollisionObject3D — cast accordingly. Without this the cast returned null and
+	# the cell-aligned box below was never configured, leaving furniture with only
+	# the per-mesh trimesh (which doesn't fill footprint cells reliably). This box
+	# is what the build/deconstruct ray stops on, since that ray queries every
+	# collision layer and the box is sized exactly to the footprint.
+	var build_shape := root.get_node("BuildBody/BuildCollider") as CollisionShape3D
+	if build_shape != null:
 		var box := BoxShape3D.new()
 		box.size = Vector3(dims.x, dims.y, dims.z)
-		build_collider.shape = box
+		build_shape.shape = box
 		# Center the box in its footprint cells (root Y is the footprint bottom).
-		build_collider.position = Vector3(0, dims.y * 0.5, 0)
+		build_shape.position = Vector3(0, dims.y * 0.5, 0)
 		var build_body = root.get_node("BuildBody") as StaticBody3D
 		build_body.set_collision_layer_value(3, true)
 	

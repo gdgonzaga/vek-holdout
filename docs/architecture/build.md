@@ -106,6 +106,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 **Description:** Build-mode controller. Active only when Player.mode == BUILD_PLACEMENT. Owns cursor raycast (screen-center, player-body-excluded), rotation state, ghost preview, and commit routing. Delegates block commit to `InstantPlacementStrategy`, furniture commit to `FurnitureLayer`, and grid queries to `VoxelGridAdapter`.
 **Used by:** World (runtime wiring after player exists), EventBus (`build_placement_toggled`, `buildable_selected`).
 
+**Deconstruct tool:** the build menu appends a "Deconstruct" tool entry whose id is the `BuildLibrary.DECONSTRUCT_ID` sentinel (not a `BuildableDef`). When it is the selected id, `_unhandled_input` routes LMB to `_try_remove()` instead of `_try_commit()` (RMB still removes, so both buttons remove), and `_physics_process` drives a red unit-box ghost via `GhostPreview.show_remove_at()` on the removal target — the struck cell for both block and furniture, since the physics ray stops on the target's own collision bodies — mirroring the erase ghost in `addons/voxel_paint/`. `_on_buildable_selected` skips `_set_ghost_mesh()` for the sentinel (no def mesh to set).
+
 **Properties:**
 
 | Property | Type | Description |
@@ -116,7 +118,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `camera_path` | `NodePath` | `[export]` Path to the build camera; resolved in `_ready`, or via `set_camera()`. |
 | `exclude_bodies` | `Array[PhysicsBody3D]` | Bodies to skip in the cursor raycast (the player capsule). Add via `add_exclude_body()`. |
 | `rotation_state` | `RotationState` | Current axis + 90° step. |
-| `selected_id` | `String` | The currently selected buildable id. Set by `EventBus.buildable_selected`; drives ghost mesh + commit routing. |
+| `selected_id` | `String` | The currently selected buildable id, or `BuildLibrary.DECONSTRUCT_ID` for the Deconstruct tool. Set by `EventBus.buildable_selected`; drives ghost mesh + commit routing (and LMB-remove when it's the deconstruct sentinel). |
 
 **Functions:**
 

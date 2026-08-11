@@ -16,6 +16,16 @@ const _DIR_BLOCKS := "res://data/blocks/"
 const _DIR_BUILDABLES := "res://data/buildables/"
 const _DIR_FURNITURE := "res://data/furniture/"
 
+## Sentinel id for the Deconstruct tool entry. It is not a BuildableDef (no mesh,
+## cost, or placeable target) — selecting it routes LMB to removal instead of
+## placement. get_def() returns null for it, so existing lookups fail safe.
+const DECONSTRUCT_ID := "__deconstruct__"
+
+
+## True for the Deconstruct tool id. Static so callers don't need an instance.
+static func is_deconstruct(id: String) -> bool:
+	return id == DECONSTRUCT_ID
+
 var _defs_by_id: Dictionary = {}   # id (String) -> BuildableDef
 
 
