@@ -72,12 +72,13 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 
 ## `data/buildables/<id>.tres` (Resource: `buildable_def.gd`)
 
-Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`). Also the parent class of `BlockDef` and `FurnitureDef`, which is where `id` / `display_name` / `hp` / `mesh` / `material_cost` / `unlocked_by_default` are inherited from.
+Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`). Also the parent class of `BlockDef` and `FurnitureDef`, which is where `id` / `display_name` / `icon` / `hp` / `mesh` / `material_cost` / `unlocked_by_default` are inherited from.
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | `String` | Unique buildable id (e.g. `"pole"`, `"workbench"`, `"wood"`). Catalog key for `BuildLibrary`. |
 | `display_name` | `String` | UI label. `Furniture.label` exposes this to the interaction menu via a getter. |
+| `icon` | `Texture2D` | UI icon for the build menu (nullable; entries render without it). Inherited by `BlockDef` and `FurnitureDef`. |
 | `hp` | `int` | Durability-before-HP buffer (GDD §6.11). |
 | `mesh` | `Mesh` | Preview/placement mesh; for voxel blocks MUST occupy `(0,0,0)→(1,1,1)`. |
 | `material_cost` | `Dictionary` | `{resource_id: count}` (e.g. `{"wood": 3}`). Consumed at placement (deferred). |

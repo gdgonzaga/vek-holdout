@@ -124,6 +124,7 @@ func open_build_menu() -> void:
 	# no-selection dismissal is handled locally.
 	menu.closed.connect(_on_build_menu_closed)
 	_build_menu = menu
+	EventBus.build_menu_toggled.emit(true)
 
 
 func _on_buildable_selected(_id: String) -> void:
@@ -132,6 +133,7 @@ func _on_buildable_selected(_id: String) -> void:
 	# The menu frees itself on selection without emitting closed(), so clear the
 	# tracked ref here.
 	_build_menu = null
+	EventBus.build_menu_toggled.emit(false)
 	mode = Mode.BLUEPRINT
 	EventBus.blueprint_mode_toggled.emit(true)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -141,6 +143,7 @@ func _on_build_menu_closed() -> void:
 	# Menu closed without a selection (B-toggle from menu, or menu freed). Clear
 	# the tracked ref and recapture the mouse.
 	_build_menu = null
+	EventBus.build_menu_toggled.emit(false)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 

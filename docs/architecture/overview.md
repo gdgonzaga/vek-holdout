@@ -138,6 +138,7 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 | `player_died(context: String)` | combat subsystem | GameState, HUD | Player HP hit 0 (respawn handling) |
 | `game_over()` | GameState | SceneManager | All colonists + player dead; load Game Over scene |
 | `blueprint_mode_toggled(active: bool)` | player subsystem | BuildController, HUD | Mode layer change |
+| `build_menu_toggled(open: bool)` | player subsystem | HUD | Build menu visibility — drives the HUD's Instructions label for the menu state |
 | `buildable_selected(id: String)` | player subsystem | BuildController | Player selected a buildable in the build menu (sets the controller's `selected_id`) |
 | `furniture_placed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture placed in world — increments the relevant Functional Rooms counter; GameLog posts a "Built <def_id>" line |
 | `furniture_removed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture removed from world — decrements the relevant Functional Rooms counter; GameLog posts a "Removed <def_id>" line |

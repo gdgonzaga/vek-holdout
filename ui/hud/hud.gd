@@ -12,8 +12,11 @@ extends Control
 ##   - Long press (≥ 0.3s): opens the full action menu.
 
 const _HOLD_THRESHOLD := 0.3
+const _PLACEMENT_TEXT := "LMB: place    RMB: remove\nWheel: rotate    R: cycle axis\nB: back"
+const _MENU_TEXT := "Click an item to place\nB: cancel"
 
 @onready var _crosshair: TextureRect = $Crosshair
+@onready var _instructions: Label = $Instructions
 @onready var _interact_display: Control = $InteractLabel
 @onready var _inventory_panel: PanelContainer = $InventoryPanel
 @onready var _weight_label: Label = $InventoryPanel/VBox/Header/WeightLabel
@@ -58,10 +61,21 @@ func _wire_signals() -> void:
 	# Blueprint mode toggles the crosshair (overview.md expects this listener):
 	# the build ghost replaces the crosshair while placing an item.
 	EventBus.blueprint_mode_toggled.connect(_on_blueprint_mode_toggled)
+	# Build menu visibility drives the Instructions label for the menu state.
+	EventBus.build_menu_toggled.connect(_on_build_menu_toggled)
 
 
 func _on_blueprint_mode_toggled(active: bool) -> void:
 	_crosshair.visible = not active
+	if active:
+		_instructions.text = _PLACEMENT_TEXT
+	_instructions.visible = active
+
+
+func _on_build_menu_toggled(open: bool) -> void:
+	if open:
+		_instructions.text = _MENU_TEXT
+	_instructions.visible = open
 
 
 func _on_interactable_changed(component: InteractionComponent) -> void:

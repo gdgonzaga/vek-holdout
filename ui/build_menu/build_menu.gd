@@ -1,32 +1,41 @@
 class_name BuildMenu
 extends Control
-## Build-mode selection menu (ARCH "Build" subsystem; first UI scene).
-## Lists every unlocked buildable (display name only — no icons yet). Clicking
-## one broadcasts EventBus.buildable_selected(id) so BuildController sets its
-## selected_id and Player enters Blueprint mode. Only the no-selection dismissal
-## (closed) stays as a local signal — the opener wires it.
+## Build-mode selection menu (ARCH "Build" subsystem).
+## Lists every unlocked buildable as an entry row (build_menu_entry.tscn) — icon
+## + display name. Clicking one broadcasts EventBus.buildable_selected(id) so
+## BuildController sets its selected_id and Player enters Blueprint mode. Only
+## the no-selection dismissal (closed) stays as a local signal — the opener
+## wires it.
 ##
 ## The container skeleton is authored in build_menu.tscn (ARCH line 135: UI is
-## .tscn, not built dynamically); the per-buildable buttons are created in code
-## in populate().
+## .tscn, not built dynamically); the per-buildable entries are instanced in
+## populate(). Each entry is itself a scene so its layout (icon size, label
+## font, spacing, future cost/category fields) is editor-tunable.
 
 signal closed()
 
-@onready var _list: VBoxContainer = $Panel/List
+const _EntryScene := preload("res://ui/build_menu/build_menu_entry.tscn")
+
+@onready var _list: VBoxContainer = $Panel/VBox/ScrollContainer/List
+@onready var _close_button: Button = $Panel/VBox/Header/CloseButton
 
 
-## Read BuildLibrary and fill the list with one button per unlocked buildable.
+func _ready() -> void:
+	_close_button.pressed.connect(close)
+
+
+## Read BuildLibrary and fill the list with one entry per unlocked buildable.
 func populate() -> void:
 	for child in _list.get_children():
 		child.queue_free()
 	for def in BuildLibrary.get_unlocked():
-		var btn := Button.new()
-		btn.text = def.display_name
-		btn.pressed.connect(_on_button_pressed.bind(def.id))
-		_list.add_child(btn)
+		var entry: BuildMenuEntry = _EntryScene.instantiate()
+		_list.add_child(entry)
+		entry.setup(def)
+		entry.pressed_id.connect(_on_entry_pressed)
 
 
-func _on_button_pressed(id: String) -> void:
+func _on_entry_pressed(id: String) -> void:
 	# Broadcast the selection globally. BuildController listens and sets its
 	# selected_id; Player listens and enters Blueprint mode. This menu stays
 	# otherwise EventBus-agnostic — closed() (no-selection dismissal) stays local.

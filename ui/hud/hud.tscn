@@ -28,6 +28,24 @@ texture = ExtResource("2_cross")
 expand_mode = 1
 stretch_mode = 5
 
+[node name="Instructions" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -180.0
+offset_top = -90.0
+offset_right = 180.0
+grow_horizontal = 2
+grow_vertical = 1
+text = "LMB: place    RMB: remove
+Wheel: rotate    R: cycle axis
+B: back"
+horizontal_alignment = 1
+vertical_alignment = 3
+
 [node name="InteractLabel" parent="." instance=ExtResource("3_interact")]
 
 [node name="InventoryPanel" type="PanelContainer" parent="."]

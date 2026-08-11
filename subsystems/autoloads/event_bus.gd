@@ -32,6 +32,7 @@ signal game_over()                                # GameState -> SceneManager
 
 # --- Player / build / inventory ---
 signal blueprint_mode_toggled(active: bool)       # player -> BuildController, HUD
+signal build_menu_toggled(open: bool)             # player -> HUD (build menu visibility for the Instructions label)
 signal buildable_selected(id: String)             # player -> BuildController (sets selected_id)
 signal furniture_placed(def_id: String, anchor: Vector3i)  # FurnitureLayer -> Colony (Functional Rooms, later)
 signal furniture_removed(def_id: String, anchor: Vector3i) # FurnitureLayer -> Colony

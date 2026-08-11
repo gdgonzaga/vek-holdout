@@ -25,6 +25,7 @@ class_name BuildableDef
 
 @export var id: String                             # e.g. "wood", "wall_stone", "workbench"
 @export var display_name: String                   # UI label
+@export var icon: Texture2D = null                 # UI icon for the build menu (nullable; entry renders without it)
 @export var hp: int                                # Durability-before-HP buffer (GDD §6.11)
 @export var mesh: Mesh                             # Preview/placement mesh; voxel blocks MUST occupy (0,0,0)->(1,1,1)
 @export var texture: Texture2D                     # Albedo texture; BlockLibrary builds a StandardMaterial3D from this

@@ -1,28 +1,53 @@
-[gd_scene format=3 uid="uid://ccqgqitl6tvnj"]
+[gd_scene format=3 uid="uid://dcgffm5dxfdhn"]
 
 [ext_resource type="Script" uid="uid://8jrylj0btg0v" path="res://ui/build_menu/build_menu.gd" id="1_menu"]
 
-[node name="BuildMenu" type="Control" unique_id=1346548001]
+[node name="BuildMenu" type="Control" unique_id=1709897319]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1_menu")
 
-[node name="Panel" type="PanelContainer" parent="." unique_id=1222623915]
-layout_mode = 0
+[node name="Panel" type="PanelContainer" parent="." unique_id=1120186931]
+layout_mode = 1
+anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -120.0
-offset_top = -150.0
-offset_right = 120.0
-offset_bottom = 150.0
+offset_left = -140.0
+offset_top = -220.0
+offset_right = 140.0
+offset_bottom = 220.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="List" type="VBoxContainer" parent="Panel" unique_id=1449394400]
+[node name="VBox" type="VBoxContainer" parent="Panel" unique_id=501894965]
 layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="Panel/VBox" unique_id=570246246]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Panel/VBox/Header" unique_id=240920013]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Build menu.
+B: exit"
+
+[node name="CloseButton" type="Button" parent="Panel/VBox/Header" unique_id=228745033]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+text = "x"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/VBox" unique_id=883508408]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="List" type="VBoxContainer" parent="Panel/VBox/ScrollContainer" unique_id=1414058108]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4

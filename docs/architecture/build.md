@@ -26,6 +26,8 @@ The def's shape drives routing everywhere: `BuildController._is_furniture(id)` i
 | `../data/blocks/` | Data | `BlockDef` per block type (wood, scrap, stone, metal, reinforced, terrain). See [Data Schemas](data-schemas.md). |
 | `../data/buildables/` | Data | Plain `BuildableDef` (player-placed objects not on the voxel grid — e.g. `pole`). |
 | `../data/furniture/` | Data | `FurnitureDef` per furniture type (workbench, etc.); adds `dimensions: Vector3i` + `action_options: Array[ActionOption]`. Partial (C1) — see [Actions & Interaction](actions.md). |
+| `../../ui/build_menu/build_menu.tscn` | Scene | The build menu: titled scrollable list of unlocked buildables. `BuildMenu.populate()` instances one `build_menu_entry.tscn` per def; clicking an entry emits `EventBus.buildable_selected(id)`. |
+| `../../ui/build_menu/build_menu_entry.tscn` | Scene | One menu row: `Button` (whole-row click target) holding an `HBox` with a `TextureRect` (icon) + `Label` (display name). `setup(def)` hides the icon node when `def.icon == null`. Layout is .tscn-authored so icon size, spacing, and future cost/category fields are editor-tunable. |
 
 ## Signals
 
@@ -34,6 +36,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
 | `blueprint_mode_toggled(active)` | player subsystem | `BuildController` (activates/deactivates) | Yes | Enter/Exit Blueprint Mode |
+| `build_menu_toggled(open)` | player subsystem | HUD (Instructions label) | Yes | Build menu visibility |
 | `buildable_selected(id)` | player subsystem (from build menu) | `BuildController` (sets `selected_id` + ghost mesh) | Yes | Select a Buildable |
 | `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
 | `furniture_placed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter) | Yes | Place Furniture |
