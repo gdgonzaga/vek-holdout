@@ -90,8 +90,17 @@ func _physics_process(_delta: float) -> void:
 		# own bodies), so the hit cell is itself the block cell or a furniture-
 		# occupied cell.
 		var struck: Vector3i = hit["position"]
-		if grid_adapter.get_block_at(struck) != "" or (furniture_layer != null and furniture_layer.has_at(struck)):
+		if grid_adapter.get_block_at(struck) != "":
+			# Block: red unit box on the struck cell.
 			_ghost.show_remove_at(Vector3(struck))
+		elif furniture_layer != null and furniture_layer.has_at(struck):
+			# Furniture: red overlay of the targeted piece's own mesh, using its
+			# placed transform so it sits exactly on the real furniture.
+			var furn: Furniture = furniture_layer.get_furniture_at(struck)
+			if furn != null and furn.def != null and furn.def.mesh != null:
+				_ghost.show_remove_mesh_at(furn.global_position, furn.def.mesh, furn.rotation_degrees.y)
+			else:
+				_ghost.show_remove_at(Vector3(struck))
 		else:
 			_ghost.hide_()
 		return

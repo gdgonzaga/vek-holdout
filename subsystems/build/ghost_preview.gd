@@ -46,6 +46,19 @@ func show_at(world_pos: Vector3, valid: bool) -> void:
 func show_remove_at(world_pos: Vector3) -> void:
 	mesh = _default_mesh
 	global_position = world_pos + Vector3(0.5, 0.5, 0.5)
+	rotation_degrees.y = 0.0
+	set_valid(false)
+	show()
+
+
+## Red preview of a specific mesh (e.g. the targeted furniture's def mesh) at a
+## world position and yaw, overlaying the target a Deconstruct click would remove.
+## The red material_override tints whatever mesh is supplied, so callers just pass
+## the def mesh and the placed transform; matches the erase ghost in feel.
+func show_remove_mesh_at(world_pos: Vector3, mesh: Mesh, yaw_degrees: float) -> void:
+	self.mesh = mesh
+	global_position = world_pos
+	rotation_degrees.y = yaw_degrees
 	set_valid(false)
 	show()
 

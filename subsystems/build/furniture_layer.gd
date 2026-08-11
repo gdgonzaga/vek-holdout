@@ -189,3 +189,13 @@ func remove_at(cell: Vector3i) -> bool:
 
 func has_at(cell: Vector3i) -> bool:
 	return _anchor_by_cell.has(cell)
+
+
+## The Furniture instance covering `cell` (any covered cell resolves to its root
+## node), or null. Used by the deconstruct ghost to overlay the targeted piece's
+## own mesh + transform.
+func get_furniture_at(cell: Vector3i) -> Furniture:
+	var anchor: Variant = _anchor_by_cell.get(cell)
+	if anchor == null:
+		return null
+	return _node_by_anchor.get(anchor)
