@@ -39,14 +39,14 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Pause toggle. UI nodes keep PROCESS_MODE_ALWAYS so the pause menu (when it
-	# lands) still works; the MapRoot + children get disabled by GameState.
+	# Esc: close whatever screen is open (pause menu, world map, log history);
+	# otherwise open the pause menu. The pause menu owns pause + cursor state via
+	# its lifecycle, so we don't touch GameState/Input from here.
 	if event.is_action_pressed("ui_cancel"):
-		# Close screen if one is open, otherwise toggle pause.
 		if SceneManager.is_screen_open():
 			SceneManager.close_screen()
 			return
-		GameState.set_paused(not GameState.paused)
+		SceneManager.open_screen("pause_menu")
 	elif event.is_action_pressed("world_map"):
 		if SceneManager.is_screen_open():
 			SceneManager.close_screen()
