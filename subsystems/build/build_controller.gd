@@ -1,7 +1,7 @@
 class_name BuildController
 extends Node3D
 ## Build-mode controller (ARCH "Class: BuildController", lines 478-491).
-## Active only when Player.mode == BLUEPRINT. Owns the cursor raycast, ghost
+## Active only when Player.mode == BUILD_PLACEMENT. Owns the cursor raycast, ghost
 ## preview, rotation state, and commit. Routes commit by kind:
 ##   - BlockDef        -> InstantPlacementStrategy -> VoxelGridAdapter (voxel).
 ##   - everything else -> FurnitureLayer (free-standing Node3D under
@@ -25,7 +25,7 @@ const DEBUG_RAYCAST := true
 var grid_adapter: VoxelGridAdapter
 var strategy: InstantPlacementStrategy
 var furniture_layer: FurnitureLayer
-@export var camera_path: NodePath = ^""   # set in scene or via set_camera()
+@export var camera_path: NodePath = ^"" # set in scene or via set_camera()
 
 var rotation_state := RotationState.new()
 
@@ -46,7 +46,7 @@ func _ready() -> void:
 	if camera_path != ^"" and has_node(camera_path):
 		_camera = get_node(camera_path)
 	# Blueprint mode is global; listen for the toggle (ARCH Player flow, line 388).
-	EventBus.blueprint_mode_toggled.connect(_on_blueprint_mode_toggled)
+	EventBus.build_placement_toggled.connect(_on_build_placement_toggled)
 	# Selected buildable arrives the same way — Player relays it from the build menu.
 	EventBus.buildable_selected.connect(_on_buildable_selected)
 	# Start inactive (NORMAL mode). Ghost is hidden in its own _ready.
@@ -106,7 +106,7 @@ func _physics_process(_delta: float) -> void:
 	_ghost.rotation_degrees.y = rotation_state.get_yaw_degrees()
 
 
-## Enable/disable the controller (called on blueprint_mode_toggled).
+## Enable/disable the controller (called on build_placement_toggled).
 func set_active(active: bool) -> void:
 	_active = active
 	_update_activation()
@@ -141,7 +141,7 @@ func _update_activation() -> void:
 		_ghost.hide_()
 
 
-func _on_blueprint_mode_toggled(active: bool) -> void:
+func _on_build_placement_toggled(active: bool) -> void:
 	set_active(active)
 
 

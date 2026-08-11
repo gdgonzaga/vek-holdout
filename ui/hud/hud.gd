@@ -60,12 +60,12 @@ func _wire_signals() -> void:
 		_input_component.interact_released.connect(_on_interact_released)
 	# Blueprint mode toggles the crosshair (overview.md expects this listener):
 	# the build ghost replaces the crosshair while placing an item.
-	EventBus.blueprint_mode_toggled.connect(_on_blueprint_mode_toggled)
+	EventBus.build_placement_toggled.connect(_on_build_placement_toggled)
 	# Build menu visibility drives the Instructions label for the menu state.
 	EventBus.build_menu_toggled.connect(_on_build_menu_toggled)
 
 
-func _on_blueprint_mode_toggled(active: bool) -> void:
+func _on_build_placement_toggled(active: bool) -> void:
 	_crosshair.visible = not active
 	if active:
 		_instructions.text = _PLACEMENT_TEXT

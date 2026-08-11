@@ -35,8 +35,7 @@ layout_mode = 2
 [node name="TitleLabel" type="Label" parent="Panel/VBox/Header" unique_id=240920013]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Build menu.
-B: exit"
+text = "Build menu."
 
 [node name="CloseButton" type="Button" parent="Panel/VBox/Header" unique_id=228745033]
 custom_minimum_size = Vector2(32, 32)

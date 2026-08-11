@@ -9,14 +9,14 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `player.tscn` / `player.gd` | Scene/Script | CharacterBody3D + camera rig. Owns movement physics (WASD + sprint + jump with mid-air momentum preservation), inline Mode+State enums, build menu interaction (opens `build_menu.tscn` on a CanvasLayer), blueprint mode entry via menu selection + B-driven navigation across three states (Normal → Menu → Placement). Exposes `get_camera()` for BuildController raycasts. Does NOT own raw input reading (delegates to InputComponent), combat resolution (delegates to Combat), or build UX (delegates to Build when in Blueprint mode). **TODO:** source movement stats from CharacterDef instead of `@export` vars. |
 | `input_component.gd` | Script (Node) | Child node on the Player. Reads all raw player input and exposes it via signals (discrete actions: build toggle, interact, mouse recapture, ui cancel) and per-frame query methods (`get_movement_input()`, `wants_jump()`, `wants_sprint()`). Does NOT own mouse-motion (CameraRig handles that) or mouse-mode management (Player owns that as a game-state concern). |
 | `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). LMB/RMB reserved for item actions, not consumed here. |
-| `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Blueprint × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
+| `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Build Menu/Build Placement × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
 | `../data/characters/player.tres` | Data | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See [Data Schemas](data-schemas.md). |
 
 ## Signals
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `blueprint_mode_toggled(active)` | `player.gd` | BuildController, HUD | Yes | Enter Blueprint Mode |
+| `build_placement_toggled(active)` | `player.gd` | BuildController, HUD | Yes | Enter Build Placement |
 | `build_menu_toggled(open)` | `player.gd` | HUD (Instructions label) | Yes | Build menu visibility |
 | `player_died(context)` | `player.gd` *(planned — not yet emitted)* | GameState, HUD | Yes | Player Death / Respawn |
 
@@ -27,12 +27,12 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 **Trigger:** Player presses `build_toggle` (B). B is the single navigation key across the three blueprint states (GDD §4 controls table, line 202: "Toggle Blueprint mode — B"). Esc no longer participates in blueprint navigation — it is reserved for the future Pause Menu (GDD line 214).
 
 1. `InputComponent._unhandled_input` catches `build_toggle` → emits `build_toggle_pressed`.
-2. `player.gd._on_build_toggle` (connected in `_ready`) routes by current state:
-   - **Normal** → calls `open_build_menu()`: instantiates `res://ui/build_menu/build_menu.tscn` on a CanvasLayer (in `"ui_layer"` group, or a new one); releases cursor; tracks the menu in `_build_menu`; emits `build_menu_toggled(true)`.
-   - **Menu open** (`_build_menu != null`) → calls `_build_menu.close()`: menu emits `closed` → `_on_build_menu_closed` clears `_build_menu`, emits `build_menu_toggled(false)`, and re-captures the mouse; mode stays `NORMAL`.
-   - **Placement** (`mode == BLUEPRINT`) → calls `exit_blueprint_mode()` (sets `mode = NORMAL`, emits `blueprint_mode_toggled(false)`), then `open_build_menu()` to return to item selection (which emits `build_menu_toggled(true)`).
-3. Player selects a buildable from the menu → menu emits `EventBus.buildable_selected(id)` and frees itself → `player.gd._on_buildable_selected(id)`: clears `_build_menu`; emits `build_menu_toggled(false)`; sets `mode = BLUEPRINT`; emits `blueprint_mode_toggled(true)` via EventBus; re-captures mouse.
-4. HUD listens to both signals to drive its **Instructions** label. Each handler sets text + visibility directly: `blueprint_mode_toggled(true)` shows the placement controls text and hides the crosshair; `build_menu_toggled(true)` shows the menu text ("Click an item to place · B: cancel"). Both emit synchronously across a state change, and the entering-state handler's write lands last (e.g. Menu→Placement: menu handler hides the label, then placement handler shows it with placement text — same frame, no flicker). On exit, both handlers set `_instructions.visible = false`.
+2. `player.gd._on_build_key_pressed` (connected to InputComponent's `build_toggle_pressed`) routes by `mode`:
+   - **Normal** → calls `open_build_menu()`: instantiates `res://ui/build_menu/build_menu.tscn` on a CanvasLayer; releases cursor; sets `mode = BUILD_MENU`; tracks the menu in `_build_menu`; emits `build_menu_toggled(true)`.
+   - **Build Menu** (`mode == BUILD_MENU`) → calls `_build_menu.close()`: menu emits `closed` → `_on_build_menu_closed` clears `_build_menu`, emits `build_menu_toggled(false)`, re-captures the mouse, and sets `mode = NORMAL`.
+   - **Placement** (`mode == BUILD_PLACEMENT`) → calls `_exit_build_placement_mode()` (sets `mode = BUILD_MENU`, emits `build_placement_toggled(false)`), then `open_build_menu()` to return to item selection (which emits `build_menu_toggled(true)`).
+3. Player selects a buildable from the menu → menu emits `EventBus.buildable_selected(id)` and frees itself → `player.gd._on_buildable_selected(id)`: clears `_build_menu`; emits `build_menu_toggled(false)`; sets `mode = BUILD_PLACEMENT`; emits `build_placement_toggled(true)` via EventBus; re-captures mouse.
+4. HUD listens to both signals to drive its **Instructions** label. Each handler sets text + visibility directly: `build_placement_toggled(true)` shows the placement controls text and hides the crosshair; `build_menu_toggled(true)` shows the menu text ("Click an item to place · B: cancel"). Both emit synchronously across a state change, and the entering-state handler's write lands last (e.g. Menu→Placement: menu handler hides the label, then placement handler shows it with placement text — same frame, no flicker). On exit, both handlers set `_instructions.visible = false`.
 5. BuildController activates; routes LMB (place) / RMB (remove) / mouse wheel (rotate step) / R (cycle axis) to placement + rotation.
 6. Movement states still apply (player can walk while building).
 
@@ -96,7 +96,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `gravity` | `float` | `[export default 9.8]` Gravity acceleration. |
 | `jump_force` | `float` | `[export default 5.0]` Vertical impulse on jump. |
 | `jump_move_speed` | `float` | `[export default 0.5]` Mid-air nudge speed for axis braking. |
-| `mode` | `Mode` enum | `NORMAL` or `BLUEPRINT`. |
+| `mode` | `Mode` enum | `NORMAL`, `BUILD_MENU`, or `BUILD_PLACEMENT`. |
 | `state` | `State` enum | Movement/action state (`IDLE`, `WALK`, `SPRINT`, `ATTACK`, `INTERACT`, `SLEEP`, `DEAD`). Only `IDLE`/`WALK`/`SPRINT` are actively assigned at runtime; the rest are placeholders. |
 | `interact_distance` | `float` | `[export default 8.0]` Max range for the interaction crosshair raycast. |
 | `_current_interactable` | `InteractionComponent` | The component currently under the crosshair (or `null`). Refreshed every tick by `_update_interaction_target`. |
@@ -110,11 +110,11 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | Function | Description |
 |---|---|
 | `get_camera() -> Camera3D` | Public accessor; delegates to CameraRig. Used by BuildController for screen-center raycasts. |
-| `exit_blueprint_mode() -> void` | One-way exit: sets `mode = NORMAL`; emits `blueprint_mode_toggled(false)`. Called by `_on_build_toggle` when leaving placement for the menu. |
-| `open_build_menu() -> void` | Instantiates `build_menu.tscn` on a CanvasLayer; releases cursor; tracks the menu in `_build_menu`; emits `build_menu_toggled(true)`. No-op if a menu is already open. Called by `_on_build_toggle` from Normal or Placement. |
-| `_on_build_toggle() -> void` | B-key state router (connected to InputComponent's `build_toggle_pressed`): Normal → open menu; menu open → close menu; Placement → exit + reopen menu. |
-| `_on_buildable_selected(id: String) -> void` | Enters Blueprint mode on menu selection: clears `_build_menu`; emits `build_menu_toggled(false)`; sets `mode = BLUEPRINT`; emits `blueprint_mode_toggled(true)`. |
-| `_on_build_menu_closed() -> void` | Menu dismissed without a selection: clears `_build_menu`; emits `build_menu_toggled(false)`; re-captures the mouse. |
+| `_exit_build_placement_mode() -> void` | Placement→menu transition: sets `mode = BUILD_MENU`; emits `build_placement_toggled(false)`. Called by `_on_build_key_pressed` from the placement branch (B to drop the selected buildable and return to item selection). |
+| `open_build_menu() -> void` | Instantiates `build_menu.tscn` on a CanvasLayer; releases cursor; sets `mode = BUILD_MENU`; tracks the menu in `_build_menu`; emits `build_menu_toggled(true)`. No-op if a menu is already open. Called by `_on_build_key_pressed` from Normal or Placement. |
+| `_on_build_key_pressed() -> void` | B-key state router (connected to InputComponent's `build_toggle_pressed`): Normal → open menu; Build Menu → close menu; Placement → exit placement + reopen menu. |
+| `_on_buildable_selected(id: String) -> void` | Enters placement on menu selection: clears `_build_menu`; emits `build_menu_toggled(false)`; sets `mode = BUILD_PLACEMENT`; emits `build_placement_toggled(true)`. |
+| `_on_build_menu_closed() -> void` | Menu dismissed without a selection: clears `_build_menu`; emits `build_menu_toggled(false)`; re-captures the mouse; sets `mode = NORMAL`. |
 | `_try_interact() -> void` | E-key handler (connected to InputComponent's `interact_pressed` signal): calls `_current_interactable.interact(self)` if a target is cached and offers actions. |
 | `_recapture_mouse() -> void` | Sets `Input.mouse_mode = CAPTURED`. Connected to InputComponent's `recapture_requested` signal (click-to-recapture after alt-tab). |
 | `_on_ui_cancel() -> void` | Esc handler (connected to InputComponent's `ui_cancel_pressed`). No-op for blueprint — Esc is reserved for the future Pause Menu (GDD line 214). |

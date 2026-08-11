@@ -35,7 +35,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `blueprint_mode_toggled(active)` | player subsystem | `BuildController` (activates/deactivates) | Yes | Enter/Exit Blueprint Mode |
+| `build_placement_toggled(active)` | player subsystem | `BuildController` (activates/deactivates) | Yes | Enter/Exit Build Placement |
 | `build_menu_toggled(open)` | player subsystem | HUD (Instructions label) | Yes | Build menu visibility |
 | `buildable_selected(id)` | player subsystem (from build menu) | `BuildController` (sets `selected_id` + ghost mesh) | Yes | Select a Buildable |
 | `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
@@ -103,8 +103,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 **Extends:** Node3D
 **Script:** `build_controller.gd`
-**Description:** Build-mode controller. Active only when Player.mode == BLUEPRINT. Owns cursor raycast (screen-center, player-body-excluded), rotation state, ghost preview, and commit routing. Delegates block commit to `InstantPlacementStrategy`, furniture commit to `FurnitureLayer`, and grid queries to `VoxelGridAdapter`.
-**Used by:** World (runtime wiring after player exists), EventBus (`blueprint_mode_toggled`, `buildable_selected`).
+**Description:** Build-mode controller. Active only when Player.mode == BUILD_PLACEMENT. Owns cursor raycast (screen-center, player-body-excluded), rotation state, ghost preview, and commit routing. Delegates block commit to `InstantPlacementStrategy`, furniture commit to `FurnitureLayer`, and grid queries to `VoxelGridAdapter`.
+**Used by:** World (runtime wiring after player exists), EventBus (`build_placement_toggled`, `buildable_selected`).
 
 **Properties:**
 
@@ -122,7 +122,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 | Function | Description |
 |---|---|
-| `set_active(active: bool) -> void` | Activates/deactivates the controller (called on `blueprint_mode_toggled`); shows/hides the ghost. |
+| `set_active(active: bool) -> void` | Activates/deactivates the controller (called on `build_placement_toggled`); shows/hides the ghost. |
 | `set_camera(camera: Camera3D) -> void` | Runtime camera wiring (controller is a sibling of the player; can't use a relative path). |
 | `add_exclude_body(body: PhysicsBody3D) -> void` | Adds a body to the raycast exclusion list. |
 

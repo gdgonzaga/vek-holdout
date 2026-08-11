@@ -11,8 +11,8 @@ extends CharacterBody3D
 ## data/characters/player.tres instead of these exports (ARCH: no hardcoded
 ## content values). Exported for now so they're editor-tunable.
 
-enum Mode { NORMAL, BLUEPRINT }
-enum State { IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD }
+enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT}
+enum State {IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD}
 
 @export var walk_speed := 3.5
 @export var sprint_speed := 7
@@ -67,8 +67,8 @@ func has_item(item_id: String, count: int) -> bool:
 func can_carry(item_id: String, count: int) -> bool:
 	return inventory.can_add(item_id, count)
 
-var _velocity_on_jump := Vector3.ZERO  # horizontal world-velocity frozen at jump (y=0)
-var _speed_on_jump := 0.0              # walk_speed or sprint_speed, frozen at takeoff
+var _velocity_on_jump := Vector3.ZERO # horizontal world-velocity frozen at jump (y=0)
+var _speed_on_jump := 0.0 # walk_speed or sprint_speed, frozen at takeoff
 var _is_sprinting_on_jump := false
 
 func _ready() -> void:
@@ -78,7 +78,7 @@ func _ready() -> void:
 	# to BuildController via the same signal — Player doesn't carry it.
 	EventBus.buildable_selected.connect(_on_buildable_selected)
 	# Wire discrete input actions from the InputComponent child.
-	_input.build_toggle_pressed.connect(_on_build_toggle)
+	_input.build_toggle_pressed.connect(_on_build_key_pressed)
 	_input.recapture_requested.connect(_recapture_mouse)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
 
@@ -88,14 +88,14 @@ func _ready() -> void:
 ##   - Normal        -> open the build menu
 ##   - Menu open     -> close the menu, back to Normal
 ##   - Placement     -> leave placement, reopen the build menu
-func _on_build_toggle() -> void:
-	if mode == Mode.BLUEPRINT:
+func _on_build_key_pressed() -> void:
+	if mode == Mode.BUILD_PLACEMENT:
 		# Placement -> menu. Drop the selected buildable and reopen the menu.
-		exit_blueprint_mode()
+		_exit_build_placement_mode()
 		open_build_menu()
-	elif _build_menu != null:
-		# Menu open -> normal. Menu closed() will recapture the mouse.
-		_build_menu.close()
+	elif mode == Mode.BUILD_MENU:
+		if _build_menu != null:
+			_build_menu.close()
 	else:
 		open_build_menu()
 
@@ -124,6 +124,7 @@ func open_build_menu() -> void:
 	# no-selection dismissal is handled locally.
 	menu.closed.connect(_on_build_menu_closed)
 	_build_menu = menu
+	mode = Mode.BUILD_MENU
 	EventBus.build_menu_toggled.emit(true)
 
 
@@ -134,9 +135,9 @@ func _on_buildable_selected(_id: String) -> void:
 	# tracked ref here.
 	_build_menu = null
 	EventBus.build_menu_toggled.emit(false)
-	mode = Mode.BLUEPRINT
-	EventBus.blueprint_mode_toggled.emit(true)
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	mode = Mode.BUILD_PLACEMENT
+	EventBus.build_placement_toggled.emit(true)
+	_recapture_mouse()
 
 
 func _on_build_menu_closed() -> void:
@@ -144,7 +145,8 @@ func _on_build_menu_closed() -> void:
 	# the tracked ref and recapture the mouse.
 	_build_menu = null
 	EventBus.build_menu_toggled.emit(false)
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_recapture_mouse()
+	mode = Mode.NORMAL
 
 
 func _recapture_mouse() -> void:
@@ -159,9 +161,9 @@ func _on_ui_cancel() -> void:
 
 ## Exit Blueprint mode (e.g. when the player wants to stop building). Re-entering
 ## is via the build menu (B).
-func exit_blueprint_mode() -> void:
-	mode = Mode.NORMAL
-	EventBus.blueprint_mode_toggled.emit(false)
+func _exit_build_placement_mode() -> void:
+	mode = Mode.BUILD_MENU
+	EventBus.build_placement_toggled.emit(false)
 
 
 ## Execute the first action option immediately (quick-tap E).
@@ -269,13 +271,13 @@ func _handle_move_keys(delta: float) -> void:
 
 		# Resolve each axis to a signed scalar (positive = cam_fwd / cam_right).
 		var fwd := _resolve_air_axis(
-			air_input.y > 0.0,   # backward component
-			air_input.y < 0.0,   # forward component
+			air_input.y > 0.0, # backward component
+			air_input.y < 0.0, # forward component
 			_velocity_on_jump.dot(cam_fwd)
 		)
 		var strafe := _resolve_air_axis(
-			air_input.x < 0.0,   # left component
-			air_input.x > 0.0,   # right component
+			air_input.x < 0.0, # left component
+			air_input.x > 0.0, # right component
 			_velocity_on_jump.dot(cam_right)
 		)
 		wish = cam_fwd * fwd + cam_right * strafe
@@ -354,9 +356,9 @@ func _camera_relative_wish(input: Vector2) -> Vector3:
 ##   neither held              -> 0      (snap stop on this axis, no coasting)
 func _resolve_air_axis(neg_held: bool, pos_held: bool, momentum: float) -> float:
 	if neg_held and pos_held:
-		return 0.0                      # conflicting input cancels the axis
+		return 0.0 # conflicting input cancels the axis
 	if pos_held:
 		return momentum if momentum > 0.0 else jump_move_speed
 	if neg_held:
 		return momentum if momentum < 0.0 else -jump_move_speed
-	return 0.0                          # released -> axis stops dead
+	return 0.0 # released -> axis stops dead
