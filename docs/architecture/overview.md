@@ -102,6 +102,7 @@ Only scripts genuinely needed across multiple unrelated scenes. Solo project —
 |---|---|---|
 | **GameState** | `game_state.gd` | Run-level state: current day, time-of-day, save slot, pause state, current scene (base vs POI). Emits state-change signals (NOT through EventBus). |
 | **EventBus** | `event_bus.gd` | Global signal relay for cross-scene events only (see registry). |
+| **GameLog** | `game_log.gd` | Player-facing game log history (capped ring buffer of `LogEntry`). Auto-subscribes to EventBus signals (deaths, day rollover, expeditions, raids, furniture) so the feed is usable out of the box; gameplay code also calls `log()` directly. Emits `entry_added` consumed by the LogFeed HUD tail and LogHistory scrollback. See [Game Log](game-log.md) subsystem. |
 | **SceneManager** | `scene_manager.gd` | Load/unload the current Map with transitions; manage the full-screen UI layer; runtime SQLite stream redirect. |
 | **SaveSystem** | `save_system.gd` | Autosave on sleep/midnight/quit; load on Continue/New Game. |
 | **Colony** | `colony.gd` | The colony roster + Job Board. Cross-scene because base and POI scenes both need it (colonists stay in colony during expeditions). |
@@ -124,22 +125,22 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 
 | Signal | Emitted by | Listeners | Purpose |
 |---|---|---|---|
-| `run_started()` | New Game orchestrator | RunProgress seeders (BuildLibrary, etc.) | New Game reset complete; seeders re-add default unlocks to RunProgress (additive — safe to run repeatedly) |
-| `day_rolled_over(new_day: int)` | `time_system.gd` | `save_system.gd`, HUD, raids scheduler | Midnight crossed; triggers autosave + Day Summary prep |
+| `run_started()` | New Game orchestrator | RunProgress seeders (BuildLibrary, etc.), GameLog | New Game reset complete; seeders re-add default unlocks to RunProgress (additive — safe to run repeatedly); GameLog clears history |
+| `day_rolled_over(new_day: int)` | `time_system.gd` | `save_system.gd`, HUD, raids scheduler, GameLog | Midnight crossed; triggers autosave + Day Summary prep; GameLog posts a "Day N begins" line |
 | `raid_started(raid_data: Dictionary)` | raids subsystem | HUD, Colony (stance assignment), colonists | Begin raid sequence |
 | `raid_ended(outcome: Dictionary)` | raids subsystem | HUD, Colony, save_system | Raid resolved; unlock player control |
-| `expedition_started(crew: Array, poi_id: String)` | `ExpeditionManager` | Colony, colonists (SceneManager swap happens in `start_expedition` itself) | Travel to POI scene |
-| `expedition_ended(result: Dictionary)` | `ExpeditionManager` | Colony, HUD (SceneManager swap happens in `end_expedition` itself) | Return to base scene |
+| `expedition_started(crew: Array, poi_id: String)` | `ExpeditionManager` | Colony, colonists, GameLog (SceneManager swap happens in `start_expedition` itself) | Travel to POI scene |
+| `expedition_ended(result: Dictionary)` | `ExpeditionManager` | Colony, HUD, GameLog (SceneManager swap happens in `end_expedition` itself) | Return to base scene |
 | `map_loading(map_id: String)` | `SceneManager` (before instantiate) | HUD (loading screen, planned) | Map swap begins |
 | `map_loaded(map_id: String)` | `SceneManager` (after wiring) | world map UI, HUD, save_system | Map ready; actors wired, terrain streamed |
 | `map_unloading(map_id: String)` | `SceneManager` (before free) | save_system (autosave on leave, planned) | Current map about to be freed |
-| `colonist_died(colonist_id: String)` | combat subsystem | Colony, HUD, Memorial | Named colonist death; adds to memorial roster |
+| `colonist_died(colonist_id: String)` | combat subsystem | Colony, HUD, Memorial, GameLog | Named colonist death; adds to memorial roster |
 | `player_died(context: String)` | combat subsystem | GameState, HUD | Player HP hit 0 (respawn handling) |
 | `game_over()` | GameState | SceneManager | All colonists + player dead; load Game Over scene |
 | `blueprint_mode_toggled(active: bool)` | player subsystem | BuildController, HUD | Mode layer change |
 | `buildable_selected(id: String)` | player subsystem | BuildController | Player selected a buildable in the build menu (sets the controller's `selected_id`) |
-| `furniture_placed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms) | Furniture placed in world — increments the relevant Functional Rooms counter |
-| `furniture_removed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms) | Furniture removed from world — decrements the relevant Functional Rooms counter |
+| `furniture_placed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture placed in world — increments the relevant Functional Rooms counter; GameLog posts a "Built <def_id>" line |
+| `furniture_removed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture removed from world — decrements the relevant Functional Rooms counter; GameLog posts a "Removed <def_id>" line |
 | `item_picked_up(item_id: String, count: int)` | inventory subsystem | HUD (hotbar/inventory refresh) | Inventory changed while Player screen closed |
 | `job_logged(entry: Dictionary)` | colonists (Job Board) | UI (Job Log panel, when open) | Diagnostic feed for job failures |
 

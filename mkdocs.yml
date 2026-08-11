@@ -43,6 +43,7 @@ nav:
     - Inventory: inventory.md
     - Crafting: crafting.md
     - UI: ui.md
+    - "Game Log": game-log.md
     - "Debug Console": debug-console.md
   - Reference:
     - "Data Schemas": data-schemas.md

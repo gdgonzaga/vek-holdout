@@ -30,6 +30,9 @@ func _ready() -> void:
 	var hud: Control = preload("res://ui/hud/hud.tscn").instantiate()
 	_hud_layer.add_child(hud)
 	hud.setup(_player)
+	# Mount the persistent game-log tail on the HUDLayer.
+	var log_feed: Control = preload("res://ui/log_feed/log_feed.tscn").instantiate()
+	_hud_layer.add_child(log_feed)
 	# No map is loaded here — the Main Menu's New Game button drives the base
 	# load (see ui/main_menu/main_menu.gd). base_colony + POI discovery moved
 	# behind the menu so the menu gates gameplay.
@@ -49,3 +52,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			SceneManager.close_screen()
 		else:
 			SceneManager.open_screen("world_map")
+	elif event.is_action_pressed("log_history"):
+		if SceneManager.is_screen_open():
+			SceneManager.close_screen()
+		else:
+			SceneManager.open_screen("log_history")

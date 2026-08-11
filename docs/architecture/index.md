@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-08-09 (Interaction system + Actions chain + Furniture node class landed)
+Last updated: 2026-08-11 (Game Log subsystem landed)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
@@ -35,6 +35,7 @@ Last updated: 2026-08-09 (Interaction system + Actions chain + Furniture node cl
 | [Inventory](inventory.md) | Weight-based inventory, ItemDef, ItemDB autoload | §4.5, §7.3 |
 | [Crafting](crafting.md) | Recipes, Workbench/Forge, craft Jobs | §7.9 |
 | [UI](ui.md) | HUD + all full-screen screens | §12 |
+| [Game Log](game-log.md) | On-screen message feed, history buffer | §12 |
 | [Debug Console](debug-console.md) | Command registry, dev-only tools | §17 |
 
 ## Reference
