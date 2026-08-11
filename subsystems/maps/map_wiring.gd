@@ -13,9 +13,14 @@ extends RefCounted
 ## for a fresh process targeting an unloaded coordinate; see IMPLEMENTATION.md F3).
 
 
-## Wire BuildController deps (adapter -> grid, strategy -> adapter,
-## FurnitureLayer -> container). Returns the FurnitureLayer (or null if the map
-## has no BuildController or the wiring is incomplete).
+## Wire BuildController deps (adapter -> grid, FurnitureLayer -> container,
+## BlueprintLayer -> container/grid/furniture, strategy -> layers). Returns the
+## FurnitureLayer (or null if the map has no BuildController).
+##
+## Active strategy is BlueprintPlacementStrategy: LMB spawns a blueprint the
+## player completes by interacting (Build action) — the incremental step toward
+## blueprint-then-build (GDD §7.4). Flip to InstantPlacementStrategy (with
+## set_grid + set_furniture_layer) for the instant MVP/debug behavior.
 static func wire_build(map: Map) -> FurnitureLayer:
 	var ctrl := map.find_child("BuildController") as BuildController
 	if ctrl == null:
@@ -24,12 +29,20 @@ static func wire_build(map: Map) -> FurnitureLayer:
 	var adapter := VoxelGridAdapter.new()
 	adapter.set_grid(grid)
 	ctrl.grid_adapter = adapter
-	var strategy := InstantPlacementStrategy.new()
-	strategy.set_grid(adapter)
-	ctrl.strategy = strategy
 	var fl := FurnitureLayer.new()
 	fl.set_container(map.get_furniture_container())
 	ctrl.furniture_layer = fl
+	# Blueprint layer: sibling of FurnitureLayer; shares the container and the
+	# adapter/furniture deps so it can size to and materialize the target.
+	var bl := BlueprintLayer.new()
+	bl.set_container(map.get_furniture_container())
+	bl.set_grid(adapter)
+	bl.set_furniture_layer(fl)
+	ctrl.blueprint_layer = bl
+	# Strategy goes through the layers (ARCH flow trace: strategy -> layers).
+	var strategy := BlueprintPlacementStrategy.new()
+	strategy.set_blueprint_layer(bl)
+	ctrl.strategy = strategy
 	return fl
 
 
