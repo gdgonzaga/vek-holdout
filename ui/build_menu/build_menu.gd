@@ -15,6 +15,7 @@ extends Control
 signal closed()
 
 const _EntryScene := preload("res://ui/build_menu/build_menu_entry.tscn")
+const DECONSTRUCT_ICON = preload("res://assets/item_icons/__deconstruct__.png")
 
 @onready var _list: VBoxContainer = $Panel/VBox/ScrollContainer/List
 @onready var _close_button: Button = $Panel/VBox/Header/CloseButton
@@ -28,17 +29,19 @@ func _ready() -> void:
 func populate() -> void:
 	for child in _list.get_children():
 		child.queue_free()
+
+	# Tool entries (not buildables): Deconstruct routes LMB to removal instead of
+	# placement. Not unlock-gated — it's always available.
+	var deconstruct: BuildMenuEntry = _EntryScene.instantiate()
+	_list.add_child(deconstruct)
+	deconstruct.setup_tool(BuildLibrary.DECONSTRUCT_ID, "Deconstruct", DECONSTRUCT_ICON)
+	deconstruct.pressed_id.connect(_on_entry_pressed)
+
 	for def in BuildLibrary.get_unlocked():
 		var entry: BuildMenuEntry = _EntryScene.instantiate()
 		_list.add_child(entry)
 		entry.setup(def)
 		entry.pressed_id.connect(_on_entry_pressed)
-	# Tool entries (not buildables): Deconstruct routes LMB to removal instead of
-	# placement. Not unlock-gated — it's always available.
-	var deconstruct: BuildMenuEntry = _EntryScene.instantiate()
-	_list.add_child(deconstruct)
-	deconstruct.setup_tool(BuildLibrary.DECONSTRUCT_ID, "Deconstruct")
-	deconstruct.pressed_id.connect(_on_entry_pressed)
 
 
 func _on_entry_pressed(id: String) -> void:

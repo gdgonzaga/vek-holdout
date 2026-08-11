@@ -15,16 +15,19 @@ var _id: String = ""
 @onready var _icon: TextureRect = $HBox/Icon
 @onready var _label: Label = $HBox/Label
 
+const DEFAULT_ICON = preload("res://assets/item_icons/_default_.png")
 
-## Fill the entry from a def. Hides the icon node when the def has no icon so
-## the label still aligns cleanly without a blank gap.
+
+## Fill the entry from a def. Defs without an icon fall back to DEFAULT_ICON.
 func setup(def: BuildableDef) -> void:
 	setup_tool(def.id, def.display_name, def.icon)
 
 
 ## Fill the entry from primitive fields. Used for non-buildable tool entries
-## (e.g. the Deconstruct tool, which has no BuildableDef). Same icon-null rule
-## as setup() — hides the icon node so the label aligns without a blank gap.
+## (e.g. the Deconstruct tool, which has no BuildableDef). A null icon (omitted
+## OR passed explicitly, as setup() does for iconless defs) falls back to
+## DEFAULT_ICON — resolved here rather than via a default param value, since
+## default params only apply on argument *omission*, not on an explicit null.
 func setup_tool(id: String, label: String, icon: Texture2D = null) -> void:
 	_id = id
 	# Defer the node setup to _ready if this entry hasn't entered the tree yet
@@ -32,11 +35,8 @@ func setup_tool(id: String, label: String, icon: Texture2D = null) -> void:
 	if not is_node_ready():
 		await ready
 	_label.text = label
-	if icon == null:
-		_icon.visible = false
-	else:
-		_icon.texture = icon
-		_icon.visible = true
+	_icon.texture = icon if icon != null else DEFAULT_ICON
+	_icon.visible = true
 
 
 func _pressed() -> void:
