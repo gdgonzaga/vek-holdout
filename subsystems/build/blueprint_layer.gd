@@ -23,6 +23,10 @@ var _node_by_anchor: Dictionary = {}
 # occupied cell (Vector3i) -> anchor (Vector3i). Maps every covered cell back to
 # the blueprint that owns it, so removal by pointing at any covered cell works.
 var _anchor_by_cell: Dictionary = {}
+# True while deserialize() is rebuilding the layer from save data. Suppresses the
+# per-item blueprint_placed emit so bulk restore doesn't fire N redundant signals
+# at future listeners (JobBoard, etc.). Toggled by deserialize only.
+var _is_restoring: bool = false
 
 const _blueprint_template: PackedScene = preload("res://subsystems/build/blueprint_template.tscn")
 const _build_option_path := "res://data/action_options/build_action_option.tres"
@@ -86,7 +90,8 @@ func spawn_blueprint(target_def: BuildableDef, anchor: Vector3i, yaw_quarters: i
 	_node_by_anchor[anchor] = node
 	for off in FurnitureLayer.footprint_cells(dims, yaw_quarters):
 		_anchor_by_cell[anchor + off] = anchor
-	EventBus.blueprint_placed.emit(target_def.id, anchor)
+	if not _is_restoring:
+		EventBus.blueprint_placed.emit(target_def.id, anchor)
 	return node
 
 
@@ -253,6 +258,7 @@ func serialize() -> Dictionary:
 ## material progress + interaction UI is restored via Blueprint.deserialize.
 func deserialize(data: Dictionary) -> void:
 	_clear()
+	_is_restoring = true
 	for rec in data.get("items", []):
 		var def := BuildLibrary.get_def(rec.get("target_def_id", ""))
 		if def == null:
@@ -263,6 +269,7 @@ func deserialize(data: Dictionary) -> void:
 		var bp := spawn_blueprint(def, anchor, int(rec.get("yaw", 0)))
 		if bp != null:
 			bp.deserialize(rec)
+	_is_restoring = false
 
 
 ## Free every spawned blueprint and reset both registries. Used by deserialize

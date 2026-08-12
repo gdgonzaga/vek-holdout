@@ -39,7 +39,7 @@ Rationale for one directory per slot (vs. a flat file or single shared state fil
   "saved_at": 1723478400,              // unix seconds (Time.get_unix_time_from_system)
   "current_day": 14,                   // mirrored from state.global.game_state for sort/display
   "current_scene_id": "base",          // which map the player was on at save
-  "engine_version": "4.7.stable"       // Engine.get_version_info().full_string
+  "engine_version": "4.7.stable"       // Engine.get_version_info()["string"]
 }
 ```
 

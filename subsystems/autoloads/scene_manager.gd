@@ -31,6 +31,18 @@ func get_current_scene_id() -> String:
 	return _current_scene_id
 
 
+## The currently-loaded Map root, or null. Used by SaveSystem to park the live
+## map's state on swap and serialize its layers on save.
+func get_current_map() -> Node:
+	return _current_map
+
+
+## The persistent Player (reparented into each map by _wire_map), or null.
+## Used by SaveSystem to serialize/restore player state.
+func get_player() -> Player:
+	return _player
+
+
 ## Load a MapRoot scene (base or poi_<id>) under the parent. The single swap
 ## point: base startup and POI travel both call this.
 func swap_map(scene_id: String) -> void:
@@ -156,17 +168,23 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 	# Read spawns once — used for both furniture replay and player positioning.
 	var spawns: Dictionary = SpawnHelpers.read_spawns(m)
 
-	# Replay authored furniture markers into the live FurnitureLayer.
+	# Replay authored furniture markers into the live FurnitureLayer — UNLESS
+	# SaveSystem is restoring a saved/parked state for this map, in which case
+	# the parked state owns the furniture set (applying authored markers too
+	# would double-spawn every piece).
 	if furniture_layer != null:
-		for rec in spawns.get("furniture", []):
-			var def := BuildLibrary.get_def(rec["def_id"])
-			if def == null:
-				push_warning("SceneManager: furniture def '%s' not in catalog" % rec["def_id"])
-				continue
-			furniture_layer.spawn(def, rec["anchor"], rec["yaw"])
-		# The markers carry an editor-only PreviewMesh that would duplicate the
-		# spawned mesh and survive deconstruct; now that they're replayed, drop them.
-		SpawnHelpers.clear_furniture_markers(m)
+		if SaveSystem.apply_parked_state_if_any(map_def.id, m):
+			pass  # parked state applied; skip authored replay
+		else:
+			for rec in spawns.get("furniture", []):
+				var def := BuildLibrary.get_def(rec["def_id"])
+				if def == null:
+					push_warning("SceneManager: furniture def '%s' not in catalog" % rec["def_id"])
+					continue
+				furniture_layer.spawn(def, rec["anchor"], rec["yaw"])
+			# The markers carry an editor-only PreviewMesh that would duplicate the
+			# spawned mesh and survive deconstruct; now that they're replayed, drop them.
+			SpawnHelpers.clear_furniture_markers(m)
 
 	if _player != null:
 		var spawn_pos: Vector3 = spawns.player if spawns.player != Vector3.ZERO else map_def.player_spawn

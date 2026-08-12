@@ -23,6 +23,10 @@ var _node_by_anchor: Dictionary = {}
 # occupied cell (Vector3i) -> anchor (Vector3i). Maps every covered cell back to the
 # item that owns it, so removal by pointing at any covered cell resolves to the item.
 var _anchor_by_cell: Dictionary = {}
+# True while deserialize() is rebuilding the layer from save data. Suppresses the
+# per-item furniture_placed emit so bulk restore doesn't pollute listeners (e.g.
+# GameLog entries) with N redundant "placed" lines. Toggled by deserialize only.
+var _is_restoring: bool = false
 
 const _new_furniture_template: PackedScene = preload("res://subsystems/build/new_furniture_template.tscn")
 
@@ -98,7 +102,8 @@ func spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D:
 	_node_by_anchor[anchor] = node
 	for off in footprint_cells(dims, yaw_quarters):
 		_anchor_by_cell[anchor + off] = anchor
-	EventBus.furniture_placed.emit(def.id, anchor)
+	if not _is_restoring:
+		EventBus.furniture_placed.emit(def.id, anchor)
 	return node
 
 func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int) -> Furniture:
@@ -226,6 +231,7 @@ func serialize() -> Dictionary:
 ## (storage contents) is restored via Furniture.deserialize.
 func deserialize(data: Dictionary) -> void:
 	_clear()
+	_is_restoring = true
 	for rec in data.get("items", []):
 		var def := BuildLibrary.get_def(rec.get("def_id", ""))
 		if def == null:
@@ -236,6 +242,7 @@ func deserialize(data: Dictionary) -> void:
 		var node := spawn(def, anchor, int(rec.get("yaw", 0)))
 		if node != null:
 			node.deserialize(rec)
+	_is_restoring = false
 
 
 ## Free every spawned node and reset both registries. Used by deserialize so a

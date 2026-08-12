@@ -18,13 +18,14 @@ func _on_new_game_pressed() -> void:
 	_start_new_game()
 
 
-## Minimal New Game orchestrator. Resets run-scoped state, re-seeds defaults via
-## the run_started signal, discovers initial POIs, and loads the base colony.
-##
-## `set_save_slot` is deliberately skipped — SaveSystem is stubbed. When
-## Continue/Load land, lift this into a small autoload (or the SaveSystem) so
-## both New Game and Load share a single "enter run" path.
+## Minimal New Game orchestrator. Allocates a fresh save slot, resets run-scoped
+## state, re-seeds defaults via the run_started signal, discovers initial POIs,
+## and loads the base colony. Load does NOT go through here — it lives entirely
+## inside SaveSystem.load_game (called by a future Load screen), which restores
+## POI discovery from save so re-discovery is unnecessary on load.
 func _start_new_game() -> void:
+	var display_name := "Day 1 — %s" % Time.get_datetime_string_from_system().get_slice(" ", 0)
+	SaveSystem.create_save(display_name)
 	RunProgress.reset_for_new_game()
 	EventBus.run_started.emit()
 	# Discover any POI-type maps registered in MapLibrary (relocated verbatim

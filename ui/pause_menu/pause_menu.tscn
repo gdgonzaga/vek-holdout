@@ -1,43 +1,49 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://donb2h5k4i0w1"]
 
-[ext_resource type="Script" path="res://ui/pause_menu/pause_menu.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cba0tsyjp56ej" path="res://ui/pause_menu/pause_menu.gd" id="1_script"]
 
-[node name="PauseMenu" type="CanvasLayer"]
+[node name="PauseMenu" type="CanvasLayer" unique_id=765924122]
 layer = 30
 script = ExtResource("1_script")
 
-[node name="Panel" type="PanelContainer" parent="."]
+[node name="Panel" type="PanelContainer" parent="." unique_id=1885901556]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+[node name="MarginContainer" type="MarginContainer" parent="Panel" unique_id=1321735436]
 layout_mode = 2
 theme_override_constants/margin_left = 64
 theme_override_constants/margin_top = 64
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 64
 
-[node name="VBox" type="VBoxContainer" parent="Panel/MarginContainer"]
+[node name="VBox" type="VBoxContainer" parent="Panel/MarginContainer" unique_id=890858971]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="Title" type="Label" parent="Panel/MarginContainer/VBox"]
+[node name="Title" type="Label" parent="Panel/MarginContainer/VBox" unique_id=105066931]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "Paused"
 horizontal_alignment = 1
 
-[node name="Resume" type="Button" parent="Panel/MarginContainer/VBox"]
+[node name="Resume" type="Button" parent="Panel/MarginContainer/VBox" unique_id=1759696694]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
 text = "Resume"
 
-[node name="Quit" type="Button" parent="Panel/MarginContainer/VBox"]
+[node name="Save" type="Button" parent="Panel/MarginContainer/VBox" unique_id=835300663]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+text = "Save game"
+
+[node name="Quit" type="Button" parent="Panel/MarginContainer/VBox" unique_id=1125080775]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
