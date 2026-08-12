@@ -231,3 +231,46 @@ func _free_blueprint(bp: Blueprint, anchor: Variant) -> void:
 		_anchor_by_cell.erase(c)
 	_node_by_anchor.erase(anchor)
 	EventBus.blueprint_removed.emit(target_def_id, anchor)
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# One record per in-progress blueprint, delegated to Blueprint.serialize
+# (target_def_id + anchor + yaw + material progress). deserialize rebuilds the
+# layer from such a list — clears first, so it is a true inverse of serialize.
+
+## Snapshot every in-progress blueprint as a list of records.
+func serialize() -> Dictionary:
+	var items: Array = []
+	for anchor in _node_by_anchor:
+		var bp: Blueprint = _node_by_anchor[anchor]
+		if bp != null:
+			items.append(bp.serialize())
+	return {"items": items}
+
+
+## Clear the layer, then respawn every blueprint from a serialize() dict.
+## Unknown target def ids are skipped with a warning. Each respawned blueprint's
+## material progress + interaction UI is restored via Blueprint.deserialize.
+func deserialize(data: Dictionary) -> void:
+	_clear()
+	for rec in data.get("items", []):
+		var def := BuildLibrary.get_def(rec.get("target_def_id", ""))
+		if def == null:
+			push_warning("BlueprintLayer: unknown target_def_id '%s' in save data" % rec.get("target_def_id", ""))
+			continue
+		var a: Array = rec.get("anchor", [0, 0, 0])
+		var anchor := Vector3i(int(a[0]), int(a[1]), int(a[2]))
+		var bp := spawn_blueprint(def, anchor, int(rec.get("yaw", 0)))
+		if bp != null:
+			bp.deserialize(rec)
+
+
+## Free every spawned blueprint and reset both registries. Used by deserialize
+## so a restore fully replaces current contents.
+func _clear() -> void:
+	for anchor in _node_by_anchor.keys():
+		var bp = _node_by_anchor[anchor]
+		if bp != null and is_instance_valid(bp):
+			bp.queue_free()
+	_node_by_anchor.clear()
+	_anchor_by_cell.clear()

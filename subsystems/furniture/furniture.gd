@@ -22,3 +22,31 @@ var def: BuildableDef = null
 @export var label: String :
 	get:
 		return def.display_name if def != null else ""
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# FurnitureLayer aggregates one record per item (def_id + anchor + yaw, see
+# FurnitureLayer.serialize). `storage` captures the per-instance contents of a
+# storage-capable piece (crate/shelf) via its StorageInventory child.
+
+## Snapshot the canonical def id plus, when present, the StorageInventory
+## child's item stacks. Non-storage furniture returns storage = null.
+func serialize() -> Dictionary:
+	var storage = get_node_or_null("StorageInventory") as StorageInventory
+	return {
+		"def_id": def_id,
+		"storage": storage.serialize() if storage != null else null,
+	}
+
+
+## Restore def_id and, when a StorageInventory child exists and the data carries
+## a storage block, its contents. Safe to call right after FurnitureLayer.spawn
+## (which creates the StorageInventory child) as well as standalone.
+func deserialize(data: Dictionary) -> void:
+	def_id = data.get("def_id", def_id)
+	var storage_data: Variant = data.get("storage", null)
+	if storage_data == null:
+		return
+	var storage = get_node_or_null("StorageInventory") as StorageInventory
+	if storage != null:
+		storage.deserialize(storage_data)

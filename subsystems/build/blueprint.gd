@@ -131,3 +131,37 @@ func _refresh_info_text() -> void:
 ## FurnitureDef-typing ambiguity on the inherited field.
 func _target_def() -> BuildableDef:
 	return BuildLibrary.get_def(target_def_id)
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# BlueprintLayer aggregates one record per blueprint (see BlueprintLayer.serialize).
+# `given` is the material-progress state (phase-2 runtime state, included so a
+# restored in-progress blueprint keeps its deposited materials).
+
+## Snapshot placement + material progress: target_def_id, anchor cell, yaw step,
+## and the {item_id: count} contributed so far.
+func serialize() -> Dictionary:
+	return {
+		"target_def_id": target_def_id,
+		"anchor": [anchor_cell.x, anchor_cell.y, anchor_cell.z],
+		"yaw": target_rotation_step,
+		"given": _given.duplicate(true),
+	}
+
+
+## Restore placement + material progress from a serialize() dict, then refresh
+## the interaction UI (info text + swap to Build if materials are now complete).
+## Idempotent on the spawn-set fields, so it is safe to call right after
+## BlueprintLayer.spawn_blueprint as well as standalone.
+func deserialize(data: Dictionary) -> void:
+	target_def_id = data.get("target_def_id", target_def_id)
+	target_rotation_step = int(data.get("yaw", target_rotation_step))
+	var a: Array = data.get("anchor", [anchor_cell.x, anchor_cell.y, anchor_cell.z])
+	anchor_cell = Vector3i(int(a[0]), int(a[1]), int(a[2]))
+	_given.clear()
+	var saved_given: Dictionary = data.get("given", {})
+	for item_id in saved_given:
+		_given[item_id] = int(saved_given[item_id])
+	_refresh_info_text()
+	if not _given.is_empty() and has_complete_materials():
+		_swap_to_build_option()

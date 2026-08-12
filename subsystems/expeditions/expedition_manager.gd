@@ -63,3 +63,22 @@ func end_expedition(result: Dictionary = {}) -> void:
 	_on_expedition = false
 	EventBus.expedition_ended.emit(result)
 	SceneManager.swap_map("base_colony")
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# Run-scoped discovery state: which POIs have been found and whether the player
+# is currently away from base. (The orchestrator restores the right map via
+# GameState.scene_id; this just tracks the flags.)
+
+func serialize() -> Dictionary:
+	return {
+		"discovered_pois": _discovered_pois.duplicate(),
+		"on_expedition": _on_expedition,
+	}
+
+
+func deserialize(data: Dictionary) -> void:
+	_discovered_pois.clear()
+	for poi_id in data.get("discovered_pois", []):
+		_discovered_pois.append(String(poi_id))
+	_on_expedition = bool(data.get("on_expedition", false))

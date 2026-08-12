@@ -138,3 +138,26 @@ func _on_raid_ended(outcome: Dictionary) -> void:
 
 func _on_run_started() -> void:
 	clear()
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# The log history ring buffer. LogEntry.timestamp is engine-uptime (transient),
+# so only text/category/day are persisted. Restored entries are appended to
+# _buffer WITHOUT emitting entry_added — the UI reads get_entries()/recent() on
+# mount, so re-emitting would only flood live listeners during a load.
+
+func serialize() -> Dictionary:
+	var entries: Array = []
+	for e in _buffer:
+		entries.append({"text": e.text, "category": e.category, "day": e.day})
+	return {"entries": entries}
+
+
+func deserialize(data: Dictionary) -> void:
+	clear()
+	for rec in data.get("entries", []):
+		var entry := LogEntry.new(
+			String(rec.get("text", "")),
+			int(rec.get("category", LogEntry.Category.INFO)))
+		entry.day = int(rec.get("day", 1))
+		_buffer.append(entry)

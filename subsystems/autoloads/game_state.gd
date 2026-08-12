@@ -47,3 +47,18 @@ func set_scene_id(scene_id: String) -> void:
 func set_save_slot(slot_name: String) -> void:
 	save_slot = slot_name
 	save_slot_changed.emit(slot_name)
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# Persisted run framing: the current day and which map is active. save_slot is
+# orchestrator-owned (the active slot, not run state), paused/map_root are
+# transient/runtime refs.
+
+func serialize() -> Dictionary:
+	return {"day": current_day, "scene_id": current_scene_id}
+
+
+func deserialize(data: Dictionary) -> void:
+	current_day = int(data.get("day", current_day))
+	day_changed.emit(current_day)
+	set_scene_id(data.get("scene_id", current_scene_id))

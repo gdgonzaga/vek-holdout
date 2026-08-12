@@ -64,3 +64,25 @@ func get_camera() -> Camera3D:
 		return null
 	var cam := _spring.get_child(0)
 	return cam as Camera3D
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# Yaw/pitch are private orbit state with no setters; these accessors expose them
+# for save/load without widening the gameplay API.
+
+## Current yaw (horizontal orbit angle) in radians.
+func get_yaw() -> float:
+	return _yaw
+
+
+## Current pitch (vertical tilt) in radians, within [min_pitch, max_pitch].
+func get_pitch() -> float:
+	return _pitch
+
+
+## Restore the orbit orientation (radians). Pitch is clamped to the export
+## range and both are applied immediately via _apply_rotation. Used by save/load.
+func set_orientation(yaw: float, pitch: float) -> void:
+	_yaw = yaw
+	_pitch = clampf(pitch, min_pitch, max_pitch)
+	_apply_rotation()

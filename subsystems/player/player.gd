@@ -67,6 +67,31 @@ func has_item(item_id: String, count: int) -> bool:
 func can_carry(item_id: String, count: int) -> bool:
 	return inventory.can_add(item_id, count)
 
+
+# --- SaveSystem contract -----------------------------------------------------
+# Transform + camera orientation + carried inventory. Movement mode/state and
+# the transient interactable target are NOT persisted. Assumes the player (and
+# its CameraRig) is ready — set_orientation touches the rig's spring arm.
+
+## Snapshot position, camera yaw/pitch, and inventory stacks.
+func serialize() -> Dictionary:
+	return {
+		"pos": [global_position.x, global_position.y, global_position.z],
+		"cam_yaw": _rig.get_yaw(),
+		"cam_pitch": _rig.get_pitch(),
+		"inventory": inventory.serialize(),
+	}
+
+
+## Restore position, camera orientation, and inventory from a serialize() dict.
+func deserialize(data: Dictionary) -> void:
+	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
+	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
+	_rig.set_orientation(float(data.get("cam_yaw", 0.0)), float(data.get("cam_pitch", -0.25)))
+	if data.has("inventory"):
+		inventory.deserialize(data["inventory"])
+
+
 var _velocity_on_jump := Vector3.ZERO # horizontal world-velocity frozen at jump (y=0)
 var _speed_on_jump := 0.0 # walk_speed or sprint_speed, frozen at takeoff
 var _is_sprinting_on_jump := false

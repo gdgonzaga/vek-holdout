@@ -199,3 +199,51 @@ func get_furniture_at(cell: Vector3i) -> Furniture:
 	if anchor == null:
 		return null
 	return _node_by_anchor.get(anchor)
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# One record per placed item: placement (anchor + yaw) plus the node's own
+# state (def_id, storage contents) via Furniture.serialize. deserialize rebuilds
+# the layer from such a list — it clears first, so it is a true inverse of
+# serialize and the caller does not need to manage pre-existing entries.
+
+## Snapshot every placed item as a list of records.
+func serialize() -> Dictionary:
+	var items: Array = []
+	for anchor in _node_by_anchor:
+		var node: Furniture = _node_by_anchor[anchor]
+		if node == null:
+			continue
+		var rec: Dictionary = node.serialize()
+		rec["anchor"] = [anchor.x, anchor.y, anchor.z]
+		rec["yaw"] = int(round(node.rotation_degrees.y / 90.0)) % 4
+		items.append(rec)
+	return {"items": items}
+
+
+## Clear the layer, then respawn every item from a serialize() dict. Unknown
+## def ids are skipped with a warning. Each respawned node's per-instance state
+## (storage contents) is restored via Furniture.deserialize.
+func deserialize(data: Dictionary) -> void:
+	_clear()
+	for rec in data.get("items", []):
+		var def := BuildLibrary.get_def(rec.get("def_id", ""))
+		if def == null:
+			push_warning("FurnitureLayer: unknown def_id '%s' in save data" % rec.get("def_id", ""))
+			continue
+		var a: Array = rec.get("anchor", [0, 0, 0])
+		var anchor := Vector3i(int(a[0]), int(a[1]), int(a[2]))
+		var node := spawn(def, anchor, int(rec.get("yaw", 0)))
+		if node != null:
+			node.deserialize(rec)
+
+
+## Free every spawned node and reset both registries. Used by deserialize so a
+## restore fully replaces current contents.
+func _clear() -> void:
+	for anchor in _node_by_anchor.keys():
+		var node = _node_by_anchor[anchor]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_node_by_anchor.clear()
+	_anchor_by_cell.clear()

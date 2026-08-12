@@ -95,4 +95,25 @@ func transfer_to(target: Inventory, item_id: String, count: int) -> int:
 
 func _get_def(item_id: String) -> ItemDef:
 	return ItemDB.get_def(item_id)
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# Inherited by CharacterInventory (player carry) and StorageInventory (crate /
+# shelf contents). Capacity is config/equipment-derived, not persisted here:
+# only the item stacks are run state.
+
+## Snapshot the item stacks: {item_id (String): count (int)}.
+func serialize() -> Dictionary:
+	return {"items": items.duplicate(true)}
+
+
+## Restore item stacks from a serialize() dict. Re-emits inventory_changed so
+## any subscribed UI refreshes. Defensive: missing/empty data yields an empty
+## inventory.
+func deserialize(data: Dictionary) -> void:
+	items.clear()
+	var saved: Dictionary = data.get("items", {})
+	for item_id in saved:
+		items[item_id] = int(saved[item_id])
+	inventory_changed.emit()
 	

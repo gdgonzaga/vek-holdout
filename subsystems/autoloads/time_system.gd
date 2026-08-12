@@ -45,6 +45,18 @@ func get_time_of_day_fraction() -> float:
 	return _elapsed_in_day / _loop_length_seconds
 
 
+# --- SaveSystem contract -----------------------------------------------------
+# Only the within-day progress is run state. _loop_length_seconds is config
+# (derived from data/game_config.tres), so it is not persisted.
+
+func serialize() -> Dictionary:
+	return {"elapsed_in_day": _elapsed_in_day}
+
+
+func deserialize(data: Dictionary) -> void:
+	_elapsed_in_day = float(data.get("elapsed_in_day", 0.0))
+
+
 func _roll_over_day() -> void:
 	GameState.advance_day()                              # emits day_changed (direct)
 	EventBus.day_rolled_over.emit(GameState.current_day) # cross-scene relay

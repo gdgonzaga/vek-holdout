@@ -109,3 +109,31 @@ func get_terrain() -> VoxelTerrain:
 
 func get_voxel_tool() -> VoxelTool:
 	return _voxel_tool
+
+
+# --- SaveSystem contract -----------------------------------------------------
+# Only buildable-block HP lives here. Voxel block TYPES are not enumerated by
+# this class: they persist via the per-map VoxelStreamSQLite (flushed on save by
+# VoxelTerrain.save_modified_blocks(), auto-mounted on load), so restore only
+# re-applies the HP metadata — it does NOT write voxels.
+
+## Snapshot buildable-block HP: {"x,y,z" (String): hp (int)}.
+func serialize() -> Dictionary:
+	var hp := {}
+	for pos in _hp_by_pos:
+		hp["%d,%d,%d" % [pos.x, pos.y, pos.z]] = int(_hp_by_pos[pos])
+	return {"hp": hp}
+
+
+## Restore buildable-block HP from a serialize() dict. Clears current HP state
+## first so it is a true inverse of serialize(). No voxel writes — block types
+## come from the sqlite stream.
+func deserialize(data: Dictionary) -> void:
+	_hp_by_pos.clear()
+	var hp: Dictionary = data.get("hp", {})
+	for key in hp:
+		var parts := String(key).split(",")
+		if parts.size() != 3:
+			continue
+		var pos := Vector3i(int(parts[0]), int(parts[1]), int(parts[2]))
+		_hp_by_pos[pos] = int(hp[key])
