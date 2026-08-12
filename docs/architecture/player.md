@@ -16,8 +16,8 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `build_placement_toggled(active)` | `player.gd` | BuildController, HUD | Yes | Enter Build Placement |
-| `build_menu_toggled(open)` | `player.gd` | HUD (Instructions label) | Yes | Build menu visibility |
+| `build_placement_toggled(active)` | `player.gd` | BuildController, HUD (crosshair), `InstructionsLabel` | Yes | Enter Build Placement |
+| `build_menu_toggled(open)` | `player.gd` | `InstructionsLabel` | Yes | Build menu visibility |
 | `interactable_changed(component)` | `player.gd` | HUD (InteractLabel) | No (direct Player signal) | Target gained/lost under the crosshair |
 | `player_died(context)` | `player.gd` *(planned — not yet emitted)* | GameState, HUD | Yes | Player Death / Respawn |
 
@@ -33,7 +33,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
    - **Build Menu** (`mode == BUILD_MENU`) → calls `_build_menu.close()`: menu emits `closed` → `_on_build_menu_closed` clears `_build_menu`, emits `build_menu_toggled(false)`, re-captures the mouse, and sets `mode = NORMAL`.
    - **Placement** (`mode == BUILD_PLACEMENT`) → calls `_exit_build_placement_mode()` (sets `mode = BUILD_MENU`, emits `build_placement_toggled(false)`), then `open_build_menu()` to return to item selection (which emits `build_menu_toggled(true)`).
 3. Player selects a buildable from the menu → menu emits `EventBus.buildable_selected(id)` and frees itself → `player.gd._on_buildable_selected(id)`: clears `_build_menu`; emits `build_menu_toggled(false)`; sets `mode = BUILD_PLACEMENT`; emits `build_placement_toggled(true)` via EventBus; re-captures mouse.
-4. HUD listens to both signals to drive its **Instructions** label. Each handler sets text + visibility directly: `build_placement_toggled(true)` shows the placement controls text and hides the crosshair; `build_menu_toggled(true)` shows the menu text ("Click an item to place · B: cancel"). Both emit synchronously across a state change, and the entering-state handler's write lands last (e.g. Menu→Placement: menu handler hides the label, then placement handler shows it with placement text — same frame, no flicker). On exit, both handlers set `_instructions.visible = false`.
+4. The **InstructionsLabel** node — its own `instructions_label.gd`, decoupled from `hud.gd` — self-registers on both signals and drives its own `text` + `visible`: `build_placement_toggled(true)` shows the placement text ("B: cancel"), while `hud.gd` hides the crosshair; `build_menu_toggled(true)` shows the menu text ("Click an item to place · B: cancel"). Both emit synchronously across a state change, and the entering-state handler's write lands last (e.g. Menu→Placement: the menu handler hides the label, then the placement handler shows it with placement text — same frame, no flicker). On exit, each handler sets the label's `visible = false`.
 5. BuildController activates; routes LMB (place) / RMB (remove) / mouse wheel (rotate step) / R (cycle axis) to placement + rotation.
 6. Movement states still apply (player can walk while building).
 

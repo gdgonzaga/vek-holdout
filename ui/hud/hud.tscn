@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://c2meu6v4pmiac" path="res://ui/hud/hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" uid="uid://d01hjun1kf3e5" path="res://assets/crosshair.png" id="2_cross"]
 [ext_resource type="PackedScene" uid="uid://b11tjkfqq68l3" path="res://ui/hud/interact_label.tscn" id="3_interact"]
+[ext_resource type="Script" uid="uid://c4lb25c67638b" path="res://ui/hud/instructions_label.gd" id="3_w75iv"]
 
 [node name="HUD" type="Control" unique_id=1095811631]
 layout_mode = 3
@@ -28,7 +29,7 @@ texture = ExtResource("2_cross")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Instructions" type="Label" parent="." unique_id=267121083]
+[node name="InstructionsLabel" type="Label" parent="." unique_id=267121083]
 visible = false
 layout_mode = 1
 anchors_preset = 7
@@ -46,6 +47,7 @@ Wheel: rotate    R: cycle axis
 B: back"
 horizontal_alignment = 1
 vertical_alignment = 3
+script = ExtResource("3_w75iv")
 
 [node name="InteractLabel" parent="." unique_id=614358142 instance=ExtResource("3_interact")]
 layout_mode = 1

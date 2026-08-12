@@ -37,8 +37,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `build_placement_toggled(active)` | player subsystem | `BuildController` (activates/deactivates), HUD (crosshair + Instructions) | Yes | Enter/Exit Build Placement |
-| `build_menu_toggled(open)` | player subsystem | HUD (Instructions label) | Yes | Build menu visibility |
+| `build_placement_toggled(active)` | player subsystem | `BuildController` (activates/deactivates), HUD (crosshair), `InstructionsLabel` (placement text) | Yes | Enter/Exit Build Placement |
+| `build_menu_toggled(open)` | player subsystem | `InstructionsLabel` (menu text) | Yes | Build menu visibility |
 | `buildable_selected(id)` | build menu (`build_menu.gd`) | `BuildController` (sets `selected_id` + ghost mesh), Player (enters BUILD_PLACEMENT + recaptures mouse) | Yes | Select a Buildable |
 | `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
 | `furniture_placed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter), GameLog | Yes | Place Furniture |
