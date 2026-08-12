@@ -11,10 +11,16 @@ extends Node3D
 ## (GDD §4). Only mouse motion drives the orbit.
 
 @export var sensitivity := 0.0025
-@export var spring_length := 5.0
-@export_range(-1.2, 1.2) var min_pitch := -0.8
-@export_range(-1.2, 1.2) var max_pitch := 0.6
-@export var height_offset := 1.6
+@export var spring_length := 3.0
+@export_range(-1.2, 1.2) var min_pitch := -1.2
+@export_range(-1.2, 1.2) var max_pitch := 1.2
+@export var height_offset := 1.4
+## Horizontal frustum shift: positive moves the view right (body frames screen-left).
+## Uses Camera3D.h_offset so the aim direction stays along the spring arm's axis.
+@export var h_offset := 0.5
+## Vertical frustum shift: negative moves view up (body frames screen-bottom).
+## Uses Camera3D.v_offset.
+@export var v_offset := 0.4
 
 var _yaw := 0.0
 var _pitch := -0.25
@@ -29,9 +35,14 @@ func _ready() -> void:
 
 	var cam := Camera3D.new()
 	cam.current = true
+	# Shift the view frustum right/up so the player body sits screen-left/bottom.
+	# h_offset/v_offset move what the screen CENTER points at without rotating the
+	# camera — this is the correct Godot approach for TPS over-shoulder framing.
+	cam.h_offset = h_offset
+	cam.v_offset = v_offset
 	_spring.add_child(cam)
 
-	# Raise the pivot so the arm orbits roughly at head height.
+	# Raise the pivot to eye/shoulder height (capsule top is at 1.6 m).
 	position.y = height_offset
 
 func _unhandled_input(event: InputEvent) -> void:
