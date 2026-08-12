@@ -1,12 +1,9 @@
 [gd_resource type="Resource" script_class="ActionOption" format=3 uid="uid://ccu4xtwhursa0"]
 
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_hyt3l"]
+[ext_resource type="Resource" uid="uid://dtshcnk7n3er6" path="res://data/actions/build_action.tres" id="1_mat20"]
 [ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_option"]
-[ext_resource type="Script" uid="uid://c4gmdo56iytie" path="res://data/actions/build_action.gd" id="2_action"]
-
-[sub_resource type="Resource" id="Resource_action"]
-script = ExtResource("2_action")
-label = "Build"
 
 [resource]
 script = ExtResource("1_option")
-action = SubResource("Resource_action")
+action = ExtResource("1_mat20")

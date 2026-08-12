@@ -35,6 +35,12 @@ var _given: Dictionary = {}
 ## blueprint starts on Build and never swaps.
 var _build_option: ActionOption = null
 
+## Seconds of build work already accumulated toward the target's build_time
+## (GDD §7.4). Written by ActionProgress when a BuildAction is cancelled
+## mid-way, so the next attempt resumes from here instead of restarting; reset
+## to 0 on completion. Persisted across save/load (see serialize/deserialize).
+var work_done: float = 0.0
+
 
 func _ready() -> void:
 	# Seed the initial "0/N" status line so the first targeting shows progress
@@ -146,6 +152,7 @@ func serialize() -> Dictionary:
 		"anchor": [anchor_cell.x, anchor_cell.y, anchor_cell.z],
 		"yaw": target_rotation_step,
 		"given": _given.duplicate(true),
+		"work_done": work_done,
 	}
 
 
@@ -162,6 +169,7 @@ func deserialize(data: Dictionary) -> void:
 	var saved_given: Dictionary = data.get("given", {})
 	for item_id in saved_given:
 		_given[item_id] = int(saved_given[item_id])
+	work_done = float(data.get("work_done", 0.0))
 	_refresh_info_text()
 	if not _given.is_empty() and has_complete_materials():
 		_swap_to_build_option()

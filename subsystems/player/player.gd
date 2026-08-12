@@ -24,6 +24,12 @@ enum State {IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD}
 var mode := Mode.NORMAL
 var state := State.IDLE
 
+## True while a timed action (e.g. a BuildAction with a build_time) holds the
+## player. While busy, movement, jump, and discrete actions (interact, build
+## menu) are ignored — see the _busy guards in _handle_move_keys, _handle_jump,
+## execute_default_action, open_interaction_menu, _on_build_key_pressed.
+var _busy := false
+
 ## The InteractionComponent currently under the crosshair (or null).
 var _current_interactable: InteractionComponent = null
 
@@ -45,6 +51,17 @@ signal interactable_changed(component: InteractionComponent)
 ## screen-center raycast (ARCH line 335).
 func get_camera() -> Camera3D:
 	return _rig.get_camera()
+
+
+## Whether the player is currently locked by a timed action (e.g. a build).
+func is_busy() -> bool:
+	return _busy
+
+
+## Lock or release the player. Taken by BuildAction before showing its progress
+## gauge and released on that gauge's completed / cancelled signals.
+func set_busy(value: bool) -> void:
+	_busy = value
 
 
 ## Add items to the player's inventory. Returns the overflow (items that didn't fit).
@@ -114,6 +131,8 @@ func _ready() -> void:
 ##   - Menu open     -> close the menu, back to Normal
 ##   - Placement     -> leave placement, reopen the build menu
 func _on_build_key_pressed() -> void:
+	if _busy:
+		return
 	if mode == Mode.BUILD_PLACEMENT:
 		# Placement -> menu. Drop the selected buildable and reopen the menu.
 		_exit_build_placement_mode()
@@ -193,6 +212,8 @@ func _exit_build_placement_mode() -> void:
 
 ## Execute the first action option immediately (quick-tap E).
 func execute_default_action() -> void:
+	if _busy:
+		return
 	if _current_interactable and not _current_interactable.action_options.is_empty():
 		var option: ActionOption = _current_interactable.action_options[0]
 		if option.action != null:
@@ -202,6 +223,8 @@ func execute_default_action() -> void:
 
 ## Open the full interaction menu for the targeted interactable (long-press E).
 func open_interaction_menu() -> void:
+	if _busy:
+		return
 	if _current_interactable and not _current_interactable.action_options.is_empty():
 		_current_interactable.interact(self)
 
@@ -284,38 +307,41 @@ func _handle_move_keys(delta: float) -> void:
 	# but only to decide which component of the world-velocity to kill.
 	var wish := Vector3.ZERO
 
-	if is_on_floor():
-		# Ground: camera-relative WASD, normalized, projected to world.
-		var input := _input.get_movement_input()
-		wish = _camera_relative_wish(input)
-	else:
-		# Mid-air: the two cardinal axes (forward/back, strafe) are resolved
-		# INDEPENDENTLY, each against the captured world-momentum projected onto
-		# the live camera directions. Keys are read relative to the live camera
-		# (W = away from where you look now); momentum stays world-locked, so
-		# rotating the camera mid-air can't curve movement.
-		var basis := _rig.global_transform.basis
-		var cam_fwd := (-basis.z)
-		cam_fwd.y = 0.0
-		cam_fwd = cam_fwd.normalized()
-		var cam_right := basis.x
-		cam_right.y = 0.0
-		cam_right = cam_right.normalized()
+	# A busy player can't drive movement — wish stays zero so velocity is wiped
+	# below (gravity still applies so they stay planted on the ground).
+	if not _busy:
+		if is_on_floor():
+			# Ground: camera-relative WASD, normalized, projected to world.
+			var input := _input.get_movement_input()
+			wish = _camera_relative_wish(input)
+		else:
+			# Mid-air: the two cardinal axes (forward/back, strafe) are resolved
+			# INDEPENDENTLY, each against the captured world-momentum projected onto
+			# the live camera directions. Keys are read relative to the live camera
+			# (W = away from where you look now); momentum stays world-locked, so
+			# rotating the camera mid-air can't curve movement.
+			var basis := _rig.global_transform.basis
+			var cam_fwd := (-basis.z)
+			cam_fwd.y = 0.0
+			cam_fwd = cam_fwd.normalized()
+			var cam_right := basis.x
+			cam_right.y = 0.0
+			cam_right = cam_right.normalized()
 
-		var air_input := _input.get_movement_input()
+			var air_input := _input.get_movement_input()
 
-		# Resolve each axis to a signed scalar (positive = cam_fwd / cam_right).
-		var fwd := _resolve_air_axis(
-			air_input.y > 0.0, # backward component
-			air_input.y < 0.0, # forward component
-			_velocity_on_jump.dot(cam_fwd)
-		)
-		var strafe := _resolve_air_axis(
-			air_input.x < 0.0, # left component
-			air_input.x > 0.0, # right component
-			_velocity_on_jump.dot(cam_right)
-		)
-		wish = cam_fwd * fwd + cam_right * strafe
+			# Resolve each axis to a signed scalar (positive = cam_fwd / cam_right).
+			var fwd := _resolve_air_axis(
+				air_input.y > 0.0, # backward component
+				air_input.y < 0.0, # forward component
+				_velocity_on_jump.dot(cam_fwd)
+			)
+			var strafe := _resolve_air_axis(
+				air_input.x < 0.0, # left component
+				air_input.x > 0.0, # right component
+				_velocity_on_jump.dot(cam_right)
+			)
+			wish = cam_fwd * fwd + cam_right * strafe
 
 	# Speed scalar: ground uses the live sprint key; air uses the speed frozen at
 	# takeoff so holding/releasing Shift mid-air can't rescale preserved momentum.
@@ -343,6 +369,8 @@ func _handle_move_keys(delta: float) -> void:
 
 
 func _handle_jump() -> void:
+	if _busy:
+		return
 	if not is_on_floor():
 		return
 

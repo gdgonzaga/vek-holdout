@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ActionOption" format=3 uid="uid://ca8tlyxcv865o"]
+
+[ext_resource type="Resource" uid="uid://csvcj8u6ro5c8" path="res://data/actions/instant_build_action.tres" id="1_ni0o4"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="2_2skj8"]
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="3_57t5e"]
+
+[resource]
+script = ExtResource("3_57t5e")
+action = ExtResource("1_ni0o4")

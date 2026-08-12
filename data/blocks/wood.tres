@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="BlockDef" load_steps=5 format=3 uid="uid://bdc3p2qr30wy1"]
+[gd_resource type="Resource" script_class="BlockDef" format=3 uid="uid://bdc3p2qr30wy1"]
 
 [ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_7hox6"]
 [ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="2_mesh"]
 [ext_resource type="Texture2D" uid="uid://bfu0588dkiia3" path="res://assets/wood.png" id="3_xek0i"]
 [ext_resource type="Texture2D" uid="uid://cbpu174kybnel" path="res://assets/item_icons/wood_block.png" id="4_icon"]
@@ -9,9 +10,10 @@
 script = ExtResource("1_script")
 id = "wood"
 display_name = "Wood Block"
+icon = ExtResource("4_icon")
 hp = 50
 mesh = ExtResource("2_mesh")
 texture = ExtResource("3_xek0i")
-icon = ExtResource("4_icon")
 unlocked_by_default = true
+build_time = 2.0
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

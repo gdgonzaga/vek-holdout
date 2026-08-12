@@ -1,16 +1,17 @@
-[gd_resource type="Resource" script_class="BlockDef" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="BlockDef" format=3 uid="uid://c03qrie50bjfy"]
 
-[ext_resource type="Script" path="res://data/blocks/block_def.gd" id="1_script"]
-[ext_resource type="Mesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="2_mesh"]
+[ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_1d3ly"]
+[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="2_mesh"]
 [ext_resource type="Texture2D" uid="uid://c4j4kkwdhgluf" path="res://assets/item_icons/metal_block.png" id="3_icon"]
 
 [resource]
 script = ExtResource("1_script")
 id = "metal"
 display_name = "Metal Block"
+icon = ExtResource("3_icon")
 hp = 600
 mesh = ExtResource("2_mesh")
-icon = ExtResource("3_icon")
 unlocked_by_default = true
-is_terrain = false
+build_time = 2.0
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

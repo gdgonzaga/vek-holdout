@@ -32,3 +32,4 @@ class_name BuildableDef
 @export var texture_variation: bool = false # True → use per-block UV/brightness randomization shader
 @export var material_cost: Array[ItemAmount] = []
 @export var unlocked_by_default: bool = false # available without earning an unlock this run
+@export var build_time: float = 0.0
