@@ -19,7 +19,10 @@ class_name ColonistDef
 		"level": 1,
 	},
 }
+# Labor ids (LaborDef.id in data/labors/), NOT skills. mining/farming above are
+# skills; priorities select which Labors a colonist will accept jobs for.
 @export var default_labor_priorities: Dictionary = {
-	"mining": 1,
-	"farming": 1,
+	"construction": 1,
+	"crafting": 1,
+	"hauling": 1,
 }

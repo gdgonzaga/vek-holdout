@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="LaborDef" format=3]
+
+[ext_resource type="Script" path="res://data/labors/labor_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "mechanics"
+display_name = "Mechanics"
+description = "Assemble and repair mechanical devices."
