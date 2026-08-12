@@ -1,6 +1,7 @@
 extends Node
 ## Global catalog of item definitions loaded from data/items/.
-## The item_id is the .tres filename (e.g. "wood" from "wood.tres").
+## The item_id is the ItemDef.id field (e.g. "wood_block"), matching the
+## Map/Block/Build libraries.
 ##
 ## Read-only after _ready. Register as an autoload.
 
@@ -23,8 +24,10 @@ func _load_dir(dir_path: String) -> void:
 		if not dir.current_is_dir() and fname.ends_with(".tres"):
 			var res = load(dir_path + fname)
 			if res is ItemDef:
-				var item_id := fname.get_basename()
-				_defs_by_id[item_id] = res
+				if res.id == "":
+					push_warning("ItemDef at %s has empty id; skipping" % (dir_path + fname))
+					continue
+				_defs_by_id[res.id] = res
 		fname = dir.get_next()
 
 

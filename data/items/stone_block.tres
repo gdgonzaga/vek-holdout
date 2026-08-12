@@ -6,6 +6,7 @@
 [resource]
 resource_name = "Stone block"
 script = ExtResource("1_qucrc")
+id = "stone_block"
 weight = 3.0
 icon = ExtResource("1_4keqy")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

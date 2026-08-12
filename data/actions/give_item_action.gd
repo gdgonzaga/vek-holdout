@@ -9,6 +9,6 @@ func execute(actor: Node, target: Node) -> void:
 	if params == null:
 		return
 	for entry in params.items:
-		var item_id := entry.item_def.resource_path.get_file().trim_suffix(".tres")
+		var item_id := entry.item_def.id
 		actor.add_item(item_id, entry.count)
 		GameLog.log("Received %d %s from %s" % [entry.count, item_id, furniture.def.display_name])

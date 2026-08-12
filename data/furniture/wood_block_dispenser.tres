@@ -4,18 +4,19 @@
 [ext_resource type="Resource" uid="uid://bmfxbdrtj6k4t" path="res://data/action_options/give_item_action_option.tres" id="2_hd7xb"]
 [ext_resource type="Script" uid="uid://bwpnxp1enou0o" path="res://data/capability_params/item_dispenser_params.gd" id="2_mi3v6"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_ujahw"]
-[ext_resource type="Resource" uid="uid://mi5d1i724fpw" path="res://data/items/wood_block.tres" id="3_01fko"]
 [ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="3_ujahw"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="4_01fko"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="5_hd7xb"]
 
-[sub_resource type="Resource" id="Resource_75lvg"]
+[sub_resource type="Resource" id="Resource_rbi5t"]
 script = ExtResource("2_ujahw")
-item_def = ExtResource("3_01fko")
+item_def = ExtResource("5_hd7xb")
+count = 2
 metadata/_custom_type_script = "uid://taqanw6psc6o"
 
 [sub_resource type="Resource" id="Resource_bjsa7"]
 script = ExtResource("2_mi3v6")
-items = Array[ExtResource("2_ujahw")]([SubResource("Resource_75lvg")])
+items = Array[ExtResource("2_ujahw")]([SubResource("Resource_rbi5t")])
 metadata/_custom_type_script = "uid://bwpnxp1enou0o"
 
 [resource]
