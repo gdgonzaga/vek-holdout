@@ -2,8 +2,8 @@
 
 ## Known Tech Debt
 
-- [ ] **Boot vs Main scene strategy undecided** — either `boot.tscn` loads Main + MainMenu, or Main is the entry and MainMenu is a CanvasLayer. Decide on first implementation; document here.
-- [ ] **voxel_tool raycast reliability** — `VoxelTool.raycast()` is unreliable (see `gotchas/voxel_tool_raycast.md`); the workaround uses Godot physics raycast against voxel collision bodies. Validate this still works when build mode lands.
+- [x] **Boot vs Main scene strategy decided** — `boot.tscn` is the `main_scene`; it instantiates `main.tscn`, then opens Splash → Main Menu. The menu gates gameplay (New Game loads the base map). See [Core](core.md) "Boot → Splash → Main Menu → New Game" flow.
+- [~] **voxel_tool raycast reliability** — `VoxelTool.raycast()` is unreliable; the workaround uses a Godot physics raycast against voxel collision bodies. **Validated:** build mode has landed and `BuildController` uses a screen-center Godot physics raycast (player body excluded) for placement/deconstruct, so the workaround holds in practice.
 - [ ] **Colonist pathfinding split** — A* on voxel grid for colonists, NavigationAgent for enemies. Two pathfinding systems in one game is complexity; validate the split pays off vs. NavAgent-for-everything once both are prototyped.
 - [ ] **`combat/` accumulating shared character-stat components** — HealthComponent, BreathComponent, StaminaComponent all live in `combat/` but are general-purpose character components (used by player/colonists/enemies). Consider a `core/components/` home if a fourth such component appears.
 - [~] **Colony autoload accumulating run-state children** — Memorial (deceased roster), KeyItemPool (once-per-playthrough enforcement), LoadoutManager (templates + assignments), and DiscoveredGear (item-possession tracking) all live on Colony because their state must persist across base↔POI scene swaps and be saved. **Resolved (in progress):** the `RunProgress` autoload has been created as the intended home for this run-state, and currently holds buildable unlocks. It is *growing* — additional run-earned state (and the eventual migration of Colony's four children) lands here as subsystems come online. In the interim, Memorial / KeyItemPool / LoadoutManager / DiscoveredGear still live on Colony.
@@ -50,8 +50,8 @@ Max colony size is tied to Colonist Bed count (1 bed = 1 colonist slot; MVP cap 
 
 ### Smaller improvements (D-items)
 
-**New-Game reset flow** — GDD §8 (Game Over) + §17 Save
-New game wipes all state including map reveal. **Missing:** no reset class/flow; SaveSystem loads but nothing owns the "clear everything for a fresh run" operation. Should enumerate every piece of run-state (GameState, Colony + its 4 children, voxel world, map reveal, player/colonist inventories, skills, loadouts, raid stances) and zero it.
+**New-Game reset flow** — GDD §8 (Game Over) + §17 Save — **Partially resolved.**
+New game wipes all state including map reveal. `main_menu._start_new_game()` now owns the operation for the systems that exist: `SaveSystem.create_save` (fresh slot + clear `_parked`) → `RunProgress.reset_for_new_game` → `EventBus.run_started` (re-seed) → POI discovery → `SceneManager.wipe_map_cache` (clear `user://maps/`). **Still missing:** Colony's not-yet-shipped children (Memorial, KeyItemPool, LoadoutManager, DiscoveredGear) and anything tied to them — enumerate + zero those as each subsystem comes online.
 
 **Game Over evaluator** — GDD §8
 The `game_over()` EventBus signal exists, but nothing checks the "all colonists AND player dead" condition. **Missing:** an evaluator (probably on Colony or a dedicated component) that listens to `colonist_died` + `player_died` and emits `game_over()` when both rosters are empty.
@@ -62,8 +62,7 @@ Brawlers attack the lowest-HP block in range; Shooters path through the lowest-r
 **Travel-time-proportional-to-distance** — GDD §17 Day/Night
 "Travel time proportional to POI distance. Longer travel = more time passes = more Stamina drained." **Missing:** the proportional-distance calculation isn't specced (distance metric? time-per-unit-distance?).
 
-**Save serializes voxel world** — flagged in Tech Debt
-Zylann's `voxel_tool` has its own save format; integrating it with the game's save slots needs design. Currently a Tech Debt item; may warrant elevation to a real decision before the save system is built.
+**Save serializes voxel world** — ~~flagged in Tech Debt~~ **Resolved.** Zylann's `VoxelStreamSQLite` is reused as the binary terrain layer: SaveSystem snapshots each touched map's `map.sqlite` into the slot and keeps block HP / furniture / blueprints in JSON alongside it. Full design in [Save / Load](save.md) §State model + §Invariants.
 
 **Player input map data file** — GDD §4 has a full key map; ARCH has no corresponding `data/input_map.tres` or similar. **Partially resolved:** player input reading is now centralized in `InputComponent` (`subsystems/player/input_component.gd`), but the action bindings themselves are still defined in `project.godot`'s `[input]` section. A data file would allow runtime rebinding.
 

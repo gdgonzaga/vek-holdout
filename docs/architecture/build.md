@@ -12,7 +12,7 @@ The def's shape still drives VALIDITY everywhere: `BuildController._is_furniture
 
 | File | Type | Responsibility |
 |---|---|---|
-| `build.tscn` / `build_controller.gd` | Scene/Script | Owns cursor raycast (screen-center, player-excluded), rotation state, ghost preview, validity, and commit. Does NOT know what commit does — it routes by def kind to the strategy (blocks) or the furniture layer (everything else). |
+| `build.tscn` / `build_controller.gd` | Scene/Script | Owns cursor raycast (screen-center, player-excluded), rotation state, ghost preview, and per-kind VALIDITY (block = air; furniture = free footprint; neither overlapping a blueprint). Does NOT know what commit does — it routes ALL commits to the placement `strategy`, whichever is wired. |
 | `build_library.gd` | Autoload | Global catalog (`id → BuildableDef`) of everything buildable. Loads `data/blocks/`, `data/buildables/`, `data/furniture/`. Delegates "unlocked" to `RunProgress`; seeds defaults at startup + on `EventBus.run_started`. See Autoloads table. |
 | `ghost_preview.gd` | Script | `MeshInstance3D` (translucent, validity-tinted green/red). Mesh is driven by the selected def's `mesh`; positioned each frame by the controller — single cell corner for blocks, footprint center for furniture. |
 | `rotation_state.gd` | Script | Axis cycle (R: Z→X→Y) + 90° step wheel (mouse wheel: CW = `cycle_step`, CCW = `cycle_step_back`) + the even-footprint 0.5m pivot rule (GDD §7.4). **Rotation is now wired** in `BuildController._unhandled_input` (wheel up/down + R), and the ghost yaw is applied each frame in `_physics_process`. **Still a stub:** the 0.5m pivot is unimplemented (`get_yaw_degrees` returns a Y-axis yaw = `step * 90°`), and axis rotation has no visible effect on cube blocks — it only matters for multi-cell furniture footprints today. |
@@ -37,12 +37,14 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `build_placement_toggled(active)` | player subsystem | `BuildController` (activates/deactivates) | Yes | Enter/Exit Build Placement |
+| `build_placement_toggled(active)` | player subsystem | `BuildController` (activates/deactivates), HUD (crosshair + Instructions) | Yes | Enter/Exit Build Placement |
 | `build_menu_toggled(open)` | player subsystem | HUD (Instructions label) | Yes | Build menu visibility |
-| `buildable_selected(id)` | player subsystem (from build menu) | `BuildController` (sets `selected_id` + ghost mesh) | Yes | Select a Buildable |
+| `buildable_selected(id)` | build menu (`build_menu.gd`) | `BuildController` (sets `selected_id` + ghost mesh), Player (enters BUILD_PLACEMENT + recaptures mouse) | Yes | Select a Buildable |
 | `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
-| `furniture_placed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter) | Yes | Place Furniture |
-| `furniture_removed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter) | Yes | Remove Furniture |
+| `furniture_placed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter), GameLog | Yes | Place Furniture |
+| `furniture_removed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter), GameLog | Yes | Remove Furniture |
+| `blueprint_placed(target_def_id, anchor)` | `BlueprintLayer` | (future JobBoard — none today) | Yes | Spawn Blueprint |
+| `blueprint_removed(target_def_id, anchor)` | `BlueprintLayer` | (future JobBoard — none today) | Yes | Build / cancel Blueprint |
 
 ## Flow Trace: Place a voxel block (MVP → Instant)
 
@@ -50,20 +52,20 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 1. `BuildController._try_commit` raycasts from screen center (player body excluded).
 2. Target cell = struck voxel + face normal. Confirmed valid via `grid_adapter.is_valid_placement(cell)` (cell is air).
-3. Routes to `_commit_block`: builds a `Transform3D` at the cell origin, calls `strategy.commit(transform, rotation_state, selected_id)`.
+3. `_try_commit` (inline — no per-kind method) builds a `Transform3D` at the cell origin and calls `strategy.commit(transform, rotation_state, selected_id)`.
 4. `InstantPlacementStrategy.commit` resolves the cell from the transform origin and calls `grid_adapter.set_block_at(cell, item_id)`.
 5. Adapter delegates to `VoxelGrid.set_block_at` → emits `block_placed(pos, block_id)` (consumed by colonist pathfinding, raids, Functional Rooms).
 
 **End state:** Block exists in the voxel grid; downstream listeners notified. Materials consumed (deferred — strategy TODO).
 
-## Flow Trace: Place free-standing furniture
+## Flow Trace: Place free-standing furniture (Instant strategy)
 
-**Trigger:** Player LMB-clicks (`build_place`) in Blueprint mode with a non-block def selected (`BuildableDef` or `FurnitureDef`) and a free footprint.
+**Trigger:** Player LMB-clicks (`build_place`) with a non-block def selected (`BuildableDef` or `FurnitureDef`) and a free footprint. (Under the default `BlueprintPlacementStrategy`, LMB spawns a blueprint instead — see the blueprint flow below. This trace is the `InstantPlacementStrategy` path.)
 
 1. `BuildController._try_commit` raycasts from screen center; cell = struck voxel + face normal.
-2. Routes to `_commit_furniture` (the def is not a `BlockDef`).
-3. `_is_footprint_free(anchor, def)`: for every cell in the (yaw-rotated) footprint, confirms `grid_adapter.is_valid_placement(cell)` AND `furniture_layer.has_at(cell)` is false. Rejects overlap with terrain, blocks, or existing furniture.
-4. On success, `FurnitureLayer.spawn(def, anchor, rotation_state.step)`:
+2. Because the def is not a `BlockDef`, validity runs via `_is_footprint_free` (rather than the block's single-cell air check).
+3. `_is_footprint_free(anchor, def)`: for every cell in the (yaw-rotated) footprint, confirms `grid_adapter.is_valid_placement(cell)` AND `furniture_layer.has_at(cell)` is false AND `blueprint_layer.has_at(cell)` is false. Rejects overlap with terrain, blocks, existing furniture, or an existing blueprint.
+4. `_try_commit` builds the `Transform3D` and calls `strategy.commit(...)` → `InstantPlacementStrategy.commit` → `FurnitureLayer.spawn(def, anchor, rotation_state.step)`:
    - Instantiates `new_furniture_template.tscn` (a `Furniture` root); assigns `root.def_id = def.id` and `root.def = def` (the runtime back-ref static data is read through). Assigns `def.mesh` to the `Mesh` node and builds a footprint-sized `BoxShape3D` collision on the `BuildBody` (layer 3) + a trimesh body (layer 1).
    - When `def is FurnitureDef` and its `action_options` is non-empty, attaches an `InteractionComponent` child named exactly `"InteractionComponent"` and copies the options onto it — see [Actions & Interaction](actions.md) flow trace.
    - Positions at `FurnitureLayer.world_origin(anchor, dims, yaw)` (footprint center on XZ, anchor Y).
@@ -78,10 +80,14 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 1. `BuildController._try_commit` raycasts; per-kind validity is checked (block = air; furniture = free footprint; neither on an existing blueprint), then `strategy.commit(transform, rotation_state, selected_id)`.
 2. `BlueprintPlacementStrategy.commit` resolves the cell, looks the def up in `BuildLibrary`, reads `rotation.step`, and calls `BlueprintLayer.spawn_blueprint(def, cell, step)`.
-3. `BlueprintLayer` sizes the blueprint to the target's footprint (`FurnitureLayer.dimensions_of` → 1×1×1 for blocks), instantiates `blueprint_template.tscn` (a `Blueprint` root), applies a translucent hologram material over the target's mesh (unit-box fallback), attaches an `InteractionComponent` child named `"InteractionComponent"` with the single "Build" `ActionOption`, registers every covered cell, and emits `EventBus.blueprint_placed(target_def_id, anchor)`.
-4. Player toggles out of BUILD_PLACEMENT (interaction is gated to NORMAL mode), aims at the blueprint, and presses E. Tap runs `action_options[0]` (Build) directly; hold opens the 1-button menu.
-5. `BuildAction.execute` casts `target as Blueprint` and calls `bp.complete(actor)`, which forwards to `BlueprintLayer.complete_blueprint`.
-6. `complete_blueprint` materializes the target — `BlockDef` → `VoxelGridAdapter.set_block_at` (emits `block_placed`); else `FurnitureLayer.spawn` (emits `furniture_placed`) — then frees the blueprint and emits `blueprint_removed`.
+3. `BlueprintLayer.spawn_blueprint` sizes the blueprint to the target's footprint (`FurnitureLayer.dimensions_of` → 1×1×1 for blocks), instantiates `blueprint_template.tscn` (a `Blueprint` root), applies a translucent hologram material over the target's mesh (unit-box fallback), attaches an `InteractionComponent` child named `"InteractionComponent"`, registers every covered cell, and emits `EventBus.blueprint_placed(target_def_id, anchor)`. The `ActionOption` it attaches depends on the target's `material_cost` (`Array[ItemAmount]`):
+   - **Costless** (`material_cost` empty) → a single **"Build"** `ActionOption` (`BuildAction`); the blueprint builds in one interaction.
+   - **Has a cost** → an **"Add materials"** `ActionOption` (`AddMaterialsAction`) is attached first; the **"Build"** option is held in reserve on the blueprint (`_build_option`) and swapped in only once materials are complete.
+   The blueprint also seeds `InteractionComponent.info_text` with a per-entry "0/N" progress line (e.g. `Plank 0/15`).
+4. Player toggles out of BUILD_PLACEMENT (interaction is gated to NORMAL mode), aims at the blueprint, and presses E. Tap runs `action_options[0]` directly; hold opens the menu.
+5. **If the target has a material cost:** the "Add materials" action calls `Blueprint.deposit_from(actor)` — pulls carried items toward each `material_cost` entry (partial fulfillment allowed), accumulates them in `_given` (`{ItemDef.id: count}`), logs each deposit via `GameLog`, and refreshes `info_text` (e.g. `Plank 3/15`). Repeat until `has_complete_materials()`, at which point the blueprint swaps its option to **"Build"**.
+6. **"Build"** (`BuildAction.execute`) casts `target as Blueprint` and calls `bp.complete(actor)`, which forwards to `BlueprintLayer.complete_blueprint`.
+7. `complete_blueprint` materializes the target — `BlockDef` → `VoxelGridAdapter.set_block_at` (emits `block_placed`); else `FurnitureLayer.spawn` (emits `furniture_placed`) — then frees the blueprint and emits `blueprint_removed`.
 
 **End state:** The real buildable exists; the blueprint is gone. RMB (Deconstruct) also removes a blueprint without building (`BlueprintLayer.remove_blueprint_at`).
 
@@ -92,9 +98,10 @@ Build placement has no same-scene signals — the controller calls strategies/la
 **Trigger:** Player RMB-clicks (`build_remove`) in Blueprint mode.
 
 1. `BuildController._try_remove` raycasts from screen center.
-2. A block occupies the **struck voxel itself**; furniture occupies the **adjacent air cell** (it has no voxel collision — placement targeted the floor cell next to the struck surface). The controller tries both so RMB works on either kind:
+2. The physics ray hits each target's **own** collision directly — a block at the **struck voxel**, furniture/blueprints at the **occupied cell** (they have their own collision bodies, so there's no "adjacent cell" indirection). `_try_remove` tries block → furniture → blueprint, first hit wins:
    - If `grid_adapter.get_block_at(struck)` is non-empty → `grid_adapter.remove_block_at(struck)` → `block_destroyed`.
-   - Else → `furniture_layer.remove_at(adjacent)` → resolves the anchor from any covered cell, frees the node, clears all its cells, emits `furniture_removed`.
+   - Else if `furniture_layer.remove_at(struck)` → resolves the anchor from any covered cell, frees the node, clears all its cells, emits `furniture_removed`.
+   - Else `blueprint_layer.remove_blueprint_at(struck)` → frees the blueprint, emits `blueprint_removed`.
 
 ## Class Reference
 
@@ -120,10 +127,10 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 **Extends:** Node3D
 **Script:** `build_controller.gd`
-**Description:** Build-mode controller. Active only when Player.mode == BUILD_PLACEMENT. Owns cursor raycast (screen-center, player-body-excluded), rotation state, ghost preview, and commit routing. Delegates block commit to `InstantPlacementStrategy`, furniture commit to `FurnitureLayer`, and grid queries to `VoxelGridAdapter`.
+**Description:** Build-mode controller. Active only when Player.mode == BUILD_PLACEMENT. Owns cursor raycast (screen-center, player-body-excluded), rotation state, ghost preview, and per-kind validity. Delegates **all** commit to `strategy.commit` (default `BlueprintPlacementStrategy`; `InstantPlacementStrategy` is the debug fallback) and grid queries to `VoxelGridAdapter`.
 **Used by:** World (runtime wiring after player exists), EventBus (`build_placement_toggled`, `buildable_selected`).
 
-**Deconstruct tool:** the build menu appends a "Deconstruct" tool entry whose id is the `BuildLibrary.DECONSTRUCT_ID` sentinel (not a `BuildableDef`). When it is the selected id, `_unhandled_input` routes LMB to `_try_remove()` instead of `_try_commit()` (RMB still removes, so both buttons remove), and `_physics_process` drives a red ghost on the removal target — a red unit box (`GhostPreview.show_remove_at`) for blocks, or a red overlay of the targeted piece's own mesh (`GhostPreview.show_remove_mesh_at`, fed by `FurnitureLayer.get_furniture_at`) for furniture, mirroring the erase ghost in `addons/voxel_paint/`. `_on_buildable_selected` skips `_set_ghost_mesh()` for the sentinel (no def mesh to set).
+**Deconstruct tool:** the build menu appends a "Deconstruct" tool entry whose id is the `BuildLibrary.DECONSTRUCT_ID` sentinel (not a `BuildableDef`). When it is the selected id, `_unhandled_input` routes LMB to `_try_remove()` instead of `_try_commit()` (RMB still removes, so both buttons remove), and `_physics_process` drives a red ghost on the removal target — a red unit box (`GhostPreview.show_remove_at`) for blocks, or a red overlay of the targeted piece's own mesh (`GhostPreview.show_remove_mesh_at`, fed by `FurnitureLayer.get_furniture_at` for furniture or `BlueprintLayer.get_blueprint_at` for blueprints), mirroring the erase ghost in `addons/voxel_paint/`. `_on_buildable_selected` skips `_set_ghost_mesh()` for the sentinel (no def mesh to set).
 
 **Properties:**
 
@@ -151,7 +158,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 **Extends:** RefCounted
 **Script:** `voxel_grid_adapter.gd`
 **Description:** `IBlockGrid` implementation wrapping `voxel/voxel_grid.gd`. Keeps `BuildController` voxel-agnostic. Holds a `VoxelGrid` reference set at wiring time.
-**Used by:** `BuildController` (raycast + validity queries), `InstantPlacementStrategy` (block set), `FurnitureLayer` (footprint validity queries).
+**Used by:** `BuildController` (raycast + validity queries), `InstantPlacementStrategy` (block set), `BlueprintLayer` (block materialization on `complete_blueprint`), `FurnitureLayer` (footprint validity queries).
 
 **Functions:**
 
@@ -206,3 +213,30 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `label` | `String` | `[export, getter only]` Returns `def.display_name` (or `""` if `def` is null). The interaction menu reads this via `target.get("label")` so the UI stays decoupled from `FurnitureDef`. |
 
 > **Deferred:** per-instance HP/damage (GDD §7.7), Functional Rooms counting fields (§7.8), and crafting/storage/door/bed component slots (§7.9–§7.11) are not on this class yet — added as the owning subsystems land. Placement bookkeeping (anchor → node maps, cell ownership) stays in `FurnitureLayer`.
+
+### Class: Blueprint
+
+**Extends:** `Furniture` (so it reuses the furniture node + `InteractionComponent` + `GameAction` machinery)
+**Script:** `blueprint.gd` / `blueprint_template.tscn`
+**Description:** Non-physical "plan" of a buildable (GDD §7.4). An interactable node the player aims at and presses E on to build — either in one step (costless target) or after depositing materials. Completion funnels through the single `complete()` entry point so a future colonist work-tick / JobBoard can drive the same path.
+**Used by:** `BlueprintLayer` (spawns + completes), [Actions & Interaction](actions.md) (`AddMaterialsAction` / `BuildAction` targets).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `target_def_id` | `String` | `[export default ""]` The def this blueprint materializes into when built. |
+| `target_rotation_step` | `int` | `[export default 0]` Saved placement yaw (`RotationState.step`) so the materialized block/furniture keeps the player's intended rotation. |
+| `anchor_cell` | `Vector3i` | Where the blueprint was placed (set by `BlueprintLayer` at spawn; `complete()` passes it to the layer). |
+| `_given` | `Dictionary` | `{ItemDef.id (String): count (int)}` — materials contributed toward `material_cost` so far. Empty until something is deposited, so `has_complete_materials()` is vacuously true for a costless blueprint. |
+| `_build_option` | `ActionOption` | The "Build" option swapped in once materials are complete. Assigned by `BlueprintLayer` at spawn ONLY when the target has a `material_cost`; a costless blueprint starts on Build and never swaps. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `complete(builder: Node = null) -> bool` | Build the target into the world and remove this blueprint. Forwards to `BlueprintLayer.complete_blueprint`. `builder` is the player now (passed through so colonist labor can attribute skill/stamina later). |
+| `has_complete_materials() -> bool` | True when every `material_cost` entry is fully contributed. Vacuously true when `material_cost` is empty (free builds). |
+| `given_count(item_id: String) -> int` | Count contributed toward one item id so far. |
+| `deposit_from(actor: Node) -> int` | Pull carried items from `actor` toward each `material_cost` entry (partial fulfillment allowed); updates `_given`, logs via `GameLog`, refreshes `info_text`. Returns total deposited. |
+| `serialize() -> Dictionary` / `deserialize(data) -> void` | SaveSystem contract — persists placement + the `_given` material-progress dict (so a half-filled blueprint resumes correctly on load). |

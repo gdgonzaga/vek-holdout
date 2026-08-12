@@ -8,8 +8,8 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 |---|---|---|
 | `inventory.gd` | Script (`class_name Inventory`, extends Node) | Base inventory: weight capacity, add/remove/has_item/get_item_count/current_weight/transfer_to. Looks up `ItemDef` via `_get_def()` (delegates to `ItemDB` by default). Emits `inventory_changed` on mutation. |
 | `character_inventory.gd` | Script (`class_name CharacterInventory`, extends Inventory) | Character-specific inventory with `base_capacity` (export, default 50.0) + `bonus_capacity` (set by bag equipment). Recalculates `capacity` on ready and on bag equipment change. |
-| `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by filename stem (e.g. `"wood"` from `wood.tres`). Read-only after `_ready`. |
-| `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `weight: float`. The item_id is the `.tres` filename (no id field on the resource itself). |
+| `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by `ItemDef.id` (the canonical item identity, e.g. `"wood_block"`). Read-only after `_ready`. |
+| `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `id: String` (canonical item identity — what `ItemDB` keys by and inventories store), `weight: float`, `icon: Texture2D`. |
 | `../data/items/` | Data | Item definition `.tres` files (one per item type). |
 
 ## Autoloads
@@ -32,7 +32,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 **Extends:** Node
 **Script:** `inventory.gd`
 **Description:** Base weight-based inventory. Items stored as `{item_id: count}`; `capacity` (float, kg) enforced by `current_weight()`. Looks up `ItemDef.weight` via `_get_def(item_id)`. Child classes override `_get_def` for test mocking or extend capacity logic.
-**Used by:** `CharacterInventory`, future `StorageInventory` (crates/chests), UI (Inventory screen, HUD hotbar), Combat (ammo consumption), Crafting (material consumption).
+**Used by:** `CharacterInventory`, `StorageInventory` (crates/chests; reads capacity from its furniture def), UI (Inventory screen, HUD hotbar, storage panel), Combat (ammo consumption), Crafting (material consumption).
 
 **Properties:**
 
@@ -80,4 +80,4 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 - **transfer_to() uses remove-first-then-add.** Prevents item duplication. If the target is full, overflow items are returned to the source.
 - **transfer_to() return value:** Returns the number of items that did **not** end up in the target. This covers both "target was full" (partial transfer) and "source didn't have enough" (requested 10, source had 3 → returns 7).
 - **`_get_def()` is the test seam.** Unit tests subclass `Inventory` and override `_get_def()` with a mock dictionary; no `.tres` files needed in the test suite.
-- **ItemDB autoload** follows the same pattern as `BuildLibrary` and `MapLibrary`: scan a `data/` directory at startup, key by filename stem, read-only after `_ready`.
+- **ItemDB autoload** follows the same pattern as `BuildLibrary` and `MapLibrary`: scan a `data/` directory at startup into an `id → def` map, read-only after `_ready`. ItemDB keys by the `ItemDef.id` field (e.g. `wood_block`); the `.tres` filename is just the file location, not the identity.

@@ -16,6 +16,7 @@ res://
 │   ├── player/         # Player controller, camera rig, state machine
 │   ├── build/          # Blueprint mode, BuildLibrary catalog, ghost preview, block placement
 │   │                   #   strategies, furniture layer, grid adapters
+│   ├── furniture/      # Furniture runtime node (placed-item instance; back-ref to its def)
 │   ├── colonists/      # Colonist entities, roster, Job Board, labor AI
 │   ├── skills/         # SkillSet component, skill progression, work-speed multipliers
 │   ├── combat/         # Damage resolution, weapons, durability, enemy base + archetypes
@@ -30,12 +31,15 @@ res://
 ├── ui/                 # HUD + all full-screen UIs (kept at project root for now)
 │   ├── hud/
 │   ├── interaction/    # E-key pop-up menu (InteractionUi)
+│   ├── log_feed/       # Game log: persistent HUD tail + full-screen scrollback (H)
 │   ├── build_menu/
+│   ├── storage/        # Player↔container transfer panel
 │   ├── player_screen/
 │   ├── colony_screen/
 │   ├── world_map/
 │   ├── pause_menu/
-│   ├── main_menu/       # New Game (splash → menu → base_colony)
+│   ├── main_menu/       # New Game + Load Game (splash → menu → base)
+│   ├── load_menu/        # Load Game screen (save-slot list)
 │   ├── splash/          # Boot splash → auto-advances to Main Menu
 │   ├── game_over/
 │   ├── day_summary/
@@ -80,7 +84,7 @@ Dev-facing editor tooling, not shipped gameplay. Documented here because the map
 - **Main** (`main.tscn`) — root scene, persists across entire game session. Owns the scene-transition machinery and the always-on CanvasLayers.
   - CanvasLayer (`layer=10`) — UI overlay layer
     - **HUD** (`hud.tscn`) — persistent in-game overlay (HP/Durability/Stamina/Breath bars, hotbar, build-mode ghost). Instanced by Main at startup; hidden during full-screen menus.
-  - CanvasLayer (`layer=20`) — Full-screen UI layer (Player/Colony/World Map/Pause/MainMenu/GameOver/Settings). Only one present at a time; managed by `SceneManager.open_screen` / `close_screen`.
+  - CanvasLayer (`layer=20`) — Full-screen UI layer (Player/Colony/World Map/MainMenu/LoadMenu/GameOver/Settings). Only one present at a time; managed by `SceneManager.open_screen` / `close_screen`. (The **Pause overlay** is the exception — it mounts its own **layer-30** `CanvasLayer` so it always renders above the layer-20 UI and the layer-10 HUD.)
   - **MapRootSlot** (Node) — the mount point for the current map. Swapped by SceneManager on base↔POI transitions.
     - **Map** (`map.tscn` / per-map `data/maps/<id>/map.tscn`, root script `map.gd` — `Map`) — the current game world; a structural container only (no gameplay logic). See [Maps](maps.md) subsystem.
     - VoxelGrid (Node, `voxel_grid.gd`) — the `IBlockGrid` owner; sole voxel_tool access point
@@ -90,7 +94,7 @@ Dev-facing editor tooling, not shipped gameplay. Documented here because the map
     - EnemyContainer (Node3D) — holds active enemy instances
     - FurnitureContainer (Node3D) — holds free-standing furniture placed at runtime (Build subsystem)
     - BuildController (`build.tscn`) — active only in Blueprint mode
-- **Boot** (`boot.tscn`) — project entry point; loads Main, then opens the Splash → Main Menu. The menu gates gameplay (New Game → `swap_map("base_colony")`).
+- **Boot** (`boot.tscn`) — project entry point; loads Main, then opens the Splash → Main Menu. The menu gates gameplay (New Game → `swap_map("base")`).
 
 **Scene transitions:** SceneManager swaps the current `Map` under `MapRootSlot` between the base scene and POI scenes (single entry point: `swap_map(map_id)`). Full-screen UIs replace each other in the `layer=20` CanvasLayer via `open_screen` / `close_screen` (currently: world map, opened with **M**; Esc closes any open screen before toggling pause). The HUD stays mounted throughout gameplay; hidden when any full-screen UI opens (pause/menu) per §12 "full pause everywhere."
 
@@ -104,15 +108,15 @@ Only scripts genuinely needed across multiple unrelated scenes. Solo project —
 | **EventBus** | `event_bus.gd` | Global signal relay for cross-scene events only (see registry). |
 | **GameLog** | `game_log.gd` | Player-facing game log history (capped ring buffer of `LogEntry`). Auto-subscribes to EventBus signals (deaths, day rollover, expeditions, raids, furniture) so the feed is usable out of the box; gameplay code also calls `log()` directly. Emits `entry_added` consumed by the LogFeed HUD tail and LogHistory scrollback. See [Game Log](game-log.md) subsystem. |
 | **SceneManager** | `scene_manager.gd` | Load/unload the current Map with transitions; manage the full-screen UI layer; runtime SQLite stream redirect. |
-| **SaveSystem** | `save_system.gd` | Autosave on sleep/midnight/quit; load on Continue/New Game. |
-| **Colony** | `colony.gd` | The colony roster + Job Board. Cross-scene because base and POI scenes both need it (colonists stay in colony during expeditions). |
-| **TimeSystem** | `time_system.gd` | Continuous time advance, day boundary (midnight) event, links to Stamina accrual. Cross-scene because time advances in both base and POI. |
+| **SaveSystem** | `save_system.gd` | Multi-slot save/load orchestrator. Autosave at midnight (`day_rolled_over` hook); manual save via the pause menu; parks the live map on map swap (`map_unloading` hook). See [Save / Load](save.md). |
+| **Colony** | `colony.gd` | **STUB** — registered so the autoload table resolves, but no roster/Job Board yet. Intended: the colony roster + Job Board, cross-scene because base and POI both need it. See [Colonists](colonists.md). |
+| **TimeSystem** | `time_system.gd` | Continuous time advance; emits `day_rolled_over` at the midnight boundary. Cross-scene because time advances in both base and POI. |
 | **RunProgress** | `run_progress.gd` | Run-scoped *earned* state. Currently holds buildable unlocks; **intended to grow into the home for Colony's run-state children** (Memorial, KeyItemPool, LoadoutManager, DiscoveredGear) and other run-earned state — migration ongoing. A "dumb bag" of ids only (no data-def reading). Reset by the New Game orchestrator, then reseeded by `EventBus.run_started`. Saved with the run, wiped on New Game. |
 | **BuildLibrary** | `build_library.gd` | The read-only catalog of everything buildable. Loads every `BuildableDef` subclass (`BlockDef`, `BuildableDef`, `FurnitureDef`) from `data/blocks/`, `data/buildables/`, `data/furniture/` into one `id → def` map. "What's unlocked" is delegated to `RunProgress` — this catalog seeds the default-unlocked defs at startup and on `EventBus.run_started`, then exposes `is_unlocked` / `get_unlocked` / `unlock` / `get_def`. Read-only after `_ready`. See [Build](build.md) subsystem. |
-| **MapLibrary** | `map_library.gd` | Read-only catalog of all loadable maps. Scans `data/maps/*/map_def.tres` at startup into an `id → MapDef` map. Looked up by `SceneManager.swap_map()` and `ExpeditionManager`. Read-only after `_ready`. See [Maps](maps.md) subsystem. |
-| **ExpeditionManager** | `expedition_manager.gd` | Tracks discovered POIs and the on/off-expedition flag. `start_expedition()` / `end_expedition()` emit the EventBus signals and delegate map loading to `SceneManager.swap_map()`. Scaffold — hex-grid + crew logic deferred. See [Expeditions](expeditions.md) subsystem. |
-| **ItemDB** | `item_db.gd` | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by filename stem. Read-only after `_ready`. `get_def(item_id) -> ItemDef`, `has_def(item_id) -> bool`. See [Inventory](inventory.md) subsystem. |
 | **Tools** | `tools.gd` | General cross-subsystem utilities. Currently: `generate_uuid() -> String` (cryptographically random RFC 4122 UUID v4). |
+| **MapLibrary** | `map_library.gd` | Read-only catalog of all loadable maps. Scans `data/maps/*/map_def.tres` at startup into an `id → MapDef` map. Looked up by `SceneManager.swap_map()` and `ExpeditionManager`. Read-only after `_ready`. See [Maps](maps.md) subsystem. |
+| **ItemDB** | `item_db.gd` | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by `ItemDef.id`. Read-only after `_ready`. `get_def(item_id) -> ItemDef`, `has_def(item_id) -> bool`. See [Inventory](inventory.md) subsystem. |
+| **ExpeditionManager** | `expedition_manager.gd` | Tracks discovered POIs and the on/off-expedition flag. `start_expedition()` / `end_expedition()` emit the EventBus signals and delegate map loading to `SceneManager.swap_map()`. Scaffold — hex-grid + crew logic deferred. See [Expeditions](expeditions.md) subsystem. |
 
 **Deliberately NOT autoloads** (kept as scene-scoped references):
 - CharacterInventory — belongs to the player/colonist node; accessed via the entity node.
@@ -142,6 +146,8 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 | `buildable_selected(id: String)` | player subsystem | BuildController | Player selected a buildable in the build menu (sets the controller's `selected_id`) |
 | `furniture_placed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture placed in world — increments the relevant Functional Rooms counter; GameLog posts a "Built <def_id>" line |
 | `furniture_removed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture removed from world — decrements the relevant Functional Rooms counter; GameLog posts a "Removed <def_id>" line |
+| `blueprint_placed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | (future JobBoard — no listeners today) | A blueprint (construction plan) was spawned — the seam a future colonist labor/JobBoard connects to register a construction Job |
+| `blueprint_removed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | (future JobBoard — no listeners today) | A blueprint was removed (built or cancelled) — the seam for a future JobBoard to cancel the construction Job |
 | `item_picked_up(item_id: String, count: int)` | inventory subsystem | HUD (hotbar/inventory refresh) | Inventory changed while Player screen closed |
 | `job_logged(entry: Dictionary)` | colonists (Job Board) | UI (Job Log panel, when open) | Diagnostic feed for job failures |
 

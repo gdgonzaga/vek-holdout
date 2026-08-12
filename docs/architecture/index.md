@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-08-12 (Save / Load subsystem doc landed)
+Last updated: 2026-08-13 (Load Game screen wired into the save flow; EventBus blueprint signals + per-layer `_is_restoring` reconciled; pause overlay, base map id, and New Game flow corrected across pages)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 

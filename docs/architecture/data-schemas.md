@@ -25,29 +25,27 @@ One `MapDef` per loadable map. Scanned from `data/maps/*/map_def.tres` by `MapLi
 | `unlock_condition` | `String` | *(Unused — reserved for gated discovery.)* |
 | `difficulty` | `int` | 1–N; shown in the world map row. |
 
-## `data/characters/<type>.tres` (Resource: `character_def.gd`)
+## `data/characters/<type>.tres` (Resource: `character_def.gd`) — *(planned)*
 
-One CharacterDef per character type: `player.tres`, `colonist.tres`, `companion.tres`, `brawler.tres`, `shooter.tres`. Union schema — all fields exist; unused ones default to 0/null. Supersedes the retired `data/player_stats.tres` and `data/enemies/`.
+> **Status: planned, not yet implemented.** `data/characters/` is empty; `character_def.gd` and the `CharacterType` enum do not exist. The intended union schema (GDD §6) is `display_name` / `character_type` / `max_hp` / `max_durability` / `base_move_speed` / `sprint_multiplier` / `stamina_drain_rate` / `breath_*` costs + regen / `detection_range` / `damage` / `attack_range`. `player.gd` still sources its stats from `@export` vars (TODO: source from a CharacterDef once it lands). The only actor def implemented today is `ColonistDef` (below).
 
-| Field | Type | Applies to | Description |
-|---|---|---|---|
-| `display_name` | `String` | All | UI label. |
-| `character_type` | `CharacterType` enum | All | PLAYER / COLONIST / COMPANION / ENEMY. |
-| `max_hp` | `int` | All | 200 (player) / 100 (colonist) / 120 (companion) / 140,60 (enemies). |
-| `max_durability` | `int` | All | 0 for enemies (no armor in MVP); sum of equipped armor otherwise. |
-| `base_move_speed` | `float` | All | Player 3.5; Brawler 2.1; Shooter 2.98. |
-| `sprint_multiplier` | `float` | Player | 1.6×. Unused by others (no sprint in MVP). |
-| `stamina_drain_rate` | `float` | Player, Colonist, Companion | −0.21/min ambient. Unused by enemies (no StaminaComponent). |
-| `breath_sprint_drain` | `float` | All | 20/sec. |
-| `breath_jump_cost` | `float` | All | 10. |
-| `breath_melee_cost` | `float` | All | 5. |
-| `breath_ranged_cost` | `float` | All | 2. |
-| `breath_regen_rate` | `float` | All | 10/sec. |
-| `detection_range` | `float` | Enemies | Brawler 10m; Shooter 16m. Unused by player/colonist. |
-| `damage` | `int` | Enemies | Brawler 25 melee; Shooter 12 ranged. Unused by player (player damage comes from weapons). |
-| `attack_range` | `float` | Enemies | Brawler 1.5m; Shooter 10m (holding). Unused by player. |
+## `data/colonists/<id>.tres` (Resource: `colonist_def.gd`) — `ColonistDef`
 
-## `data/energy_config.tres` (Resource: `energy_config.gd`)
+The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef extends Resource`.
+
+| Field | Type | Description |
+|---|---|---|
+| `max_hp` | `int` | `[export default 100]` |
+| `base_move_speed` | `float` | `[export default 3.5]` |
+| `sprint_multiplier` | `float` | `[export default 1.5]` |
+| `stamina_drain_rate` | `float` | `[export default 1.0]` |
+| `breath_costs` | `Dictionary` | `[export]` Per-action Breath costs keyed by name (default `{"sprint": 1.0, "jump": 1.0}`). |
+| `starting_skills` | `Dictionary` | `[export]` Starting skill xp/level per labor (default mining + farming at L1). |
+| `default_labor_priorities` | `Dictionary` | `[export]` Default labor-priority weights per labor. |
+
+## `data/energy_config.tres` (Resource: `energy_config.gd`) — *(planned)*
+
+> **Status: planned — `energy_config.gd`/`.tres` do not exist yet.** Field table below is the intended schema (Energy subsystem, GDD §17).
 
 Global Energy values (shared across all characters). Per-character rates (Stamina drain, Breath costs) live in `data/characters/`.
 
@@ -63,16 +61,19 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 
 ## `data/blocks/<type>.tres` (Resource: `block_def.gd`)
 
+`BlockDef` `extends BuildableDef` — voxel blocks. Inherits `id` / `display_name` / `icon` / `hp` / `mesh` / `texture` / `texture_variation` / `material_cost` / `unlocked_by_default` from `BuildableDef`. The string id is also referred to as "block_id" throughout the voxel subsystem (`VoxelGrid`, `BlockLibrary`).
+
 | Field | Type | Description |
 |---|---|---|
-| `block_id` | `String` | e.g. `"wood"`, `"scrap"`, `"stone"`. |
-| `hp` | `int` | Block HP (50/100/300/600/1200). |
-| `mesh` | `Mesh` | Blocky-mode mesh (unit cube). |
-| `material_cost` | `Dictionary` | Resource → count (e.g. `{wood: 3}`). |
+| `is_terrain` | `bool` | `[export default false]` BlockDef's own field. True for the indestructible terrain block (forced to voxel-tool library index 1 by `BlockLibrary`). |
+| `id` | `String` | *(inherited)* e.g. `"wood"`, `"scrap"`, `"stone"`. |
+| `hp` | `int` | *(inherited)* Block HP (50/100/300/600/1200). |
+| `mesh` | `Mesh` | *(inherited)* Blocky-mode mesh (unit cube). |
+| `material_cost` | `Array[ItemAmount]` | *(inherited)* Materials consumed when building (see `ItemAmount`). |
 
 ## `data/buildables/<id>.tres` (Resource: `buildable_def.gd`)
 
-Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`). Also the parent class of `BlockDef` and `FurnitureDef`, which is where `id` / `display_name` / `icon` / `hp` / `mesh` / `material_cost` / `unlocked_by_default` are inherited from.
+Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`). Also the parent class of `BlockDef` and `FurnitureDef`, which is where `id` / `display_name` / `icon` / `hp` / `mesh` / `texture` / `texture_variation` / `material_cost` / `unlocked_by_default` are inherited from.
 
 | Field | Type | Description |
 |---|---|---|
@@ -81,10 +82,12 @@ Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`
 | `icon` | `Texture2D` | UI icon for the build menu (nullable; entries render without it). Inherited by `BlockDef` and `FurnitureDef`. |
 | `hp` | `int` | Durability-before-HP buffer (GDD §6.11). |
 | `mesh` | `Mesh` | Preview/placement mesh; for voxel blocks MUST occupy `(0,0,0)→(1,1,1)`. |
-| `material_cost` | `Dictionary` | `{resource_id: count}` (e.g. `{"wood": 3}`). Consumed at placement (deferred). |
+| `texture` | `Texture2D` | Albedo texture. `BlockLibrary` builds a `StandardMaterial3D` from this (no separate material `.tres` per type); the furniture authoring path does the same inline. |
+| `texture_variation` | `bool` | `[export default false]` Block-only: opts into a per-block UV/brightness randomization shader so repeating textures don't tile visibly (handled in `BlockLibrary`). |
+| `material_cost` | `Array[ItemAmount]` | Materials consumed to build (each entry = an `ItemDef` + count; see `ItemAmount`). Enforced by the blueprint deposit flow (`BlueprintPlacementStrategy`); the `InstantPlacementStrategy` debug fallback still defers it. |
 | `unlocked_by_default` | `bool` | Available without earning an unlock this run; seeded by `BuildLibrary`. |
 
-**Methods:** `get_cost() -> Dictionary`, `get_cost_of(resource_id: String) -> int`.
+_(No cost-helper methods — `material_cost` is read directly as an `Array[ItemAmount]`.)_
 
 ## `data/furniture/<id>.tres` (Resource: `furniture_def.gd`)
 
@@ -95,6 +98,8 @@ Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`
 | `dimensions` | `Vector3i` | `[export default ONE]` Cell-box the item occupies: x=width, y=height, z=depth (GDD §7.2). Rotation (R) swaps x/z; even-sized x or z shift the placement pivot 0.5m (GDD §7.4). |
 | `action_options` | `Array[ActionOption]` | `[export default []]` Interaction options offered on E-press. Each entry is an `ActionOption` `.tres` (see below). Empty (default) means non-interactable — `FurnitureLayer` attaches no `InteractionComponent`. |
 | `test_params` | `TestParams` | `[export, nullable]` Composition-pattern placeholder for capability-specific parameters. Null = no capability data. See "FurnitureDef capability parameters" below. |
+| `item_dispenser_params` | `ItemDispenserParams` | `[export, nullable]` Capability sub-resource consumed by `GiveItemAction` (the items it dispenses, as `Array[ItemAmount]`). Schema in `data/capability_params/`. |
+| `storage_params` | `StorageParams` | `[export, nullable]` Capability sub-resource consumed by `StorageInventory` (its `capacity`, default 100.0). Schema in `data/capability_params/`. |
 
 > **FurnitureDef capability parameters** *(decided, partially seeded — `test_params` is not yet read by any GameAction)*
 >
@@ -109,7 +114,7 @@ Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`
 
 ## `data/actions/<id>.tres` (Resource: `game_action.gd`)
 
-One `.tres` per concrete `GameAction` — "what happens" when the player picks the option. Subclasses override `execute(actor, target)`. Currently only `print_action.tres` (`PrintAction`, a smoke test). See [Actions & Interaction](actions.md).
+One `.tres` per concrete `GameAction` — "what happens" when the player picks the option. Subclasses override `execute(actor, target)`. Concrete subclasses: `PrintAction` (smoke test), `BuildAction`, `AddMaterialsAction`, `GiveItemAction`, `OpenStorageAction` (each in `data/actions/`). See [Actions & Interaction](actions.md).
 
 | Field | Type | Description |
 |---|---|---|
@@ -119,7 +124,7 @@ One `.tres` per concrete `GameAction` — "what happens" when the player picks t
 
 ## Condition resources (Resource: `condition.gd`)
 
-`Condition` `extends Resource` — gates an `ActionOption`. One `.tres` per condition instance. Only composites exist so far (no leaf conditions like `HasItem`); see [Actions & Interaction](actions.md).
+`Condition` `extends Resource` — gates an `ActionOption`. One `.tres` per condition instance. Composites (`AnyOf`/`AllOf`/`NotCondition`) live in `subsystems/actions/`; leaf conditions live in `data/conditions/` (e.g. `CanCarryDispensedItems`). See [Actions & Interaction](actions.md).
 
 | Class | File | Fields | Semantics |
 |---|---|---|---|
@@ -128,9 +133,9 @@ One `.tres` per concrete `GameAction` — "what happens" when the player picks t
 | `AllOf` | `subsystems/actions/all_of.gd` | `conditions: Array[Condition]` | true only if **all** children `is_met` (redundant inside an option, which already ANDs). |
 | `NotCondition` | `subsystems/actions/not.gd` | `condition: Condition` | Inverts a single child. |
 
-## `data/actions/options/<id>.tres` (Resource: `action_option.gd`)
+## `data/action_options/<id>.tres` (Resource: `action_option.gd`)
 
-One `.tres` per `ActionOption` — one row in the interaction menu. Binds a `GameAction` to its gating `Condition`s. Directory does not exist yet (`furniture_def.gd` cites it as the planned location). See [Actions & Interaction](actions.md); authoring walkthrough: `docs/HOWTO-author-interactions.md`.
+One `.tres` per `ActionOption` — one row in the interaction menu. Binds a `GameAction` to its gating `Condition`s. Five exist: `build_action_option`, `add_materials_action_option`, `give_item_action_option`, `open_storage_action_option`, `test_action_option`. See [Actions & Interaction](actions.md); authoring walkthrough: `docs/HOWTO-author-interactions.md`.
 
 | Field | Type | Description |
 |---|---|---|
@@ -139,19 +144,34 @@ One `.tres` per `ActionOption` — one row in the interaction menu. Binds a `Gam
 
 **Method:** `is_available(actor: Node, target: Node) -> bool` — returns `false` on the first failing condition; `true` if empty. Drives each button's `disabled` state.
 
-## `data/raid_curve.tres` (Resource: `raid_curve.gd`)
+## `data/raid_curve.tres` (Resource: `raid_curve.gd`) — *(planned)*
+
+> **Status: planned — `raid_curve.gd`/`.tres` do not exist yet** (Raids subsystem). Intended schema below.
 
 Array of `{day_threshold, waves, enemies_per_wave, shooter_percent}` rows. See GDD §17 Raids for values.
 
 ## `data/items/<id>.tres` (Resource: `item_def.gd`)
 
-One `ItemDef` per item type. The **item_id is the `.tres` filename** (e.g. `"wood"` from `wood.tres`); there is no `id` field on the resource. Scanned at startup by the `ItemDB` autoload. Currently only `weight` is implemented; `display_name`, `icon`, `usable` etc. will be added as needed.
+One `ItemDef` per item type. The **canonical item identity is the `id` field** (e.g. `"wood_block"`) — what `ItemDB` keys by, inventories store, and `material_cost` references. The `.tres` filename is just the file location. Scanned at startup by the `ItemDB` autoload.
 
 | Field | Type | Description |
 |---|---|---|
+| `id` | `String` | Canonical item identity (e.g. `"wood_block"`). Keyed by `ItemDB`; the dict key in inventories and in blueprint `_given` material progress. |
 | `weight` | `float` | Weight per unit (kg). Used by `Inventory` for capacity enforcement. |
+| `icon` | `Texture2D` | UI icon (nullable). |
 
-## `data/loot/<table>.tres` (Resource: `loot_table.gd`)
+## `data/items/item_amount.gd` (Resource: `ItemAmount`)
+
+A counted item reference — the element type of `BuildableDef.material_cost` (and any other "N of this item" list).
+
+| Field | Type | Description |
+|---|---|---|
+| `item_def` | `ItemDef` | Direct reference to the item definition (read `.id` for the identity). |
+| `count` | `int` | `[export default 1]` How many of the item. |
+
+## `data/loot/<table>.tres` (Resource: `loot_table.gd`) — *(planned)*
+
+> **Status: planned — `data/loot/` is empty; `loot_table.gd`/`loot_entry.gd` do not exist yet** (Loot subsystem). Intended schema below.
 
 One per container type: `standard.tres` (Zones A/B), `deep.tres` (Zone C). Each table is an array of `LootEntry` resources (see `loot_entry.gd`). See GDD §17 "Loot tables" for the MVP values.
 
@@ -172,7 +192,9 @@ One per container type: `standard.tres` (Zones A/B), `deep.tres` (Zone C). Each 
 **Standard container values** (GDD §17): scrap 20–50 (1.0), components 5–15 (0.7), fuel 5–15 (0.4), med_supplies 1–3 (0.25), key_item_pending — — (0.05).
 **Deep container values**: scrap 40–90 (1.0), components 10–25 (0.85), fuel 10–20 (0.55), med_supplies 2–5 (0.40), key_item_pending — — (0.20).
 
-## `data/loot/key_items.tres` (Resource: `key_item_pool_def.gd`)
+## `data/loot/key_items.tres` (Resource: `key_item_pool_def.gd`) — *(planned)*
+
+> **Status: planned — `key_item_pool_def.gd`/`key_item_def.gd` do not exist yet.** Intended schema below.
 
 The Key Item pool. Each Key Item drops at most once per playthrough (enforced by `KeyItemPool.found` on the Colony autoload). See GDD §17 "Key Item Table".
 
@@ -190,7 +212,9 @@ The Key Item pool. Each Key Item drops at most once per playthrough (enforced by
 
 **MVP Key Items** (GDD §17): Radio Transceiver Unit (Command Center T2), Portable Generator (Workshop T2), Water Pump Motor (Farm T2), Medical Fridge Unit (Infirmary T2), Heavy Jack Lift (Garage T2), Insulation Panels (Living Quarters T2), Welding Gas Cylinders (Defenses T2).
 
-## `data/skills/skills.tres` (Resource: `skill_def_list.gd`)
+## `data/skills/skills.tres` (Resource: `skill_def_list.gd`) — *(planned)*
+
+> **Status: planned — `data/skills/` is empty; `skill_def_list.gd`/`skill_def.gd` do not exist yet** (Skills subsystem). Intended schema below.
 
 Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, and per-level work-speed multipliers. Loaded once and shared by all `SkillSet` components. See GDD §6.3.
 
@@ -210,7 +234,9 @@ Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, an
 
 **MVP skills** (GDD §6.3): Medical (Clinic Bed), Mechanical (Vehicle Lift), Construction (build/repair blocks), Crafting (Workbench + Forge), Combat (raids/expeditions), Farming (Growing Trough, post-MVP — progression tracked but no Labor to consume it yet).
 
-## `data/recipes/<station>.tres` (Resource: `recipe_list.gd`)
+## `data/recipes/<station>.tres` (Resource: `recipe_list.gd`) — *(planned)*
+
+> **Status: planned — `data/recipes/` is empty; `recipe_list.gd`/`recipe.gd` do not exist yet** (Crafting subsystem). Intended schema below.
 
 One RecipeList per station: `workbench.tres` (furniture, armor, weapons, ammo), `forge.tres` (smelting). Each list is an array of `Recipe` resources. See GDD §7.9 + §17 Equipment for the MVP recipe values.
 
@@ -237,7 +263,9 @@ One RecipeList per station: `workbench.tres` (furniture, armor, weapons, ammo), 
 - **Weapons + ammo** (GDD §17 Equipment): Knife `{metal: 2}`, Pistol `{metal: 5, components: 5}`, Bullet `{scrap: 1}`. (Club/Bow/arrows are post-MVP.)
 - **Smelting** (GDD §7.3 items): Ore→Metal, Scrap→Components, Metal+Components→Reinforced.
 
-## `data/loadouts/<template>.tres` (Resource: `loadout_template.gd`)
+## `data/loadouts/<template>.tres` (Resource: `loadout_template.gd`) — *(planned)*
+
+> **Status: planned — `data/loadouts/` is empty; `loadout_template.gd` does not exist yet** (Equipment subsystem). Intended schema below.
 
 Player-created loadout templates, saved per run. Each template is an abstract slot→item_def_id mapping (resolved to concrete items from storage at equip time). Created/edited via the Colony screen Loadouts tab. See GDD §17 Equipment + §12.
 

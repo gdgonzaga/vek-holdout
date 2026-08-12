@@ -126,7 +126,7 @@ Apply to every serializer, present and future:
 - **`Vector3` / `Vector3i` → `[x, y, z]` as a JSON value; `"x,y,z"` as a JSON dict key.** Never `str(Vector3i)` — the format isn't stable across Godot versions.
 - **`.duplicate(true)` every collection before stuffing into the payload.** A reference can mutate mid-stringify; the save becomes corrupt.
 - **Defensive `.get(key, default)` on every read.** Saves from older versions may omit fields; never index directly.
-- **`_is_restoring` flag to suppress spawn side effects during deserialize.** `spawn()` / `spawn_blueprint()` may emit `furniture_placed` / `blueprint_placed` signals that trigger expensive work (NavMesh rebakes, sound effects, etc.). During bulk load these fire hundreds of times. Set the flag in `apply_parked_state_if_any`, clear it on completion.
+- **`_is_restoring` flag to suppress spawn side effects during deserialize.** `spawn()` / `spawn_blueprint()` emit `furniture_placed` / `blueprint_placed`; during bulk load these fire hundreds of times (today the only listener is `GameLog`, which would log a line per item — future listeners like NavMesh rebakes would be worse). Each owning layer (`FurnitureLayer`, `BlueprintLayer`) toggles its **own** `_is_restoring` flag at the start/end of its `deserialize()` — SaveSystem itself holds no such flag. `apply_parked_state_if_any` just calls the layer's `deserialize()`, which is where the flag toggles.
 - **`format_version` field for migration.** Loader branches on it; never remove old-version handling when adding new fields.
 
 ## Signals
@@ -142,7 +142,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 **Trigger:** Main Menu → New Game button.
 
-1. `main_menu._start_new_game()` calls `SaveSystem.create_save(name)` → generates UUID4 slot id, sets `_active_slot`, **clears `_parked`** (per INV-2).
+1. `main_menu._start_new_game()` calls `SaveSystem.create_save(display_name)` → generates UUID4 slot id, sets `_active_slot`, **clears `_parked`** (per INV-2).
 2. `RunProgress.reset_for_new_game()` (wipe earned state).
 3. `EventBus.run_started.emit()` → `BuildLibrary` re-seeds default unlocks; `ExpeditionManager` resets discovered POIs. **NOT emitted on Load** (Load restores RunProgress from save; re-seeding would clobber it).
 4. Discover initial POIs (`MapLibrary.get_maps_by_type(POI)` → `ExpeditionManager.discover`).
@@ -161,20 +161,22 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
    - `global`: each autoload's `serialize()` + `_serialize_player()`.
    - `maps`: `_parked.duplicate(true)`.
 3. Write `meta.json` + `state.json` to `user://saves/<slot>/`.
-4. `_snapshot_maps_to_slot()` → `DirAccess.copy_absolute` each `user://maps/<id>/map.sqlite` into `user://saves/<slot>/maps/<id>/map.sqlite`.
-5. (Optional) prune slot subdirs for maps no longer in `_parked` (deleted between saves by a future feature).
+4. `_snapshot_maps_to_slot()` → `DirAccess.copy_absolute` each `user://maps/<id>/map.sqlite` into `user://saves/<slot>/maps/<id>/map.sqlite`. (Copy failures `push_warning` but don't fail the save — `_snapshot_maps_to_slot`'s result is unchecked.)
 
-**End state:** Slot directory contains a consistent snapshot of all state. Failures in any step log a warning and return false; partial writes are acceptable because the next save overwrites.
+**End state:** Slot directory contains a consistent snapshot of all state. `save_game()` returns `false` only on no-active-slot or a `meta.json`/`state.json` write failure; partial writes are acceptable because the next save overwrites.
+
+> **Not yet done:** pruning slot subdirs for maps no longer in `_parked` (e.g. a map deleted between saves). Stale subdirs just accumulate today.
 
 ## Flow Trace: Load
 
-**Trigger:** Continue / Load button on a future Load screen (UI not yet implemented; `load_game(slot)` is the API).
+**Trigger:** Main Menu → **Load Game** button, which opens the Load Game screen (`ui/load_menu/load_menu.gd`). The screen lists slots via `list_saves()`; clicking a row calls `await load_game(slot)`.
 
 1. Read `meta.json` + `state.json` from `user://saves/<slot>/`.
-2. `format_version` check → migrate or refuse.
-3. `_is_restoring = true`; restore global autoloads via `deserialize()`:
+2. `format_version` check → refuse on mismatch (no migration path yet; current loader only refuses).
+3. Restore global autoloads via `deserialize()`:
    - GameState, TimeSystem, RunProgress, ExpeditionManager, GameLog.
    - Player state is staged in `_pending_player` — restored AFTER `swap_map` (player must be in the tree).
+   - (The per-layer `_is_restoring` flags are NOT touched here — each toggles inside its own `deserialize()` at step 9.)
 4. **`_parked = state["maps"].duplicate(true)`** (REPLACE, per INV-2).
 5. `_active_slot = slot`.
 6. `SceneManager.wipe_map_cache()` (INV-2 Load row).
@@ -182,7 +184,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 8. **Do NOT emit `run_started`** — see New Game flow step 3.
 9. `await SceneManager.swap_map(meta.current_scene_id)` → the saved map loads; because its runtime sqlite already exists (step 7), `_redirect_sqlite_stream` skips the `res://` copy. `_wire_map` calls `SaveSystem.apply_parked_state_if_any(map_id, map)` — returns true, applies `_parked[map_id]` to the freshly-wired VoxelGrid/FurnitureLayer/BlueprintLayer, **skips authored furniture marker replay** (would otherwise double-spawn).
 10. `_restore_player(_pending_player)` → Player is now in the tree; `deserialize` sets position + camera + inventory.
-11. `_is_restoring = false`.
+11. (No SaveSystem-level flag to clear — the per-layer `_is_restoring` flags already reset themselves at the end of their `deserialize()` in step 9.)
 
 **End state:** All global state restored, saved map loaded with its parked state applied (not authored replay), player at saved position. Other maps in `_parked` will apply on first visit.
 
@@ -202,7 +204,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 |---|---|
 | `SceneManager._wire_map` | After `wire_build`, calls `SaveSystem.apply_parked_state_if_any(map_id, map)`. If it returns true, skips authored furniture marker replay (avoids double-spawn on loaded saves). |
 | `SceneManager._ready` (implicit via autoload order) | SaveSystem (autoload #5) comes after SceneManager (#4); safe to call `SceneManager.get_current_map()` / `get_player()` at runtime. |
-| `main_menu._start_new_game` | Calls `SaveSystem.create_save(name)` before `RunProgress.reset_for_new_game()`. |
+| `main_menu._start_new_game` | Calls `SaveSystem.create_save(display_name)` before `RunProgress.reset_for_new_game()`. |
 | `pause_menu._on_save_pressed` | Calls `SaveSystem.save_game()` then `SceneManager.close_screen()`. |
 | `EventBus.map_unloading` | SaveSystem listens, parks the outgoing map. |
 | `EventBus.day_rolled_over` | SaveSystem listens, autosaves. |
@@ -224,7 +226,8 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 | `_parked` | `Dictionary` | `map_id -> {voxel_hp, furniture, blueprints}`. Scratch metadata for currently-loaded slot. Replaced (not merged) on load. |
 | `_active_slot` | `String` | UUID4 of the slot a save writes to. Empty if no slot active (shouldn't happen in-game — New Game always creates one). |
 | `_pending_player` | `Variant` | Staged player state during load; applied after `swap_map` reparents the player into the tree. |
-| `_is_restoring` | `bool` | True during load; suppresses spawn side effects in deserializing layers. |
+
+> **No `_is_restoring` flag on SaveSystem.** Each deserializing layer (`FurnitureLayer`, `BlueprintLayer`) owns and toggles its own `_is_restoring` inside its `deserialize()`; SaveSystem only calls that `deserialize()` via `apply_parked_state_if_any`. See JSON conventions.
 
 **Functions (public):**
 
@@ -254,8 +257,8 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 ## Future considerations
 
-- **Load menu UI** — no Load screen exists yet. When it lands, `list_saves()` feeds the slot list and a delete button wires to `delete_save()`.
-- **Save-before-quit hook** — `NOTIFICATION_WM_CLOSE_REQUEST` handler in `main.gd` would call `save_game()` so window-close quits are safe. Currently no quit hook exists; defer with the Load UI.
+- ~~**Load menu UI** — no Load screen exists yet.~~ **Resolved:** the Load Game screen (`ui/load_menu/load_menu.gd`) lists slots via `list_saves()`, loads on row click (`await load_game`), and deletes via a per-row `X` button wired to `delete_save()` (no confirmation dialog in v1).
+- **Save-before-quit hook** — the Pause → **Quit to Main Menu** path now exists (`pause_menu` unloads the live map + opens the Main Menu) but does **not** autosave. A `NOTIFICATION_WM_CLOSE_REQUEST` handler in `main.gd` calling `save_game()` would make window-close quits safe too — still not implemented.
 - **Colonists wiring** — `colonist.gd` has the serialize/deserialize contract but no live instances. Wire when the Colonists subsystem ships.
 - **Format migration** — `_FORMAT_VERSION` field is in place; migration helpers get added when v2 lands. Loader currently refuses mismatched versions.
 - **Binary/compressed format** — JSON is debuggable; sqlite is already binary. Revisit if save size becomes a real problem (none projected — typical state.json is a few KB).

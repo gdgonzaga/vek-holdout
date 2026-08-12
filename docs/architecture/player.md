@@ -8,7 +8,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 |---|---|---|
 | `player.tscn` / `player.gd` | Scene/Script | CharacterBody3D + camera rig. Owns movement physics (WASD + sprint + jump with mid-air momentum preservation), inline Mode+State enums, build menu interaction (opens `build_menu.tscn` on a CanvasLayer), blueprint mode entry via menu selection + B-driven navigation across three states (Normal → Menu → Placement). Exposes `get_camera()` for BuildController raycasts. Does NOT own raw input reading (delegates to InputComponent), combat resolution (delegates to Combat), or build UX (delegates to Build when in Blueprint mode). **TODO:** source movement stats from CharacterDef instead of `@export` vars. |
 | `input_component.gd` | Script (Node) | Child node on the Player. Reads all raw player input and exposes it via signals (discrete actions: build toggle, interact, mouse recapture, ui cancel) and per-frame query methods (`get_movement_input()`, `wants_jump()`, `wants_sprint()`). Does NOT own mouse-motion (CameraRig handles that) or mouse-mode management (Player owns that as a game-state concern). |
-| `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). LMB/RMB reserved for item actions, not consumed here. |
+| `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). **Over-the-shoulder framing** via `Camera3D.h_offset`/`v_offset` (export `h_offset`/`v_offset`): the frustum shifts so the body sits screen-left/bottom while the aim direction stays along the spring-arm axis (no camera rotation). LMB/RMB reserved for item actions, not consumed here. |
 | `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Build Menu/Build Placement × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
 | `../data/characters/player.tres` | Data | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See [Data Schemas](data-schemas.md). |
 
@@ -18,13 +18,14 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 |---|---|---|---|---|
 | `build_placement_toggled(active)` | `player.gd` | BuildController, HUD | Yes | Enter Build Placement |
 | `build_menu_toggled(open)` | `player.gd` | HUD (Instructions label) | Yes | Build menu visibility |
+| `interactable_changed(component)` | `player.gd` | HUD (InteractLabel) | No (direct Player signal) | Target gained/lost under the crosshair |
 | `player_died(context)` | `player.gd` *(planned — not yet emitted)* | GameState, HUD | Yes | Player Death / Respawn |
 
-> **Interaction** is not signal-driven. The player resolves a target via crosshair raycast and calls `InteractionComponent.interact(self)` directly — see the "Interact (E key)" flow and the [Actions & Interaction](actions.md) subsystem.
+> **Interaction routing is split across Player + HUD.** The Player resolves + caches the crosshair target and emits `interactable_changed`; the **HUD** owns the E-key tap-vs-hold timer (tap → `execute_default_action`, hold → `open_interaction_menu`) — see the "Interact (E key)" flow and the [Actions & Interaction](actions.md) subsystem.
 
 ## Flow Trace: Enter Blueprint Mode
 
-**Trigger:** Player presses `build_toggle` (B). B is the single navigation key across the three blueprint states (GDD §4 controls table, line 202: "Toggle Blueprint mode — B"). Esc no longer participates in blueprint navigation — it is reserved for the future Pause Menu (GDD line 214).
+**Trigger:** Player presses `build_toggle` (B). B is the single navigation key across the three blueprint states (GDD §4 controls table, line 202: "Toggle Blueprint mode — B"). Esc no longer participates in blueprint navigation — it opens the Pause Menu (handled by `Main._unhandled_input`, GDD line 214).
 
 1. `InputComponent._unhandled_input` catches `build_toggle` → emits `build_toggle_pressed`.
 2. `player.gd._on_build_key_pressed` (connected to InputComponent's `build_toggle_pressed`) routes by `mode`:
@@ -40,14 +41,16 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 
 ## Flow Trace: Interact (E key)
 
-**Trigger:** Player presses E (`"interact"` input action) in Normal mode while the crosshair is over an interactable.
+**Trigger:** Player presses/releases E (`"interact"` input action) in Normal mode while the crosshair is over an interactable. The tap-vs-hold decision is made by the **HUD**, not the Player.
 
-1. Every `_physics_process` tick, `_update_interaction_target` runs a screen-center physics raycast (`interact_distance` 8.0, bodies only, the player RID excluded). Skipped entirely when `mode != NORMAL` (no targeting in Blueprint mode).
+1. Every `_physics_process` tick, `_update_interaction_target` runs a screen-center physics raycast (`interact_distance` 8.0, bodies only, the player RID excluded). Skipped entirely when `mode != NORMAL` (no targeting in Blueprint mode). On a target change it emits the direct `interactable_changed(component)` signal → HUD updates the InteractLabel.
 2. On a hit, `_find_interaction_component(hit.collider)` walks **up** the parent chain looking for a direct child named exactly `"InteractionComponent"`. The result is cached in `_current_interactable`.
-3. E press → `InputComponent` emits `interact_pressed` → `player.gd._try_interact`: if `_current_interactable` is non-null **and** its `action_options` is non-empty, calls `_current_interactable.interact(self)`.
-4. The `InteractionComponent` builds and mounts the interaction menu — see [Actions & Interaction](actions.md) for the rest of the chain (UI mount, button building, `GameAction.execute`).
+3. `InputComponent` emits `interact_pressed` / `interact_released` — **both are wired to the HUD** (`hud.gd`), which runs the tap/hold scheme:
+   - **Quick tap** (released within 0.3 s) → `Player.execute_default_action()`: runs `action_options[0].action.execute(self, target)` directly (no menu), then re-emits `interactable_changed` so the label refreshes (e.g. a blueprint's material-progress line).
+   - **Long press** (held ≥ 0.3 s) → `Player.open_interaction_menu()`: calls `_current_interactable.interact(self)`, which builds and mounts the full action menu.
+4. The `InteractionComponent` builds and mounts the interaction menu (long-press path) — see [Actions & Interaction](actions.md) for the rest of the chain (UI mount, button building, `GameAction.execute`).
 
-**End state:** The interaction menu is open (or the action has run). Interaction does **not** change movement state — `State.INTERACT` is defined in the enum but never assigned; the player keeps walking/idle underneath.
+**End state:** Either the default action ran (tap) or the interaction menu is open (hold). Interaction does **not** change movement state — `State.INTERACT` is defined in the enum but never assigned; the player keeps walking/idle underneath.
 
 ## Flow Trace: Sprint and Breath
 
@@ -85,7 +88,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 **Extends:** CharacterBody3D
 **Script:** `player.gd`
 **Description:** Player avatar. Owns movement physics, Mode+State transitions, mouse-mode management. Raw input reading is delegated to the `InputComponent` child. Delegates combat to Combat subsystem, build UX to Build subsystem.
-**Used by:** HUD (health bar), Combat (damage target), Build (placement source).
+**Used by:** HUD (interact label + inventory panel + tap/hold interact routing), Build (placement source), Combat (damage target — planned).
 
 **Properties:**
 
@@ -115,9 +118,11 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `_on_build_key_pressed() -> void` | B-key state router (connected to InputComponent's `build_toggle_pressed`): Normal → open menu; Build Menu → close menu; Placement → exit placement + reopen menu. |
 | `_on_buildable_selected(id: String) -> void` | Enters placement on menu selection: clears `_build_menu`; emits `build_menu_toggled(false)`; sets `mode = BUILD_PLACEMENT`; emits `build_placement_toggled(true)`. |
 | `_on_build_menu_closed() -> void` | Menu dismissed without a selection: clears `_build_menu`; emits `build_menu_toggled(false)`; re-captures the mouse; sets `mode = NORMAL`. |
-| `_try_interact() -> void` | E-key handler (connected to InputComponent's `interact_pressed` signal): calls `_current_interactable.interact(self)` if a target is cached and offers actions. |
+| `execute_default_action() -> void` | Quick-tap E path (the HUD calls this on a <0.3s tap): runs `action_options[0].action.execute(self, target)` directly with no menu, then re-emits `interactable_changed` so the label refreshes. |
+| `open_interaction_menu() -> void` | Long-press E path (the HUD calls this after a ≥0.3s hold): calls `_current_interactable.interact(self)` to build + mount the full action menu. |
+| `clear_interactable() -> void` | Clears `_current_interactable` and emits `interactable_changed(null)`. Called by `SceneManager.unload_current_map` before the map's InteractionComponent children are freed (so the HUD label doesn't linger over the title screen). |
 | `_recapture_mouse() -> void` | Sets `Input.mouse_mode = CAPTURED`. Connected to InputComponent's `recapture_requested` signal (click-to-recapture after alt-tab). |
-| `_on_ui_cancel() -> void` | Esc handler (connected to InputComponent's `ui_cancel_pressed`). No-op for blueprint — Esc is reserved for the future Pause Menu (GDD line 214). |
+| `_on_ui_cancel() -> void` | Esc handler (connected to InputComponent's `ui_cancel_pressed`). No-op here — Esc opens the Pause overlay, handled by `Main._unhandled_input` (`SceneManager.open_screen("pause_menu")`), not the Player. |
 | `_interaction_raycast() -> Dictionary` | Screen-center physics raycast (`interact_distance`, bodies only, player excluded). Returns the raw hit dict (empty if nothing struck). |
 | `_update_interaction_target() -> void` | Per-tick crosshair check; updates `_current_interactable` via `_find_interaction_component`. Skipped in Blueprint mode. |
 | `_find_interaction_component(node: Node) -> InteractionComponent` | Walks up the parent chain from a hit collider looking for a child named exactly `"InteractionComponent"`. |
@@ -135,7 +140,8 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | Signal | Description |
 |---|---|
 | `build_toggle_pressed()` | Emitted on B key (`build_toggle` action). |
-| `interact_pressed()` | Emitted on E key (`interact` action). |
+| `interact_pressed()` | Emitted on E key-down (`interact` action). Consumed by the HUD for hold detection. |
+| `interact_released()` | Emitted on E key-up (`interact` action). Consumed by the HUD: release before the hold threshold = quick tap. |
 | `recapture_requested()` | Emitted on mouse click while cursor is visible. |
 | `ui_cancel_pressed()` | Emitted on Esc (`ui_cancel` action). |
 
@@ -148,3 +154,29 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `wants_sprint() -> bool` | Whether the sprint key (Shift) is held. |
 
 ### Class: CameraRig
+
+**Extends:** Node3D
+**Script:** `camera_rig.gd`
+**Description:** Third-person orbit rig built programmatically in `_ready()` (a `SpringArm3D` child owning a `Camera3D` child, so `player.tscn` only needs the CameraRig node). Tracks the parent Player's position; mouse motion orbits around it — yaw on this rig, pitch on the spring arm (clamped). The rig does NOT inherit the avatar's visual facing, so the camera orbit stays independent of where the capsule looks. LMB/RMB are not consumed here (reserved for item actions).
+**Used by:** `Player` (`get_camera`, save/load orientation).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `sensitivity` | `float` | `[export default 0.0025]` Mouse-look sensitivity. |
+| `spring_length` | `float` | `[export default 3.0]` Spring-arm length (camera distance). Applied to the SpringArm3D; there is no runtime zoom control yet. |
+| `min_pitch` / `max_pitch` | `float` | `[export, range -1.2..1.2]` Pitch clamp (radians). |
+| `height_offset` | `float` | `[export default 1.4]` Pivot height above the Player (eye/shoulder height). |
+| `h_offset` | `float` | `[export default 0.5]` `Camera3D.h_offset` — horizontal frustum shift (body frames screen-left). |
+| `v_offset` | `float` | `[export default 0.4]` `Camera3D.v_offset` — vertical frustum shift. |
+
+> Over-the-shoulder framing uses `h_offset`/`v_offset` (frustum shift) rather than rotating the camera, so the aim direction stays along the spring-arm axis.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_camera() -> Camera3D` | The active Camera3D (child of the spring arm). Returns null if the rig isn't ready yet (callers must wait for `_ready`). |
+| `get_yaw() -> float` / `get_pitch() -> float` | Current orbit yaw / pitch (radians). Save/load accessors for otherwise-private state. |
+| `set_orientation(yaw: float, pitch: float) -> void` | Restore the orbit (radians); pitch is clamped and applied immediately. Used by save/load. |
