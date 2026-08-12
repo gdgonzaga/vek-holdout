@@ -142,7 +142,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 **Trigger:** Main Menu → New Game button.
 
-1. `main_menu._start_new_game()` calls `SaveSystem.create_save(display_name)` → generates UUID4 slot id, sets `_active_slot`, **clears `_parked`** (per INV-2).
+1. `main_menu._start_new_game()` calls `SaveSystem.create_save(display_name)` → generates UUID4 slot id, sets `_active_slot`, **clears `_parked`** (per INV-2), writes a stub `meta.json` **without `saved_at`** (the slot is unsaved — invisible to `list_saves()` and discarded on Quit until the first real `save_game()`).
 2. `RunProgress.reset_for_new_game()` (wipe earned state).
 3. `EventBus.run_started.emit()` → `BuildLibrary` re-seeds default unlocks; `ExpeditionManager` resets discovered POIs. **NOT emitted on Load** (Load restores RunProgress from save; re-seeding would clobber it).
 4. Discover initial POIs (`MapLibrary.get_maps_by_type(POI)` → `ExpeditionManager.discover`).
@@ -206,6 +206,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 | `SceneManager._ready` (implicit via autoload order) | SaveSystem (autoload #5) comes after SceneManager (#4); safe to call `SceneManager.get_current_map()` / `get_player()` at runtime. |
 | `main_menu._start_new_game` | Calls `SaveSystem.create_save(display_name)` before `RunProgress.reset_for_new_game()`. |
 | `pause_menu._on_save_pressed` | Calls `SaveSystem.save_game()` then `SceneManager.close_screen()`. |
+| `pause_menu._on_quit_pressed` | Calls `SaveSystem.discard_unsaved_active_slot()` before unloading the map — drops the slot if the run was never saved. |
 | `EventBus.map_unloading` | SaveSystem listens, parks the outgoing map. |
 | `EventBus.day_rolled_over` | SaveSystem listens, autosaves. |
 
@@ -233,12 +234,13 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 | Function | Description |
 |---|---|
-| `create_save(display_name: String) -> String` | Allocates a new slot (UUID4), sets `_active_slot`, clears `_parked`. Returns the slot id. Called on New Game. |
+| `create_save(display_name: String) -> String` | Allocates a new slot (UUID4), sets `_active_slot`, clears `_parked`, writes a stub `meta.json` **without** `saved_at` (the slot is unsaved until the first `save_game()`). Returns the slot id. Called on New Game. |
 | `save_game() -> bool` | Writes `_active_slot`: parks current map, builds state dict, writes `meta.json` + `state.json`, snapshots `user://maps/` into the slot. False if no active slot. |
 | `load_game(slot: String) -> bool` | Restores global autoloads, replaces `_parked`, wipes + restores `user://maps/`, `swap_map`s to the saved scene, restores player. False on missing slot or version mismatch. |
 | `has_save(slot: String) -> bool` | True if the slot directory exists. |
-| `list_saves() -> Array[Dictionary]` | One `{slot_id, display_name, current_day, saved_at, current_scene_id}` per slot, sorted by `saved_at` desc. Reads only `meta.json`. |
+| `list_saves() -> Array[Dictionary]` | One `{slot_id, display_name, current_day, saved_at, current_scene_id}` per slot, sorted by `saved_at` desc. Reads only `meta.json`; **skips slots without `saved_at`** (not-yet-saved stubs + crash leftovers). |
 | `delete_save(slot: String) -> void` | Recursively removes the slot directory. |
+| `discard_unsaved_active_slot() -> void` | On quit: if the active slot was never saved (`meta.json` lacks `saved_at`), `delete_save`s it so an unloadable stub can't linger. No-op if already saved or no active slot. |
 | `get_active_slot() -> String` | The current slot id (or empty). |
 | `apply_parked_state_if_any(map_id: String, map: Map) -> bool` | If `_parked.has(map_id)`, applies voxel_hp + furniture + blueprints to the freshly-wired map; returns true. Called from `SceneManager._wire_map` to decide whether to skip authored furniture replay. |
 
@@ -258,7 +260,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 ## Future considerations
 
 - ~~**Load menu UI** — no Load screen exists yet.~~ **Resolved:** the Load Game screen (`ui/load_menu/load_menu.gd`) lists slots via `list_saves()`, loads on row click (`await load_game`), and deletes via a per-row `X` button wired to `delete_save()` (no confirmation dialog in v1).
-- **Save-before-quit hook** — the Pause → **Quit to Main Menu** path now exists (`pause_menu` unloads the live map + opens the Main Menu) but does **not** autosave. A `NOTIFICATION_WM_CLOSE_REQUEST` handler in `main.gd` calling `save_game()` would make window-close quits safe too — still not implemented.
+- **Save-before-quit hook** — the Pause → **Quit to Main Menu** path now exists (`pause_menu` unloads the live map + opens the Main Menu) but does **not** autosave. It does discard an unsaved active slot (`discard_unsaved_active_slot`) so a never-saved New Game leaves no unloadable stub — that's cleanup, not a save. A `NOTIFICATION_WM_CLOSE_REQUEST` handler in `main.gd` calling `save_game()` (and the same discard) would make window-close quits safe too — still not implemented.
 - **Colonists wiring** — `colonist.gd` has the serialize/deserialize contract but no live instances. Wire when the Colonists subsystem ships.
 - **Format migration** — `_FORMAT_VERSION` field is in place; migration helpers get added when v2 lands. Loader currently refuses mismatched versions.
 - **Binary/compressed format** — JSON is debuggable; sqlite is already binary. Revisit if save size becomes a real problem (none projected — typical state.json is a few KB).

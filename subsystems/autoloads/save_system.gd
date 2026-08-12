@@ -59,13 +59,16 @@ func create_save(display_name: String) -> String:
 	_parked.clear()
 	_active_slot = slot_id
 	GameState.set_save_slot(slot_id)
-	# Write an initial meta.json so list_saves()/has_save() see the slot at once
-	# even before the first save_game() call.
+	# Write an initial meta.json carrying slot_id + display_name (the latter must
+	# persist so save_game()'s _slot_display_name() can echo it on the first real
+	# save). saved_at is INTENTIONALLY omitted: its presence is the marker that a
+	# real save_game() has run — i.e. state.json exists and the slot is loadable.
+	# Until then this is a not-yet-saved stub: list_saves() hides it and Quit
+	# discards it (see discard_unsaved_active_slot).
 	_write_json(sdir + "meta.json", {
 		"format_version": _FORMAT_VERSION,
 		"slot_id": slot_id,
 		"display_name": display_name,
-		"saved_at": int(Time.get_unix_time_from_system()),
 		"current_day": int(GameState.current_day),
 		"current_scene_id": GameState.current_scene_id,
 		"engine_version": Engine.get_version_info()["string"],
@@ -89,12 +92,12 @@ func save_game() -> bool:
 	var state := {
 		"format_version": _FORMAT_VERSION,
 		"global": {
-			"game_state":   GameState.serialize(),
-			"time":         TimeSystem.serialize(),
+			"game_state": GameState.serialize(),
+			"time": TimeSystem.serialize(),
 			"run_progress": RunProgress.serialize(),
-			"expeditions":  ExpeditionManager.serialize(),
-			"game_log":     GameLog.serialize(),
-			"player":       _serialize_player(),
+			"expeditions": ExpeditionManager.serialize(),
+			"game_log": GameLog.serialize(),
+			"player": _serialize_player(),
 		},
 		"maps": _parked.duplicate(true),
 	}
@@ -133,11 +136,11 @@ func load_game(slot: String) -> bool:
 
 	# (1) Restore global autoloads. Player is staged — applied AFTER swap_map.
 	var g: Dictionary = state.get("global", {})
-	if g.has("game_state"):   GameState.deserialize(g["game_state"])
-	if g.has("time"):         TimeSystem.deserialize(g["time"])
+	if g.has("game_state"): GameState.deserialize(g["game_state"])
+	if g.has("time"): TimeSystem.deserialize(g["time"])
 	if g.has("run_progress"): RunProgress.deserialize(g["run_progress"])
-	if g.has("expeditions"):  ExpeditionManager.deserialize(g["expeditions"])
-	if g.has("game_log"):     GameLog.deserialize(g["game_log"])
+	if g.has("expeditions"): ExpeditionManager.deserialize(g["expeditions"])
+	if g.has("game_log"): GameLog.deserialize(g["game_log"])
 	_pending_player = g.get("player", null)
 
 	# (2) INV-2: replace _parked (NEVER merge), set active slot.
@@ -174,7 +177,11 @@ func list_saves() -> Array[Dictionary]:
 	while name != "":
 		if top.current_is_dir() and not name.begins_with("."):
 			var meta := _read_json(_slot_dir(name) + "meta.json")
-			if not meta.is_empty():
+			# A slot is listable/loadable only once save_game() has written
+			# saved_at (which coincides with state.json existing). Skip the
+			# not-yet-saved stub create_save() writes, plus any crash-leftover
+			# stub from a previous session that never saved.
+			if not meta.is_empty() and meta.has("saved_at"):
 				out.append({
 					"slot_id": String(meta.get("slot_id", name)),
 					"display_name": String(meta.get("display_name", name)),
@@ -200,6 +207,20 @@ func delete_save(slot: String) -> void:
 	if _active_slot == slot:
 		_active_slot = ""
 		_parked.clear()
+
+
+## On quit-to-menu: if the active slot was never saved (meta.json has no
+## saved_at, i.e. save_game() never ran and there's no state.json), delete it so
+## an unloadable stub doesn't linger on disk. Safe — an unsaved slot holds no
+## gameplay data, only the meta.json stub create_save() wrote; state.json + map
+## snapshots are written solely by save_game(). delete_save also clears
+## _active_slot/_parked. No-op when no slot is active or it was already saved.
+func discard_unsaved_active_slot() -> void:
+	if _active_slot == "":
+		return
+	var meta := _read_json(_slot_dir(_active_slot) + "meta.json")
+	if not meta.has("saved_at"):
+		delete_save(_active_slot)
 
 
 func get_active_slot() -> String:
@@ -314,7 +335,7 @@ func _snapshot_maps_to_slot(slot_maps_dir: String) -> void:
 func _restore_maps_from_slot(slot_maps_dir: String) -> void:
 	var src := DirAccess.open(slot_maps_dir)
 	if src == null:
-		return  # slot never visited any maps; fresh res:// pulls will populate
+		return # slot never visited any maps; fresh res:// pulls will populate
 	src.list_dir_begin()
 	var name := src.get_next()
 	while name != "":
@@ -402,8 +423,8 @@ func _generate_uuid4() -> String:
 	bytes.resize(16)
 	for i in 16:
 		bytes[i] = rng.randi() & 0xFF
-	bytes[6] = (bytes[6] & 0x0F) | 0x40  # version 4
-	bytes[8] = (bytes[8] & 0x3F) | 0x80  # variant 10xxxxxx (RFC 4122)
+	bytes[6] = (bytes[6] & 0x0F) | 0x40 # version 4
+	bytes[8] = (bytes[8] & 0x3F) | 0x80 # variant 10xxxxxx (RFC 4122)
 	var hex := bytes.hex_encode()
 	return "%s-%s-%s-%s-%s" % [hex.substr(0, 8), hex.substr(8, 4), hex.substr(12, 4), hex.substr(16, 4), hex.substr(20, 12)]
 

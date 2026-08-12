@@ -59,6 +59,10 @@ func _on_quit_pressed() -> void:
 	# leaves the mouse visible for the main menu rather than restoring the
 	# captured gameplay cursor.
 	_quitting = true
+	# If this run was never saved, drop its stub slot so it can't show up
+	# unloadable in the Load list. No-op for slots saved at least once. Done
+	# before map teardown — it only touches the slot dir + _active_slot/_parked.
+	SaveSystem.discard_unsaved_active_slot()
 	# Free the live map so the simulation isn't running under the title screen.
 	# open_screen closes this first (-> _exit_tree unpauses), then loads main_menu.
 	SceneManager.unload_current_map()
