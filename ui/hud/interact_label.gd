@@ -8,6 +8,7 @@ const _RED := Color("#ff7d7d")
 
 @onready var _name_label: Label = $NameLabel
 @onready var _action_label: Label = $ActionLabel
+@onready var _info_label: Label = $InfoLabel
 
 
 func _ready() -> void:
@@ -32,6 +33,14 @@ func update_display(component: InteractionComponent, player: Player) -> void:
 		_name_label.text = component.display_name
 	else:
 		_name_label.text = target.name
+
+	# Live status line the furniture sets on the component (e.g. "Plank 3/15").
+	# Populated before the action early-return so it shows even with no options.
+	if component.info_text != "":
+		_info_label.text = component.info_text
+		_info_label.visible = true
+	else:
+		_info_label.visible = false
 
 	# Action hint from first option.
 	if component.action_options.is_empty():
