@@ -49,5 +49,7 @@ func _on_save_pressed() -> void:
 	
 
 func _on_quit_pressed() -> void:
-	# open_screen closes this first (-> _exit_tree unpauses), then loads the title.
+	# Free the live map so the simulation isn't running under the title screen.
+	# open_screen closes this first (-> _exit_tree unpauses), then loads main_menu.
+	SceneManager.unload_current_map()
 	SceneManager.open_screen("main_menu")

@@ -33,3 +33,9 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
 text = "New Game"
+
+[node name="LoadGame" type="Button" parent="MarginContainer/VBox" unique_id=10293847]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+text = "Load Game"

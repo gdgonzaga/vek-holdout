@@ -79,6 +79,25 @@ func swap_map(scene_id: String) -> void:
 	EventBus.map_loaded.emit(scene_id)
 
 
+## Free the current map without loading a replacement. Used by Quit-to-Main-
+## Menu so the simulation isn't running under the title screen. Emits
+## map_unloading first so SaveSystem can park the outgoing state (harmless if
+## the player then loads a different slot — load_game replaces _parked). The
+## persistent Player is reparented out before the free so it survives for the
+## next run (it was created once in main.gd and must never be freed with a map).
+func unload_current_map() -> void:
+	if _current_map == null:
+		return
+	EventBus.map_unloading.emit(_current_scene_id)
+	if _player != null and is_instance_valid(_player) and _player.get_parent() == _current_map:
+		_current_map.remove_child(_player)
+	_current_map.queue_free()
+	_current_map = null
+	_current_scene_id = ""
+	GameState.map_root = null
+	GameState.set_scene_id("")
+
+
 ## Wipe the user://maps/ cache so the next swap_map(s) pull fresh copies
 ## from res://. Called at New Game start so authored edits are always picked up.
 ## POI round-trips within a session still preserve runtime changes because this
