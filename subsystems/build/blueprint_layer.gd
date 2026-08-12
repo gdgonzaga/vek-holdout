@@ -26,7 +26,9 @@ var _anchor_by_cell: Dictionary = {}
 
 const _blueprint_template: PackedScene = preload("res://subsystems/build/blueprint_template.tscn")
 const _build_option_path := "res://data/action_options/build_action_option.tres"
+const _add_materials_option_path := "res://data/action_options/add_materials_action_option.tres"
 var _build_option: ActionOption = null
+var _add_materials_option: ActionOption = null
 
 static var _hologram_mat: StandardMaterial3D = null
 
@@ -140,11 +142,18 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 	if yaw_quarters != 0:
 		root.rotate_y(float(yaw_quarters) * PI * 0.5)
 
-	# Interactable: a single "Build" action. The child MUST be named exactly
-	# "InteractionComponent" (Player._find_interaction_component).
+	# Interactable: the child MUST be named exactly "InteractionComponent"
+	# (Player._find_interaction_component). A blueprint with a material_cost
+	# starts on "Add materials" and swaps to "Build" once materials are complete
+	# (see Blueprint.deposit_from); a costless blueprint starts on "Build".
 	var interaction := InteractionComponent.new()
 	interaction.name = "InteractionComponent"
-	var opts: Array[ActionOption] = [_ensure_build_option()]
+	var opts: Array[ActionOption]
+	if target_def.material_cost.is_empty():
+		opts = [_ensure_build_option()]
+	else:
+		opts = [_ensure_add_materials_option()]
+		root._build_option = _ensure_build_option()
 	interaction.action_options = opts
 	root.add_child(interaction)
 	return root
@@ -155,6 +164,12 @@ func _ensure_build_option() -> ActionOption:
 	if _build_option == null:
 		_build_option = load(_build_option_path)
 	return _build_option
+
+
+func _ensure_add_materials_option() -> ActionOption:
+	if _add_materials_option == null:
+		_add_materials_option = load(_add_materials_option_path)
+	return _add_materials_option
 
 
 static func _hologram_material() -> StandardMaterial3D:

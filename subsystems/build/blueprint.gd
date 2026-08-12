@@ -25,6 +25,16 @@ var anchor_cell: Vector3i = Vector3i.ZERO
 # class_name cycle). Set at spawn; complete() forwards through it.
 var layer = null
 
+## Materials contributed toward the target's material_cost so far:
+## { ItemDef.id (String): count (int) }. Empty until something is deposited, so
+## has_complete_materials() is vacuously true for a costless blueprint.
+var _given: Dictionary = {}
+
+## The Build ActionOption to swap in once materials are complete. Assigned by
+## BlueprintLayer at spawn ONLY when the target has a material_cost; a costless
+## blueprint starts on Build and never swaps.
+var _build_option: ActionOption = null
+
 
 ## Build the target into the world and remove this blueprint. `builder` is the
 ## player now; it is passed through so the colonist labor loop can attribute
@@ -33,3 +43,62 @@ func complete(builder: Node = null) -> bool:
 	if layer == null:
 		return false
 	return layer.complete_blueprint(self, builder)
+
+
+## True when every entry of the target's material_cost has been fully
+## contributed. Vacuously true when material_cost is empty (free builds).
+func has_complete_materials() -> bool:
+	var def := _target_def()
+	if def == null:
+		return true
+	for entry in def.material_cost:
+		if _given.get(entry.item_def.id, 0) < entry.count:
+			return false
+	return true
+
+
+func given_count(item_id: String) -> int:
+	return _given.get(item_id, 0)
+
+
+## Move as much as `actor` carries toward the still-unsatisfied entries of the
+## target's material_cost. Partial fulfillment is allowed. Returns the total
+## count deposited. When this call crosses the completion threshold, the
+## blueprint's interaction swaps from "Add materials" to "Build".
+func deposit_from(actor: Node) -> int:
+	var def := _target_def()
+	if def == null:
+		return 0
+	var total := 0
+	for entry in def.material_cost:
+		var id := entry.item_def.id
+		var need: int = entry.count - int(_given.get(id, 0))
+		if need <= 0:
+			continue
+		# remove_item returns the shortfall and clamps to what's held, so this
+		# takes "everything available" when the actor can't cover `need`.
+		var shortfall: int = actor.remove_item(id, need)
+		var deposited: int = need - shortfall
+		if deposited > 0:
+			_given[id] = _given.get(id, 0) + deposited
+			total += deposited
+			GameLog.log("Deposited %d %s (%d/%d)" % [deposited, id, _given[id], entry.count])
+	if total > 0 and has_complete_materials():
+		_swap_to_build_option()
+	return total
+
+
+func _swap_to_build_option() -> void:
+	if _build_option == null:
+		return
+	var ic := get_node_or_null("InteractionComponent") as InteractionComponent
+	if ic != null:
+		var opts: Array[ActionOption] = [_build_option]
+		ic.action_options = opts
+
+
+## Resolve the target BuildableDef via the canonical materialization key, rather
+## than the inherited `def`, to avoid the def/target_def_id duplication and any
+## FurnitureDef-typing ambiguity on the inherited field.
+func _target_def() -> BuildableDef:
+	return BuildLibrary.get_def(target_def_id)
