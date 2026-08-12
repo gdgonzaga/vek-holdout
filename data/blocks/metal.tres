@@ -11,9 +11,6 @@ display_name = "Metal Block"
 hp = 600
 mesh = ExtResource("2_mesh")
 icon = ExtResource("3_icon")
-material_cost = {
-"metal": 3
-}
 unlocked_by_default = true
 is_terrain = false
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

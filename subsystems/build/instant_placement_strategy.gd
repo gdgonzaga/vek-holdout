@@ -32,7 +32,7 @@ func commit(transform: Transform3D, _rotation, item_id: String) -> bool:
 		return false
 	var o := transform.origin
 	var cell := Vector3i(int(floor(o.x)), int(floor(o.y)), int(floor(o.z)))
-	# TODO(cost): once a materials store exists, check+deduct def.get_cost()
+	# TODO(cost): once a materials store exists, check+deduct def.material_cost
 	# here before placing.
 	if def is BlockDef:
 		if _grid == null:

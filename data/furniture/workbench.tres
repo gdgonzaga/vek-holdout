@@ -4,6 +4,14 @@
 [ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_h56v0"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://cvn2otun3im08" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_w5oe4"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_cae44"]
+
+[sub_resource type="Resource" id="Resource_8sr6i"]
+script = ExtResource("2_w5oe4")
+item_def = ExtResource("3_cae44")
+count = 15
+metadata/_custom_type_script = "uid://taqanw6psc6o"
 
 [resource]
 script = ExtResource("1_script")
@@ -13,8 +21,5 @@ display_name = "Workbench"
 hp = 60
 mesh = ExtResource("1_8yjq3")
 texture = ExtResource("2_tex")
-material_cost = {
-"components": 10,
-"scrap": 60
-}
+material_cost = Array[ExtResource("2_w5oe4")]([SubResource("Resource_8sr6i")])
 unlocked_by_default = true

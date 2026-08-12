@@ -13,8 +13,5 @@ hp = 50
 mesh = ExtResource("2_mesh")
 texture = ExtResource("3_xek0i")
 icon = ExtResource("4_icon")
-material_cost = {
-"wood": 3
-}
 unlocked_by_default = true
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

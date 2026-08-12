@@ -9,8 +9,5 @@ id = "scrap"
 display_name = "Scrap Block"
 hp = 100
 mesh = ExtResource("2_mesh")
-material_cost = {
-"scrap": 3
-}
 unlocked_by_default = true
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

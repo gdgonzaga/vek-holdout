@@ -23,21 +23,12 @@ class_name BuildableDef
 ## Fields kept out: material-tier (targeting is HP-derived, GDD §17) and
 ## construction-time-modifier (build time = HP × tool, GDD §7.4).
 
-@export var id: String                             # e.g. "wood", "wall_stone", "workbench"
-@export var display_name: String                   # UI label
-@export var icon: Texture2D = null                 # UI icon for the build menu (nullable; entry renders without it)
-@export var hp: int                                # Durability-before-HP buffer (GDD §6.11)
-@export var mesh: Mesh                             # Preview/placement mesh; voxel blocks MUST occupy (0,0,0)->(1,1,1)
-@export var texture: Texture2D                     # Albedo texture; BlockLibrary builds a StandardMaterial3D from this
-@export var texture_variation: bool = false        # True → use per-block UV/brightness randomization shader
-@export var material_cost: Dictionary = {}         # resource_id (String) -> count (int), e.g. {"wood": 3}
-@export var unlocked_by_default: bool = false      # available without earning an unlock this run
-
-
-## resource_id -> count, typed for callers that want a stable read.
-func get_cost() -> Dictionary:
-	return material_cost
-
-
-func get_cost_of(resource_id: String) -> int:
-	return int(material_cost.get(resource_id, 0))
+@export var id: String # e.g. "wood", "wall_stone", "workbench"
+@export var display_name: String # UI label
+@export var icon: Texture2D = null # UI icon for the build menu (nullable; entry renders without it)
+@export var hp: int # Durability-before-HP buffer (GDD §6.11)
+@export var mesh: Mesh # Preview/placement mesh; voxel blocks MUST occupy (0,0,0)->(1,1,1)
+@export var texture: Texture2D # Albedo texture; BlockLibrary builds a StandardMaterial3D from this
+@export var texture_variation: bool = false # True → use per-block UV/brightness randomization shader
+@export var material_cost: Array[ItemAmount] = []
+@export var unlocked_by_default: bool = false # available without earning an unlock this run
