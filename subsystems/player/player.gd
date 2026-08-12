@@ -244,6 +244,16 @@ func _update_interaction_target() -> void:
 			print("[interact] targeting: %s" % component.get_parent().name)
 
 
+## Clear the current interactable target and notify listeners (e.g. the HUD's
+## InteractLabel) so they hide. Called by SceneManager.unload_current_map
+## before the map (and its InteractionComponent children) is freed — otherwise
+## the HUD keeps showing the last label over the title screen.
+func clear_interactable() -> void:
+	if _current_interactable != null:
+		_current_interactable = null
+		interactable_changed.emit(null)
+
+
 ## Walk up from the hit collider looking for a sibling InteractionComponent.
 ## Handles any nesting depth (RigidBody3D > MeshInstance3D > CollisionShape, etc.).
 func _find_interaction_component(node: Node) -> InteractionComponent:

@@ -11,6 +11,9 @@ extends CanvasLayer
 ## ALWAYS keeps it interactive while GameState.set_paused disables map_root.
 
 var _prior_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
+# Set when the player picks Quit — tells _exit_tree to leave the mouse visible
+# for the main menu instead of restoring the captured gameplay mode.
+var _quitting: bool = false
 
 @onready var _resume_btn: Button = %Resume
 @onready var _quit_btn: Button = %Quit
@@ -32,7 +35,10 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	# Fires on close_screen() (Resume / Esc) and when open_screen() replaces this.
 	GameState.set_paused(false)
-	Input.mouse_mode = _prior_mouse_mode
+	# Restore the captured gameplay cursor — UNLESS we're quitting to the main
+	# menu, where the mouse must stay visible for button interaction.
+	if not _quitting:
+		Input.mouse_mode = _prior_mouse_mode
 
 
 func _on_resume_pressed() -> void:
@@ -49,6 +55,10 @@ func _on_save_pressed() -> void:
 	
 
 func _on_quit_pressed() -> void:
+	# Flag the quit path so _exit_tree (fired by open_screen's close_screen)
+	# leaves the mouse visible for the main menu rather than restoring the
+	# captured gameplay cursor.
+	_quitting = true
 	# Free the live map so the simulation isn't running under the title screen.
 	# open_screen closes this first (-> _exit_tree unpauses), then loads main_menu.
 	SceneManager.unload_current_map()

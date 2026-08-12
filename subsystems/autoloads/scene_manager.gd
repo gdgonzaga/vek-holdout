@@ -89,6 +89,11 @@ func unload_current_map() -> void:
 	if _current_map == null:
 		return
 	EventBus.map_unloading.emit(_current_scene_id)
+	# Drop the player's interactable target BEFORE freeing the map — the target
+	# is a child of the map and would be freed with it, leaving the HUD's
+	# InteractLabel showing stale text over the title screen.
+	if _player != null and is_instance_valid(_player):
+		_player.clear_interactable()
 	if _player != null and is_instance_valid(_player) and _player.get_parent() == _current_map:
 		_current_map.remove_child(_player)
 	_current_map.queue_free()
