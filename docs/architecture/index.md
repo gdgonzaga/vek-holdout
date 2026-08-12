@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-08-11 (Game Log subsystem landed)
+Last updated: 2026-08-12 (Save / Load subsystem doc landed)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
@@ -16,7 +16,8 @@ Last updated: 2026-08-11 (Game Log subsystem landed)
 
 | Page | Subsystem | GDD |
 |---|---|---|
-| [Core](core.md) | Root scenes, shared utilities, save system, time | — |
+| [Core](core.md) | Root scenes, shared utilities, time | — |
+| [Save / Load](save.md) | Multi-slot persistence, parked state, conventions | — |
 | [Voxel / World](voxel-world.md) | Blocky-voxel world, VoxelGrid, BlockLibrary | — |
 | [Player](player.md) | Third-person controller, camera rig, Mode+State | §4 |
 | [Build](build.md) | Blueprint mode, BuildLibrary, ghost preview, furniture layer | §7.4 |

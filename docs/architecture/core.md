@@ -11,7 +11,7 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 | `../autoloads/game_state.gd` | Autoload | Run-level state + state-change signals. Does NOT own save logic (that's SaveSystem). |
 | `../autoloads/event_bus.gd` | Autoload | Cross-scene signal relay only. No state. |
 | `../autoloads/scene_manager.gd` | Autoload | Map swap (base↔POI) + full-screen UI layer management + runtime SQLite stream redirect. Does NOT own UI content (each screen is its own scene) or map metadata (that's `MapLibrary`). |
-| `../autoloads/save_system.gd` | Autoload | Autosave (sleep/midnight/quit) + load. Serializes run state: GameState (day/scene/slot), Colony (roster + job board + Memorial + KeyItemPool.found), voxel world, world-map reveal, player/colonist inventories + loadouts + raid stances. Does NOT decide when to save (callers do). |
+| `../autoloads/save_system.gd` | Autoload | Multi-slot save/load orchestrator — see [Save / Load](save.md) for the full contract, slot layout, and invariants. Autosaves on midnight (day_rolled_over hook); parks on map swap (map_unloading hook); manual save via pause menu. Does NOT decide when to save (callers do). |
 | `../autoloads/time_system.gd` | Autoload | Continuous time advance; emits `day_rolled_over`. Links to Stamina accrual. |
 | `../data/game_config.tres` | Data | Engine-level constants (gravity, target FPS). See [Data Schemas](data-schemas.md). |
 | `../data/starting_conditions.tres` | Data | Day-1 resources/equipment/structure (GDD §9). See [Data Schemas](data-schemas.md). |
