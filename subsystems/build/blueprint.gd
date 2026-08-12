@@ -36,6 +36,12 @@ var _given: Dictionary = {}
 var _build_option: ActionOption = null
 
 
+func _ready() -> void:
+	# Seed the initial "0/N" status line so the first targeting shows progress
+	# before any deposit. Costless blueprints leave info_text blank.
+	_refresh_info_text()
+
+
 ## Build the target into the world and remove this blueprint. `builder` is the
 ## player now; it is passed through so the colonist labor loop can attribute
 ## skill/stamina later. Returns true on success.
@@ -83,8 +89,10 @@ func deposit_from(actor: Node) -> int:
 			_given[id] = _given.get(id, 0) + deposited
 			total += deposited
 			GameLog.log("Deposited %d %s (%d/%d)" % [deposited, id, _given[id], entry.count])
-	if total > 0 and has_complete_materials():
-		_swap_to_build_option()
+	if total > 0:
+		_refresh_info_text()
+		if has_complete_materials():
+			_swap_to_build_option()
 	return total
 
 
@@ -95,6 +103,27 @@ func _swap_to_build_option() -> void:
 	if ic != null:
 		var opts: Array[ActionOption] = [_build_option]
 		ic.action_options = opts
+
+
+## Rebuild the InteractionComponent's info_text from current contributions, e.g.
+## "Plank 3/15". InteractLabel re-reads it on the next interactable_changed
+## re-emit (Player.execute_default_action emits one after every E-tap).
+func _refresh_info_text() -> void:
+	var ic := get_node_or_null("InteractionComponent") as InteractionComponent
+	if ic == null:
+		return
+	var def := _target_def()
+	if def == null or def.material_cost.is_empty():
+		ic.info_text = ""
+		return
+	var parts := PackedStringArray()
+	for entry in def.material_cost:
+		var id := entry.item_def.id
+		var item_name := entry.item_def.resource_name
+		if item_name == "":
+			item_name = id
+		parts.append("%s %d/%d" % [item_name, int(_given.get(id, 0)), entry.count])
+	ic.info_text = "  ".join(parts)
 
 
 ## Resolve the target BuildableDef via the canonical materialization key, rather
