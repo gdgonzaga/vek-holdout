@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bvunjvyry03ui" path="res://subsystems/player/player.gd" id="1_i0iyb"]
 [ext_resource type="Script" uid="uid://cc4nhj4oth8vo" path="res://subsystems/player/camera_rig.gd" id="2_wfstl"]
-[ext_resource type="Script" uid="uid://drhx7awa1s18o" path="res://subsystems/player/input_component.gd" id="3_input"]
+[ext_resource type="Script" uid="uid://dkc21ixx51cg2" path="res://subsystems/player/input_component.gd" id="3_input"]
 [ext_resource type="Script" uid="uid://dpyvcpfh0aifs" path="res://subsystems/inventory/character_inventory.gd" id="4_inv"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
