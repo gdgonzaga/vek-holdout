@@ -36,7 +36,8 @@ signal build_menu_toggled(open: bool) # player -> HUD (build menu visibility for
 signal buildable_selected(id: String) # player -> BuildController (sets selected_id)
 signal furniture_placed(def_id: String, anchor: Vector3i) # FurnitureLayer -> Colony (Functional Rooms, later)
 signal furniture_removed(def_id: String, anchor: Vector3i) # FurnitureLayer -> Colony
-signal blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: Node) # BlueprintLayer -> Colony (construction Job + target node)
+signal blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: Node) # BlueprintLayer -> Colony (construction/haul Job + target node)
 signal blueprint_removed(target_def_id: String, anchor: Vector3i) # BlueprintLayer -> JobBoard (cancel, later)
+signal blueprint_materials_ready(target_def_id: String, anchor: Vector3i, blueprint: Node) # Blueprint.deposit_from -> Colony (spawn construction; single-fire per blueprint)
 signal item_picked_up(item_id: String, count: int) # inventory -> HUD
 signal job_logged(entry: Dictionary) # colonists (Job Board) -> Job Log UI

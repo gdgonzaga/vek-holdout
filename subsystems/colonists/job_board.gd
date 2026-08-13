@@ -4,21 +4,21 @@ class_name JobBoard
 ##
 ## Owned by the Colony autoload as a child Node (Colony.job_board). Producers
 ## (Colony, listening to EventBus.blueprint_placed) add Jobs; consumers
-## (ColonistAI) query get_best_job_for + claim. This class holds the registry and
-## the atomic claim/fail/complete transitions — it does no pathfinding or work.
+## (ColonistAI) query get_best_job_for, then assign via Job.try_assign directly.
+## This class holds the registry and selection; it does no pathfinding, work, or
+## assignment bookkeeping (that lives on the Job + JobDef — multi-assign).
 ##
-## Lifecycle (early-MVP):
-##   add_job → (get_best_job_for → claim) → complete   (happy path)
-##                                  └→ fail (×3 → auto-remove)   (skipped path)
+## Lifecycle (multi-assign):
+##   add_job → (get_best_job_for → Job.try_assign → … → Job.unassign) → remove_job
+##   └→ _prune_dead_jobs sweeps !is_available && unassigned jobs during selection
 ##
-## Signals: job_claimed / job_failed are local (board-internal + direct listeners).
-## Only job_logged is relayed through EventBus (ARCH signals table), to the Job Log.
+## Signals: job_failed is local (board-internal + direct listeners). Only
+## job_logged is relayed through EventBus (ARCH signals table), to the Job Log.
 
-signal job_claimed(job_id: String, colonist_id: String)
 signal job_failed(job_id: String, reason: String)
 
 ## After this many failures a job is auto-removed from the board (early-MVP
-## policy, ARCH "Job failure Handling"). The blueprint stays placed if construction.
+## policy, ARCH "Job failure handling"). The blueprint stays placed if construction.
 const _MAX_FAILURES := 3
 
 # job.id (String) -> Job.
@@ -44,7 +44,7 @@ func has_jobs() -> bool:
 	return not _jobs.is_empty()
 
 
-## All current jobs (claimed + unclaimed). For inspection/debug + future UI.
+## All current jobs. For inspection/debug + future UI.
 func get_jobs() -> Array[Job]:
 	var out: Array[Job] = []
 	out.assign(_jobs.values())
@@ -52,20 +52,25 @@ func get_jobs() -> Array[Job]:
 
 
 ## Best available job for `colonist`, or null. Selection (ARCH "Colonist works a
-## job"): among unclaimed jobs whose labor is enabled for the colonist
+## job"): among available jobs whose labor is enabled for the colonist
 ## (labor_priorities[labor_id] > 0), pick the highest-priority labor, then the
-## nearest by proximity. Does NOT claim — call claim() to atomically acquire.
+## nearest by proximity. Does NOT assign — call Job.try_assign to join.
+##
+## First prunes dead jobs (no assignees AND not accepting more) so a no-source
+## haul job, a satisfied-but-drained one, or a cancelled one can't linger and
+## starve selection.
 ##
 ## Note: the documented L1 skill gate (skill_set.meets_requirement) is deferred
 ## until skills are wired into the work loop; ignored here.
 func get_best_job_for(colonist: Colonist) -> Job:
+	_prune_dead_jobs()
 	var best: Job = null
 	var best_priority: int = -1
 	var best_dist_sq: float = 0.0
 	var from: Vector3 = colonist.global_position
 	for job_id in _jobs:
 		var job: Job = _jobs[job_id]
-		if job.claimed_by != "":
+		if not job.is_available():
 			continue
 		var priority: int = int(colonist.labor_priorities.get(job.labor_id, 0))
 		if priority <= 0:
@@ -82,39 +87,33 @@ func get_best_job_for(colonist: Colonist) -> Job:
 	return best
 
 
-## Atomically claim a job for `colonist_id`. Returns the Job on success, or null
-## if it's missing or already claimed (race lost). Emits job_claimed on success.
-func claim(job_id: String, colonist_id: String) -> Job:
-	var job: Job = _jobs.get(job_id)
-	if job == null or job.claimed_by != "":
-		return null
-	job.claimed_by = colonist_id
-	job_claimed.emit(job_id, colonist_id)
-	return job
+## Drop jobs that can no longer be worked and have no assignees to drain them
+## (a haul job whose source dried up, one whose target was satisfied/cancelled,
+## etc.). Called at the top of get_best_job_for. Iterates a snapshot since it
+## mutates _jobs.
+func _prune_dead_jobs() -> void:
+	if _jobs.is_empty():
+		return
+	var dead: Array[String] = []
+	for job_id in _jobs:
+		var job: Job = _jobs[job_id]
+		if job._assigned_colonists.is_empty() and not job.is_available():
+			dead.append(job_id)
+	for job_id in dead:
+		_jobs.erase(job_id)
 
 
-## Release a claim back to the board (colonist gave up without failing, e.g.
-## reassigned). No-op if the job isn't held by `colonist_id`.
-func unclaim(job_id: String, colonist_id: String) -> void:
-	var job: Job = _jobs.get(job_id)
-	if job != null and job.claimed_by == colonist_id:
-		job.claimed_by = ""
-
-
-## Job finished successfully — drop it from the board.
-func complete(job_id: String) -> void:
-	_jobs.erase(job_id)
-
-
-## Record a failure: increment the count, release the claim so another colonist
-## (or a retry) can pick it up, emit job_failed locally, and relay a job_logged
-## entry through EventBus. Auto-removes the job once it hits _MAX_FAILURES.
+## Record a failure: increment the count, release any assignees, emit job_failed
+## locally, and relay a job_logged entry through EventBus. Auto-removes the job
+## once it hits _MAX_FAILURES. (Currently no caller wires the failure path into
+## the leg loop — the dead-job prune handles removal for haul's no-source case.
+## Kept as the documented failure-handling seam.)
 func fail(job_id: String, reason: String) -> void:
 	var job: Job = _jobs.get(job_id)
 	if job == null:
 		return
 	job.failure_count += 1
-	job.claimed_by = ""
+	job.clear_assigned()
 	job_failed.emit(job_id, reason)
 	EventBus.job_logged.emit({
 		"job_id": job_id,

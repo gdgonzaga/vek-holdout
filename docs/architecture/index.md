@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-08-13 (colonist sprint documented — Job/JobBoard + labor taxonomy, Colonist entity, voxel A* pathfinder, ColonistAI claim→path→arrive loop, Workshop blueprint; Colonists/Overview/Build/Data-Schemas/Tech-Debt/Maps/Save pages synced to the new code)
+Last updated: 2026-08-14 (multi-leg jobs + hauling: JobLeg + JobDef leg behaviour, multi-assign Job/JobBoard, HaulingJobDef + StorageRegistry, colonist carry inventory, construction chained off blueprint_materials_ready; Colonists/Data-Schemas/Inventory pages synced)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 

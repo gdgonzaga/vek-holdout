@@ -21,10 +21,19 @@ extends Node
 ## tree and can own _process later if needed.
 var job_board: JobBoard
 
+## Live index of storage crates, so hauling jobs can find a source for a
+## blueprint's still-needed materials. A child Node; wired to the current map's
+## FurnitureContainer by MapWiring on each map load.
+var storage_registry: StorageRegistry
+
 const MVP_CAP := 5  # Roster capacity (ARCH "max 5 in MVP").
 
-# The construction JobDef — every placed blueprint becomes a Job from this def.
+# JobDefs: every placed blueprint becomes a Job from one of these. A blueprint
+# with an unsatisfied material_cost whose source is in stock → HAULING_DEF (the
+# job loops FETCH/DELIVER until satisfied); otherwise → CONSTRUCTION_DEF (builds
+# directly — costless, pre-satisfied, or no source available).
 const CONSTRUCTION_DEF := preload("res://data/jobs/construction.tres")
+const HAULING_DEF := preload("res://data/jobs/hauling.tres")
 
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
@@ -39,8 +48,12 @@ func _ready() -> void:
 	job_board = JobBoard.new()
 	job_board.name = "JobBoard"
 	add_child(job_board)
+	storage_registry = StorageRegistry.new()
+	storage_registry.name = "StorageRegistry"
+	add_child(storage_registry)
 	EventBus.blueprint_placed.connect(_on_blueprint_placed)
 	EventBus.blueprint_removed.connect(_on_blueprint_removed)
+	EventBus.blueprint_materials_ready.connect(_on_blueprint_materials_ready)
 
 
 ## MapWiring.wire_colonists → here, on every map load. Empty roster + authored
@@ -88,19 +101,74 @@ func remove_colonist(colonist_id: String) -> void:
 			return
 
 
-## BlueprintLayer -> EventBus -> here. Build a construction Job from
-## CONSTRUCTION_DEF at the blueprint's anchor and bind the blueprint node as its
-## target so a colonist can walk to it and WORK it (ConstructionJobDef ticks
-## build_time, then Blueprint.complete). The job's location is a best-effort
-## footprint-center approach point (no yaw in the signal); ColonistAI refines it
-## into a real adjacent standing cell at navigation time.
+## BlueprintLayer -> EventBus -> here. Decide haul-vs-construct:
+##   - blueprint has an unsatisfied material_cost AND a crate stocks a needed
+##     item → spawn a HAUL job (haulers loop FETCH/DELIVER until the blueprint's
+##     deposit_from crosses has_complete_materials, which emits
+##     blueprint_materials_ready → _spawn_construction_job).
+##   - otherwise (costless, already satisfied, or no source available) → spawn a
+##     construction job directly. No-source builds anyway (today's behaviour);
+##     the materials gate only bites when stock exists (documented MVP gap).
 func _on_blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
+	var bp := blueprint as Blueprint
+	if bp != null and _has_unsatisfied_material_cost(bp) and storage_registry.has_source_for(_needed_item_ids(bp)):
+		var job := Job.from_def(HAULING_DEF)
+		job.title = "Haul materials for %s" % target_def_id
+		job.anchor_cell = anchor
+		job.location = _world_location_for(target_def_id, anchor)
+		job.target_node = blueprint
+		job_board.add_job(job)
+	else:
+		_spawn_construction_job(target_def_id, anchor, blueprint)
+
+
+## Blueprint.deposit_from -> EventBus.blueprint_materials_ready -> here. Fires
+## exactly once when a blueprint's materials cross has_complete_materials (player
+## AddMaterials or a hauler's DELIVER leg — both go through deposit_from). Spawns
+## the construction job that the haul run was feeding. Guarded against a
+## duplicate: a material'd blueprint may already have a construction job from the
+## producer's no-source fallback above.
+func _on_blueprint_materials_ready(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
+	_spawn_construction_job(target_def_id, anchor, blueprint)
+
+
+## Build + register a construction Job at `anchor` bound to `blueprint`, unless
+## one already exists there (the no-source producer path + a later deposit can
+## both target the same blueprint). The job's location is a best-effort
+## footprint-center approach point; ColonistAI refines it into a real adjacent
+## standing cell at navigation time.
+func _spawn_construction_job(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.labor_id == "construction":
+			return
 	var job := Job.from_def(CONSTRUCTION_DEF)
 	job.title = "Build %s" % target_def_id
 	job.anchor_cell = anchor
 	job.location = _world_location_for(target_def_id, anchor)
 	job.target_node = blueprint
 	job_board.add_job(job)
+
+
+## True iff `bp`'s target has a non-empty material_cost that isn't yet fully
+## deposited — i.e. hauling could still do work for it.
+func _has_unsatisfied_material_cost(bp: Blueprint) -> bool:
+	var def := BuildLibrary.get_def(bp.target_def_id)
+	if def == null or def.material_cost.is_empty():
+		return false
+	return not bp.has_complete_materials()
+
+
+## item_ids this blueprint still needs (material_cost minus what's deposited).
+## Used to ask the StorageRegistry whether a source crate exists.
+func _needed_item_ids(bp: Blueprint) -> Array[String]:
+	var out: Array[String] = []
+	var def := BuildLibrary.get_def(bp.target_def_id)
+	if def == null:
+		return out
+	for entry in def.material_cost:
+		if bp.given_count(entry.item_def.id) < entry.count:
+			out.append(entry.item_def.id)
+	return out
 
 
 ## BlueprintLayer -> EventBus -> here. Fires on BOTH cancel and completion

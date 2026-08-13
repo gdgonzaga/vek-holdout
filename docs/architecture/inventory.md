@@ -7,7 +7,9 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | File | Type | Responsibility |
 |---|---|---|
 | `inventory.gd` | Script (`class_name Inventory`, extends Node) | Base inventory: weight capacity, add/remove/has_item/get_item_count/current_weight/transfer_to. Looks up `ItemDef` via `_get_def()` (delegates to `ItemDB` by default). Emits `inventory_changed` on mutation. |
-| `character_inventory.gd` | Script (`class_name CharacterInventory`, extends Inventory) | Character-specific inventory with `base_capacity` (export, default 50.0) + `bonus_capacity` (set by bag equipment). Recalculates `capacity` on ready and on bag equipment change. |
+| `character_inventory.gd` | Script (`class_name CharacterInventory`, extends Inventory) | Character-specific inventory with `base_capacity` (export, default 50.0) + `bonus_capacity` (set by bag equipment). Recalculates `capacity` on ready and on bag equipment change. Used by Player (scene-placed) and Colonist (code-created in `_ready`, so the colonist can carry hauled materials and stand in for `actor` in `Blueprint.deposit_from`). |
+| `storage_inventory.gd` | Script (`class_name StorageInventory`, extends Inventory) | Per-instance contents of a storage container (crates, shelves). Attached as a child of a `Furniture` (named `"StorageInventory"`) when its `FurnitureDef` has `storage_params`; reads `capacity` from those params at `_ready`. Player<->crate transfers use the inherited `transfer_to`. |
+| `storage_registry.gd` | Script (`class_name StorageRegistry`, on Colony) | Live index of storage crates, so hauling jobs can find a source for a blueprint's still-needed materials. Scans the current map's `FurnitureContainer` each call — no registration. See class reference. |
 | `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by `ItemDef.id` (the canonical item identity, e.g. `"wood_block"`). Read-only after `_ready`. |
 | `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `id: String` (canonical item identity — what `ItemDB` keys by and inventories store), `weight: float`, `icon: Texture2D`. |
 | `../data/items/` | Data | Item definition `.tres` files (one per item type). |
@@ -73,6 +75,30 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 |---|---|---|
 | `base_capacity` | `float` | [export] Default 50.0 kg. Base carry weight. |
 | `bonus_capacity` | `float` | Additional capacity from equipped bag items. |
+
+### Class: StorageInventory
+
+**Extends:** Inventory
+**Script:** `storage_inventory.gd`
+**Description:** Per-instance contents of a storage container (crates, shelves). Attached as a child Node of a `Furniture` (named `"StorageInventory"`) by `FurnitureLayer` only when the `FurnitureDef` has `storage_params`; reads `capacity` from those `StorageParams` at `_ready`. Weight-only — the base `Inventory` enforces the budget, so this subclass does not override `add`/`can_add`. Player↔crate transfers use the inherited `transfer_to`, which interoperates between any two `Inventory` instances (used by both the storage UI and colonist hauling).
+**Used by:** storage UI (player transfer), `StorageRegistry` (indexing), `HaulingJobDef` (crate↔colonist transfers).
+
+### Class: StorageRegistry
+
+**Extends:** Node
+**Script:** `storage_registry.gd` (a child of the `Colony` autoload)
+**Description:** Live index of the colony's storage crates, so hauling jobs can find "nearest crate that has the materials this blueprint still needs" without each call site re-scanning. No registration: `find_source` / `has_source_for` / `nearest_crate` scan the current map's `FurnitureContainer` children each call (filtering for `Furniture` nodes with a `"StorageInventory"` child). Crates are few and queries run at most once per haul FETCH leg, so the live scan is cheap and always correct — freed crates are simply absent from the container's child list (no stale refs, no unregister hook on `FurnitureLayer`).
+**Used by:** `Colony._on_blueprint_placed` (decide haul-vs-construct via `has_source_for`), `HaulingJobDef` (FETCH source via `find_source`; surplus return via `nearest_crate`; `is_available` gate via `has_source_for`).
+**Lifecycle:** `Colony._ready` creates it; `MapWiring.wire_colonists` calls `on_map_wired(furniture_container)` on every map load so base↔POI swaps rebind it to the new map's crates.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `on_map_wired(container: Node3D) -> void` | Bind to the current map's furniture container. |
+| `find_source(item_ids: Array[String], near: Vector3) -> Furniture` | Nearest crate whose `StorageInventory` holds any of `item_ids` (straight-line; reachability verified later by the pathfinder). Null if none. |
+| `has_source_for(item_ids: Array[String]) -> bool` | Any crate holds any of `item_ids`. |
+| `nearest_crate(near: Vector3) -> Furniture` | Nearest crate regardless of contents (for surplus return). |
 
 ## Design Notes
 

@@ -99,6 +99,12 @@ func deposit_from(actor: Node) -> int:
 		_refresh_info_text()
 		if has_complete_materials():
 			_swap_to_build_option()
+			# Single-fire trigger for Colony to spawn the construction job. Fires
+			# exactly once per blueprint: this branch only runs when a deposit
+			# crosses the threshold (total > 0), and _given never decreases, so a
+			# satisfied blueprint can't re-cross. Covers both player (AddMaterials)
+			# and colonist (haul DELIVER leg) deposit — both go through here.
+			EventBus.blueprint_materials_ready.emit(target_def_id, anchor_cell, self)
 	return total
 
 

@@ -11,6 +11,10 @@ var current_job: Job
 var skill_set: SkillSet
 var stamina_component: StaminaComponent
 var pathfinder: VoxelPathfinder
+## Carry inventory (materials hauled to blueprints, etc.). Created in _ready so
+## Blueprint.deposit_from(self) works unchanged — it calls actor.remove_item,
+## which the Player has via the same CharacterInventory pattern (player.gd).
+var inventory: CharacterInventory
 
 # Path-following locomotion. Waypoints are fed by VoxelPathfinder (Phase 3) /
 # ColonistAI (Phase 4); until then set_path() can be driven manually to verify
@@ -31,6 +35,13 @@ func _ready() -> void:
 	skill_set = $SkillSet
 	stamina_component = $StaminaComponent
 	pathfinder = $VoxelPathfinder
+	# Carry inventory: code-created (mirrors Player's scene-placed CharacterInventory)
+	# so this stays a script-only change. CharacterInventory._ready recalc's capacity
+	# on enter-tree, so add_child before any hauler reads it.
+	var inv := CharacterInventory.new()
+	inv.name = "Inventory"
+	add_child(inv)
+	inventory = inv
 	_current_hp = colonist_def.max_hp
 
 
@@ -102,6 +113,34 @@ func set_labor_priority(labord_id: String, priority: int) -> void:
 func set_raid_stance(stance: int) -> void:
 	# TODO: Add a guard vs configured min/max values
 	raid_stance = stance
+
+
+# --- Carry inventory wrappers ------------------------------------------------
+# Mirror Player's inventory helpers so a colonist can stand in for `actor` in
+# Blueprint.deposit_from (which calls actor.remove_item) and HaulingJobDef can
+# move items between a crate's StorageInventory and the colonist via transfer_to.
+
+func add_item(item_id: String, count: int) -> int:
+	return inventory.add(item_id, count)
+
+
+func remove_item(item_id: String, count: int) -> int:
+	return inventory.remove(item_id, count)
+
+
+func has_item(item_id: String, count: int) -> bool:
+	return inventory.has_item(item_id, count)
+
+
+func can_carry(item_id: String, count: int) -> bool:
+	return inventory.can_add(item_id, count)
+
+
+## Free weight left in the carry inventory (capacity − current_weight). Not
+## exercised by the haul loop yet (transfer_to enforces capacity at fetch) —
+## kept for future capacity-aware assignment.
+func remaining_capacity() -> float:
+	return inventory.capacity - inventory.current_weight()
 
 
 # --- SaveSystem contract -----------------------------------------------------

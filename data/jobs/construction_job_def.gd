@@ -1,25 +1,40 @@
 extends JobDef
 class_name ConstructionJobDef
 ## Construction labor (GDD §6.10): build a placed blueprint over its
-## BuildableDef.build_time, then materialize it via Blueprint.complete. The
-## colonist walks to a stand-adjacent cell (ColonistAI MOVE/PATH), then WORK
-## ticks this def's begin/complete. Mirrors the player's BuildAction
-## (data/actions/build_action.gd) but headless — no ActionProgress gauge, no
-## mouse unlock, no set_busy: ColonistAI's WORK state is itself the busy guard.
+## BuildableDef.build_time, then materialize it via Blueprint.complete. Expressed
+## as a single-leg job: get_next_leg returns the blueprint leg once (the colonist
+## walks to a stand-adjacent cell), begin reports build_time, complete
+## materializes it. Mirrors the player's BuildAction (data/actions/build_action.gd)
+## but headless — no ActionProgress gauge, no mouse unlock, no set_busy:
+## ColonistAI's WORK state is itself the busy guard.
 ##
-## Sprint scope: builds unconditionally — there is no has_complete_materials()
-## gate here, so a colonist can finish a costly blueprint without the materials
-## having been deposited. Costless test blueprints don't expose this; the
-## NoMaterials failure path + hauling dependency is deferred (GDD §6.10 late-MVP).
-## The work tick runs at 1× (skill × stamina multiplier deferred — begin's
-## returned duration is the seam for build_time × multiplier later).
+## Single-colonist (max_assignees=1, the JobDef default). Unlike hauling, one
+## builder finishing IS the job done — should_close() true once the bp is freed.
+##
+## Sprint scope: builds once materials are satisfied — the hauling dependency is
+## handled upstream (Colony only spawns a construction job once the blueprint's
+## deposit_from crosses has_complete_materials, via the blueprint_materials_ready
+## signal). The work tick runs at 1× (skill × stamina multiplier deferred —
+## begin's returned duration is the seam for build_time × multiplier later).
+
+
+## Single WORK leg targeting the blueprint. Returns it on the first call (leg 0),
+## null after — the one leg's begin/complete does all the work, and a null next
+## leg ends the job for this colonist.
+func get_next_leg(_actor: Node, job: Job) -> JobLeg:
+	# `location` is the footprint-center approach set by Colony at spawn; the AI
+	# refines it into an adjacent standing cell. target_node is the blueprint.
+	var leg := JobLeg.new()
+	leg.location = job.location
+	leg.target_node = job.target_node
+	return leg
 
 
 ## build_time read from the target's BuildableDef; 0.0 (instant) if the target
 ## is not a Blueprint or its def is unknown. Matches BuildAction's duration
 ## resolution so player and colonist builds take the same time for a given def.
-func begin(_actor: Node, target: Node) -> float:
-	var bp := target as Blueprint
+func begin(_actor: Node, leg: JobLeg, _job: Job) -> float:
+	var bp := leg.target_node as Blueprint
 	if bp == null:
 		return 0.0
 	var def := BuildLibrary.get_def(bp.target_def_id)
@@ -29,8 +44,27 @@ func begin(_actor: Node, target: Node) -> float:
 ## Materialize the blueprint. Resets work_done on success so a later rebuild of
 ## the same target starts fresh (matches player BuildAction), and forwards the
 ## colonist as the builder so skill/stamina can be attributed later.
-func complete(actor: Node, target: Node) -> void:
-	var bp := target as Blueprint
+func complete(actor: Node, leg: JobLeg, _job: Job) -> void:
+	var bp := leg.target_node as Blueprint
 	if is_instance_valid(bp):
 		bp.work_done = 0.0
 		bp.complete(actor)
+
+
+## On an abort (blueprint cancelled/freed mid-build), persist the partial WORK
+## time so a later attempt — colonist or player — resumes from here instead of
+## restarting. No-op on a clean finish (complete already reset work_done) or when
+## the blueprint is already gone (nothing to persist).
+func on_end(success: bool, _actor: Node, leg: JobLeg, _job: Job, elapsed: float) -> void:
+	if success:
+		return
+	var bp := leg.target_node as Blueprint
+	if is_instance_valid(bp):
+		bp.work_done = elapsed
+
+
+## A construction job is available while its blueprint still exists. The Job's
+## own slot gate (max_assignees=1) keeps it to one builder; once the bp is freed
+## (built or cancelled) this flips false so should_close() can remove it.
+func is_available(job: Job) -> bool:
+	return is_instance_valid(job.target_node)

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="HaulingJobDef" format=3]
+
+[ext_resource type="Script" path="res://data/jobs/hauling_job_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "hauling"
+display_name = "Hauling"
+labor_id = "hauling"
+max_assignees = 3

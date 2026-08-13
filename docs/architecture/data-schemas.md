@@ -55,19 +55,27 @@ The canonical declaration of which labor ids exist. `LaborDef extends Resource`.
 
 ## `data/jobs/<id>.tres` (Resource: `job_def.gd`) — `JobDef`
 
-Reusable template for one kind of colonist work — one subclass per Labor, authored as a `.tres` via `script_class` (`construction.tres` → `ConstructionJobDef`). Unlike the pure-data defs above, a `JobDef` also carries the WORK behaviour (`begin`/`complete`); a `Job` instance holds a `def` back-ref (like `Furniture.def`) plus the per-placement binding (which blueprint, where). This mirrors the behaviour-bearing Resource precedent (`GameAction`, `Condition`). The work behaviour lives here, not on the Furniture, because it depends on Job parameters the Furniture doesn't know (e.g. a craft job's duration = `recipe.base_time × quantity`). See [Colonists](colonists.md).
+Reusable template for one kind of colonist work — one subclass per Labor, authored as a `.tres` via `script_class` (`construction.tres` → `ConstructionJobDef`, `hauling.tres` → `HaulingJobDef`). Unlike the pure-data defs above, a `JobDef` also carries **leg behaviour**: a job is a sequence of `JobLeg`s (walk-to → act) that `ColonistAI` walks. A `Job` instance holds a `def` back-ref (like `Furniture.def`) plus the per-placement binding (which blueprint, where) and the multi-assign claim bookkeeping. This mirrors the behaviour-bearing Resource precedent (`GameAction`, `Condition`). The behaviour lives here, not on the Furniture, because it depends on Job parameters the Furniture doesn't know (e.g. a craft job's duration = `recipe.base_time × quantity`). See [Colonists](colonists.md).
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | `String` | `[export]` Identifies this template (e.g. `"construction"`). |
+| `id` | `String` | `[export]` Identifies this template (e.g. `"construction"`, `"hauling"`). |
 | `display_name` | `String` | `[export]` Job Log / UI label. |
 | `labor_id` | `String` | `[export]` A `LaborDef.id`; gates `JobBoard.get_best_job_for`'s filter. |
+| `max_assignees` | `int` | `[export default 1]` Max colonists that may join one Job of this def at once. 1 for single-colonist labors (construction); >1 lets a job be divvied (hauling). |
 
-**Virtual methods** (overridden per Labor; `ColonistAI` ticks them in its WORK state):
-- `begin(actor: Node, target: Node) -> float` — setup + work duration in seconds (`0` = instant → `complete` fires the same tick). Base default `0.0`.
-- `complete(actor: Node, target: Node) -> void` — apply the work's effect when the duration elapses. Base default no-op.
+**Virtual methods** (overridden per Labor; `ColonistAI` drives them in its leg loop):
+- `get_next_leg(actor: Node, job: Job) -> JobLeg` — the next leg for this colonist, or `null` when it has no further work (called at claim and after each leg). Base default `null`.
+- `begin(actor: Node, leg: JobLeg, job: Job) -> float` — this leg's work duration in seconds (`0` = instant → `complete` fires the same tick). Base default `0.0`.
+- `complete(actor: Node, leg: JobLeg, job: Job) -> void` — apply this leg's effect when its duration elapses. Base default no-op.
+- `on_end(success: bool, actor: Node, leg: JobLeg, job: Job, elapsed: float) -> void` — cleanup when a colonist leaves the job (finish or abort). Base default no-op.
+- `is_available(job: Job) -> bool` — labor-specific acceptability gate (combined with the slot count on `Job.is_available`). Base default `true`.
 
-**Subclass — `ConstructionJobDef`** (`data/jobs/construction_job_def.gd`): construction labor. `begin` returns `BuildLibrary.get_def(bp.target_def_id).build_time` (0 if `target` isn't a `Blueprint` or the def is unknown); `complete` resets `bp.work_done = 0` and calls `bp.complete(actor)`. Headless twin of the player's `BuildAction` (no progress gauge / mouse unlock / `set_busy`); builds unconditionally (no materials gate yet) and ticks at 1× (skill × Stamina multiplier deferred).
+**`JobLeg`** (`data/jobs/job_leg.gd`, `RefCounted`) — one leg of a job's walk→act sequence; pure routing data. `location: Vector3` (walk-target), `target_node: Node` (the per-leg node — crate/blueprint; weak, freed-detectable), `kind: int` (opaque, def-owned discriminator, e.g. `HaulingJobDef.FETCH`/`DELIVER`).
+
+**Subclass — `ConstructionJobDef`** (`data/jobs/construction_job_def.gd`): construction labor, a **one-leg job** (`max_assignees=1`). `get_next_leg` returns the blueprint leg once then `null`; `begin` returns `BuildLibrary.get_def(bp.target_def_id).build_time` (0 if not a `Blueprint`/unknown def); `complete` resets `bp.work_done = 0` and calls `bp.complete(actor)`; `on_end(false)` persists `bp.work_done = elapsed` so a later attempt resumes; `is_available` = the blueprint still exists. Headless twin of the player's `BuildAction` (no gauge / mouse unlock / `set_busy`); ticks at 1× (skill × Stamina deferred).
+
+**Subclass — `HaulingJobDef`** (`data/jobs/hauling_job_def.gd`): hauling labor, a **multi-leg, multi-colonist job** (`max_assignees=3`). Each hauler independently loops FETCH (`crate.transfer_to(colonist.inventory, …)` per unsatisfied material) → DELIVER (`bp.deposit_from(actor)`) until `has_complete_materials()`; phase is derived from carry state, legs are instant. `get_next_leg`: bp gone/satisfied → `null`; carrying a needed material → DELIVER; else FETCH from `StorageRegistry.find_source`, or `null` if no source. `on_end` returns surplus to `StorageRegistry.nearest_crate`. `is_available` = bp valid + unsatisfied + a crate holds a needed material. Haulers divvy through the blueprint's shared deposit counter (no per-colonist slices); the DELIVER that crosses the threshold emits `blueprint_materials_ready` → `Colony` spawns the construction job.
 
 ## `data/energy_config.tres` (Resource: `energy_config.gd`) — *(planned)*
 

@@ -85,6 +85,10 @@ static func wire_colonists(map: Map) -> Node3D:
 	# Spawn/reparent first — add_child runs each colonist's _ready, which caches
 	# its pathfinder field, before we inject below.
 	Colony.on_map_wired(container, spawns.get("colonists", []))
+	# Point the storage registry at this map's furniture container so hauling
+	# jobs can live-scan its crates. Same wiring moment as colonists — per map
+	# load, so base<->POI swaps rebind to the new map's crates.
+	Colony.storage_registry.on_map_wired(map.get_furniture_container())
 	# Inject the walkability predicate (voxel air-above-solid-floor, minus
 	# furniture/blueprint occupancy) into every colonist's pathfinder. Re-run
 	# per map load so base<->POI swaps pick up the new map's layers.
