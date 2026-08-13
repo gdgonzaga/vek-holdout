@@ -23,6 +23,9 @@ var job_board: JobBoard
 
 const MVP_CAP := 5  # Roster capacity (ARCH "max 5 in MVP").
 
+# The construction JobDef — every placed blueprint becomes a Job from this def.
+const CONSTRUCTION_DEF := preload("res://data/jobs/construction.tres")
+
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
 ## reparent, like the Player).
@@ -85,17 +88,18 @@ func remove_colonist(colonist_id: String) -> void:
 			return
 
 
-## BlueprintLayer -> EventBus -> here. Create a construction job at the blueprint's
-## anchor so a colonist can later walk to it. The job's location is a best-effort
+## BlueprintLayer -> EventBus -> here. Build a construction Job from
+## CONSTRUCTION_DEF at the blueprint's anchor and bind the blueprint node as its
+## target so a colonist can walk to it and WORK it (ConstructionJobDef ticks
+## build_time, then Blueprint.complete). The job's location is a best-effort
 ## footprint-center approach point (no yaw in the signal); ColonistAI refines it
 ## into a real adjacent standing cell at navigation time.
-func _on_blueprint_placed(target_def_id: String, anchor: Vector3i) -> void:
-	var job := Job.new()
-	job.id = Tools.generate_uuid()
-	job.labor_id = "construction"
+func _on_blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
+	var job := Job.from_def(CONSTRUCTION_DEF)
 	job.title = "Build %s" % target_def_id
 	job.anchor_cell = anchor
 	job.location = _world_location_for(target_def_id, anchor)
+	job.target_node = blueprint
 	job_board.add_job(job)
 
 

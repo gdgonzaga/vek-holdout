@@ -2,9 +2,9 @@
 
 Colonist entities, roster (in Colony autoload), Job Board, labor AI, raid stances. GDD §6.
 
-> **Sprint scope (built):** place a Workshop blueprint → `Colony` creates a construction Job → a colonist claims it on the next idle poll → A\* walks to a stand-adjacent cell of the blueprint → on arrival completes the Job and returns to idle. Arrival completes the **Job** only; the blueprint stays placed for the player to build manually (the real build is deferred — see below).
+> **Sprint scope (built):** place a Workshop blueprint → `Colony` creates a construction Job (from the `construction` `JobDef`) → a colonist claims it on the next idle poll → A\* walks to a stand-adjacent cell of the blueprint → on arrival **WORKs** it: `ColonistAI` ticks the JobDef's `begin`/`complete` over the target's `build_time`, then `Blueprint.complete` materializes the blueprint and the Job resolves. The WORK tick runs at 1× (the skill × Stamina multiplier is deferred — see below).
 >
-> **Deferred (GDD §6, not yet built):** the work-tick build (skill × Stamina rate → `BlueprintLayer.complete_blueprint`), `colonist_combat.gd` (§6.7), recruitment (§6.9), the `RaidStance` enum (§6.2), roster save/restore, and `colonist_ai_statemachine.gd` (an unreferenced orphan stub superseded by the inline state enum in `colonist_ai.gd`).
+> **Deferred (GDD §6, not yet built):** the skill × Stamina work-speed multiplier (the WORK tick runs at 1×), the materials gate (a colonist builds unconditionally — no `has_complete_materials()` check; the `NoMaterials` failure path + hauling dependency is GDD §6.10 late-MVP), `colonist_combat.gd` (§6.7), recruitment (§6.9), the `RaidStance` enum (§6.2), roster save/restore, and `colonist_ai_statemachine.gd` (an unreferenced orphan stub superseded by the inline state enum in `colonist_ai.gd`).
 >
 > **Labors (GDD §6.4):** a *Labor* is a category of work, declared as a `LaborDef` resource under `data/labors/` (see [Data Schemas](data-schemas.md)) and referenced everywhere by its String `id`. Five ship today — `construction`, `crafting`, `hauling`, `mechanics`, `smelting` (Repair/Farming/Cooking post-MVP). The labor id is the join key of the subsystem: a `Job` carries one `labor_id` (what kind of work it is), and a `Colonist`'s `labor_priorities` Dict (`{labor_id: 0–5 weight}`) decides which jobs that colonist will accept — `JobBoard.get_best_job_for` skips any job whose labor has weight 0 for that colonist. `ColonistDef.default_labor_priorities` enables `construction`, `crafting`, and `hauling` at priority 1 by default (mechanics/smelting start disabled), so a fresh colonist picks up construction jobs — the only labor producing jobs today, via blueprint placement.
 
@@ -14,14 +14,15 @@ Colonist entities, roster (in Colony autoload), Job Board, labor AI, raid stance
 |---|---|---|
 | `colonist.gd` | Script | The colonist entity (`Colonist extends CharacterBody3D`). HP, labor priorities, raid stance, current Job, and path-following locomotion (`set_path` / `has_arrived`). Holds `skill_set` / `stamina_component` / `pathfinder` child refs. Does NOT own job discovery (Job Board does). |
 | `colonist.tscn` | Scene | Capsule mesh + CollisionShape + `SkillSet` / `StaminaComponent` / `ColonistAI` / `ColonistCombat` (bare node, no script yet) / `VoxelPathfinder` children. |
-| `colonist_ai.gd` | Script | The colonist build-job loop: IDLE → poll Job Board (0.5s throttle) → claim → path (A\*) → MOVE → on arrival `complete` the Job → IDLE. Does NOT own pathfinding (delegates to `VoxelPathfinder`). |
+| `colonist_ai.gd` | Script | The colonist build-job loop: IDLE → poll Job Board (0.5s throttle) → claim → path (A\*) → MOVE → on arrival enter WORK (tick the JobDef's `begin`/`complete` over `build_time`) → IDLE. Owns the WORK tick; delegates pathfinding to `VoxelPathfinder`. |
 | `voxel_pathfinder.gd` | Script (component) | Voxel A\* with an **injected walkability predicate** — intentionally generic (knows nothing about voxels/furniture/blueprints). `find_path_to_adjacent` resolves a stand-adjacent cell so a colonist can reach a blocked footprint (a blueprint). See class reference. |
-| `job.gd` | Script (`RefCounted`) | Pure-data unit of work (`Job`): `id`, `labor_id`, `title`, `anchor_cell`, `location`, `target_node`, `base_rate`, `claimed_by`, `failure_count`. No behaviour — the Job Board owns transitions. |
+| `job.gd` | Script (`RefCounted`) | Pure-data unit of work (`Job`): `def` (JobDef back-ref), `id`, `labor_id`, `title`, `anchor_cell`, `location`, `target_node`, `base_rate`, `claimed_by`, `failure_count`. No behaviour of its own — work behaviour lives on the `JobDef`; the Job Board owns transitions. |
 | `job_board.gd` | Script (on Colony) | Job registry + lifecycle: `add_job` / `get_best_job_for` / `claim` / `unclaim` / `complete` / `fail`. Atomic claim; `fail` auto-removes at 3 failures. Early-MVP policy: log + skip + auto-remove. |
 | `skill_set.gd` | Script (component) | Colocated here for the colonist sprint (stub — see [Skills](skills.md)). |
 | `stamina_component.gd` | Script (component) | Colocated here for the colonist sprint (stub — see [Energy](energy.md)). |
 | `../autoloads/colony.gd` | Autoload | Roster + Job Board. Produces construction Jobs from `EventBus.blueprint_placed` / `blueprint_removed`. Cross-scene (colonists persist base↔POI). |
 | `../data/labors/` | Data | `LaborDef` resources — the canonical labor ids (Construction, Crafting, Hauling, Mechanics, Smelting; Repair/Farming/Cooking post-MVP). See [Data Schemas](data-schemas.md). |
+| `../data/jobs/` | Data | `JobDef` templates (`job_def.gd` base + per-labor subclasses) authored as `.tres`. `construction.tres` (`ConstructionJobDef`) drives the build WORK tick. See [Data Schemas](data-schemas.md). |
 
 ## Signals
 
@@ -38,10 +39,10 @@ The Job Board is the hub: producers add Jobs, consumers (`ColonistAI`) query + c
 
 **Trigger:** A blueprint is placed (`EventBus.blueprint_placed`).
 
-1. **Produce** — `Colony._on_blueprint_placed(target_def_id, anchor)` builds `Job{labor_id="construction", title="Build <id>", anchor_cell=anchor, location=footprint-center}` (via `FurnitureLayer.world_origin`) and calls `JobBoard.add_job`, which assigns a uuid `id` if the creator didn't. The Job sits on the board with `claimed_by == ""`.
+1. **Produce** — `Colony._on_blueprint_placed(target_def_id, anchor, blueprint)` builds a Job from the `construction` `JobDef` via `Job.from_def` (denormalizing `labor_id`, `title="Build <id>"`, and a uuid `id` from the def), then binds the per-placement fields (`anchor_cell=anchor`, `location=footprint-center` via `FurnitureLayer.world_origin`, `target_node=blueprint`) and calls `JobBoard.add_job`. The Job sits on the board with `claimed_by == ""`, carrying its `def` back-ref.
 2. **Select** — a colonist's `ColonistAI`, throttled to once per 0.5s while IDLE, calls `JobBoard.get_best_job_for(colonist)`. Selection filters to unclaimed jobs whose Labor is enabled for that colonist — `colonist.labor_priorities.get(job.labor_id, 0) > 0` — then ranks by highest priority, breaking ties by nearest `global_position.distance_squared_to(job.location)`. Returns the best Job (or `null`); **it does not claim.** (The documented L1 skill gate is deferred until skills wire into the work loop — ignored here.)
 3. **Claim** — `ColonistAI` calls `JobBoard.claim(job.id, colonist.colonist_id)`: an atomic compare-and-set on `claimed_by` (`"" → colonist_id`). On success it sets the claim, emits `job_claimed(job_id, colonist_id)`, and returns the Job; on a lost race (another colonist claimed it first, or it was removed) it returns `null` and the next poll retries.
-4. **Resolve — happy path** — on arrival (see the walk flow below) `ColonistAI._finish_job` calls `JobBoard.complete(job.id)`, which erases the Job from the board. The blueprint itself is untouched by the board — sprint scope is "walks to it"; the real build (`work-tick → BlueprintLayer.complete_blueprint`) is deferred.
+4. **Resolve — happy path** — on arrival (see the walk flow below) `ColonistAI` enters WORK: it calls `job.def.begin(colonist, target_node)` (returns the target's `build_time`, 0 for instant), accumulates `_work_elapsed` against it in `_process`, then calls `job.def.complete(...)` → `ConstructionJobDef.complete` → `Blueprint.complete` materializes the target and frees the blueprint. `Blueprint.complete` emits `blueprint_removed` → `Colony._on_blueprint_removed` drops the Job by anchor; `ColonistAI._finish_job` then calls `JobBoard.complete(job.id)` (a harmless no-op — already erased) and returns to IDLE. If `begin` returned 0, `complete` + `_finish_job` fire the same tick (instant).
 5. **Resolve — fail path** — `JobBoard.fail(job.id, reason)` increments `failure_count`, releases the claim (`claimed_by = ""`), emits `job_failed(job_id, reason)` locally, and relays a `job_logged(entry)` Dictionary through `EventBus` for the Job Log UI. At `failure_count >= _MAX_FAILURES (3)` the board auto-erases the Job — the early-MVP policy is *log + skip + auto-remove*. The blueprint stays placed either way.
 
 > **`fail` is implemented but not driven this sprint.** `ColonistAI` releases a transiently-unreachable job with `unclaim` + throttled retry (the 0.5s poll bounds it) rather than `fail`, so a no-path never burns a `failure_count`. True-unreachable thrash (a per-colonist blacklist, or `fail`-on-no-path) is a documented MVP gap; on the flat base map it never arises.
@@ -63,11 +64,11 @@ The spatial counterpart to the lifecycle flow: once a Job is claimed, this is ho
 2. If the returned path is **empty** (no reachable adjacent cell): `ColonistAI` calls `JobBoard.unclaim(job.id, colonist_id)`, clears `current_job`, and stays IDLE — the 0.5s throttle bounds the retry (see the `fail` note above).
 3. Otherwise `ColonistAI` calls `_colonist.set_path(waypoints)`: `Colonist.set_path` does `_path.assign(waypoints)` (per-element copy into the typed `Array[Vector3]` — a bare `duplicate()` would return an untyped Array, which 4.7 won't assign) and resets `_path_index = 0`. AI state → MOVE.
 4. **Locomotion** — `Colonist._physics_process` applies gravity, then `_follow_path`: each frame, take the horizontal vector to `_path[_path_index]` (Y zeroed), move at `colonist_def.base_move_speed`; once within `_ARRIVAL_THRESHOLD = 0.2` of the waypoint, advance `_path_index`. `has_arrived()` returns `_path_index >= _path.size()`.
-5. **Arrival** — in MOVE, `ColonistAI._process` watches `has_arrived()`; on true, `_finish_job` calls `JobBoard.complete(current_job.id)` (lifecycle happy path), clears `current_job`, and returns to IDLE with the poll clock reset. The blueprint stays placed.
+5. **Arrival** — in MOVE, `ColonistAI._process` watches `has_arrived()`; on true it calls `_begin_work()` (not `_finish_job`) → enter WORK (lifecycle happy path, step 4). If the target node is freed mid-WORK (blueprint cancelled elsewhere), `_tick_work` aborts: persists partial `work_done` if the target survived, `unclaim`s, clears `current_job`, and returns to IDLE.
 
 > **Why the ring search is the crux:** the injected predicate (composed by `MapWiring.wire_colonists._compose_walkability`) defines a cell as walkable iff it is air, has a solid floor below, and is **not** furniture or a blueprint. The footprint-center is therefore rejected for free — the pathfinder never needs to know the footprint's shape or the def's `dimensions`. The ring search simply finds the nearest *free* neighbour, giving clean decoupling between the AI, the pathfinder, and the build layers.
 
-**End state:** Colonist stands on a cell adjacent to the blueprint footprint; Job completed on the board; colonist idles.
+**End state:** Colonist stands on a cell adjacent to the blueprint footprint, WORKs the build to completion (blueprint materializes via `Blueprint.complete`), Job resolved on the board; colonist idles.
 
 ## Class Reference
 
@@ -93,7 +94,7 @@ The spatial counterpart to the lifecycle flow: once a Job is claimed, this is ho
 | `on_map_wired(container: Node3D, spawn_positions: Array) -> void` | Empty roster → spawn one colonist per `ColonistSpawn` marker (up to `MVP_CAP`); non-empty → reparent existing nodes into the new map (the base↔POI persist idiom). |
 | `add_colonist(c: Colonist) -> void` | Recruits a colonist (random event / radio, post-MVP). Respects the cap. |
 | `remove_colonist(colonist_id: String) -> void` | Drop a colonist by id (death or departure); frees the node. |
-| `_on_blueprint_placed(target_def_id, anchor) -> void` | Creates a construction Job at the blueprint's anchor (location = footprint center) and adds it to the board. |
+| `_on_blueprint_placed(target_def_id, anchor, blueprint) -> void` | Builds a construction Job from the `construction` `JobDef` (via `Job.from_def`), binds `anchor_cell` / `location` (footprint center) / `target_node=blueprint`, and adds it to the board. |
 | `_on_blueprint_removed(target_def_id, anchor) -> void` | Removes any Job targeting that anchor (fires on both cancel and completion). Idempotent. |
 
 ### Class: Colonist
@@ -130,26 +131,87 @@ The spatial counterpart to the lifecycle flow: once a Job is claimed, this is ho
 | `set_raid_stance(stance: int) -> void` | Mutates the raid stance. |
 | `serialize() -> Dictionary` / `deserialize(data) -> void` | SaveSystem contract — scalar/dict state + world position. Excludes `current_job` and component sub-state. |
 
+### Class: ColonistAI
+
+**Extends:** Node
+**Script:** `colonist_ai.gd` (a child of each `Colonist`)
+**Description:** Drives a colonist's build-job loop against the Job Board: poll → claim → path → walk → WORK. Owns the inline `State` machine and the WORK tick; the `JobDef` supplies the work behaviour (`begin`/`complete`). Delegates pathfinding to the colonist's `VoxelPathfinder` child. The WORK state is itself the busy guard — no separate `set_busy`.
+**Lifecycle:** `_process` runs the state machine each frame; IDLE polls are throttled to once per `_POLL_INTERVAL = 0.5s`.
+
+**States (`State` enum):**
+
+| State | Behaviour |
+|---|---|
+| `IDLE` | Throttled `_try_claim_and_path`: `get_best_job_for` → `claim` → `find_path_to_adjacent` → `set_path` → MOVE. On any miss (no job, lost race, no path) `unclaim` + stay IDLE. |
+| `MOVE` | Watch `has_arrived()`; on true → `_begin_work()`. |
+| `WORK` | `_tick_work(delta)`: accumulate `_work_elapsed` against `job.def.begin()`'s duration; on elapse call `job.def.complete()` (materializes the blueprint) → `_finish_job`. Abort to IDLE if `target_node` was freed mid-build. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `_try_claim_and_path() -> void` | IDLE tick: claim + path (→ MOVE), or release + stay IDLE. |
+| `_begin_work() -> void` | MOVE arrival: `job.def.begin`; instant (≤0) → `complete` + `_finish_job`, else → WORK. |
+| `_tick_work(delta: float) -> void` | WORK tick: accumulate, fire `complete` + `_finish_job` on elapse; `_abort_work` if target freed. |
+| `_abort_work() -> void` | Drop a job whose target vanished: persist partial `work_done` if the target survived, `unclaim`, clear `current_job`, → IDLE. |
+| `_finish_job() -> void` | WORK completion / instant finish: `JobBoard.complete` + → IDLE. |
+
 ### Class: Job
 
 **Extends:** RefCounted
 **Script:** `job.gd`
-**Description:** A unit of colonist work — pure data. Created by a producer (Colony, on `blueprint_placed`) and resolved through the Job Board lifecycle (`claim → complete` / `fail`). The Job Board owns the registry and transitions; `ColonistAI` drives the claim/path loop.
+**Description:** A unit of colonist work — pure data. Created by a producer (Colony, on `blueprint_placed`) from a `JobDef` and resolved through the Job Board lifecycle (`claim → complete` / `fail`). The Job Board owns the registry and transitions; `ColonistAI` drives the claim/path/WORK loop, ticking `job.def.begin`/`complete` on arrival.
 **Used by:** Job Board (registry), ColonistAI (claim/path), future Job Log UI.
 
 **Properties:**
 
 | Property | Type | Description |
 |---|---|---|
+| `def` | `JobDef` | The template this Job was built from (back-ref, like `Furniture.def`). Owns the WORK behaviour ColonistAI ticks on arrival. Set by `Job.from_def`. |
 | `id` | `String` | Unique id (`Tools.generate_uuid()`); the Job Board keys on it. |
 | `labor_id` | `String` | Which Labor this is (a `LaborDef.id`, e.g. `"construction"`). Drives priority selection. |
 | `title` | `String` | Human-readable label (e.g. `"Build workshop"`); for the Job Log. |
 | `anchor_cell` | `Vector3i` | The voxel cell targeted (a blueprint's anchor). Authoritative placement ref. |
 | `location` | `Vector3` | World point a colonist walks toward (best-effort footprint center); refined to a real adjacent standing cell at navigation time. |
-| `target_node` | `Node` | The in-world node being worked (e.g. the Blueprint), as a weak ref. Forward-compat; unused this sprint. |
+| `target_node` | `Node` | The in-world node being worked (the Blueprint), passed to `job.def.begin`/`complete` on arrival. Held weak so a freed target is detectable. |
 | `base_rate` | `float` | Base work-rate multiplier (GDD §6 effective-rate formula). Forward-compat; unused this sprint. |
 | `claimed_by` | `String` | `colonist_id` of the claimer, or `""` when unclaimed. Mutated only via the Job Board. |
 | `failure_count` | `int` | Times `fail` has been called; the board auto-removes at `_MAX_FAILURES` (3). |
+
+### Class: JobDef
+
+**Extends:** Resource
+**Script:** `data/jobs/job_def.gd`
+**Description:** Reusable template for one kind of colonist work — one subclass per Labor, authored as a `.tres` via `script_class`. Unlike the pure-data defs (`FurnitureDef`, `ItemDef`, …), a JobDef also carries the WORK behaviour (`begin`/`complete`); a `Job` instance holds a `def` back-ref (like `Furniture.def`) plus the per-placement binding. This mirrors the behaviour-bearing Resource precedent (`GameAction`, `Condition`). The work behaviour lives here, not on the Furniture, because it depends on Job parameters the Furniture doesn't know (e.g. a craft job's duration = `recipe.base_time × quantity`).
+**Used by:** `Job` (`def` back-ref), `Colony` (builds Jobs via `Job.from_def`), `ColonistAI` (ticks `begin`/`complete` in WORK).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `id` | `String` | Identifies this template (e.g. `"construction"`). |
+| `display_name` | `String` | Job Log / UI label. |
+| `labor_id` | `String` | A `LaborDef.id`; gates `get_best_job_for`'s filter. |
+
+**Functions (virtual — overridden per Labor):**
+
+| Function | Description |
+|---|---|
+| `begin(actor, target) -> float` | Setup + work duration in seconds (0 = instant → `complete` fires same tick). Base default `0.0` (today's pre-WORK "arrive → complete" behaviour). |
+| `complete(actor, target) -> void` | Apply the work's effect when the duration elapses. Base default no-op. |
+
+### Class: ConstructionJobDef
+
+**Extends:** `JobDef`
+**Script:** `data/jobs/construction_job_def.gd`
+**Description:** Construction labor: build a placed blueprint over its `BuildableDef.build_time`, then materialize it via `Blueprint.complete`. The colonist walks to a stand-adjacent cell (ColonistAI MOVE), then WORK ticks these methods. Headless twin of the player's `BuildAction` — no progress gauge, no mouse unlock, no `set_busy` (the WORK state is the busy guard). Builds unconditionally (no materials gate — see sprint scope above); 1× tick (skill × Stamina multiplier deferred; `begin`'s returned duration is the seam).
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `begin(actor, target) -> float` | `BuildLibrary.get_def(bp.target_def_id).build_time`; 0 if `target` isn't a `Blueprint` or the def is unknown. |
+| `complete(actor, target) -> void` | If the blueprint is valid: reset `bp.work_done = 0` and call `bp.complete(actor)`. |
 
 ### Class: JobBoard
 

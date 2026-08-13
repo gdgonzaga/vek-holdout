@@ -91,7 +91,7 @@ func spawn_blueprint(target_def: BuildableDef, anchor: Vector3i, yaw_quarters: i
 	for off in FurnitureLayer.footprint_cells(dims, yaw_quarters):
 		_anchor_by_cell[anchor + off] = anchor
 	if not _is_restoring:
-		EventBus.blueprint_placed.emit(target_def.id, anchor)
+		EventBus.blueprint_placed.emit(target_def.id, anchor, node)
 	return node
 
 

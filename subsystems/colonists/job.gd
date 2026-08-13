@@ -7,9 +7,15 @@ class_name Job
 ## (claim → complete / fail). This class is pure data; the JobBoard owns the
 ## registry and transitions, and ColonistAI drives the claim/path/work loop.
 ##
-## Sprint scope note: only `labor_id`, `anchor_cell`, `location`, and `title` are
-## exercised by the "colonist walks to a blueprint" goal. `target_node` and
-## `base_rate` are forward-compat for the work-tick phase (GDD §6) and unused now.
+## Sprint scope note: `def`, `labor_id`, `anchor_cell`, `location`, `title`, and
+## `target_node` are all exercised by the "colonist walks to and builds a
+## blueprint" goal (ColonistAI WORK ticks job.def). `base_rate` remains
+## forward-compat for the skill × stamina work-speed phase (GDD §6) and is unused.
+
+## The JobDef template this job was built from (back-ref, like Furniture.def).
+## Owns the WORK behaviour ColonistAI ticks on arrival (begin/complete). Set by
+## Job.from_def / the producer; null on ad-hoc jobs (treated as instant work).
+var def: JobDef = null
 
 ## Unique id (Tools.generate_uuid()). Set by the creator; the JobBoard keys on it.
 var id: String = ""
@@ -44,6 +50,19 @@ var claimed_by: String = ""
 ## Times this job has failed (JobBoard.fail increments). At >= 3 the board
 ## auto-removes it (early-MVP policy, ARCH "Job failure handling").
 var failure_count: int = 0
+
+
+## Build a Job from a JobDef: fresh uuid, the def back-ref, and the labor_id +
+## title denormalized from the def so get_best_job_for / the Job Log don't need a
+## def lookup. The caller still sets the per-placement binding (anchor_cell,
+## location, target_node).
+static func from_def(d: JobDef) -> Job:
+	var job := Job.new()
+	job.id = Tools.generate_uuid()
+	job.def = d
+	job.labor_id = d.labor_id
+	job.title = d.display_name
+	return job
 
 
 func _to_string() -> String:

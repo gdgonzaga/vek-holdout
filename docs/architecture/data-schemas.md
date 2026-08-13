@@ -53,6 +53,22 @@ The canonical declaration of which labor ids exist. `LaborDef extends Resource`.
 | `display_name` | `String` | `[export]` UI label (e.g. `"Construction"`). |
 | `description` | `String` | `[export default ""]` Short blurb, unused in MVP UI. |
 
+## `data/jobs/<id>.tres` (Resource: `job_def.gd`) — `JobDef`
+
+Reusable template for one kind of colonist work — one subclass per Labor, authored as a `.tres` via `script_class` (`construction.tres` → `ConstructionJobDef`). Unlike the pure-data defs above, a `JobDef` also carries the WORK behaviour (`begin`/`complete`); a `Job` instance holds a `def` back-ref (like `Furniture.def`) plus the per-placement binding (which blueprint, where). This mirrors the behaviour-bearing Resource precedent (`GameAction`, `Condition`). The work behaviour lives here, not on the Furniture, because it depends on Job parameters the Furniture doesn't know (e.g. a craft job's duration = `recipe.base_time × quantity`). See [Colonists](colonists.md).
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | `[export]` Identifies this template (e.g. `"construction"`). |
+| `display_name` | `String` | `[export]` Job Log / UI label. |
+| `labor_id` | `String` | `[export]` A `LaborDef.id`; gates `JobBoard.get_best_job_for`'s filter. |
+
+**Virtual methods** (overridden per Labor; `ColonistAI` ticks them in its WORK state):
+- `begin(actor: Node, target: Node) -> float` — setup + work duration in seconds (`0` = instant → `complete` fires the same tick). Base default `0.0`.
+- `complete(actor: Node, target: Node) -> void` — apply the work's effect when the duration elapses. Base default no-op.
+
+**Subclass — `ConstructionJobDef`** (`data/jobs/construction_job_def.gd`): construction labor. `begin` returns `BuildLibrary.get_def(bp.target_def_id).build_time` (0 if `target` isn't a `Blueprint` or the def is unknown); `complete` resets `bp.work_done = 0` and calls `bp.complete(actor)`. Headless twin of the player's `BuildAction` (no progress gauge / mouse unlock / `set_busy`); builds unconditionally (no materials gate yet) and ticks at 1× (skill × Stamina multiplier deferred).
+
 ## `data/energy_config.tres` (Resource: `energy_config.gd`) — *(planned)*
 
 > **Status: planned — `energy_config.gd`/`.tres` do not exist yet.** Field table below is the intended schema (Energy subsystem, GDD §17).
