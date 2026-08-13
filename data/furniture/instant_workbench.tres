@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://bqorcjwtkgys1"]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_wrjq3"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_1l2iw"]
+[ext_resource type="ArrayMesh" uid="uid://drwjgkqavll2r" path="res://assets/animpic-mega-survival-construction/workbench/SM_Workbench_01.SM_Workbench_01.mesh" id="4_71ciu"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="5_jcv4g"]
+[ext_resource type="Texture2D" uid="uid://cvn2otun3im08" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="6_s57u1"]
+
+[resource]
+script = ExtResource("5_jcv4g")
+dimensions = Vector3i(2, 1, 1)
+id = "instant_workbench"
+display_name = "Instant workbench"
+hp = 60
+mesh = ExtResource("4_71ciu")
+texture = ExtResource("6_s57u1")
+unlocked_by_default = true
