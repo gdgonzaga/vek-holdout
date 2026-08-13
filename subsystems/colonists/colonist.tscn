@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://hcjeqdycuf5k" path="res://subsystems/colonists/skill_set.gd" id="2_gyt3g"]
 [ext_resource type="Script" uid="uid://dwpkc3cfbrgik" path="res://subsystems/colonists/stamina_component.gd" id="3_he54h"]
 [ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_he54h"]
+[ext_resource type="Script" uid="uid://dbsyrm1856fnh" path="res://subsystems/colonists/colonist_ai.gd" id="5_ai"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3
@@ -32,6 +33,7 @@ script = ExtResource("2_gyt3g")
 script = ExtResource("3_he54h")
 
 [node name="ColonistAI" type="Node" parent="." unique_id=115303438]
+script = ExtResource("5_ai")
 
 [node name="ColonistCombat" type="Node" parent="." unique_id=1873667014]
 

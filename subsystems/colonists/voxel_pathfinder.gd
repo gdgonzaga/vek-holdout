@@ -126,8 +126,52 @@ func to_world_waypoints(cells: Array[Vector3i]) -> Array[Vector3]:
 	return pts
 
 
-## Convenience: world->stand-cell->A*->world. The entry point ColonistAI
-## (Phase 4) and debug verification use. Output is ready for Colonist.set_path().
+## Convenience: world->stand-cell->A*->world. Resolves both ends via the
+## vertical find_stand_cell scan — use only when the target is standable terrain,
+## NOT a blocked footprint (use find_path_to_adjacent for that).
 func find_path_world(start_world: Vector3, target_world: Vector3) -> Array[Vector3]:
 	var cells := find_path(find_stand_cell(start_world), find_stand_cell(target_world))
 	return to_world_waypoints(cells)
+
+
+## Nearest walkable cell to `center` via a horizontal ring search on the same Y.
+## Use when `center` may sit on a blocked footprint (a blueprint's footprint
+## center): the colonist must stand ADJACENT to a build target, never on it, so
+## the path target is the nearest free neighbour, not the center itself. Returns
+## `center` unchanged if it is already walkable or if no walkable cell is found
+## within max_radius (find_path then fails clean -> empty path). Rings expand
+## outward, returning the nearest walkable cell of the first non-empty ring, so
+## the result is the globally-nearest standable neighbour (same-Y, flat-terrain
+## MVP assumption carried from the 4-connected neighbor model).
+func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
+	if not _is_walkable.is_valid():
+		return center
+	if _is_walkable.call(center):
+		return center
+	for r in range(1, max_radius + 1):
+		var best := center
+		var best_d := INF
+		for dx in range(-r, r + 1):
+			for dz in range(-r, r + 1):
+				if max(absi(dx), absi(dz)) != r:   # only the ring at Chebyshev distance r
+					continue
+				var c := center + Vector3i(dx, 0, dz)
+				if _is_walkable.call(c):
+					var d := float(dx * dx + dz * dz)
+					if d < best_d:
+						best_d = d
+						best = c
+		if best_d < INF:
+			return best
+	return center
+
+
+## Like find_path_world, but resolves the TARGET via a horizontal ring search so
+## the colonist can reach a point on a blocked footprint (a blueprint). The
+## colonist ends up on the nearest stand-adjacent cell. Entry point for
+## ColonistAI's build jobs (job.location is a blueprint footprint-center).
+func find_path_to_adjacent(start_world: Vector3, target_world: Vector3, max_radius: int = 4) -> Array[Vector3]:
+	var start_cell := find_stand_cell(start_world)
+	var target_base := Vector3i(int(floor(target_world.x)), int(floor(target_world.y)), int(floor(target_world.z)))
+	var target_cell := find_stand_near_cell(target_base, max_radius)
+	return to_world_waypoints(find_path(start_cell, target_cell))
