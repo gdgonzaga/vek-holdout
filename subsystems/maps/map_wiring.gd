@@ -73,13 +73,45 @@ static func wire_player(map: Map, player: Player) -> void:
 
 
 ## Hand the map's ColonistContainer + authored ColonistSpawn* positions to Colony
-## so it can spawn into (empty roster) or reparent into (existing roster) this map.
-## Returns the container (or null if the map has none). Called from
-## SceneManager._wire_map after the player is wired.
+## so it can spawn into (empty roster) or reparent into (existing roster) this map,
+## then inject each colonist's pathfinder with the walkability predicate. Returns
+## the container (or null if the map has none). Called from SceneManager._wire_map
+## after the player is wired.
 static func wire_colonists(map: Map) -> Node3D:
 	var container := map.get_colonist_container()
 	if container == null:
 		return null
 	var spawns := SpawnHelpers.read_spawns(map)
+	# Spawn/reparent first — add_child runs each colonist's _ready, which caches
+	# its pathfinder field, before we inject below.
 	Colony.on_map_wired(container, spawns.get("colonists", []))
+	# Inject the walkability predicate (voxel air-above-solid-floor, minus
+	# furniture/blueprint occupancy) into every colonist's pathfinder. Re-run
+	# per map load so base<->POI swaps pick up the new map's layers.
+	var predicate := _compose_walkability(map)
+	for c in Colony.colonists:
+		if is_instance_valid(c) and c.pathfinder != null:
+			c.pathfinder.set_walkability(predicate)
 	return container
+
+
+## Build the per-cell is_walkable Callable from the map's voxel grid + build
+## layers. A cell is standable iff it is air, has a solid floor below, and is
+## not occupied by furniture or a blueprint (colonist stands ADJACENT to a
+## build target, never on its footprint).
+static func _compose_walkability(map: Map) -> Callable:
+	var grid: VoxelGrid = map.get_grid()
+	var ctrl := map.find_child("BuildController") as BuildController
+	var fl: FurnitureLayer = ctrl.furniture_layer if ctrl != null else null
+	var bl: BlueprintLayer = ctrl.blueprint_layer if ctrl != null else null
+	const DOWN := Vector3i(0, -1, 0)
+	return func(cell: Vector3i) -> bool:
+		if grid.get_block_at(cell) != "":             # solid (terrain/block)
+			return false
+		if grid.get_block_at(cell + DOWN) == "":      # no floor below
+			return false
+		if fl != null and fl.has_at(cell):
+			return false
+		if bl != null and bl.has_at(cell):
+			return false
+		return true
