@@ -73,6 +73,21 @@ func given_count(item_id: String) -> int:
 	return _given.get(item_id, 0)
 
 
+## item_ids whose material_cost entry isn't yet fully deposited (material_cost
+## minus _given) — i.e. what hauling still needs to fetch for this blueprint.
+## Empty for a costless or already-satisfied blueprint. Single source of truth
+## for "still needed", shared by the haul producer (Colony) and the haul job.
+func needed_item_ids() -> Array[String]:
+	var out: Array[String] = []
+	var def := _target_def()
+	if def == null:
+		return out
+	for entry in def.material_cost:
+		if given_count(entry.item_def.id) < entry.count:
+			out.append(entry.item_def.id)
+	return out
+
+
 ## Move as much as `actor` carries toward the still-unsatisfied entries of the
 ## target's material_cost. Partial fulfillment is allowed. Returns the total
 ## count deposited. When this call crosses the completion threshold, the

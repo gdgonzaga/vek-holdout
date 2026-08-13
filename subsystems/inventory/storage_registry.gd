@@ -31,7 +31,7 @@ func find_source(item_ids: Array[String], near: Vector3) -> Furniture:
 	var best: Furniture = null
 	var best_dist_sq: float = 0.0
 	for crate in _crates():
-		var inv := _inventory_of(crate)
+		var inv := inventory_of(crate)
 		if inv == null or not _has_any(inv, item_ids):
 			continue
 		var d: float = crate.global_position.distance_squared_to(near)
@@ -46,7 +46,7 @@ func find_source(item_ids: Array[String], near: Vector3) -> Furniture:
 ## is_available gate so a no-source haul job is never claimable (and thus pruned).
 func has_source_for(item_ids: Array[String]) -> bool:
 	for crate in _crates():
-		var inv := _inventory_of(crate)
+		var inv := inventory_of(crate)
 		if inv != null and _has_any(inv, item_ids):
 			return true
 	return false
@@ -77,7 +77,10 @@ func _crates() -> Array[Furniture]:
 	return out
 
 
-func _inventory_of(crate: Furniture) -> StorageInventory:
+## The crate's StorageInventory, or null if `crate` is null/freed or has no
+## StorageInventory child. Public so haul legs (and any future caller) share one
+## resolution path instead of each re-fetching the "StorageInventory" child.
+func inventory_of(crate: Furniture) -> StorageInventory:
 	if crate == null or not is_instance_valid(crate):
 		return null
 	return crate.get_node_or_null("StorageInventory") as StorageInventory

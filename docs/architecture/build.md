@@ -238,5 +238,6 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `complete(builder: Node = null) -> bool` | Build the target into the world and remove this blueprint. Forwards to `BlueprintLayer.complete_blueprint`. `builder` is the player now (passed through so colonist labor can attribute skill/stamina later). |
 | `has_complete_materials() -> bool` | True when every `material_cost` entry is fully contributed. Vacuously true when `material_cost` is empty (free builds). |
 | `given_count(item_id: String) -> int` | Count contributed toward one item id so far. |
+| `needed_item_ids() -> Array[String]` | item_ids whose `material_cost` entry isn't yet fully contributed (`material_cost` minus `_given`). Empty for a costless or satisfied blueprint. Single source of truth for "still needed", shared by the haul producer (`Colony`) and `HaulingJobDef`. |
 | `deposit_from(actor: Node) -> int` | Pull carried items from `actor` toward each `material_cost` entry (partial fulfillment allowed); updates `_given`, logs via `GameLog`, refreshes `info_text`. Returns total deposited. |
 | `serialize() -> Dictionary` / `deserialize(data) -> void` | SaveSystem contract — persists placement + the `_given` material-progress dict (so a half-filled blueprint resumes correctly on load). |

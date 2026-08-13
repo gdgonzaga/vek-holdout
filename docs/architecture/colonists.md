@@ -292,6 +292,7 @@ The spatial counterpart to the lifecycle flow. A job is a sequence of legs; the 
 | `find_source(item_ids, near) -> Furniture` | Nearest crate whose `StorageInventory` holds any of `item_ids` (straight-line; reachability verified later by the pathfinder). Null if none. |
 | `has_source_for(item_ids) -> bool` | Any crate holds any of `item_ids`. Used by the producer decision + hauling's `is_available`. |
 | `nearest_crate(near) -> Furniture` | Nearest crate regardless of contents (for surplus return). |
+| `inventory_of(crate) -> StorageInventory` | The crate's `StorageInventory` (or null). Shared resolution path for haul legs. |
 
 ### Class: VoxelPathfinder
 

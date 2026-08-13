@@ -18,10 +18,16 @@ class_name ConstructionJobDef
 ## begin's returned duration is the seam for build_time × multiplier later).
 
 
-## Single WORK leg targeting the blueprint. Returns it on the first call (leg 0),
-## null after — the one leg's begin/complete does all the work, and a null next
-## leg ends the job for this colonist.
+## Single WORK leg targeting the blueprint, available exactly while the blueprint
+## exists. complete() frees it, so the post-complete get_next_leg call returns
+## null — the clean end-signal for this colonist (the one leg's begin/complete did
+## all the work, and a null next leg ends the job). Without the guard we'd hand
+## back a leg to a freed bp and only abort next tick via ColonistAI's freed-target
+## guard: a spurious re-path, and the job would end on the abort path instead of
+## the success path. (Matches is_available, which gates on the same validity.)
 func get_next_leg(_actor: Node, job: Job) -> JobLeg:
+	if not is_instance_valid(job.target_node):
+		return null
 	# `location` is the footprint-center approach set by Colony at spawn; the AI
 	# refines it into an adjacent standing cell. target_node is the blueprint.
 	var leg := JobLeg.new()

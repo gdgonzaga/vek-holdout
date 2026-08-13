@@ -88,7 +88,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 **Extends:** Node
 **Script:** `storage_registry.gd` (a child of the `Colony` autoload)
 **Description:** Live index of the colony's storage crates, so hauling jobs can find "nearest crate that has the materials this blueprint still needs" without each call site re-scanning. No registration: `find_source` / `has_source_for` / `nearest_crate` scan the current map's `FurnitureContainer` children each call (filtering for `Furniture` nodes with a `"StorageInventory"` child). Crates are few and queries run at most once per haul FETCH leg, so the live scan is cheap and always correct — freed crates are simply absent from the container's child list (no stale refs, no unregister hook on `FurnitureLayer`).
-**Used by:** `Colony._on_blueprint_placed` (decide haul-vs-construct via `has_source_for`), `HaulingJobDef` (FETCH source via `find_source`; surplus return via `nearest_crate`; `is_available` gate via `has_source_for`).
+**Used by:** `Colony._on_blueprint_placed` (decide haul-vs-construct via `has_source_for`), `HaulingJobDef` (FETCH source via `find_source`; surplus return via `nearest_crate`; `is_available` gate via `has_source_for`; crate-inventory resolution via `inventory_of`).
 **Lifecycle:** `Colony._ready` creates it; `MapWiring.wire_colonists` calls `on_map_wired(furniture_container)` on every map load so base↔POI swaps rebind it to the new map's crates.
 
 **Functions:**
@@ -99,6 +99,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `find_source(item_ids: Array[String], near: Vector3) -> Furniture` | Nearest crate whose `StorageInventory` holds any of `item_ids` (straight-line; reachability verified later by the pathfinder). Null if none. |
 | `has_source_for(item_ids: Array[String]) -> bool` | Any crate holds any of `item_ids`. |
 | `nearest_crate(near: Vector3) -> Furniture` | Nearest crate regardless of contents (for surplus return). |
+| `inventory_of(crate: Furniture) -> StorageInventory` | The crate's `StorageInventory` (or null if the crate is null/freed or has no such child). Shared resolution path so haul legs don't each re-fetch the child node. |
 
 ## Design Notes
 

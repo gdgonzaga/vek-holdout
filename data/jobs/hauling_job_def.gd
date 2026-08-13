@@ -46,10 +46,16 @@ func get_next_leg(actor: Node, job: Job) -> JobLeg:
 		deliver.target_node = bp
 		deliver.kind = DELIVER
 		return deliver
+	# No room for even one unit (a carried tool / orphan items clogging capacity)
+	# → end this colonist's run; on_end empties the non-needed items to a crate
+	# and the next claim retries clean. Self-heals instead of hot-looping
+	# crate→noop-fetch→deliver-nothing→crate.
+	if colonist.remaining_capacity() <= 0.0:
+		return null
 	# Empty (or only carrying non-needed items) → fetch from the nearest crate
 	# that holds one of the still-needed materials. No source → give this colonist
 	# up for now (null); the job stays available only if a source exists.
-	var crate := Colony.storage_registry.find_source(_needed_item_ids(bp), colonist.global_position)
+	var crate := Colony.storage_registry.find_source(bp.needed_item_ids(), colonist.global_position)
 	if crate == null:
 		return null
 	var fetch := JobLeg.new()
@@ -76,7 +82,7 @@ func complete(actor: Node, leg: JobLeg, job: Job) -> void:
 		# pointless withdraw we'd just return in on_end.
 		if bp.has_complete_materials():
 			return
-		var crate_inv := _inventory_of(leg.target_node)
+		var crate_inv := Colony.storage_registry.inventory_of(leg.target_node)
 		var colonist := actor as Colonist
 		if crate_inv == null or colonist == null or colonist.inventory == null:
 			return
@@ -109,7 +115,7 @@ func on_end(_success: bool, actor: Node, _leg: JobLeg, _job: Job, _elapsed: floa
 	if colonist == null or colonist.inventory == null:
 		return
 	var crate := Colony.storage_registry.nearest_crate(colonist.global_position)
-	var crate_inv := _inventory_of(crate)
+	var crate_inv := Colony.storage_registry.inventory_of(crate)
 	if crate_inv == null:
 		return
 	for item_id in colonist.inventory.items.keys():
@@ -127,31 +133,13 @@ func is_available(job: Job) -> bool:
 		return false
 	if bp.has_complete_materials():
 		return false
-	return Colony.storage_registry.has_source_for(_needed_item_ids(bp))
-
-
-## The item_ids this blueprint still needs (material_cost minus what's deposited).
-func _needed_item_ids(bp: Blueprint) -> Array[String]:
-	var out: Array[String] = []
-	var def := BuildLibrary.get_def(bp.target_def_id)
-	if def == null:
-		return out
-	for entry in def.material_cost:
-		if bp.given_count(entry.item_def.id) < entry.count:
-			out.append(entry.item_def.id)
-	return out
+	return Colony.storage_registry.has_source_for(bp.needed_item_ids())
 
 
 func _carries_needed_material(colonist: Colonist, bp: Blueprint) -> bool:
 	if colonist == null or colonist.inventory == null:
 		return false
-	for id in _needed_item_ids(bp):
+	for id in bp.needed_item_ids():
 		if colonist.inventory.get_item_count(id) > 0:
 			return true
 	return false
-
-
-func _inventory_of(node: Node) -> StorageInventory:
-	if node == null or not is_instance_valid(node):
-		return null
-	return node.get_node_or_null("StorageInventory") as StorageInventory

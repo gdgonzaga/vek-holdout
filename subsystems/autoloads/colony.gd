@@ -102,24 +102,30 @@ func remove_colonist(colonist_id: String) -> void:
 
 
 ## BlueprintLayer -> EventBus -> here. Decide haul-vs-construct:
-##   - blueprint has an unsatisfied material_cost AND a crate stocks a needed
-##     item → spawn a HAUL job (haulers loop FETCH/DELIVER until the blueprint's
-##     deposit_from crosses has_complete_materials, which emits
-##     blueprint_materials_ready → _spawn_construction_job).
+##   - blueprint has an unsatisfied material_cost (needed_item_ids non-empty) AND
+##     a crate stocks one of those items → spawn a HAUL job (haulers loop
+##     FETCH/DELIVER until the blueprint's deposit_from crosses
+##     has_complete_materials, which emits blueprint_materials_ready →
+##     _spawn_construction_job).
 ##   - otherwise (costless, already satisfied, or no source available) → spawn a
 ##     construction job directly. No-source builds anyway (today's behaviour);
 ##     the materials gate only bites when stock exists (documented MVP gap).
 func _on_blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
 	var bp := blueprint as Blueprint
-	if bp != null and _has_unsatisfied_material_cost(bp) and storage_registry.has_source_for(_needed_item_ids(bp)):
-		var job := Job.from_def(HAULING_DEF)
-		job.title = "Haul materials for %s" % target_def_id
-		job.anchor_cell = anchor
-		job.location = _world_location_for(target_def_id, anchor)
-		job.target_node = blueprint
-		job_board.add_job(job)
-	else:
-		_spawn_construction_job(target_def_id, anchor, blueprint)
+	if bp != null:
+		var needed := bp.needed_item_ids()
+		# Unsatisfied material_cost with a stocking crate → haul. Else build now
+		# (costless / pre-satisfied / no source — no-source builds anyway, the
+		# documented MVP gap; blueprint_materials_ready self-heals if stock arrives).
+		if not needed.is_empty() and storage_registry.has_source_for(needed):
+			var job := Job.from_def(HAULING_DEF)
+			job.title = "Haul materials for %s" % target_def_id
+			job.anchor_cell = anchor
+			job.location = _world_location_for(target_def_id, anchor)
+			job.target_node = blueprint
+			job_board.add_job(job)
+			return
+	_spawn_construction_job(target_def_id, anchor, blueprint)
 
 
 ## Blueprint.deposit_from -> EventBus.blueprint_materials_ready -> here. Fires
@@ -147,28 +153,6 @@ func _spawn_construction_job(target_def_id: String, anchor: Vector3i, blueprint:
 	job.location = _world_location_for(target_def_id, anchor)
 	job.target_node = blueprint
 	job_board.add_job(job)
-
-
-## True iff `bp`'s target has a non-empty material_cost that isn't yet fully
-## deposited — i.e. hauling could still do work for it.
-func _has_unsatisfied_material_cost(bp: Blueprint) -> bool:
-	var def := BuildLibrary.get_def(bp.target_def_id)
-	if def == null or def.material_cost.is_empty():
-		return false
-	return not bp.has_complete_materials()
-
-
-## item_ids this blueprint still needs (material_cost minus what's deposited).
-## Used to ask the StorageRegistry whether a source crate exists.
-func _needed_item_ids(bp: Blueprint) -> Array[String]:
-	var out: Array[String] = []
-	var def := BuildLibrary.get_def(bp.target_def_id)
-	if def == null:
-		return out
-	for entry in def.material_cost:
-		if bp.given_count(entry.item_def.id) < entry.count:
-			out.append(entry.item_def.id)
-	return out
 
 
 ## BlueprintLayer -> EventBus -> here. Fires on BOTH cancel and completion
