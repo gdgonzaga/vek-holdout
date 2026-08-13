@@ -2,6 +2,7 @@ extends CharacterBody3D
 class_name Colonist
 
 @export var colonist_def: ColonistDef = preload("res://data/colonists/default_colonist.tres")
+@export var gravity: float = 9.8
 var colonist_id: String
 var display_name: String
 var labor_priorities: Dictionary
@@ -10,6 +11,13 @@ var current_job: Job
 var skill_set: SkillSet
 var stamina_component: StaminaComponent
 var pathfinder: VoxelPathfinder
+
+# Path-following locomotion. Waypoints are fed by VoxelPathfinder (Phase 3) /
+# ColonistAI (Phase 4); until then set_path() can be driven manually to verify
+# movement. Mirrors Player's gravity + move_and_slide kernel.
+const _ARRIVAL_THRESHOLD: float = 0.2
+var _path: Array[Vector3] = []
+var _path_index: int = 0
 
 var _current_hp: int = 100
 var _is_dead: bool = false
@@ -24,6 +32,46 @@ func _ready() -> void:
 	stamina_component = $StaminaComponent
 	pathfinder = $VoxelPathfinder
 	_current_hp = colonist_def.max_hp
+
+
+func _physics_process(delta: float) -> void:
+	if not is_on_floor():
+		velocity.y -= gravity * delta
+	_follow_path()
+	move_and_slide()
+
+
+## Feed a world-space waypoint path (from VoxelPathfinder, Phase 3). Resets any
+## in-progress path. An empty path leaves the colonist standing.
+func set_path(path: Array) -> void:
+	# assign() copies elements into the typed Array[Vector3] with per-element
+	# checks; a bare duplicate() returns an untyped Array, which 4.7 won't assign
+	# to a typed var.
+	_path.assign(path)
+	_path_index = 0
+
+
+## True when every waypoint has been consumed (or no path was set).
+func has_arrived() -> bool:
+	return _path_index >= _path.size()
+
+
+func _follow_path() -> void:
+	if _path_index >= _path.size():
+		velocity.x = 0.0
+		velocity.z = 0.0
+		return
+	var to_target: Vector3 = _path[_path_index] - global_position
+	to_target.y = 0.0  # navigate on the horizontal plane
+	if to_target.length() <= _ARRIVAL_THRESHOLD:
+		_path_index += 1
+		velocity.x = 0.0
+		velocity.z = 0.0
+		return
+	var dir: Vector3 = to_target.normalized()
+	var speed: float = colonist_def.base_move_speed
+	velocity.x = dir.x * speed
+	velocity.z = dir.z * speed
 
 
 func take_damage(amount: int, source: Node) -> void:

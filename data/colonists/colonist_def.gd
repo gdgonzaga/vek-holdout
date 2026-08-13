@@ -1,7 +1,12 @@
 extends Resource
 class_name ColonistDef
 
+@export var display_name: String = "Colonist"
 @export var max_hp: int = 100
+# Raid behavior during raids (value maps to a future Colonist.RaidStance enum,
+# exercised when raids land). Kept as int so this pure-data Resource stays
+# decoupled from the Colonist class.
+@export var default_raid_stance: int = 0
 @export var base_move_speed: float = 3.5
 @export var sprint_multiplier: float = 1.5
 @export var stamina_drain_rate: float = 1.0

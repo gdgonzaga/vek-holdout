@@ -70,3 +70,16 @@ static func wire_player(map: Map, player: Player) -> void:
 	if ctrl != null:
 		ctrl.set_camera(player.get_camera())
 		ctrl.add_exclude_body(player)
+
+
+## Hand the map's ColonistContainer + authored ColonistSpawn* positions to Colony
+## so it can spawn into (empty roster) or reparent into (existing roster) this map.
+## Returns the container (or null if the map has none). Called from
+## SceneManager._wire_map after the player is wired.
+static func wire_colonists(map: Map) -> Node3D:
+	var container := map.get_colonist_container()
+	if container == null:
+		return null
+	var spawns := SpawnHelpers.read_spawns(map)
+	Colony.on_map_wired(container, spawns.get("colonists", []))
+	return container

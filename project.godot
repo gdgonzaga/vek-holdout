@@ -128,6 +128,7 @@ log_history={
 3d_physics/layer_1="World"
 3d_physics/layer_2="Player"
 3d_physics/layer_3="Build"
+3d_physics/layer_4="Colonist"
 
 [physics]
 

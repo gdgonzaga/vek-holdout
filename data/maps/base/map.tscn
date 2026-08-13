@@ -50,6 +50,9 @@ shadow_enabled = true
 [node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=1064301555]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
 
+[node name="ColonistSpawn" type="Marker3D" parent="SpawnPoints" unique_id=7400000001]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 5, 0)
+
 [node name="Furniture_shelf1_0" type="Marker3D" parent="SpawnPoints" unique_id=1949884466]
 transform = Transform3D(1.1924881e-08, 0, -1, 0, 1, 0, 1, 0, 1.1924881e-08, -0.5, 0, 5.5)
 metadata/def_id = "shelf1"

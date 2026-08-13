@@ -221,6 +221,9 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 			m.add_child(_player)
 		_player.global_position = spawn_pos
 		MapWiring.wire_player(m, _player)
+	# Colonist spawn/reparent into the map's ColonistContainer (Phase 2). No-op for
+	# maps with no container, or no ColonistSpawn markers + an empty roster.
+	MapWiring.wire_colonists(m)
 
 
 ## Open a full-screen UI screen by id in the layer-20 slot.

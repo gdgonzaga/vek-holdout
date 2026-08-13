@@ -12,7 +12,7 @@ extends RefCounted
 ## these records through FurnitureLayer.spawn() at runtime.
 
 static func read_spawns(map: Map) -> Dictionary:
-	var result := { "player": Vector3.ZERO, "enemies": [], "furniture": [] }
+	var result := { "player": Vector3.ZERO, "enemies": [], "furniture": [], "colonists": [] }
 	var root := map.find_child("SpawnPoints") as Node3D
 	if root == null:
 		return result
@@ -21,6 +21,8 @@ static func read_spawns(map: Map) -> Dictionary:
 			result.player = child.global_position
 		elif child.name.begins_with("EnemySpawn"):
 			result.enemies.append(child.global_position)
+		elif child.name.begins_with("ColonistSpawn"):
+			result.colonists.append(child.global_position)
 		elif child.name.begins_with("Furniture_"):
 			var def_id: String = child.get_meta("def_id", "")
 			var anchor: Vector3i = child.get_meta("anchor", Vector3i())

@@ -2,18 +2,34 @@ extends Node
 ## Colony autoload (ARCH "Subsystem: Colonists"). Cross-scene singleton —
 ## colonists persist base↔POI.
 ##
-## Phase 1 scope: owns the Job Board and produces construction jobs from blueprint
-## placement (EventBus.blueprint_placed/removed → Job). The colonist roster
-## (add/remove_colonist, MVP cap 5) is added with colonist spawning (Phase 2).
+## Owns the colonist roster + the Job Board. Construction jobs are produced from
+## blueprint placement (EventBus.blueprint_placed/removed → Job). Colonist NODES
+## live in the current map's ColonistContainer; this autoload owns the roster data
+## and spawns/reparents into that container on each map wire
+## (MapWiring.wire_colonists → on_map_wired), mirroring how SceneManager reparents
+## the persistent Player between maps.
 ##
-## Known gap (deferred to map-wiring / Phase 2): a save-load restore suppresses
-## per-blueprint blueprint_placed emits (BlueprintLayer._is_restoring), so jobs
-## are not recreated for restored blueprints here. Reconciliation belongs to the
-## map-load wiring that doesn't exist yet; the live place/remove path is correct.
+## Known gaps:
+##   - Save-load restore suppresses per-blueprint blueprint_placed emits
+##     (BlueprintLayer._is_restoring), so jobs aren't recreated for restored
+##     blueprints here. Reconciliation belongs to the map-load save wiring.
+##   - The roster isn't cleared on New Game (no reset hook yet), and colonist
+##     save/restore via SaveSystem._parked is deferred. The first-session New Game
+##     path — the manual-verification path — is correct.
 
 ## The colony's job registry + lifecycle. A child Node so it shows in the Remote
 ## tree and can own _process later if needed.
 var job_board: JobBoard
+
+const MVP_CAP := 5  # Roster capacity (ARCH "max 5 in MVP").
+
+## Active colonists. Node instances live in the current map's ColonistContainer;
+## this Array is the cross-scene authority (colonist nodes persist base↔POI via
+## reparent, like the Player).
+var colonists: Array[Colonist] = []
+
+## The ColonistContainer of the currently wired map (null until on_map_wired).
+var _container: Node3D = null
 
 
 func _ready() -> void:
@@ -22,6 +38,51 @@ func _ready() -> void:
 	add_child(job_board)
 	EventBus.blueprint_placed.connect(_on_blueprint_placed)
 	EventBus.blueprint_removed.connect(_on_blueprint_removed)
+
+
+## MapWiring.wire_colonists → here, on every map load. Empty roster + authored
+## ColonistSpawn positions → fresh New-Game spawn (one colonist per marker, up to
+## MVP_CAP). Non-empty → reparent the existing nodes into the new map so colonists
+## survive base↔POI swaps (the same reparent idiom SceneManager uses for the Player).
+func on_map_wired(container: Node3D, spawn_positions: Array) -> void:
+	_container = container
+	if colonists.is_empty():
+		for pos in spawn_positions:
+			if colonists.size() >= MVP_CAP:
+				break
+			var c: Colonist = preload("res://subsystems/colonists/colonist.tscn").instantiate()
+			# Add to the tree BEFORE setting global_position — it only resolves in-tree.
+			container.add_child(c)
+			c.global_position = pos
+			colonists.append(c)
+	else:
+		for c in colonists:
+			if is_instance_valid(c) and c.get_parent() != container:
+				if c.get_parent() != null:
+					c.get_parent().remove_child(c)
+				container.add_child(c)
+
+
+## Recruit a colonist (random world event / radio, post-MVP). Respects the cap.
+func add_colonist(c: Colonist) -> void:
+	if colonists.size() >= MVP_CAP:
+		push_warning("Colony: roster full (MVP cap %d)" % MVP_CAP)
+		return
+	colonists.append(c)
+	if _container != null and c.get_parent() == null:
+		_container.add_child(c)
+
+
+## Drop a colonist by id (death or departure). Frees the node.
+func remove_colonist(colonist_id: String) -> void:
+	for i in range(colonists.size()):
+		if colonists[i].colonist_id == colonist_id:
+			var c: Colonist = colonists[i]
+			colonists.remove_at(i)
+			if is_instance_valid(c) and c.get_parent() != null:
+				c.get_parent().remove_child(c)
+			c.queue_free()
+			return
 
 
 ## BlueprintLayer -> EventBus -> here. Create a construction job at the blueprint's

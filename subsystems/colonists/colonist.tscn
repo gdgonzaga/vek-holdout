@@ -6,16 +6,23 @@
 [ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_he54h"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
+radius = 0.3
+height = 1.6
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ilc32"]
+radius = 0.3
+height = 1.6
 
 [node name="Colonist" type="CharacterBody3D" unique_id=229374039]
+collision_layer = 8
 script = ExtResource("1_34td1")
 
 [node name="Mesh" type="MeshInstance3D" parent="." unique_id=1576556896]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 mesh = SubResource("CapsuleMesh_q70a7")
 
 [node name="Collision" type="CollisionShape3D" parent="." unique_id=565503061]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 shape = SubResource("CapsuleShape3D_ilc32")
 
 [node name="SkillSet" type="Node" parent="." unique_id=1449278990]

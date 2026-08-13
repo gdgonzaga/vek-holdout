@@ -26,3 +26,7 @@ func get_terrain() -> VoxelTerrain:
 ## Parent Node3D for free-standing furniture placed at runtime (build subsystem).
 func get_furniture_container() -> Node3D:
 	return furniture_container
+
+## Parent Node3D for colonist entities spawned by Colony at map load.
+func get_colonist_container() -> Node3D:
+	return colonist_container
