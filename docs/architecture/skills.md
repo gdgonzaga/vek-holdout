@@ -11,7 +11,7 @@ Per-entity skill progression (L1–L5, use-based). Determines work-speed multipl
 | `skill_set.gd` | Script (component) | Holds the 6 skills + their current level + progress for one entity. Owns use-based leveling (increments progress on successful completions; levels up at thresholds). Exposes `get_multiplier(labor)`. Does NOT own global skill definitions or curves (those are data). |
 | `../data/skills/skills.tres` | Data | Global SkillDef list (6 skills) + use-curves + per-level multipliers. See [Data Schemas](data-schemas.md). |
 
-*The component script lives in `skills/` (its own folder) rather than `combat/` because it's consumed by Colonists + Player + UI, not combat-specific. Same pattern rationale as the character-stat components — see [Tech Debt & Unimplemented](tech-debt.md) on a possible future `core/components/` home.*
+*The component script lives in `subsystems/colonists/` — colocated with the Colonist entity it serves this sprint (the standalone `skills/` folder doesn't exist yet). It's consumed by Colonist + Player + UI, not combat-specific; see [Tech Debt & Unimplemented](tech-debt.md) on a possible future `core/components/` home.*
 
 ## Signals
 
@@ -51,7 +51,7 @@ All same-scene (No EventBus) — skills are per-entity, read locally.
 ### Class: SkillSet
 
 **Extends:** Node
-**Script:** `skill_set.gd` (in `skills/`)
+**Script:** `skill_set.gd` (in `subsystems/colonists/`)
 **Description:** Per-entity skill progression. Holds level + progress for each of the 6 skills. Use-based leveling on successful job completions. Exposes work-speed multiplier per Labor.
 **Used by:** Colonist AI (work-speed calc), Player (same), Job Board (L1 gating check), HUD (future Skills tab + notifications), Day Summary (skill-gain log).
 

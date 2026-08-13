@@ -43,6 +43,16 @@ The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef ex
 | `starting_skills` | `Dictionary` | `[export]` Starting skill xp/level per labor (default mining + farming at L1). |
 | `default_labor_priorities` | `Dictionary` | `[export]` Default labor-priority weights per labor. |
 
+## `data/labors/<id>.tres` (Resource: `labor_def.gd`) — `LaborDef`
+
+The canonical declaration of which labor ids exist. `LaborDef extends Resource`. Labors are referenced elsewhere by their String `id` — a `Colonist`'s `labor_priorities` Dict and a `Job`'s `labor_id` — so these resources are the single source of truth for labor identity + display metadata. Five instances ship today: `construction`, `crafting`, `hauling`, `mechanics`, `smelting` (Repair/Farming/Cooking post-MVP). They are inert data for now — there is no registry autoload; future skill gates / UI load them by path.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | `[export]` The labor id (e.g. `"construction"`) — the key everything else references. |
+| `display_name` | `String` | `[export]` UI label (e.g. `"Construction"`). |
+| `description` | `String` | `[export default ""]` Short blurb, unused in MVP UI. |
+
 ## `data/energy_config.tres` (Resource: `energy_config.gd`) — *(planned)*
 
 > **Status: planned — `energy_config.gd`/`.tres` do not exist yet.** Field table below is the intended schema (Energy subsystem, GDD §17).
@@ -91,7 +101,9 @@ _(No cost-helper methods — `material_cost` is read directly as an `Array[ItemA
 
 ## `data/furniture/<id>.tres` (Resource: `furniture_def.gd`)
 
-`FurnitureDef` `extends BuildableDef` — free-standing buildables (Workbench, Forge, Clinic Bed, etc.). Inherits all `BuildableDef` fields. Partial (C1) — see [Actions & Interaction](actions.md) and [Build](build.md).
+`FurnitureDef` `extends BuildableDef` — free-standing buildables (Workbench, Forge, Clinic Bed, Workshop, etc.). Inherits all `BuildableDef` fields. Partial (C1) — see [Actions & Interaction](actions.md) and [Build](build.md).
+
+> **Workshop** (`workshop.tres`) — `dimensions = Vector3i(2, 1, 1)`, `unlocked_by_default = true`, empty `material_cost`, `build_time = 10.0`. It reuses the Workbench mesh as a cosmetic placeholder and exists as the colonist sprint's build-job proof target: placing its blueprint is what produces the construction Job a colonist walks to (see [Colonists](colonists.md)).
 
 | Field | Type | Description |
 |---|---|---|

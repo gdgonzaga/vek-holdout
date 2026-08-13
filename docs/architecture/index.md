@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-08-13 (Load Game screen wired into the save flow; EventBus blueprint signals + per-layer `_is_restoring` reconciled; pause overlay, base map id, and New Game flow corrected across pages)
+Last updated: 2026-08-13 (colonist sprint documented — Job/JobBoard + labor taxonomy, Colonist entity, voxel A* pathfinder, ColonistAI claim→path→arrive loop, Workshop blueprint; Colonists/Overview/Build/Data-Schemas/Tech-Debt/Maps/Save pages synced to the new code)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 

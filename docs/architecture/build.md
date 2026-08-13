@@ -20,7 +20,7 @@ The def's shape still drives VALIDITY everywhere: `BuildController._is_furniture
 | `i_placement_strategy.gd` | Script (interface) | Documentation-only contract: `commit(transform, rotation, item_id) -> bool`. Implementations duck-type; they do NOT extend it. |
 | `instant_placement_strategy.gd` | Script (`RefCounted`) | MVP/debug strategy: resolves the cell from `transform.origin` and materializes directly — `BlockDef` → `VoxelGridAdapter.set_block_at`, else `FurnitureLayer.spawn`. Handles both kinds so it stays a complete fallback. Cost deduction deferred (TODO). |
 | `blueprint_placement_strategy.gd` | Script (`RefCounted`) | Default strategy: spawns a `Blueprint` (via `BlueprintLayer`) for the player to complete by interacting — the incremental blueprint-then-build step (GDD §7.4). The second `IPlacementStrategy` impl alongside `InstantPlacementStrategy`. |
-| `blueprint_layer.gd` | Script (`RefCounted`) | Sibling of `FurnitureLayer`. Owns blueprint spawn/remove + cell registry and the single `complete_blueprint()` entry point a future JobBoard/colonist will call. Reuses `FurnitureLayer`'s static geometry helpers. Emits `blueprint_placed`/`blueprint_removed`. |
+| `blueprint_layer.gd` | Script (`RefCounted`) | Sibling of `FurnitureLayer`. Owns blueprint spawn/remove + cell registry and the single `complete_blueprint()` entry point the deferred work-tick (GDD §6.10) will call — `blueprint_placed`/`blueprint_removed` are already wired to Colony's JobBoard today (a colonist walks to the blueprint; it just doesn't auto-build yet). Reuses `FurnitureLayer`'s static geometry helpers. |
 | `blueprint.gd` / `blueprint_template.tscn` | Script/Scene | `Blueprint extends Furniture` — an interactable node carrying `target_def_id`/`target_rotation_step`/`anchor_cell`. The Build action calls its `complete()`, which forwards to `BlueprintLayer.complete_blueprint`. |
 | `voxel_grid_adapter.gd` | Script (`RefCounted`) | `IBlockGrid` impl wrapping `voxel/voxel_grid.gd`. Adds `is_valid_placement` + `snap_transform` + raycast `exclude` passthrough (for player-body exclusion). |
 | `furniture_layer.gd` | Script (`RefCounted`) | Free-standing furniture layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns a `Furniture` node (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model (cell-box `dimensions`, yaw swaps x/z), overlap rejection, and removal-by-pointing-at-any-covered-cell. Emits `furniture_placed` / `furniture_removed` on EventBus. |
@@ -43,8 +43,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
 | `furniture_placed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter), GameLog | Yes | Place Furniture |
 | `furniture_removed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter), GameLog | Yes | Remove Furniture |
-| `blueprint_placed(target_def_id, anchor)` | `BlueprintLayer` | (future JobBoard — none today) | Yes | Spawn Blueprint |
-| `blueprint_removed(target_def_id, anchor)` | `BlueprintLayer` | (future JobBoard — none today) | Yes | Build / cancel Blueprint |
+| `blueprint_placed(target_def_id, anchor)` | `BlueprintLayer` | Colony (registers a construction Job) | Yes | Spawn Blueprint |
+| `blueprint_removed(target_def_id, anchor)` | `BlueprintLayer` | Colony (cancels the construction Job) | Yes | Build / cancel Blueprint |
 
 ## Flow Trace: Place a voxel block (MVP → Instant)
 
@@ -91,7 +91,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 **End state:** The real buildable exists; the blueprint is gone. RMB (Deconstruct) also removes a blueprint without building (`BlueprintLayer.remove_blueprint_at`).
 
-> **Forward-compat (JobBoard / colonist labor):** completion funnels through the single `Blueprint.complete` → `BlueprintLayer.complete_blueprint` entry point, so a future colonist work-tick / `JobBoard.complete` drives the same path (accruing HP over time instead of instantly). `blueprint_placed`/`blueprint_removed` are the signals a future JobBoard will connect to register/cancel construction Jobs — no listeners today.
+> **Forward-compat (JobBoard / colonist labor):** completion funnels through the single `Blueprint.complete` → `BlueprintLayer.complete_blueprint` entry point, so a future colonist work-tick / `JobBoard.complete` drives the same path (accruing HP over time instead of instantly). `blueprint_placed`/`blueprint_removed` are already connected: Colony's JobBoard registers a construction Job on placement (a colonist then walks to the blueprint — see [Colonists](colonists.md)) and drops it on removal. The work-tick that actually calls `complete_blueprint` is the remaining deferred piece.
 
 ## Flow Trace: Remove (block or furniture)
 

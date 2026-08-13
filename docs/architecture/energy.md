@@ -17,11 +17,11 @@ BreathComponent is attached to enemies now so future Breath-consuming features d
 | File | Type | Responsibility |
 |---|---|---|
 | `../combat/breath_component.gd` | Script (component) | Breath pool (burst energy). Self-ticking in `_process`. Owns sprint drain + jump/melee/ranged costs + regen. Does NOT cause collapse (that's Stamina). |
-| `../combat/stamina_component.gd` | Script (component) | Stamina pool (daily energy). Self-ticking in `_process`. Owns ambient drain + work multiplier + bands + collapse. Does NOT gate burst actions (that's Breath). |
+| `../colonists/stamina_component.gd` | Script (component) | Stamina pool (daily energy). Self-ticking in `_process`. Owns ambient drain + work multiplier + bands + collapse. Does NOT gate burst actions (that's Breath). Colocated with the Colonist entity this sprint (`subsystems/colonists/`). |
 | `../data/energy_config.tres` | Data | Global Stamina thresholds/floors + work multiplier. See [Data Schemas](data-schemas.md). |
 | character defs (in `../data/characters/`) | Data | Per-character Stamina drain rate + Breath costs. See [Data Schemas](data-schemas.md). |
 
-*Component scripts live in `combat/` alongside HealthComponent (all three are paired character-stat components). See [Tech Debt & Unimplemented](tech-debt.md) on a possible future `core/components/` home.*
+*`stamina_component.gd` lives in `subsystems/colonists/` (colocated with the Colonist entity); `breath_component.gd` is still planned for the combat subsystem. See [Tech Debt & Unimplemented](tech-debt.md) on a possible future `core/components/` home.*
 
 ## Signals
 

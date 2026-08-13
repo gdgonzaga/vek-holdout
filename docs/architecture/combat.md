@@ -24,7 +24,7 @@ Damage resolution (Durability-before-HP, GDD §6.11), weapons, enemy base + Braw
 |---|---|---|---|---|
 | `entity_died(entity)` | `health_component.gd` | owner script (player/colonist/enemy) | No | Damage Resolution |
 | `player_died(context)` | `player.gd` (on death signal) | GameState, HUD | Yes | Player Death |
-| `colonist_died(colonist_id)` | `colonist_base.gd` (on death) | Colony, HUD, Memorial | Yes | Colonist Death |
+| `colonist_died(colonist_id)` | `colonist.gd` (on death) | Colony, HUD, Memorial | Yes | Colonist Death |
 
 ## Flow Trace: Damage resolution (Durability-before-HP)
 

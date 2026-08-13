@@ -65,7 +65,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 **Extends:** Inventory
 **Script:** `character_inventory.gd`
 **Description:** Character inventory with equipment-driven capacity. `capacity = base_capacity + bonus_capacity`. Bag equipment changes trigger `_recalc_capacity()`.
-**Used by:** Player, ColonistBase (as a component node).
+**Used by:** Player, Colonist (as a component node).
 
 **Properties:**
 

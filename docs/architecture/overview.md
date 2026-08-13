@@ -17,7 +17,7 @@ res://
 │   ├── build/          # Blueprint mode, BuildLibrary catalog, ghost preview, block placement
 │   │                   #   strategies, furniture layer, grid adapters
 │   ├── furniture/      # Furniture runtime node (placed-item instance; back-ref to its def)
-│   ├── colonists/      # Colonist entities, roster, Job Board, labor AI
+│   ├── colonists/      # Colonist entity, AI loop, Job/JobBoard, voxel A* pathfinder, components
 │   ├── skills/         # SkillSet component, skill progression, work-speed multipliers
 │   ├── combat/         # Damage resolution, weapons, durability, enemy base + archetypes
 │   ├── equipment/      # Equipment component, loadout templates, auto-equip/unequip
@@ -109,7 +109,7 @@ Only scripts genuinely needed across multiple unrelated scenes. Solo project —
 | **GameLog** | `game_log.gd` | Player-facing game log history (capped ring buffer of `LogEntry`). Auto-subscribes to EventBus signals (deaths, day rollover, expeditions, raids, furniture) so the feed is usable out of the box; gameplay code also calls `log()` directly. Emits `entry_added` consumed by the LogFeed HUD tail and LogHistory scrollback. See [Game Log](game-log.md) subsystem. |
 | **SceneManager** | `scene_manager.gd` | Load/unload the current Map with transitions; manage the full-screen UI layer; runtime SQLite stream redirect. |
 | **SaveSystem** | `save_system.gd` | Multi-slot save/load orchestrator. Autosave at midnight (`day_rolled_over` hook); manual save via the pause menu; parks the live map on map swap (`map_unloading` hook). See [Save / Load](save.md). |
-| **Colony** | `colony.gd` | **STUB** — registered so the autoload table resolves, but no roster/Job Board yet. Intended: the colony roster + Job Board, cross-scene because base and POI both need it. See [Colonists](colonists.md). |
+| **Colony** | `colony.gd` | The colony roster + Job Board (construction Jobs produced from `EventBus.blueprint_placed`). Cross-scene — colonists persist base↔POI (reparented into the current map's `ColonistContainer` on each swap). See [Colonists](colonists.md). |
 | **TimeSystem** | `time_system.gd` | Continuous time advance; emits `day_rolled_over` at the midnight boundary. Cross-scene because time advances in both base and POI. |
 | **RunProgress** | `run_progress.gd` | Run-scoped *earned* state. Currently holds buildable unlocks; **intended to grow into the home for Colony's run-state children** (Memorial, KeyItemPool, LoadoutManager, DiscoveredGear) and other run-earned state — migration ongoing. A "dumb bag" of ids only (no data-def reading). Reset by the New Game orchestrator, then reseeded by `EventBus.run_started`. Saved with the run, wiped on New Game. |
 | **BuildLibrary** | `build_library.gd` | The read-only catalog of everything buildable. Loads every `BuildableDef` subclass (`BlockDef`, `BuildableDef`, `FurnitureDef`) from `data/blocks/`, `data/buildables/`, `data/furniture/` into one `id → def` map. "What's unlocked" is delegated to `RunProgress` — this catalog seeds the default-unlocked defs at startup and on `EventBus.run_started`, then exposes `is_unlocked` / `get_unlocked` / `unlock` / `get_def`. Read-only after `_ready`. See [Build](build.md) subsystem. |
@@ -146,8 +146,8 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 | `buildable_selected(id: String)` | player subsystem | BuildController | Player selected a buildable in the build menu (sets the controller's `selected_id`) |
 | `furniture_placed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture placed in world — increments the relevant Functional Rooms counter; GameLog posts a "Built <def_id>" line |
 | `furniture_removed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture removed from world — decrements the relevant Functional Rooms counter; GameLog posts a "Removed <def_id>" line |
-| `blueprint_placed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | (future JobBoard — no listeners today) | A blueprint (construction plan) was spawned — the seam a future colonist labor/JobBoard connects to register a construction Job |
-| `blueprint_removed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | (future JobBoard — no listeners today) | A blueprint was removed (built or cancelled) — the seam for a future JobBoard to cancel the construction Job |
+| `blueprint_placed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | Colony (registers a construction Job) | A blueprint (construction plan) was spawned — Colony's JobBoard connects here to create a construction Job a colonist then walks to |
+| `blueprint_removed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | Colony (cancels the construction Job) | A blueprint was removed (built or cancelled) — Colony's JobBoard drops any Job targeting that anchor |
 | `item_picked_up(item_id: String, count: int)` | inventory subsystem | HUD (hotbar/inventory refresh) | Inventory changed while Player screen closed |
 | `job_logged(entry: Dictionary)` | colonists (Job Board) | UI (Job Log panel, when open) | Diagnostic feed for job failures |
 
@@ -176,7 +176,7 @@ Emitted by GameState when its own state changes. Connect directly — NOT throug
 - All data (block stats, enemy stats, loot tables, raid curves, armor Durability values, item defs) lives in `res://data/` as `.tres` Resource files. No hardcoded content values in scripts.
 - Voxel-specific code is isolated to `voxel/`. No other subsystem imports `voxel_tool` directly — they go through `voxel/`'s interfaces (see [Build](build.md) subsystem's grid adapter).
 - All enemies extend `enemy_base.gd` — never build an enemy from scratch.
-- All colonists extend `colonist_base.gd`.
+- All colonists extend `colonist.gd` (`class Colonist`).
 - **UI elements are `.tscn` scenes**, not built dynamically in code. Reusable subscenes (health bar, inventory slot, hotbar cell, colonist roster row, job-log entry) are standalone scenes instanced where needed. Modifying scene-instanced UI props in code is fine; creating the element in code is not.
 - Scene-specific UI lives inside its own scene. Only HUD is global/persistent.
 - No `get_node("../../")` path hacks — use signals or autoloads for cross-scene access.

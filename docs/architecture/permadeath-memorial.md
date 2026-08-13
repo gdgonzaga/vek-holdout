@@ -15,15 +15,15 @@ Tracks deceased colonists as a memorial roster, consumed by the Day Summary "Fal
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `colonist_died(colonist_id)` | `colonist_base.gd` (Combat) | **Memorial** (appends), Colony (roster removal), HUD | Yes | Colonist Death |
+| `colonist_died(colonist_id)` | `colonist.gd` (Combat) | **Memorial** (appends), Colony (roster removal), HUD | Yes | Colonist Death |
 
 (Memorial itself emits no signals — UI polls `get_roster()` when it opens.)
 
 ## Flow Trace: Colonist death → memorial entry
 
-**Trigger:** A colonist's HP hits 0 (Combat's damage resolution emits `entity_died` → `colonist_base.gd` emits `colonist_died` via EventBus).
+**Trigger:** A colonist's HP hits 0 (Combat's damage resolution emits `entity_died` → `colonist.gd` emits `colonist_died` via EventBus).
 
-1. `colonist_base.gd` emits `colonist_died(colonist_id)` via EventBus.
+1. `colonist.gd` emits `colonist_died(colonist_id)` via EventBus.
 2. **Memorial** (on Colony) listens → appends `{colonist_id, display_name, cause, day_died}` to roster.
 3. **Colony** (roster manager) listens → removes colonist from the active roster; re-evaluates Game Over condition (all colonists + player dead → emit `game_over` via EventBus).
 4. **HUD** listens → shows death notification (status icon / brief toast).
