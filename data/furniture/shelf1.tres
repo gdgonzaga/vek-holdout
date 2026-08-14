@@ -13,6 +13,7 @@ metadata/_custom_type_script = "uid://cqa8ehd6p5jke"
 
 [resource]
 script = ExtResource("4_5kw2j")
+dimensions = Vector3i(2, 1, 1)
 action_options = Array[ExtResource("1_2seyd")]([ExtResource("2_pwcpm")])
 storage_params = SubResource("Resource_iq4t2")
 id = "shelf1"
