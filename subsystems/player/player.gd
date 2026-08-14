@@ -263,8 +263,6 @@ func _update_interaction_target() -> void:
 	if component != _current_interactable:
 		_current_interactable = component
 		interactable_changed.emit(component)
-		if component:
-			print("[interact] targeting: %s" % component.get_parent().name)
 
 
 ## Clear the current interactable target and notify listeners (e.g. the HUD's
