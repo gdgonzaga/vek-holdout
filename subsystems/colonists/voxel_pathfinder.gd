@@ -20,8 +20,8 @@ const _NEIGHBORS_4 := [
 	Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
 	Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 ]
-const _MAX_EXPLORED := 4000   # backstop against runaway searches
-const _STAND_SCAN := 3        # +/- Y cells scanned by find_stand_cell
+const _MAX_EXPLORED := 4000 # backstop against runaway searches
+const _STAND_SCAN := 3 # +/- Y cells scanned by find_stand_cell
 const _CELL_HALF := Vector3(0.5, 0.5, 0.5)
 
 var _is_walkable: Callable
@@ -33,19 +33,21 @@ func set_walkability(predicate: Callable) -> void:
 
 
 ## Core A* over cells. Returns cell waypoints start->target (empty if no path,
-## predicate unset, target not standable, or start==target). The predicate gates
-## every expanded cell lazily.
+## predicate unset, or target not standable). Returns [start_cell] when start
+## already equals target. The predicate gates every expanded cell lazily.
 func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
 	var path: Array[Vector3i] = []
 	if not _is_walkable.is_valid():
 		push_warning("VoxelPathfinder: walkability predicate not set")
 		return path
-	if start_cell == target_cell or not _is_walkable.call(target_cell):
+	if not _is_walkable.call(target_cell):
 		return path
+	if start_cell == target_cell:
+		return [start_cell]
 
 	# Standard A* with Dictionary-backed open/closed sets (MVP search sizes
 	# don't justify a heap; _MAX_EXPLORED bounds the work).
-	var g_score: Dictionary = { start_cell: 0.0 }
+	var g_score: Dictionary = {start_cell: 0.0}
 	var came_from: Dictionary = {}
 	var open: Array[Vector3i] = [start_cell]
 	var closed: Dictionary = {}
@@ -153,7 +155,7 @@ func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 		var best_d := INF
 		for dx in range(-r, r + 1):
 			for dz in range(-r, r + 1):
-				if max(absi(dx), absi(dz)) != r:   # only the ring at Chebyshev distance r
+				if max(absi(dx), absi(dz)) != r: # only the ring at Chebyshev distance r
 					continue
 				var c := center + Vector3i(dx, 0, dz)
 				if _is_walkable.call(c):
