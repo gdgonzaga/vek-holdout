@@ -18,7 +18,7 @@ extends Node3D
 ## R cycles the rotation axis (no visible effect on cube blocks yet).
 
 const _RAY_DISTANCE := 30.0
-const DEBUG_RAYCAST := true
+const DEBUG_RAYCAST := false
 
 # Runtime-wired (not @export: VoxelGridAdapter/FurnitureLayer/BlueprintLayer
 # and the placement strategies extend RefCounted, which Godot can't export). Set
