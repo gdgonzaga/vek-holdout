@@ -40,6 +40,8 @@ func get_next_leg(_actor: Node, job: Job) -> JobLeg:
 ## is not a Blueprint or its def is unknown. Matches BuildAction's duration
 ## resolution so player and colonist builds take the same time for a given def.
 func begin(_actor: Node, leg: JobLeg, _job: Job) -> float:
+	if leg.target_node == null:
+		return 0.0
 	var bp := leg.target_node as Blueprint
 	if bp == null:
 		return 0.0
@@ -51,6 +53,8 @@ func begin(_actor: Node, leg: JobLeg, _job: Job) -> float:
 ## the same target starts fresh (matches player BuildAction), and forwards the
 ## colonist as the builder so skill/stamina can be attributed later.
 func complete(actor: Node, leg: JobLeg, _job: Job) -> void:
+	if leg.target_node == null:
+		return
 	var bp := leg.target_node as Blueprint
 	if is_instance_valid(bp):
 		bp.work_done = 0.0
