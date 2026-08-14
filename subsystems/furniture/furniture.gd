@@ -19,9 +19,31 @@ var def: BuildableDef = null
 
 ## Human-readable label for menus/HUD. Computed from the def via getter so the
 ## UI never references def directly.
-@export var label: String :
+@export var label: String:
 	get:
 		return def.display_name if def != null else ""
+
+
+## All voxel cells this furniture occupies. Derived from global_position and
+## def.dimensions so ColonistAI can query the full footprint without reaching
+## into FurnitureLayer's internal maps.
+func get_footprint_cells() -> Array[Vector3i]:
+	if def == null:
+		return []
+	var yaw := int(round(rotation_degrees.y / 90.0)) % 4
+	var w: int = def.dimensions.x
+	var d: int = def.dimensions.z
+	if yaw % 2 != 0:
+		var t := w; w = d; d = t
+	# Reverse of world_origin: anchor is footprint corner, pos is footprint center
+	var ax := int(floor(global_position.x - float(w) * 0.5))
+	var ay := int(floor(global_position.y))
+	var az := int(floor(global_position.z - float(d) * 0.5))
+	var cells: Array[Vector3i] = []
+	for dx in range(w):
+		for dz in range(d):
+			cells.append(Vector3i(ax + dx, ay, az + dz))
+	return cells
 
 
 # --- SaveSystem contract -----------------------------------------------------

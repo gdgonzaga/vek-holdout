@@ -74,7 +74,7 @@ func _try_claim_and_path() -> void:
 		job.unassign(_colonist)
 		_colonist.current_job = null
 		return
-	var path := _colonist.pathfinder.find_path_to_adjacent(_colonist.global_position, leg.location)
+	var path := _path_for_leg(leg)
 	if path.is_empty():
 		# No reachable adjacent cell — release without penalty and let a later
 		# poll retry. (True-unreachable thrash is a known MVP gap; the flat base
@@ -131,13 +131,27 @@ func _advance() -> void:
 	if leg == null:
 		_end_job(true)
 		return
-	var path := _colonist.pathfinder.find_path_to_adjacent(_colonist.global_position, leg.location)
+	var path := _path_for_leg(leg)
 	if path.is_empty():
 		_end_job(false) # next leg unreachable — give the job up for this colonist
 		return
 	_leg = leg
 	_colonist.set_path(path)
 	_state = State.MOVE
+
+
+## Build a path to `leg`. If the leg's target is a Furniture node, paths to
+## the nearest walkable cell adjacent to its full footprint (multi-target A*).
+## Falls back to find_path_to_adjacent for non-furniture / unknown targets.
+func _path_for_leg(leg: JobLeg) -> Array[Vector3]:
+	var furniture := leg.target_node as Furniture
+	if furniture != null and is_instance_valid(furniture):
+		var fp := furniture.get_footprint_cells()
+		if not fp.is_empty():
+			return _colonist.pathfinder.find_path_to_footprint_adjacent(
+					_colonist.global_position, fp)
+	return _colonist.pathfinder.find_path_to_adjacent(
+			_colonist.global_position, leg.location)
 
 
 ## This colonist is leaving the job (clean finish when get_next_leg returned

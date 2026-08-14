@@ -3,6 +3,7 @@
 [ext_resource type="Resource" uid="uid://dwnu8etf4kv16" path="res://data/action_options/open_storage_action_option.tres" id="2_4v0eb"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="2_def"]
 [ext_resource type="ArrayMesh" uid="uid://vvw2v2uwwjax" path="res://tmp/Polygon-Mega Survival Construction/Models/Other/extracted/SM_Box_01.SM_Box_01.mesh" id="2_wcp53"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_84588"]
 [ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="4_option_script"]
 [ext_resource type="Texture2D" uid="uid://dxjuehpac1au8" path="res://tmp/Polygon-Mega Survival Construction/Textures/TerrainTextures/Sand.png" id="5_4v0eb"]
 [ext_resource type="Script" uid="uid://cqa8ehd6p5jke" path="res://data/capability_params/storage_params.gd" id="5_params"]

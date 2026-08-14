@@ -177,3 +177,82 @@ func find_path_to_adjacent(start_world: Vector3, target_world: Vector3, max_radi
 	var target_base := Vector3i(int(floor(target_world.x)), int(floor(target_world.y)), int(floor(target_world.z)))
 	var target_cell := find_stand_near_cell(target_base, max_radius)
 	return to_world_waypoints(find_path(start_cell, target_cell))
+
+
+## Path from start_world to the walkable cell adjacent to any cell in
+## `footprint` that is closest to the colonist (multi-target A*). Use this
+## instead of find_path_to_adjacent when the target is a furniture node whose
+## full footprint is known — handles irregularly-shaped / multi-cell pieces
+## correctly regardless of which side the colonist approaches from.
+func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vector3i]) -> Array[Vector3]:
+	var start_cell := find_stand_cell(start_world)
+	# Expand footprint to all immediately-adjacent walkable cells.
+	var fp_set: Dictionary = {}
+	for c in footprint:
+		fp_set[c] = true
+	var candidates: Array[Vector3i] = []
+	for c in footprint:
+		for off in _NEIGHBORS_4:
+			var nb: Vector3i = c + off
+			if fp_set.has(nb):
+				continue # inside the footprint itself
+			if not _is_walkable.call(nb):
+				continue
+			if not candidates.has(nb):
+				candidates.append(nb)
+	if candidates.is_empty():
+		return []
+	return to_world_waypoints(_find_path_multi_target(start_cell, candidates))
+
+
+## A* from `start` to the nearest cell in `targets` (the goal set).
+## Heuristic: min Manhattan distance to any target (still admissible).
+func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array[Vector3i]:
+	var path: Array[Vector3i] = []
+	if targets.is_empty() or not _is_walkable.is_valid():
+		return path
+	var target_set: Dictionary = {}
+	for t in targets:
+		target_set[t] = true
+	var g_score: Dictionary = {start: 0.0}
+	var came_from: Dictionary = {}
+	var open: Array[Vector3i] = [start]
+	var closed: Dictionary = {}
+	var explored := 0
+	while not open.is_empty():
+		var best_i := 0
+		var best_f := INF
+		for i in range(open.size()):
+			var h := _heuristic_multi(open[i], targets)
+			var f: float = g_score[open[i]] + h
+			if f < best_f:
+				best_f = f
+				best_i = i
+		var current: Vector3i = open.pop_at(best_i)
+		if target_set.has(current):
+			return _reconstruct(came_from, current)
+		if closed.has(current):
+			continue
+		closed[current] = true
+		explored += 1
+		if explored > _MAX_EXPLORED:
+			push_warning("VoxelPathfinder: exceeded %d cells" % _MAX_EXPLORED)
+			return path
+		for off in _NEIGHBORS_4:
+			var nb: Vector3i = current + off
+			if closed.has(nb) or not _is_walkable.call(nb):
+				continue
+			var tentative: float = g_score[current] + 1.0
+			if tentative < g_score.get(nb, INF):
+				g_score[nb] = tentative
+				came_from[nb] = current
+				if not open.has(nb):
+					open.append(nb)
+	return path
+func _heuristic_multi(a: Vector3i, targets: Array[Vector3i]) -> float:
+	var best := INF
+	for t in targets:
+		var d := float(abs(a.x - t.x) + abs(a.z - t.z))
+		if d < best:
+			best = d
+	return best
