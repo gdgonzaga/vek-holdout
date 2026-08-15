@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3 uid="uid://dr7qjk12m8ku"]
+
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="2_in1"]
+[ext_resource type="Resource" uid="uid://dyr46jresvn48" path="res://data/items/stone_block.tres" id="3_in2"]
+[ext_resource type="Resource" path="res://data/items/axe.tres" id="4_out"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="5_amount"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="6_cond"]
+[ext_resource type="Script" uid="uid://rh0pdi6nw3n2" path="res://data/conditions/min_skill_condition.gd" id="7_gate"]
+
+[sub_resource type="Resource" id="Resource_gate"]
+script = ExtResource("7_gate")
+skill_id = "crafting"
+
+[sub_resource type="Resource" id="Resource_in1"]
+script = ExtResource("5_amount")
+item_def = ExtResource("2_in1")
+count = 2
+
+[sub_resource type="Resource" id="Resource_in2"]
+script = ExtResource("5_amount")
+item_def = ExtResource("3_in2")
+
+[sub_resource type="Resource" id="Resource_out"]
+script = ExtResource("5_amount")
+item_def = ExtResource("4_out")
+
+[resource]
+resource_name = "Axe"
+script = ExtResource("1_script")
+id = "axe"
+display_name = "Axe"
+inputs = Array[ExtResource("5_amount")]([SubResource("Resource_in1"), SubResource("Resource_in2")])
+outputs = Array[ExtResource("5_amount")]([SubResource("Resource_out")])
+base_time = 8.0
+conditions = Array[ExtResource("6_cond")]([SubResource("Resource_gate")])

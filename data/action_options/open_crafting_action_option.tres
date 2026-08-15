@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ActionOption" format=3]
+
+[ext_resource type="Script" path="res://subsystems/actions/condition.gd" id="1_cond"]
+[ext_resource type="Resource" path="res://data/actions/open_crafting_action.tres" id="2_action"]
+[ext_resource type="Script" path="res://subsystems/actions/action_option.gd" id="3_option"]
+
+[resource]
+script = ExtResource("3_option")
+action = ExtResource("2_action")

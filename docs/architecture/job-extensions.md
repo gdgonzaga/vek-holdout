@@ -2,7 +2,7 @@
 
 Architecture plan for four new colonist job types — **Crafting at furniture, Harvesting, Farming, Patrol** — over the [Jobs](jobs.md) core. Companion to [Jobs](jobs.md) (the built system), [Crafting](crafting.md) (the crafting design intent), and [Skills](skills.md) (the skill spec). GDD §6.
 
-> **Status: the Core Changes are built (2026-08-15, with tests); the four Features are still planned.** Built behavior is documented on [Jobs](jobs.md) and [Skills](skills.md); this page keeps the plan + the design rules the features must follow. Sequencing at the bottom.
+> **Status: the Core Changes are built (2026-08-15, with tests); the Crafting Feature is built (2026-08-15, `test/suite_crafting_test.gd`). Harvesting, Farming, and Patrol are still planned.** Built behavior is documented on [Jobs](jobs.md), [Skills](skills.md), and [Crafting](crafting.md); this page keeps the plan + the design rules the features must follow. Sequencing at the bottom.
 
 ## Verdict
 
@@ -82,22 +82,22 @@ Files: `subsystems/furniture/furniture.gd`, `subsystems/build/furniture_layer.gd
 
 ## Features
 
-### Crafting — haul-then-work at a station
+### Crafting — haul-then-work at a station — ✅ built
 
-Files: `data/crafting/recipe_def.gd`, a `CraftingParams` capability sub-resource on `FurnitureDef`, `subsystems/crafting/crafting_station.gd` (directory exists, empty), `data/jobs/crafting_job_def.gd` + `crafting.tres`, `subsystems/autoloads/colony.gd` routing. The `crafting` labor already ships.
+Shipped 2026-08-15 (`data/crafting/recipe_def.gd`, `data/capability_params/crafting_params.gd`, `subsystems/crafting/crafting_station.gd`, `data/jobs/crafting_job_def.gd` + `crafting.tres`, `ui/crafting/craft_panel.tscn` + `OpenCraftingAction`, Colony routing; `test/suite_crafting_test.gd`). Built form documented on [Crafting](crafting.md). The design as built:
 
 **Trigger:** Player queues a recipe at the station (an `ActionOption` on the furniture; one active order per station in v1).
 
 1. `CraftingStation` (child component, the `StorageInventory` pattern) implements **MaterialSink** from the active order's inputs.
-2. Colony producer on order placement: inputs short + crate stock → a **haul job bound to the station** (the existing def, now sink-generic); else straight to step 3.
+2. Colony producer on order placement (`crafting_order_queued`): a **haul job bound to the station** (the existing def, sink-generic) — spawned regardless of crate stock, so a drought just drought-waits on the board until restock.
 3. The haul DELIVER that crosses `has_complete_materials` → the station emits `crafting_materials_ready` → Colony spawns the craft job (dedupe by anchor + labor, like `_spawn_construction_job`).
 4. `CraftingJobDef`: WORK leg at the station; `begin` = `recipe.base_time / skill multiplier`; `complete` = consume inputs → outputs to the colonist's carry inventory (overflow → nearest crate), `record_use`, order cleared.
 
-| Class (planned) | Shape |
+| Class (as built) | Shape |
 |---|---|
-| `RecipeDef` (Resource) | `id`, `inputs`/`outputs: Array[ItemAmount]`, `base_time: float`, `conditions: Array[Condition]` (recipe-level skill gates) |
-| `CraftingParams` (capability on `FurnitureDef`) | `recipes: Array[RecipeDef]` |
-| `CraftingStation` (Node component) | Implements MaterialSink from the active order; emits `crafting_materials_ready` |
+| `RecipeDef` (Resource) | `id`, `display_name`, `inputs`/`outputs: Array[ItemAmount]`, `base_time: float`, `conditions: Array[Condition]` (recipe-level skill gates, ANDed by `CraftingJobDef.meets_requirements`) |
+| `CraftingParams` (capability on `FurnitureDef`) | `recipes: Array[RecipeDef]` — non-null → FurnitureLayer attaches the station |
+| `CraftingStation` (Node component) | Implements MaterialSink from the active order (order + `given` ledger in the Furniture `state` bag under `"craft_order"`); emits `crafting_order_queued` / `crafting_materials_ready` |
 
 **Design note:** supersedes [Crafting](crafting.md)'s reserve-at-queue step — inputs are physically hauled to the station (the blueprint pattern, matching the "furniture creates the job once hauling finishes" requirement) instead of reserved in crates. Crafting's material-flow-through-storage, skill, Stamina, and output-to-storage points otherwise stand.
 
@@ -166,9 +166,9 @@ Zero core changes. Files: `data/labors/patrol.tres` (new labor), patrol-flag fur
 ## Sequencing
 
 1. ~~Core changes 1–4 (gating, `SkillSet`, conditions, tags + tool retention); 5 lands with crafting, 6 with farming.~~ **Done — all six core changes shipped ahead of the features.**
-2. **Crafting** — proves the MaterialSink chain + skill gates.
+2. ~~**Crafting** — proves the MaterialSink chain + skill gates.~~ **Done — shipped 2026-08-15 (`suite_crafting_test.gd`), workbench + planks/axe seed recipes.**
 3. **Labor UI + patrol v1** — cheapest feature; exercises the UI every later labor needs.
 4. **Harvesting** — proves FETCH_TOOL.
 5. **Farming** — the growth loop.
 
-After the roadmap: Demolition → voxel mining; patrol schedules v2; `JobBoard.fail` wiring; preemption.
+After the roadmap: Demolition → voxel mining; patrol schedules v2; ~~`JobBoard.fail` wiring~~ (done — wired on ColonistAI abort paths); preemption.

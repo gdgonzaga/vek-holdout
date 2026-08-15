@@ -1,8 +1,8 @@
 extends JobDef
 class_name HaulingJobDef
 ## Hauling labor (GDD §6.10, ARCH "Subsystem: Colonists"): carry materials from
-## storage crates to a MaterialSink (material_sink.gd — blueprints today, crafting
-## stations next) until its need is satisfied. A multi-colonist job — up to
+## storage crates to a MaterialSink (material_sink.gd — blueprints and crafting
+## stations today) until its need is satisfied. A multi-colonist job — up to
 ## max_assignees haulers divvy a run through the sink's shared deposit counter
 ## (no per-colonist slices): each independently loops FETCH (crate→inventory) →
 ## DELIVER (deposit_from the sink) until has_complete_materials(). The crate's

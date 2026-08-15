@@ -1,8 +1,8 @@
 class_name MaterialSink
 extends RefCounted
 ## Duck-typed contract for furniture that receives hauled materials (GDScript
-## has no interfaces; Blueprint — a Furniture — is the first implementer,
-## crafting stations next). A node is a material sink when it answers:
+## has no interfaces; Blueprint and CraftingStation are the implementers). A
+## node is a material sink when it answers:
 ##
 ##   needed_item_ids() -> Array[String]   item_ids still owed
 ##   remaining_need(item_id) -> int       units of one item still owed

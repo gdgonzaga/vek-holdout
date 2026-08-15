@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3 uid="uid://do6oips3dvmvh"]
+
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Resource" uid="uid://mi5d1i724fpw" path="res://data/items/wood_block.tres" id="2_in"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_out"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="4_amount"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="5_cond"]
+[ext_resource type="Script" uid="uid://rh0pdi6nw3n2" path="res://data/conditions/min_skill_condition.gd" id="6_gate"]
+
+[sub_resource type="Resource" id="Resource_gate"]
+script = ExtResource("6_gate")
+skill_id = "crafting"
+
+[sub_resource type="Resource" id="Resource_in"]
+script = ExtResource("4_amount")
+item_def = ExtResource("2_in")
+
+[sub_resource type="Resource" id="Resource_out"]
+script = ExtResource("4_amount")
+item_def = ExtResource("3_out")
+count = 4
+
+[resource]
+resource_name = "Planks"
+script = ExtResource("1_script")
+id = "planks"
+display_name = "Planks"
+inputs = Array[ExtResource("4_amount")]([SubResource("Resource_in")])
+outputs = Array[ExtResource("4_amount")]([SubResource("Resource_out")])
+base_time = 4.0
+conditions = Array[ExtResource("5_cond")]([SubResource("Resource_gate")])

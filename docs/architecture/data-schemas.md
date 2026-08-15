@@ -138,8 +138,9 @@ _(No cost-helper methods — `material_cost` is read directly as an `Array[ItemA
 | `test_params` | `TestParams` | `[export, nullable]` Composition-pattern placeholder for capability-specific parameters. Null = no capability data. See "FurnitureDef capability parameters" below. |
 | `item_dispenser_params` | `ItemDispenserParams` | `[export, nullable]` Capability sub-resource consumed by `GiveItemAction` (the items it dispenses, as `Array[ItemAmount]`). Schema in `data/capability_params/`. |
 | `storage_params` | `StorageParams` | `[export, nullable]` Capability sub-resource consumed by `StorageInventory` (its `capacity`, default 100.0). Schema in `data/capability_params/`. |
+| `crafting_params` | `CraftingParams` | `[export, nullable]` Capability sub-resource: the station's `recipes: Array[RecipeDef]`. Non-null → FurnitureLayer attaches a `CraftingStation` child. Schema in `data/capability_params/`; recipes in `data/recipes/`. |
 
-> **FurnitureDef capability parameters** *(decided, partially seeded — `test_params` is not yet read by any GameAction)*
+> **FurnitureDef capability parameters** *(built: `crafting_params` + `storage_params`; `test_params` is not yet read by any GameAction)*
 >
 > When two furniture defs differ only in parameters a `GameAction` reads (e.g. a Workbench vs Workbench-T2 differing in craft speed and max recipe tier), those parameters live on **nullable sub-resources referenced from `FurnitureDef`**, not on the def itself. The pattern: each capability gets a small `Resource` subclass (`CraftingParams`, `StorageParams`, …) exposed as a nullable `@export` on `FurnitureDef`; a placed furniture reads it via `def.crafting` (null if absent). Param schemas live in `data/capability_params/`; `test_params` is the seed of this pattern.
 >
@@ -271,30 +272,24 @@ Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, an
 
 **MVP skills** (GDD §6.3): Medical (Clinic Bed), Mechanical (Vehicle Lift), Construction (build/repair blocks), Crafting (Workbench + Forge), Combat (raids/expeditions), Farming (Growing Trough — progression tracked; its Labor arrives with the farming jobs).
 
-## `data/recipes/<station>.tres` (Resource: `recipe_list.gd`) — *(planned)*
+## `data/recipes/<id>.tres` (Resource: `recipe_def.gd`)
 
-> **Status: planned — `data/recipes/` is empty; `recipe_list.gd`/`recipe.gd` do not exist yet** (Crafting subsystem). Intended schema below.
+> **Status: built — `RecipeDef` + `CraftingParams`** (Crafting subsystem, GDD §7.9; see [Crafting](crafting.md)). Shipped recipes: `planks.tres` (1 wood_block → 4 plank), `axe.tres` (2 plank + 1 stone_block → 1 axe), both gated L1 Crafting. The Forge's smelting recipes land with the Forge furniture + smelting skill.
 
-One RecipeList per station: `workbench.tres` (furniture, armor, weapons, ammo), `forge.tres` (smelting). Each list is an array of `Recipe` resources. See GDD §7.9 + §17 Equipment for the MVP recipe values.
+One `RecipeDef` resource per recipe, referenced from the station furniture def's `crafting_params` sub-resource (`CraftingParams.recipes: Array[RecipeDef]`, `data/capability_params/crafting_params.gd`) — not a per-station RecipeList (superseded: the station *is* the furniture def, so no `station_id` matching is needed).
 
-| Field | Type | Description |
-|---|---|---|
-| `station_id` | `String` | `"workbench"` or `"forge"`. |
-| `recipes` | `Array[Recipe]` | All recipes craftable at this station. See below. |
-
-**Recipe** (`recipe.gd extends Resource`) — one craftable output:
+**RecipeDef** (`data/crafting/recipe_def.gd extends Resource`) — one craftable output:
 
 | Field | Type | Description |
 |---|---|---|
-| `recipe_id` | `String` | Unique; e.g. `"clinic_bed"`, `"leather_armor_body"`, `"knife"`, `"bullet"`, `"smelt_metal"`. |
-| `output_item` | `String` | Item ID produced (e.g. `"clinic_bed"`, `"leather_armor_body"`). |
-| `output_count` | `int` | How many of `output_item` per craft (usually 1; ammo may batch). |
-| `inputs` | `Dictionary` | `{item_id: count}` consumed (e.g. `{scrap: 100}` for Clinic Bed; `{metal: 2}` for Knife). |
-| `station_id` | `String` | Which station crafts this (must match the list's `station_id`). |
-| `skill_id` | `String` | Governing skill: `"crafting"` for Workbench recipes, `"smelting"` (mapped via Crafting Labor) for Forge recipes. |
-| `base_time` | `float` | Base craft time in seconds (modified by skill × Stamina multipliers at runtime). |
+| `id` | `String` | Unique; e.g. `"planks"`, later `"clinic_bed"`, `"knife"`, `"bullet"`, `"smelt_metal"`. |
+| `display_name` | `String` | Craft panel + log label (`label()` falls back to `id`). |
+| `inputs` | `Array[ItemAmount]` | Consumed per craft (hauled to the station through the MaterialSink contract). |
+| `outputs` | `Array[ItemAmount]` | Produced per craft (to the crafter's carry, overflow to storage). Multi-output supported. |
+| `base_time` | `float` | Base craft seconds; CraftingJobDef divides by the crafter's skill multiplier (Stamina factor deferred). |
+| `conditions` | `Array[Condition]` | Recipe-level actor gates (e.g. `MinSkillCondition` crafting L1), ANDed hot by `CraftingJobDef.meets_requirements`. |
 
-**MVP recipe sources** (values already in GDD, modeled here as Recipes):
+**MVP recipe sources** (GDD values, modeled as RecipeDefs when their items exist):
 - **Furniture** (GDD §7.2 Buildables `Materials` column): Clinic Bed `{scrap: 100}`, Workbench `{scrap: 60, components: 10}`, Forge `{scrap: 80, components: 20}`, Colonist Bed `{scrap: 40, components: 5}`, Command Desk `{scrap: 120, components: 30}`, Vehicle Lift `{scrap: 120, components: 40}`.
 - **Armor** (GDD §17 Equipment, per-slot per-tier): e.g. Leather Body `{leather: 6}`, Cloth Body `{cloth: 4}`, Scrap Body `{scrap: 6}`.
 - **Weapons + ammo** (GDD §17 Equipment): Knife `{metal: 2}`, Pistol `{metal: 5, components: 5}`, Bullet `{scrap: 1}`. (Club/Bow/arrows are post-MVP.)

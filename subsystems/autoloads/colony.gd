@@ -32,8 +32,11 @@ const MVP_CAP := 5  # Roster capacity (ARCH "max 5 in MVP").
 # with an unsatisfied material_cost → HAULING_DEF (the job loops FETCH/DELIVER
 # until satisfied and persists through source droughts — zero-stock blueprints
 # simply wait for stock); costless / pre-satisfied → CONSTRUCTION_DEF directly.
+# A crafting order's materials crossing → CRAFTING_DEF (the station plays the
+# blueprint's role: hauling feeds it, crafting consumes it).
 const CONSTRUCTION_DEF := preload("res://data/jobs/construction.tres")
 const HAULING_DEF := preload("res://data/jobs/hauling.tres")
+const CRAFTING_DEF := preload("res://data/jobs/crafting.tres")
 
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
@@ -54,6 +57,8 @@ func _ready() -> void:
 	EventBus.blueprint_placed.connect(_on_blueprint_placed)
 	EventBus.blueprint_removed.connect(_on_blueprint_removed)
 	EventBus.blueprint_materials_ready.connect(_on_blueprint_materials_ready)
+	EventBus.crafting_order_queued.connect(_on_crafting_order_queued)
+	EventBus.crafting_materials_ready.connect(_on_crafting_materials_ready)
 
 
 ## MapWiring.wire_colonists → here, on every map load. Empty roster + authored
@@ -164,6 +169,69 @@ func _on_blueprint_removed(_target_def_id: String, anchor: Vector3i) -> void:
 	for job in job_board.get_jobs():
 		if job.anchor_cell == anchor:
 			job_board.remove_job(job.id)
+
+
+# --- Crafting (GDD §7.9) -------------------------------------------------------
+# The station plays the blueprint's role in the same produce chain:
+# queue → haul (below) → materials-ready → craft. Stations aren't freed on
+# completion, so their jobs close through "order gone"/"sink satisfied" rather
+# than blueprint removal — no furniture_removed listener needed; a freed
+# station is caught by ColonistAI's freed-target guard + should_close.
+
+
+## CraftingStation.queue_recipe -> EventBus.crafting_order_queued -> here.
+## Spawn a haul job bound to the station (the existing def — hauling is
+## sink-generic) so haulers FETCH the order's inputs from crates and DELIVER
+## them via the station's deposit_from. Spawned regardless of current stock:
+## through a drought the job waits on the board (HaulingJobDef.should_close)
+## and restock resumes it with no new producer event. Deduped by anchor +
+## labor so a re-queue can't double the haul run.
+func _on_crafting_order_queued(station: Node, anchor: Vector3i) -> void:
+	if not MaterialSink.is_material_sink(station):
+		return
+	if station.has_complete_materials():
+		return
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.labor_id == "hauling":
+			return
+	var job := Job.from_def(HAULING_DEF)
+	job.title = "Haul materials for crafting"
+	job.anchor_cell = anchor
+	job.location = _station_location(station)
+	job.target_node = station
+	job_board.add_job(job)
+
+
+## CraftingStation.deposit_from -> EventBus.crafting_materials_ready -> here.
+## Fires exactly once per order (the crossing that completes its inputs).
+## Spawns the craft job the haul run was feeding, deduped like construction.
+func _on_crafting_materials_ready(station: Node, anchor: Vector3i) -> void:
+	_spawn_craft_job(station, anchor)
+
+
+## Build + register a crafting Job at `anchor` bound to `station`, unless one
+## already exists there. Single-assignee (crafting.tres default).
+func _spawn_craft_job(station: Node, anchor: Vector3i) -> void:
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.labor_id == "crafting":
+			return
+	var job := Job.from_def(CRAFTING_DEF)
+	var recipe: RecipeDef = station.active_recipe()
+	job.title = "Craft %s" % recipe.label() if recipe != null else "Craft order"
+	job.anchor_cell = anchor
+	job.location = _station_location(station)
+	job.target_node = station
+	job_board.add_job(job)
+
+
+## Walk target for station-bound jobs: the furniture's position, which
+## FurnitureLayer sets to the footprint center (world_origin). ColonistAI
+## refines it into an adjacent standing cell at navigation time.
+func _station_location(station: Node) -> Vector3:
+	var furniture := station.get_parent() as Node3D
+	if furniture == null:
+		return Vector3.ZERO
+	return furniture.global_position
 
 
 ## Footprint-center world position for a job's walk target. Reuses FurnitureLayer's

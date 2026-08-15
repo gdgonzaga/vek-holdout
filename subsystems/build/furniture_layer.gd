@@ -167,6 +167,14 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		var storage := StorageInventory.new()
 		storage.name = "StorageInventory"
 		root.add_child(storage)
+
+	# Attach a crafting station when the def declares crafting params. Same
+	# ordering constraint as StorageInventory: CraftingStation._ready reads
+	# def.crafting_params.recipes, so root.def must already be set.
+	if def is FurnitureDef and (def as FurnitureDef).crafting_params != null:
+		var station := CraftingStation.new()
+		station.name = "CraftingStation"
+		root.add_child(station)
 	return root
 
 

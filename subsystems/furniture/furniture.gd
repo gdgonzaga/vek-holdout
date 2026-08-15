@@ -6,7 +6,8 @@ extends Node3D
 ## (anchor → node maps, cell ownership) stays in FurnitureLayer.
 ##
 ## Capabilities deferred: HP/damage (§7.7), Functional Rooms counting (§7.8),
-## crafting/storage/door/bed component slots (§7.9–§7.11) — none exist yet.
+## storage/door/bed component slots (§7.10–§7.11). Crafting (§7.9) ships as the
+## CraftingStation child component (see subsystems/crafting/).
 
 ## Canonical def id (e.g. "workbench"). Replaces the old node.name parsing in
 ## FurnitureLayer.remove_at; also the save/load key once persistence lands.
@@ -18,10 +19,9 @@ extends Node3D
 var def: BuildableDef = null
 
 ## Per-instance capability state bag: { component-owned key: saved value }.
-## Capability components (StorageInventory today via its own serialize; the
-## planned Growable/CraftingStation) read/write their keys here so
-## Furniture.serialize never grows a branch per component. Empty for plain
-## furniture; round-trips below.
+## Capability components (CraftingStation's order under "craft_order"; the
+## planned Growable) read/write their keys here so Furniture.serialize never
+## grows a branch per component. Empty for plain furniture; round-trips below.
 var state: Dictionary = {}
 
 ## Human-readable label for menus/HUD. Computed from the def via getter so the

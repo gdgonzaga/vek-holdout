@@ -32,9 +32,15 @@ class_name FurnitureDef
 
 ## Composition-pattern placeholder for capability-specific parameters (crafting
 ## speed, tier, etc.). Null means no capability data. Real capabilities
-## (CraftingParams, StorageParams, ...) will be sibling nullable sub-resources
-## of the same shape; see docs/architecture/data-schemas.md "FurnitureDef
-## capability parameters" for why composition was chosen over subclassing.
+## (CraftingParams, ItemDispenserParams, StorageParams, ...) are sibling
+## nullable sub-resources of the same shape; see
+## docs/architecture/data-schemas.md "FurnitureDef capability parameters" for
+## why composition was chosen over subclassing.
 @export var test_params: TestParams
 @export var item_dispenser_params: ItemDispenserParams
 @export var storage_params: StorageParams
+
+## Crafting capability (GDD §7.9): the recipes this station offers. Non-null →
+## FurnitureLayer attaches a CraftingStation child (which implements
+## MaterialSink from the active order's inputs, so hauling can supply it).
+@export var crafting_params: CraftingParams

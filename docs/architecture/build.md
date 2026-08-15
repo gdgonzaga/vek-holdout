@@ -211,7 +211,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `def_id` | `String` | `[export default ""]` Canonical def id (e.g. `"workbench"`). The emitted id source in `remove_at` and the future save/load key. |
 | `def` | `BuildableDef` | Runtime back-ref to the definition (not serialized). Read static data through this (`def.hp`, `def.dimensions`, `def.action_options`). |
 | `label` | `String` | `[export, getter only]` Returns `def.display_name` (or `""` if `def` is null). The interaction menu reads this via `target.get("label")` so the UI stays decoupled from `FurnitureDef`. |
-| `state` | `Dictionary` | Per-instance capability state bag, `{ component-owned key: saved value }`. Future capability components (Growable, CraftingStation — see [Job System Extensions](job-extensions.md)) read/write their keys here so `serialize` never grows a branch per component; round-trips in the SaveSystem record. Empty for plain furniture. |
+| `state` | `Dictionary` | Per-instance capability state bag, `{ component-owned key: saved value }`. Capability components read/write their keys here so `serialize` never grows a branch per component; round-trips in the SaveSystem record. CraftingStation's order lives under `"craft_order"` (see [Crafting](crafting.md)); Growable is planned. Empty for plain furniture. |
 
 **Functions:**
 
@@ -220,7 +220,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `get_footprint_cells() -> Array[Vector3i]` | All voxel cells this furniture occupies (from `global_position` + `def.dimensions`, yaw-swapped). Used by `ColonistAI._path_for_leg`'s footprint-adjacent pathing. |
 | `serialize() -> Dictionary` / `deserialize(data)` | SaveSystem contract — `def_id`, the `state` bag, plus the `StorageInventory` child's stacks when present (storage = null otherwise). |
 
-> **Deferred:** per-instance HP/damage (GDD §7.7), Functional Rooms counting fields (§7.8), and crafting/storage/door/bed component slots (§7.9–§7.11) are not on this class yet — added as the owning subsystems land. Placement bookkeeping (anchor → node maps, cell ownership) stays in `FurnitureLayer`.
+> **Deferred:** per-instance HP/damage (GDD §7.7), Functional Rooms counting fields (§7.8), and storage/door/bed component slots (§7.10–§7.11) are not on this class yet — added as the owning subsystems land. Crafting (§7.9) ships as the CraftingStation child component. Placement bookkeeping (anchor → node maps, cell ownership) stays in `FurnitureLayer`.
 
 ### Class: Blueprint
 
@@ -251,4 +251,4 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `deposit_from(actor: Node) -> int` | Pull carried items from `actor` toward each `material_cost` entry (partial fulfillment allowed); updates `_given`, logs via `GameLog`, refreshes `info_text`. Returns total deposited. |
 | `serialize() -> Dictionary` / `deserialize(data) -> void` | SaveSystem contract — persists placement + the `_given` material-progress dict (so a half-filled blueprint resumes correctly on load). |
 
-> **MaterialSink:** `has_complete_materials` / `needed_item_ids` / `remaining_need` / `deposit_from` together form the duck-typed [MaterialSink](jobs.md) contract (`subsystems/furniture/material_sink.gd`) — `Blueprint` is the implementer hauling targets today; crafting stations are next. |
+> **MaterialSink:** `has_complete_materials` / `needed_item_ids` / `remaining_need` / `deposit_from` together form the duck-typed [MaterialSink](jobs.md) contract (`subsystems/furniture/material_sink.gd`) — `Blueprint` and `CraftingStation` (see [Crafting](crafting.md)) are the implementers hauling targets today. |
