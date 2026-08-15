@@ -160,7 +160,7 @@ Zero core changes. Files: `data/labors/patrol.tres` (new labor), patrol-flag fur
 
 `ScheduleDef` resource: time windows vs `TimeSystem.get_time_of_day_fraction()`; ordered routes via the reserved `route_id`/`order`. Two core additions become required then:
 
-- **`JobDef.persistent`** — bypass `_prune_dead_jobs` + `should_close` so an off-schedule job isn't deleted at the first selection sweep. The schedule check goes *in* `is_available` (so unavailable patrol jobs stop ranking — otherwise a claim/null/release hot-loop starves lower-priority work); persistence keeps the job alive while invisible.
+- **`JobDef.persistent`** — bypass `_prune_dead_jobs` + `should_close` so an off-schedule job isn't deleted at the first selection sweep. The schedule check goes *in* `is_available` (so unavailable patrol jobs stop ranking — otherwise a claim/null/release hot-loop starves lower-priority work); persistence keeps the job alive while invisible. The mechanism now exists in targeted form: `JobDef.should_close` decouples lifetime from claimability, and hauling already uses it for drought persistence (an unsatisfied sink keeps the job registered while no crate stocks a needed material). Patrol just needs the flag so an author can opt in without overriding the method.
 - **`ColonistAI.cancel_current_job(reason)`** — the external interrupt ("shift's over", later "raid started"). Today a job only ends via a null leg, an unreachable leg, or a freed target.
 
 ## Sequencing

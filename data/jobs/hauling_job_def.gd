@@ -12,8 +12,9 @@ class_name HaulingJobDef
 ## target_node is the per-leg node (crate on FETCH, sink on DELIVER). Phase
 ## is derived from carry state (not stored): carrying a still-needed material →
 ## DELIVER; otherwise FETCH from the nearest source crate; no source → null
-## (this colonist gives up; the job may close or another source may appear
-## later). Both legs are instant (begin returns 0) — hauling has no WORK phase.
+## (this colonist yields — the job stays on the board waiting for restock, see
+## should_close). Both legs are instant (begin returns 0) — hauling has no
+## WORK phase.
 ##
 ## Chaining: the DELIVER leg calls the sink's deposit_from, which emits the
 ## sink's own materials-ready signal when it crosses has_complete_materials
@@ -54,8 +55,10 @@ func get_next_leg(actor: Node, job: Job) -> JobLeg:
 	if colonist.remaining_capacity() <= 0.0:
 		return null
 	# Empty (or only carrying non-needed items) → fetch from the nearest crate
-	# that holds one of the still-needed materials. No source → give this colonist
-	# up for now (null); the job stays available only if a source exists.
+	# that holds one of the still-needed materials. No source → yield for now
+	# (null). The job stays registered through the drought — should_close ignores
+	# source stock — and is_available turns it claimable again once a crate
+	# restocks, so the idle poll resumes hauling without any producer event.
 	var crate := Colony.storage_registry.find_source(sink.needed_item_ids(), colonist.global_position)
 	if crate == null:
 		return null
@@ -136,9 +139,12 @@ func _is_tool(item_id: String) -> bool:
 	return def != null and def.tags.has(TOOL_TAG)
 
 
-## A haul job is available while its sink exists, is still unsatisfied, and
+## A haul job is claimable while its sink exists, is still unsatisfied, and
 ## some crate holds a still-needed material. The slot half of the gate (colonists
 ## < max_assignees) lives on Job.is_available; this is the labor-specific half.
+## Claimability only — NOT lifetime: a drought (unsatisfied sink, no stocking
+## crate) makes the job invisible to selection but should_close keeps it
+## registered until restock.
 func is_available(job: Job) -> bool:
 	var sink := job.target_node
 	if not MaterialSink.is_material_sink(sink):
@@ -146,6 +152,29 @@ func is_available(job: Job) -> bool:
 	if sink.has_complete_materials():
 		return false
 	return Colony.storage_registry.has_source_for(sink.needed_item_ids())
+
+
+## A haul job leaves the board only when its sink is gone or satisfied — NOT
+## when the source dries up. A drought makes the job unclaimable (is_available
+## false, so selection skips it) while keeping it registered: the idle poll
+## re-checks has_source_for every 0.5s, and a restocked crate flips the job
+## claimable again without any producer event. This is the targeted form of the
+## persistence job-extensions.md defers for scheduled labors.
+func should_close(job: Job) -> bool:
+	var sink := job.target_node
+	if not MaterialSink.is_material_sink(sink):
+		return true
+	return sink.has_complete_materials()
+
+
+## A null leg is a clean finish only when the sink crossed
+## has_complete_materials; otherwise the hauler stalled short of the need
+## (drained crates) and the run is incomplete — no success XP, and ColonistAI
+## logs a waiting-for-materials entry. False exactly while the job lingers on
+## the board unsatisfied.
+func job_complete(job: Job) -> bool:
+	var sink := job.target_node
+	return MaterialSink.is_material_sink(sink) and sink.has_complete_materials()
 
 
 func _carries_needed_material(colonist: Colonist, sink: Node) -> bool:

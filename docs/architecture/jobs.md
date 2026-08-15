@@ -3,14 +3,16 @@
 The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→act pattern, the `JobBoard` registry, and two shipped labors (Construction, Hauling). Producers (currently [Colony](colonists.md) from blueprint events) create `Job` instances; consumers (`ColonistAI`) poll the board, assign, and execute legs. GDD §6.
 
 > **Sprint scope (built):** colonists work **multi-leg jobs**. A `JobDef` produces a stream of `JobLeg`s (walk-to → act); `ColonistAI` walks each leg and runs the def's `begin`/`complete` on arrival. Two labors ship:
-> - **Construction** — a blueprint with no unmet `material_cost` (costless, pre-satisfied, or no storage source) → a one-leg job: walk to a stand-adjacent cell, WORK over `build_time`, `Blueprint.complete` materializes it.
-> - **Hauling** — a blueprint with an unmet `material_cost` whose source is in stock → up to `max_assignees` haulers divvy a run through the sink's shared deposit counter: each loops FETCH (crate → carry inventory) → DELIVER (`deposit_from` on the [MaterialSink](#jobs-furniture) — blueprints today) until `has_complete_materials()`. The DELIVER that crosses the threshold emits `blueprint_materials_ready` → `Colony` spawns the construction job.
+> - **Construction** — a blueprint with no unmet `material_cost` (costless or pre-satisfied) → a one-leg job: walk to a stand-adjacent cell, WORK over `build_time`, `Blueprint.complete` materializes it.
+> - **Hauling** — any blueprint with an unmet `material_cost` → up to `max_assignees` haulers divvy a run through the sink's shared deposit counter: each loops FETCH (crate → carry inventory) → DELIVER (`deposit_from` on the [MaterialSink](#jobs-furniture) — blueprints today) until `has_complete_materials()`. The DELIVER that crosses the threshold emits `blueprint_materials_ready` → `Colony` spawns the construction job.
 >
-> **Multi-assign:** a `Job` may hold several colonists at once (`try_assign`/`unassign`); **one colonist finishing ≠ job done** — the job leaves the board only when `should_close()` (no assignees left AND not accepting more). `JobBoard.get_best_job_for` prunes dead jobs (`!is_available && unassigned`) on each poll.
+> **Multi-assign:** a `Job` may hold several colonists at once (`try_assign`/`unassign`); **one colonist finishing ≠ job done** — the job leaves the board only when `should_close()` (no assignees left AND the def's `should_close` says dead). `JobBoard.get_best_job_for` prunes `should_close()` jobs on each poll.
+>
+> **Drought persistence:** a haul job's *claimability* (`is_available`: sink valid + unsatisfied + a crate stocks a needed item) is separate from its *lifetime* (`should_close`: sink satisfied or gone). When crates run dry the job becomes invisible to selection but stays registered — the 0.5s idle poll re-checks stock, and a restocked crate resumes hauling with no producer event. A stalled hauler's null leg is not a completion (`job_complete` false: no skill XP, a "waiting for materials" log line).
 >
 > **Deferred (GDD §6, not yet built):** the Stamina work-speed factor (the skill factor is live — `begin()` durations divide by `SkillSet.get_multiplier(labor_id)`, [Skills](skills.md); StaminaComponent is still a stub), crafting jobs, mechanics/smelting jobs.
 >
-> **Known gaps:** a material'd blueprint with no stocked source builds anyway (the producer falls back to construction so the game still progresses — the materials gate only bites when stock exists); a haul job whose source dries up is pruned and won't auto-retrigger on later restock (the player can still deposit directly, which self-heals via `blueprint_materials_ready`).
+> **Known gaps:** a job `fail`-removed at 3 aborts won't respawn on restock (the producer only fires on placement); save-load doesn't recreate jobs for restored blueprints (see [Colonists](colonists.md)); there is no idle fallback activity yet (no wander, no rest — Stamina is a stub), so a colonist with no claimable work stands still.
 
 **Labors (GDD §6.4):** a *Labor* is a category of work, declared as a `LaborDef` resource under `data/labors/` (see [Data Schemas](data-schemas.md)) and referenced everywhere by its String `id`. Five ship today — `construction`, `crafting`, `hauling`, `mechanics`, `smelting` (Repair/Farming/Cooking post-MVP). The labor id is the join key of the subsystem: a `Job` carries one `labor_id` (what kind of work it is), and a [Colonist](colonists.md)'s `labor_priorities` Dict (`{labor_id: 0–5 weight}`) decides which jobs that colonist will accept — `JobBoard.get_best_job_for` skips any job whose labor has weight 0 for that colonist.
 
@@ -18,7 +20,7 @@ The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→ac
 
 | File | Type | Responsibility |
 |---|---|---|
-| `data/jobs/job_def.gd` | Script (Resource) | Abstract behaviour template for a labor type — `get_next_leg`/`begin`/`complete`/`on_end`/`is_available` virtual contract + `conditions`/`meets_requirements` actor gating. Subclassed per labor. |
+| `data/jobs/job_def.gd` | Script (Resource) | Abstract behaviour template for a labor type — `get_next_leg`/`begin`/`complete`/`on_end`/`is_available`/`should_close`/`job_complete` virtual contract + `conditions`/`meets_requirements` actor gating. Subclassed per labor. |
 | `data/jobs/job_leg.gd` | Script (RefCounted) | Pure routing data for one step of a job: `location`, `target_node`, `kind`. No behaviour — the `JobDef` dispatches on `kind`. |
 | `data/jobs/construction_job_def.gd` | Script (Resource) | Construction labor: single-leg timed build — `Blueprint.complete` on finish, persists `work_done` on abort; `begin` divides `build_time` by the skill multiplier. |
 | `data/jobs/hauling_job_def.gd` | Script (Resource) | Hauling labor: multi-leg FETCH/DELIVER loop — deposit materials from crates into any MaterialSink via colonist carry inventory; tool-tagged items survive the surplus dump. |
@@ -46,13 +48,13 @@ The Job Board is the registry; producers add Jobs, consumers (`ColonistAI`) sele
 **Trigger:** A blueprint is placed (`EventBus.blueprint_placed`).
 
 1. **Produce (decide haul vs construct)** — `Colony._on_blueprint_placed(target_def_id, anchor, blueprint)`:
-   - If the blueprint has an unmet `material_cost` AND `storage_registry.has_source_for(needed_ids)` → build a **haul** `Job` from `HAULING_DEF` (`title="Haul materials for <id>"`, `max_assignees` from the def).
-   - Else → `_spawn_construction_job` (costless, pre-satisfied, or no source available — the materials gate only bites when stock exists).
+   - If the blueprint has an unmet `material_cost` → build a **haul** `Job` from `HAULING_DEF` (`title="Haul materials for <id>"`, `max_assignees` from the def), **regardless of current stock** — while no crate stocks a needed item the job drought-waits on the board (unclaimable but not dead; see Drought persistence above).
+   - Else (costless or pre-satisfied) → `_spawn_construction_job`.
    Both bind `anchor_cell=anchor`, `location=footprint-center` (via `FurnitureLayer.world_origin`), `target_node=blueprint`, then `JobBoard.add_job`. `Job.from_def` denormalizes `labor_id`/`title`/`max_assignees` from the def and mints a uuid `id`.
-2. **Select** — a colonist's `ColonistAI`, throttled to once per 0.5s while IDLE, calls `JobBoard.get_best_job_for(colonist)`. The board first `_prune_dead_jobs()` (drop `!is_available && unassigned`), then filters to `is_available()` jobs whose Labor is enabled (`labor_priorities[labor_id] > 0`) and whose def requirements the colonist meets (`def.meets_requirements` — the `conditions` array, evaluated fresh every poll), ranks by highest priority, ties by nearest `distance_squared_to(job.location)`. Returns the best Job (or `null`); **it does not assign.**
+2. **Select** — a colonist's `ColonistAI`, throttled to once per 0.5s while IDLE, calls `JobBoard.get_best_job_for(colonist)`. The board first `_prune_dead_jobs()` (drop unassigned `should_close()` jobs), then filters to `is_available()` jobs whose Labor is enabled (`labor_priorities[labor_id] > 0`) and whose def requirements the colonist meets (`def.meets_requirements` — the `conditions` array, evaluated fresh every poll), ranks by highest priority, ties by nearest `distance_squared_to(job.location)`. Returns the best Job (or `null`); **it does not assign.** A drought-waiting haul job is skipped here (unclaimable) but not pruned — a restocked crate makes it claimable on a later poll.
 3. **Assign** — `ColonistAI` calls `job.try_assign(colonist)`: the Job checks `is_available()` (slot under `max_assignees` AND the def's labor-specific gate), that the colonist isn't already assigned, and re-checks `meets_requirements` (the authoritative condition gate), then appends its id to `_assigned_colonists`. Pull, not push — this only registers; the colonist asks `get_next_leg` when ready. Returns false on a lost slot race or a condition that flipped mid-poll; the next poll retries.
-4. **Resolve — happy path (legs)** — see the walk flow. On arrival at each leg the AI runs `job.def.begin`/`complete`; `_advance` pulls the next leg (or `_end_job` when `get_next_leg` returns null). For hauling, the DELIVER leg's `deposit_from` crossing `has_complete_materials` emits `blueprint_materials_ready` → `Colony._on_blueprint_materials_ready` → `_spawn_construction_job` (guarded against a duplicate at the anchor). When the last assignee leaves and `should_close()` is true, the AI removes the Job.
-5. **Resolve — fail path** — `JobBoard.fail(job.id, reason)` increments `failure_count`, clears assignees, emits `job_failed` locally, relays `job_logged` via EventBus, auto-erases at `_MAX_FAILURES (3)`. (Currently no caller drives `fail` from the leg loop — the dead-job prune handles removal for haul's no-source case. Kept as the documented failure seam.)
+4. **Resolve — happy path (legs)** — see the walk flow. On arrival at each leg the AI runs `job.def.begin`/`complete`; `_advance` pulls the next leg (or `_end_job` when `get_next_leg` returns null). A null leg is a clean finish only when `def.job_complete(job)` says so — a stalled hauler (drained crates, sink still short) gets `success=false` (no skill XP) and a "waiting for materials" `GameLog.colony` entry. For hauling, the DELIVER leg's `deposit_from` crossing `has_complete_materials` emits `blueprint_materials_ready` → `Colony._on_blueprint_materials_ready` → `_spawn_construction_job` (guarded against a duplicate at the anchor). When the last assignee leaves and `should_close()` is true, the AI removes the Job; a drought-waiting haul job survives (its def overrides `should_close`).
+5. **Resolve — fail path** — aborts (a freed leg target mid-MOVE/mid-WORK, an unreachable next leg, an unreachable leg-0 claim) run the normal `_end_job(false)` cleanup, then `JobBoard.fail(job.id, reason)`: increments `failure_count`, clears assignees, emits `job_failed` locally, relays `job_logged` via EventBus, auto-erases at `_MAX_FAILURES (3)` — which also bounds the unreachable claim→release thrash. A stalled-but-alive job (a haul drought) deliberately does not route through `fail`: stalls aren't failures, and `fail` counts toward removal.
 
 **End state:** Job removed from the board — by the last assignee's `should_close()` on completion, or pruned/`fail`-removed otherwise. The blueprint's lifetime is independent: cancelling or completing one emits `blueprint_removed` → `Colony._on_blueprint_removed` drops any matching Job by anchor (idempotent).
 
@@ -106,15 +108,17 @@ Jobs target furniture nodes through the **MaterialSink** duck-typed contract (`s
 
 `ColonistAI` drives the leg loop; the job system provides the `JobDef` virtual contract that the AI calls at each stage. The AI is intentionally "dumb" — it walks, times, and advances, but knows nothing about what legs do.
 
-**The `JobDef` contract** (five virtual methods on `JobDef`, called by `ColonistAI`):
+**The `JobDef` contract** (seven virtual methods on `JobDef`, called by `ColonistAI`):
 
 | Method | Called by ColonistAI at | Returns | Purpose |
 |---|---|---|---|
 | `get_next_leg(actor, job) → JobLeg` | IDLE (leg 0) and `_advance()` | Next leg, or null if done | Produces the stream of walk→act steps |
 | `begin(actor, leg, job) → float` | `_begin_work()` on arrival | Work duration in seconds (0 = instant) | Starts the leg; returned duration drives the WORK tick |
 | `complete(actor, leg, job) → void` | `_tick_work()` (on elapse) and `_begin_work()` (instant) | — | Applies the leg's effect (build, fetch, deliver) |
-| `on_end(success, actor, leg, job, elapsed) → void` | `_end_job()` (finish or abort) | — | Cleanup: return carried items, persist partial progress |
-| `is_available(job) → bool` | `Job.is_available()` (via `try_assign` + `should_close`) | Whether the job is still claimable | Labor-specific gate (slot gate is on `Job`) |
+| `on_end(success, actor, leg, job, elapsed) → void` | `_end_job()` (finish, abort, or claim-path release) | — | Cleanup: return carried items, persist partial progress. `leg` is null on a claim-path release. |
+| `is_available(job) → bool` | `Job.is_available()` (via `try_assign` + selection) | Whether the job is claimable | Labor-specific gate (slot gate is on `Job`) |
+| `should_close(job) → bool` | `Job.should_close()` (AI removal + board prune) | Whether the job is dead | Lifetime gate, independent of claimability — a drought-waiting haul job stays registered. Base default: `not is_available`. |
+| `job_complete(job) → bool` | `_advance()` on a null leg | Whether a null leg is a clean finish | Drives success/XP vs. stall (log line, no XP) |
 
 **Colonist members used by the job pipeline:**
 
@@ -156,8 +160,10 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 | `get_next_leg(actor, job) → JobLeg` | The next leg for this colonist, or null when it has no further work. Base default null (finish immediately). |
 | `begin(actor, leg, job) → float` | This leg's work duration (0 = instant → `complete` same tick). Divide by `skill_set.get_multiplier(labor_id)` for skill-scaled work. Base default 0.0. |
 | `complete(actor, leg, job) → void` | Apply this leg's effect. Base default no-op. |
-| `on_end(success, actor, leg, job, elapsed) → void` | Cleanup when a colonist leaves (finish or abort). Base default no-op. |
-| `is_available(job) → bool` | Labor-specific acceptability gate (e.g. hauling: sink unsatisfied + source in stock). Base default true. |
+| `on_end(success, actor, leg, job, elapsed) → void` | Cleanup when a colonist leaves (finish, abort, or claim-path release — `leg` may be null there). Base default no-op. |
+| `is_available(job) → bool` | Labor-specific claimability gate (e.g. hauling: sink valid + unsatisfied + a crate stocks a needed item). Base default true. |
+| `should_close(job) → bool` | Whether the job is dead (leave the board) — independent of claimability so a temporarily-unclaimable job can stay registered (hauling's drought persistence). Base default `not is_available`. |
+| `job_complete(job) → bool` | Whether a null `get_next_leg` is a clean finish (success/XP) versus a stall (e.g. a hauler that drained every crate). Base default true. |
 | `meets_requirements(actor, job) → bool` | Every `conditions` entry `is_met(actor, job.target_node)` — actor-inherent facts only; world facts a def can check go in `get_next_leg`/`is_available` instead (a def-level tool condition would lock out the colonists its FETCH_TOOL leg exists for). Base default true. |
 
 ### Class: JobLeg
@@ -194,10 +200,12 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 
 | Function | Description |
 |---|---|
-| `get_next_leg(actor, job) → JobLeg` | sink gone/satisfied → null; carrying a needed material → DELIVER; else FETCH from the nearest source crate (`registry.find_source`), or null if no source. |
+| `get_next_leg(actor, job) → JobLeg` | sink gone/satisfied → null; carrying a needed material → DELIVER; else FETCH from the nearest source crate (`registry.find_source`), or null if no source (drought — the job stays registered). |
 | `complete(actor, leg, job) → void` | FETCH: `crate.transfer_to(colonist.inventory, id, sink.remaining_need(id))` per still-needed item (skips if the sink became satisfied en route). DELIVER: `sink.deposit_from(actor)`. |
 | `on_end(success, actor, leg, job, elapsed) → void` | Return any surplus on the colonist to the nearest crate (`registry.nearest_crate`) — except tool-tagged items (`ItemDef.tags`), which stay with the colonist. |
-| `is_available(job) → bool` | sink valid, unsatisfied, and some crate holds a needed material. |
+| `is_available(job) → bool` | Claimability: sink valid, unsatisfied, and some crate holds a needed material. |
+| `should_close(job) → bool` | Lifetime: close only when the sink is gone or satisfied — a source drought keeps the job registered (unclaimable, invisible to selection) until restock. |
+| `job_complete(job) → bool` | True only when the sink crossed `has_complete_materials` — a drought null leg is a stall, not a finish. |
 
 ### Class: Job
 
@@ -230,8 +238,8 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 | `try_assign(colonist) → bool` | Join (checks `is_available` + not-already-assigned + `meets_requirements`). Pull, not push. |
 | `unassign(colonist) → void` | Leave (leg exhaustion or abort). |
 | `is_assigned(id) → bool` / `clear_assigned() → void` | Membership check / release all (used by the failure path). |
-| `is_available() → bool` | `_assigned < max_assignees && def.is_available(self)` — the slot gate AND the labor-specific gate. |
-| `should_close() → bool` | `_assigned.is_empty() && !is_available()` — the job should leave the board. |
+| `is_available() → bool` | `_assigned < max_assignees && def.is_available(self)` — the slot gate AND the labor-specific claimability gate. |
+| `should_close() → bool` | `_assigned.is_empty() && def.should_close(self)` — the job is dead and should leave the board (def-less jobs fall back to `!is_available()`). |
 
 ### Class: JobBoard
 
@@ -251,8 +259,8 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 | `remove_job(job_id) → void` | Drop by id. |
 | `get_job` / `has_jobs` / `get_jobs` | Inspection / debug / future UI. |
 | `get_best_job_for(colonist) → Job` | First `_prune_dead_jobs()`, then best `is_available()` job whose Labor is enabled (highest priority, nearest) and whose def `meets_requirements(colonist, job)` holds. Does NOT assign. |
-| `_prune_dead_jobs() → void` | Drop jobs that are `!is_available() && unassigned` (no-source haul, satisfied-but-drained, cancelled). |
-| `fail(job_id, reason) → void` | Record a failure: increment `failure_count`, clear assignees, emit `job_failed`, relay `job_logged`; auto-remove at `_MAX_FAILURES` (3). (Failure path not driven from the leg loop yet — the prune handles haul's no-source removal.) |
+| `_prune_dead_jobs() → void` | Drop unassigned `should_close()` jobs (satisfied, cancelled, invalid). Drought-waiting haul jobs survive — their def keeps them registered until restock. |
+| `fail(job_id, reason) → void` | Record a failure: increment `failure_count`, clear assignees, emit `job_failed`, relay `job_logged`; auto-remove at `_MAX_FAILURES` (3). Driven by `ColonistAI` on aborts (freed target, unreachable leg); stalls (haul droughts) don't count. |
 
 ### Class: StorageRegistry
 

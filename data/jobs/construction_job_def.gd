@@ -71,10 +71,12 @@ func complete(actor: Node, leg: JobLeg, _job: Job) -> void:
 
 ## On an abort (blueprint cancelled/freed mid-build), persist the partial WORK
 ## time so a later attempt — colonist or player — resumes from here instead of
-## restarting. No-op on a clean finish (complete already reset work_done) or when
-## the blueprint is already gone (nothing to persist).
+## restarting. No-op on a clean finish (complete already reset work_done), when
+## the blueprint is already gone (nothing to persist), or when the colonist was
+## released before receiving a leg (claim-path miss — leg is null, no progress
+## to persist).
 func on_end(success: bool, _actor: Node, leg: JobLeg, _job: Job, elapsed: float) -> void:
-	if success:
+	if success or leg == null:
 		return
 	var bp := leg.target_node as Blueprint
 	if is_instance_valid(bp):

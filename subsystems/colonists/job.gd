@@ -10,9 +10,10 @@ class_name Job
 ##
 ## Multi-assign: up to `max_assignees` colonists may work one Job at once. A
 ## colonist leaving (leg exhaustion or abort) calls unassign; the Job leaves the
-## board only when should_close() — no assignees left AND not accepting more
-## (e.g. a haul job whose blueprint is now satisfied, or one that lost its source
-## crate). So one colonist finishing ≠ job done.
+## board only when should_close() — no assignees left AND the def considers it
+## dead (e.g. a haul job whose blueprint is now satisfied or was cancelled; a
+## source drought deliberately outlives this check — see HaulingJobDef).
+## So one colonist finishing ≠ job done.
 ##
 ## Sprint scope: def/labor_id/anchor_cell/location/title/target_node are
 ## exercised by construction + hauling. base_rate remains forward-compat for the
@@ -117,11 +118,17 @@ func is_available() -> bool:
 	return _assigned_colonists.size() < max_assignees and (def == null or def.is_available(self))
 
 
-## True when the job should leave the board: no colonists left AND it can't
-## accept more (satisfied, cancelled, or unsatisfiable). Called by ColonistAI
-## after unassign; if true, the AI removes the job from the JobBoard.
+## True when the job should leave the board: no colonists left AND the def
+## says it's dead (satisfied, cancelled, or unsatisfiable — defs may keep a
+## temporarily-unclaimable job registered, e.g. a haul job waiting for restock;
+## def-less jobs fall back to the not-accepting-more check). Called by
+## ColonistAI after unassign and by the board's prune.
 func should_close() -> bool:
-	return _assigned_colonists.is_empty() and not is_available()
+	if not _assigned_colonists.is_empty():
+		return false
+	if def != null:
+		return def.should_close(self)
+	return not is_available()
 
 
 func _to_string() -> String:

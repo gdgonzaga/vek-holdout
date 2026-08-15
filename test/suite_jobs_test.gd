@@ -145,6 +145,118 @@ func test_hauling_fetches_for_any_material_sink() -> void:
 	assert_object(leg.target_node).is_same(crate)
 
 
+# ── Drought persistence (job lifetime vs claimability) ────────────────────────
+
+func test_haul_job_survives_source_drought() -> void:
+	var sink := FakeSink.new()
+	auto_free(sink)
+	add_child(sink)
+	_make_crate(0) # drought: no crate stocks a needed material
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	# Unclaimable while the drought lasts (selection skips it)…
+	assert_bool(HAULING_DEF.is_available(job)).is_false()
+	# …but not dead: the job stays registered waiting for restock, and the
+	# stalled run is not a completion.
+	assert_bool(HAULING_DEF.should_close(job)).is_false()
+	assert_bool(HAULING_DEF.job_complete(job)).is_false()
+
+
+func test_restock_makes_drought_haul_job_claimable_again() -> void:
+	var sink := FakeSink.new()
+	auto_free(sink)
+	add_child(sink)
+	var crate := _make_crate(0)
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	_test_registry.inventory_of(crate).add("plank", 2)
+	assert_bool(HAULING_DEF.is_available(job)).is_true()
+	assert_bool(HAULING_DEF.should_close(job)).is_false()
+
+
+func test_haul_job_closes_when_satisfied_or_sink_gone() -> void:
+	var sink := FakeSink.new()
+	auto_free(sink)
+	add_child(sink)
+	sink.satisfied = true
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	assert_bool(HAULING_DEF.should_close(job)).is_true()
+	assert_bool(HAULING_DEF.job_complete(job)).is_true()
+	job.target_node = null
+	assert_bool(HAULING_DEF.should_close(job)).is_true()
+	assert_bool(HAULING_DEF.job_complete(job)).is_false()
+
+
+func test_default_def_should_close_mirrors_is_available() -> void:
+	var def := _make_def("hauling", [])
+	var job := Job.from_def(def)
+	assert_bool(def.is_available(job)).is_true()
+	assert_bool(def.should_close(job)).is_false()
+	assert_bool(def.job_complete(job)).is_true()
+
+
+func test_board_keeps_drought_haul_job_through_prune_until_restock() -> void:
+	var colonist := _make_colonist()
+	var crate := _make_crate(0)
+	var sink := FakeSink.new()
+	auto_free(sink)
+	add_child(sink)
+	var board := JobBoard.new()
+	auto_free(board)
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	job.location = Vector3.ZERO
+	board.add_job(job)
+	# Selection skips the drought job (the poll prunes first)…
+	assert_object(board.get_best_job_for(colonist)).is_null()
+	# …but the prune must not delete it — it waits on the board for restock.
+	assert_object(board.get_job(job.id)).is_not_null()
+	# A restocked crate flips it claimable; the next poll picks it up.
+	_test_registry.inventory_of(crate).add("plank", 5)
+	assert_object(board.get_best_job_for(colonist)).is_same(job)
+
+
+func test_job_should_close_waits_for_last_assignee() -> void:
+	var colonist := _make_colonist()
+	_make_crate(5)
+	var sink := FakeSink.new()
+	auto_free(sink)
+	add_child(sink)
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	assert_bool(job.try_assign(colonist)).is_true()
+	# The sink satisfies mid-run (a parallel hauler's DELIVER crossed it).
+	sink.satisfied = true
+	assert_bool(job.should_close()).is_false() # assignee still draining
+	job.unassign(colonist)
+	assert_bool(job.should_close()).is_true()
+
+
+# ── Producer decision ─────────────────────────────────────────────────────────
+
+func test_producer_spawns_haul_job_with_zero_stock() -> void:
+	# A material'd blueprint spawns a haul job even when NO crate stocks the
+	# needed material — the job drought-waits on the board instead of building
+	# without materials. workbench costs 15 planks (data/furniture/workbench.tres).
+	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
+	bp.target_def_id = "workbench"
+	_make_crate(0)
+	var anchor := Vector3i(1, 2, 3)
+	Colony._on_blueprint_placed("workbench", anchor, bp)
+	var spawned: Job = null
+	for j in Colony.job_board.get_jobs():
+		if j.anchor_cell == anchor:
+			spawned = j
+			break
+	assert_object(spawned).is_not_null()
+	assert_str(spawned.labor_id).is_equal("hauling")
+	assert_bool(spawned.should_close()).is_false() # drought-waiting, not dead
+	# Cleanup: _on_blueprint_removed drops jobs by anchor (the real board).
+	Colony._on_blueprint_removed("workbench", anchor)
+	assert_object(Colony.job_board.get_job(spawned.id)).is_null()
+
+
 # ── Tool retention ────────────────────────────────────────────────────────────
 
 func test_on_end_dumps_materials_but_keeps_tools() -> void:
@@ -189,9 +301,12 @@ func test_furniture_deserialize_without_state_key() -> void:
 
 # ── Test doubles ──────────────────────────────────────────────────────────────
 
-## Minimal non-Blueprint MaterialSink: owes 3 planks forever (deposit_from is
-## never exercised here — only the FETCH decision path reads it).
+## Minimal non-Blueprint MaterialSink: owes 3 planks until `satisfied` flips
+## (deposit_from is never exercised here — only the FETCH decision path and the
+## lifetime gates read it).
 class FakeSink extends Node:
+	var satisfied := false
+
 	func needed_item_ids() -> Array[String]:
 		return ["plank"]
 
@@ -202,4 +317,4 @@ class FakeSink extends Node:
 		return 0
 
 	func has_complete_materials() -> bool:
-		return false
+		return satisfied

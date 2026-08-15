@@ -16,8 +16,9 @@ class_name ColonistAI
 ##
 ## Multi-assign: this colonist joins a job that may have other colonists too
 ## (hauling). When this colonist is done with its legs (or aborts), it unassigns;
-## the job leaves the board only when should_close() — no assignees left AND not
-## accepting more — so one colonist finishing ≠ job done.
+## the job leaves the board only when should_close() — no assignees left AND the
+## def considers it dead (a drought-waiting haul job stays registered) — so one
+## colonist finishing ≠ job done.
 
 enum State {IDLE, MOVE, WORK}
 
@@ -47,7 +48,7 @@ func _process(delta: float) -> void:
 			# Freed-target guard: if the current leg's node vanished while we
 			# walked (crate destroyed, blueprint cancelled), abort cleanly.
 			if _leg != null and _leg.target_node != null and not is_instance_valid(_leg.target_node):
-				_end_job(false)
+				_abort_job("leg target freed")
 				return
 			if _colonist.has_arrived():
 				_begin_work()
@@ -70,17 +71,25 @@ func _try_claim_and_path() -> void:
 	_colonist.current_job = job
 	var leg: JobLeg = job.def.get_next_leg(_colonist, job) if job.def != null else null
 	if leg == null:
-		# Available but nothing for us right now (e.g. source race). Release.
+		# Available but nothing for us right now (e.g. a source race, or carried
+		# items clogging capacity). Release — running on_end first so def-side
+		# cleanup fires (hauling's surplus dump clears the clog; _end_job skips
+		# the no-leg path by design). The leg is null by contract here.
+		if job.def != null:
+			job.def.on_end(false, _colonist, null, job, 0.0)
 		job.unassign(_colonist)
 		_colonist.current_job = null
 		return
 	var path := _path_for_leg(leg)
 	if path.is_empty():
-		# No reachable adjacent cell — release without penalty and let a later
-		# poll retry. (True-unreachable thrash is a known MVP gap; the flat base
-		# map always has a path.)
+		# No reachable adjacent cell — release and record a failure: three
+		# failures auto-remove the job, bounding the claim→release thrash the
+		# flat-base-map MVP previously tolerated.
+		if job.def != null:
+			job.def.on_end(false, _colonist, null, job, 0.0)
 		job.unassign(_colonist)
 		_colonist.current_job = null
+		Colony.job_board.fail(job.id, "no reachable cell")
 		return
 	_leg = leg
 	_colonist.set_path(path)
@@ -111,7 +120,7 @@ func _tick_work(delta: float) -> void:
 		_end_job(false)
 		return
 	if _leg.target_node != null and not is_instance_valid(_leg.target_node):
-		_end_job(false)
+		_abort_job("work target freed")
 		return
 	_work_elapsed += delta
 	if _work_elapsed >= _work_duration:
@@ -121,7 +130,10 @@ func _tick_work(delta: float) -> void:
 
 ## After a leg's complete: ask the def for the next leg. If there is one, re-path
 ## and keep moving (legs are how a hauler loops crate→blueprint→crate…). If not,
-## this colonist is done with the job. An unreachable next leg aborts the job.
+## this colonist is done with the job — cleanly only when the def says the job
+## itself is complete; a stall short of completion (a hauler that drained every
+## crate below the sink's need) is logged, not booked as success. An unreachable
+## next leg aborts the job.
 func _advance() -> void:
 	var job := _colonist.current_job
 	if job == null or job.def == null:
@@ -129,11 +141,14 @@ func _advance() -> void:
 		return
 	var leg: JobLeg = job.def.get_next_leg(_colonist, job)
 	if leg == null:
-		_end_job(true)
+		var finished: bool = job.def.job_complete(job)
+		if not finished:
+			GameLog.colony("%s stalled — waiting for materials" % job.title)
+		_end_job(finished)
 		return
 	var path := _path_for_leg(leg)
 	if path.is_empty():
-		_end_job(false) # next leg unreachable — give the job up for this colonist
+		_abort_job("next leg unreachable") # give the job up for this colonist
 		return
 	_leg = leg
 	_colonist.set_path(path)
@@ -154,11 +169,25 @@ func _path_for_leg(leg: JobLeg) -> Array[Vector3]:
 			_colonist.global_position, leg.location)
 
 
+## Abort the current job (leg target freed, leg unreachable): run the normal
+## end-of-job cleanup first — on_end must still return carried items and
+## persist partial progress — then record a failure on the board (failure
+## counter + job_logged; auto-removes at _MAX_FAILURES). A no-op fail for a
+## job _end_job already removed. Multi-assign note: fail clears the remaining
+## assignees too; their own AI loops self-correct on their next tick.
+func _abort_job(reason: String) -> void:
+	var job := _colonist.current_job
+	_end_job(false)
+	if job != null:
+		Colony.job_board.fail(job.id, reason)
+
+
 ## This colonist is leaving the job (clean finish when get_next_leg returned
-## null, or abort when the target freed / a leg was unreachable). Run the def's
-## on_end cleanup (return carried items, persist partial progress), unassign,
-## and remove the job from the board iff it should now close (last assignee out
-## AND not accepting more). Then return to the idle poll.
+## null and the def reports the job complete, or abort when the target freed /
+## a leg was unreachable). Run the def's on_end cleanup (return carried items,
+## persist partial progress), unassign, and remove the job from the board iff it
+## should now close (last assignee out AND the def says dead). Then return to
+## the idle poll.
 func _end_job(success: bool) -> void:
 	var job := _colonist.current_job
 	if job != null:

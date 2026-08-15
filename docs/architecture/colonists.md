@@ -50,9 +50,9 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 |---|---|
 | `on_map_wired(container, spawn_positions) → void` | Empty roster → spawn one colonist per `ColonistSpawn` marker (up to `MVP_CAP`); non-empty → reparent existing nodes into the new map. |
 | `add_colonist` / `remove_colonist` | Recruit / drop a colonist (post-MVP / death). |
-| `_on_blueprint_placed(target_def_id, anchor, blueprint) → void` | Decide haul-vs-construct (unmet material_cost + source in stock → haul; else construction), bind + add the Job. See [Jobs](jobs.md). |
+| `_on_blueprint_placed(target_def_id, anchor, blueprint) → void` | Decide haul-vs-construct (any unmet material_cost → haul, regardless of stock — the job drought-waits until crates can satisfy it; else construction), bind + add the Job. See [Jobs](jobs.md). |
 | `_on_blueprint_materials_ready(target_def_id, anchor, blueprint) → void` | Materials crossed complete (player or hauler deposit) → `_spawn_construction_job`. |
-| `_spawn_construction_job(target_def_id, anchor, blueprint) → void` | Build + add a construction Job, deduped by anchor (the no-source producer path and a later deposit can both target one blueprint). |
+| `_spawn_construction_job(target_def_id, anchor, blueprint) → void` | Build + add a construction Job, deduped by anchor (defensive against a duplicate `blueprint_materials_ready`). |
 | `_on_blueprint_removed(target_def_id, anchor) → void` | Removes any Job targeting that anchor (fires on cancel and completion). Idempotent. |
 
 ### Class: Colonist
@@ -106,11 +106,12 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 
 | Function | Description |
 |---|---|
-| `_try_claim_and_path() → void` | IDLE tick: select + assign + leg 0 + path (→ MOVE), or release + stay IDLE. |
+| `_try_claim_and_path() → void` | IDLE tick: select + assign + leg 0 + path (→ MOVE), or release + stay IDLE. A null leg-0 runs `def.on_end` (null leg) before releasing (hauling's clog self-heal); an unreachable leg-0 records a `JobBoard.fail`. |
 | `_begin_work() → void` | MOVE arrival: `def.begin`; instant (≤0) → `complete` + `_advance`, else → WORK. |
-| `_tick_work(delta) → void` | WORK tick: accumulate; on elapse `complete` + `_advance`; abort if target freed. |
-| `_advance() → void` | Pull the next leg via `def.get_next_leg`; re-path → MOVE, or `_end_job(true)` on null / `_end_job(false)` if the next leg is unreachable. |
-| `_end_job(success) → void` | Leave the job: `def.on_end` cleanup (return carried items, persist partial progress), `unassign`, `should_close()`→`remove_job`, → IDLE. |
+| `_tick_work(delta) → void` | WORK tick: accumulate; on elapse `complete` + `_advance`; `_abort_job` if the target freed. |
+| `_advance() → void` | Pull the next leg via `def.get_next_leg`; re-path → MOVE. Null → `_end_job(def.job_complete(job))` — a stall (drought hauler) logs "waiting for materials" and skips skill XP; an unreachable next leg `_abort_job`s. |
+| `_abort_job(reason) → void` | `_end_job(false)` (on_end cleanup, unassign, maybe remove) then `JobBoard.fail(job.id, reason)` — the failure counter / auto-remove path. |
+| `_end_job(success) → void` | Leave the job: `def.on_end` cleanup (return carried items, persist partial progress), `unassign`, `should_close()` (def-level — drought-waiting haul jobs survive) →`remove_job`, → IDLE. |
 
 ### Class: VoxelPathfinder
 

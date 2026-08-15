@@ -10,7 +10,8 @@ class_name JobBoard
 ##
 ## Lifecycle (multi-assign):
 ##   add_job → (get_best_job_for → Job.try_assign → … → Job.unassign) → remove_job
-##   └→ _prune_dead_jobs sweeps !is_available && unassigned jobs during selection
+##   └→ _prune_dead_jobs sweeps should_close() jobs during selection
+##      (drought-persistent haul jobs survive — see JobDef.should_close)
 ##
 ## Signals: job_failed is local (board-internal + direct listeners). Only
 ## job_logged is relayed through EventBus (ARCH signals table), to the Job Log.
@@ -59,9 +60,11 @@ func get_jobs() -> Array[Job]:
 ## Does NOT assign — call Job.try_assign to join (it re-checks requirements as
 ## the authoritative gate).
 ##
-## First prunes dead jobs (no assignees AND not accepting more) so a no-source
-## haul job, a satisfied-but-drained one, or a cancelled one can't linger and
-## starve selection.
+## First prunes dead jobs (no assignees AND the def says close — satisfied,
+## cancelled, or invalid) so they can't linger and starve selection. A
+## source-drought haul job is NOT dead: selection skips it via is_available
+## while JobDef.should_close keeps it registered, and a restocked crate makes
+## it claimable again on a later poll.
 func get_best_job_for(colonist: Colonist) -> Job:
 	_prune_dead_jobs()
 	var best: Job = null
@@ -89,17 +92,18 @@ func get_best_job_for(colonist: Colonist) -> Job:
 	return best
 
 
-## Drop jobs that can no longer be worked and have no assignees to drain them
-## (a haul job whose source dried up, one whose target was satisfied/cancelled,
-## etc.). Called at the top of get_best_job_for. Iterates a snapshot since it
-## mutates _jobs.
+## Drop dead jobs that have no assignees left to drain them (a haul job whose
+## target was satisfied, cancelled, or freed — anything JobDef.should_close
+## reports). Called at the top of get_best_job_for. Iterates a snapshot since
+## it mutates _jobs. Source-drought haul jobs survive here by design: their def
+## keeps them registered (unclaimable, not dead) until restock or removal.
 func _prune_dead_jobs() -> void:
 	if _jobs.is_empty():
 		return
 	var dead: Array[String] = []
 	for job_id in _jobs:
 		var job: Job = _jobs[job_id]
-		if job._assigned_colonists.is_empty() and not job.is_available():
+		if job.should_close():
 			dead.append(job_id)
 	for job_id in dead:
 		_jobs.erase(job_id)
@@ -107,9 +111,9 @@ func _prune_dead_jobs() -> void:
 
 ## Record a failure: increment the count, release any assignees, emit job_failed
 ## locally, and relay a job_logged entry through EventBus. Auto-removes the job
-## once it hits _MAX_FAILURES. (Currently no caller wires the failure path into
-## the leg loop — the dead-job prune handles removal for haul's no-source case.
-## Kept as the documented failure-handling seam.)
+## once it hits _MAX_FAILURES. Called by ColonistAI on aborts (freed leg target,
+## unreachable leg) — a stalled-but-alive job (a haul drought waiting for
+## restock) deliberately does not route here: fail counts toward removal.
 func fail(job_id: String, reason: String) -> void:
 	var job: Job = _jobs.get(job_id)
 	if job == null:

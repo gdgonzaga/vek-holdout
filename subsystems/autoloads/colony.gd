@@ -29,9 +29,9 @@ var storage_registry: StorageRegistry
 const MVP_CAP := 5  # Roster capacity (ARCH "max 5 in MVP").
 
 # JobDefs: every placed blueprint becomes a Job from one of these. A blueprint
-# with an unsatisfied material_cost whose source is in stock → HAULING_DEF (the
-# job loops FETCH/DELIVER until satisfied); otherwise → CONSTRUCTION_DEF (builds
-# directly — costless, pre-satisfied, or no source available).
+# with an unsatisfied material_cost → HAULING_DEF (the job loops FETCH/DELIVER
+# until satisfied and persists through source droughts — zero-stock blueprints
+# simply wait for stock); costless / pre-satisfied → CONSTRUCTION_DEF directly.
 const CONSTRUCTION_DEF := preload("res://data/jobs/construction.tres")
 const HAULING_DEF := preload("res://data/jobs/hauling.tres")
 
@@ -102,22 +102,23 @@ func remove_colonist(colonist_id: String) -> void:
 
 
 ## BlueprintLayer -> EventBus -> here. Decide haul-vs-construct:
-##   - blueprint has an unsatisfied material_cost (needed_item_ids non-empty) AND
-##     a crate stocks one of those items → spawn a HAUL job (haulers loop
-##     FETCH/DELIVER until the blueprint's deposit_from crosses
-##     has_complete_materials, which emits blueprint_materials_ready →
-##     _spawn_construction_job).
-##   - otherwise (costless, already satisfied, or no source available) → spawn a
-##     construction job directly. No-source builds anyway (today's behaviour);
-##     the materials gate only bites when stock exists (documented MVP gap).
+##   - blueprint has an unsatisfied material_cost (needed_item_ids non-empty) →
+##     spawn a HAUL job, regardless of current stock: haulers loop FETCH/DELIVER
+##     until the blueprint's deposit_from crosses has_complete_materials, which
+##     emits blueprint_materials_ready → _spawn_construction_job. While no crate
+##     stocks a needed material the job waits on the board (unclaimable but not
+##     dead — HaulingJobDef.should_close), so a later restock resumes hauling
+##     without any new producer event.
+##   - otherwise (costless or already satisfied) → spawn a construction job
+##     directly.
 func _on_blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
 	var bp := blueprint as Blueprint
 	if bp != null:
 		var needed := bp.needed_item_ids()
-		# Unsatisfied material_cost with a stocking crate → haul. Else build now
-		# (costless / pre-satisfied / no source — no-source builds anyway, the
-		# documented MVP gap; blueprint_materials_ready self-heals if stock arrives).
-		if not needed.is_empty() and storage_registry.has_source_for(needed):
+		# Any unsatisfied material_cost → haul (the job drought-waits on the
+		# board until storage can satisfy it). Else build now (costless /
+		# pre-satisfied).
+		if not needed.is_empty():
 			var job := Job.from_def(HAULING_DEF)
 			job.title = "Haul materials for %s" % target_def_id
 			job.anchor_cell = anchor
@@ -132,8 +133,8 @@ func _on_blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: No
 ## exactly once when a blueprint's materials cross has_complete_materials (player
 ## AddMaterials or a hauler's DELIVER leg — both go through deposit_from). Spawns
 ## the construction job that the haul run was feeding. Guarded against a
-## duplicate: a material'd blueprint may already have a construction job from the
-## producer's no-source fallback above.
+## duplicate (defensive — the signal is single-fire per blueprint, and the
+## producer no longer spawns construction for material'd blueprints).
 func _on_blueprint_materials_ready(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
 	_spawn_construction_job(target_def_id, anchor, blueprint)
 
