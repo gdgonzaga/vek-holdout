@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-08-14 (multi-leg jobs + hauling: JobLeg + JobDef leg behaviour, multi-assign Job/JobBoard, HaulingJobDef + StorageRegistry, colonist carry inventory, construction chained off blueprint_materials_ready; Colonists/Data-Schemas/Inventory pages synced)
+Last updated: 2026-08-15 (job-system extension foundations built: JobDef requirement gating (conditions + meets_requirements), MaterialSink duck-typed haul contract, ItemDef tags + tool retention, Furniture state bag, and Skills live — SkillSet/skills.tres with XP on job success and skill-scaled construction; tests in test/. Planned features remain in Job System Extensions. Prior: multi-leg jobs + hauling — JobLeg + JobDef leg behaviour, multi-assign Job/JobBoard, HaulingJobDef + StorageRegistry, colonist carry inventory, construction chained off blueprint_materials_ready)
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
@@ -23,7 +23,8 @@ Last updated: 2026-08-14 (multi-leg jobs + hauling: JobLeg + JobDef leg behaviou
 | [Build](build.md) | Blueprint mode, BuildLibrary, ghost preview, furniture layer | §7.4 |
 | [Actions & Interaction](actions.md) | E-key menu, GameAction/Condition/ActionOption chain | §4 |
 | [Functional Rooms](functional-rooms.md) | Furniture-count tracking, capability unlocks | §7.8 |
-| [Colonists](colonists.md) | Roster, Job Board, labor AI, raid stances | §6 |
+| [Colonists](colonists.md) | Roster, labor AI, raid stances | §6 |
+| [Jobs](jobs.md) | Job Board, hauling, construction, JobDef contract | §6 |
 | [Skills](skills.md) | Per-entity L1–L5 progression, work-speed multipliers | §6.3 |
 | [Combat](combat.md) | Durability-before-HP, weapons, enemy archetypes | §6.11 |
 | [Equipment & Loadouts](equipment.md) | 8-slot gear, auto-equip/unequip, templates | §17 |

@@ -20,6 +20,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 | `subsystems/actions/any_of.gd` | Script (Resource) | Condition composite — true if any child `is_met`. |
 | `subsystems/actions/all_of.gd` | Script (Resource) | Condition composite — true only if all children `is_met` (redundant inside an option, which already ANDs its conditions). |
 | `subsystems/actions/not.gd` | Script (Resource) | Condition composite (`class_name NotCondition`) — inverts a single child `condition`. |
+| `../data/conditions/` | Script (Resource) | Leaf conditions — `CanCarryDispensedItems` (dispenser pickup capacity check), `MinSkillCondition` + `HasItemCondition` (actor gates, shared with `JobDef.conditions`). |
 | `../ui/interaction/interaction_ui.tscn` / `.gd` | Scene/Script | Pop-up `Control` (Label + button list). Built by `InteractionComponent`; one `Button` per `ActionOption`. See [UI](ui.md). |
 | `../data/actions/` | Data | `GameAction` subclasses + their `.tres`. Currently only `print_action.gd` / `print_action.tres` (a smoke test). See [Data Schemas](data-schemas.md). |
 | `../data/actions/options/` | Data *(planned — directory does not exist yet)* | `ActionOption` `.tres` resources. Path is cited in `furniture_def.gd` as the intended location. |
@@ -97,14 +98,14 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 
 **Extends:** Resource
 **Script:** `subsystems/actions/condition.gd`
-**Description:** Base class for option gating. Subclasses (or the composites below) override `is_met`. No leaf condition (e.g. `HasItem`) exists yet — only the three composites.
-**Used by:** `ActionOption.conditions`.
+**Description:** Base class for option gating. Subclasses (the composites below, or the leaves in `data/conditions/`) override `is_met`.
+**Used by:** `ActionOption.conditions`, and — re-evaluated hot every poll — `JobDef.conditions` (see [Jobs](jobs.md)).
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `is_met(actor: Node, target: Node) -> bool` | Virtual — default `true`. ANDed by `ActionOption.is_available`. |
+| `is_met(actor: Node, target: Node) -> bool` | Virtual — default `true`. ANDed by `ActionOption.is_available` / `JobDef.meets_requirements`. |
 
 ### Class: ActionOption
 
@@ -146,6 +147,20 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 **Script:** `subsystems/actions/not.gd` (note: filename `not.gd`, class `NotCondition`)
 **Description:** Condition composite — inverts a single child.
 **Properties:** `condition: Condition` `[export]`.
+
+### Class: MinSkillCondition
+
+**Extends:** Condition
+**Script:** `data/conditions/min_skill_condition.gd`
+**Description:** Leaf — actor's `skill_set` is at least `min_level` in `skill_id` (see [Skills](skills.md)). Fails closed when the actor has no SkillSet component.
+**Properties:** `skill_id: String`, `min_level: int` (`[export default 1]` — the regular-job L1 gate).
+
+### Class: HasItemCondition
+
+**Extends:** Condition
+**Script:** `data/conditions/has_item_condition.gd`
+**Description:** Leaf — actor carries `count` of an item, by exact `item_id` or by `item_tag` (any item whose `ItemDef.tags` match; id wins when both are set; both empty fails closed). Fails closed when the actor has no inventory.
+**Properties:** `item_id: String`, `item_tag: String`, `count: int` (`[export default 1]`).
 
 ## Authoring
 

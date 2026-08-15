@@ -36,17 +36,25 @@ func get_next_leg(_actor: Node, job: Job) -> JobLeg:
 	return leg
 
 
-## build_time read from the target's BuildableDef; 0.0 (instant) if the target
-## is not a Blueprint or its def is unknown. Matches BuildAction's duration
-## resolution so player and colonist builds take the same time for a given def.
-func begin(_actor: Node, leg: JobLeg, _job: Job) -> float:
+## build_time read from the target's BuildableDef, divided by the builder's
+## skill multiplier for this def's labor (SkillSet.get_multiplier; 1.0 for an
+## unskilled actor — the effective-rate seam from GDD §6, stamina factor still
+## deferred). 0.0 (instant) if the target is not a Blueprint or its def is
+## unknown. Matches BuildAction's duration resolution so player and colonist
+## builds take the same time for a given def at L1.
+func begin(actor: Node, leg: JobLeg, _job: Job) -> float:
 	if leg.target_node == null:
 		return 0.0
 	var bp := leg.target_node as Blueprint
 	if bp == null:
 		return 0.0
 	var def := BuildLibrary.get_def(bp.target_def_id)
-	return def.build_time if def != null else 0.0
+	if def == null:
+		return 0.0
+	var colonist := actor as Colonist
+	if colonist == null or colonist.skill_set == null:
+		return def.build_time
+	return def.build_time / colonist.skill_set.get_multiplier(labor_id)
 
 
 ## Materialize the blueprint. Resets work_done on success so a later rebuild of

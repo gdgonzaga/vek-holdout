@@ -73,6 +73,20 @@ func given_count(item_id: String) -> int:
 	return _given.get(item_id, 0)
 
 
+## Units of `item_id` still owed on the target's material_cost (its cost entry
+## minus _given); 0 for items not in the cost. Part of the MaterialSink
+## contract (see material_sink.gd) — hauling reads need through this instead of
+## reaching into material_cost + given_count itself.
+func remaining_need(item_id: String) -> int:
+	var def := _target_def()
+	if def == null:
+		return 0
+	for entry in def.material_cost:
+		if entry.item_def.id == item_id:
+			return maxi(0, entry.count - int(_given.get(item_id, 0)))
+	return 0
+
+
 ## item_ids whose material_cost entry isn't yet fully deposited (material_cost
 ## minus _given) — i.e. what hauling still needs to fetch for this blueprint.
 ## Empty for a costless or already-satisfied blueprint. Single source of truth

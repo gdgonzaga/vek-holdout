@@ -17,6 +17,13 @@ extends Node3D
 ## propagate to already-placed instances without respawning.
 var def: BuildableDef = null
 
+## Per-instance capability state bag: { component-owned key: saved value }.
+## Capability components (StorageInventory today via its own serialize; the
+## planned Growable/CraftingStation) read/write their keys here so
+## Furniture.serialize never grows a branch per component. Empty for plain
+## furniture; round-trips below.
+var state: Dictionary = {}
+
 ## Human-readable label for menus/HUD. Computed from the def via getter so the
 ## UI never references def directly.
 @export var label: String:
@@ -51,21 +58,26 @@ func get_footprint_cells() -> Array[Vector3i]:
 # FurnitureLayer.serialize). `storage` captures the per-instance contents of a
 # storage-capable piece (crate/shelf) via its StorageInventory child.
 
-## Snapshot the canonical def id plus, when present, the StorageInventory
-## child's item stacks. Non-storage furniture returns storage = null.
+## Snapshot the canonical def id, the capability state bag, plus, when present,
+## the StorageInventory child's item stacks. Non-storage furniture returns
+## storage = null.
 func serialize() -> Dictionary:
 	var storage = get_node_or_null("StorageInventory") as StorageInventory
 	return {
 		"def_id": def_id,
 		"storage": storage.serialize() if storage != null else null,
+		"state": state.duplicate(true),
 	}
 
 
-## Restore def_id and, when a StorageInventory child exists and the data carries
-## a storage block, its contents. Safe to call right after FurnitureLayer.spawn
-## (which creates the StorageInventory child) as well as standalone.
+## Restore def_id, the capability state bag, and, when a StorageInventory child
+## exists and the data carries a storage block, its contents. Safe to call
+## right after FurnitureLayer.spawn (which creates the StorageInventory child)
+## as well as standalone.
 func deserialize(data: Dictionary) -> void:
 	def_id = data.get("def_id", def_id)
+	var saved_state: Dictionary = data.get("state", {})
+	state = saved_state.duplicate(true)
 	var storage_data: Variant = data.get("storage", null)
 	if storage_data == null:
 		return

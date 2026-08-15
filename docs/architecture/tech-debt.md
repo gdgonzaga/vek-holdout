@@ -39,7 +39,7 @@ Three ready-to-use configs for testing and scavenge missions: Template 1 Basic (
 *Open design questions:* Are templates the same data structure as raid waves, or separate? (Probably the same — both feed SpawnManager.) How do POI difficulty tiers (Easy/Normal/Hard per §17) map to templates?
 
 **Demolition (as a Job)** — GDD §7.5
-Block removal rate = 2× build rate (`tool repair amount × 2 × rate of fire`). Currently only the low-level `VoxelGrid.remove_block_at(pos)` primitive exists. **Missing:** no demolition-as-Job flow (a colonist paths to a marked block and removes it over time), no "mark for demolition" UI/placement, no Job-Board registration of demolition jobs. The player can presumably demolish instantly via build mode, but colonist-driven demolition isn't architected.
+Block removal rate = 2× build rate (`tool repair amount × 2 × rate of fire`). Currently only the low-level `VoxelGrid.remove_block_at(pos)` primitive exists. **Missing:** no demolition-as-Job flow (a colonist paths to a marked block and removes it over time), no "mark for demolition" UI/placement, no Job-Board registration of demolition jobs. The player can presumably demolish instantly via build mode, but colonist-driven demolition isn't architected. The cell-targeted Job leg shape it needs (shared with colonist voxel mining/harvesting) is planned in [`job-extensions.md`](job-extensions.md).
 *Consumers:* Base reorganization, breach repair (clearing destroyed-block debris).
 *Open design questions:* Is demolition player-instant (RMB in build mode) AND colonist-Job (for larger demolitions), or one or the other? Does demolition produce reclaimed materials (partial refund) or just remove?
 

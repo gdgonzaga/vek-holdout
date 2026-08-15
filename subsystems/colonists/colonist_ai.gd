@@ -166,6 +166,10 @@ func _end_job(success: bool) -> void:
 		# for ad-hoc def-less jobs) so a def that reads leg.target_node can't crash.
 		if job.def != null and _leg != null:
 			job.def.on_end(success, _colonist, _leg, job, _work_elapsed)
+		# Use-based skill XP: a clean finish trains the skill governing the
+		# labor (no-op for unskilled labors — hauling maps to no skill).
+		if success and job.def != null and _colonist.skill_set != null:
+			_colonist.skill_set.record_use_for_labor(job.labor_id)
 		job.unassign(_colonist)
 		if job.should_close():
 			Colony.job_board.remove_job(job.id)

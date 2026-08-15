@@ -32,6 +32,7 @@ nav:
     - "Actions & Interaction": actions.md
     - "Functional Rooms": functional-rooms.md
     - Colonists: colonists.md
+    - Jobs: jobs.md
     - Skills: skills.md
     - Combat: combat.md
     - "Equipment & Loadouts": equipment.md
@@ -53,6 +54,7 @@ nav:
     - "Tech Debt & Unimplemented": tech-debt.md
   - Planned:
     - "Open world": open-world.md
+    - "Job system extensions": job-extensions.md
   - About:
     - "Adding a page": contributing.md
 

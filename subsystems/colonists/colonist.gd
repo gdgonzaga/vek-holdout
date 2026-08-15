@@ -33,6 +33,7 @@ func _ready() -> void:
 	raid_stance = colonist_def.default_raid_stance
 	current_job = null
 	skill_set = $SkillSet
+	skill_set.seed(colonist_def.starting_skills)
 	stamina_component = $StaminaComponent
 	pathfinder = $VoxelPathfinder
 	# Carry inventory: code-created (mirrors Player's scene-placed CharacterInventory)
@@ -144,8 +145,8 @@ func remaining_capacity() -> float:
 
 
 # --- SaveSystem contract -----------------------------------------------------
-# Owned scalar/dict state + world position. Component sub-state (SkillSet,
-# StaminaComponent, VoxelPathfinder) and current_job are excluded — they are
+# Owned scalar/dict state + world position + skill state. Component sub-state
+# (StaminaComponent, VoxelPathfinder) and current_job are excluded — they are
 # stubs / not yet live. ColonistDef is static data (re-resolved from the def at
 # spawn), not persisted here. NOTE: colonists are not yet spawned by Colony
 # (roster is a stub), so this is future-ready plumbing.
@@ -158,6 +159,7 @@ func serialize() -> Dictionary:
 		"raid_stance": raid_stance,
 		"hp": _current_hp,
 		"is_dead": _is_dead,
+		"skills": skill_set.serialize() if skill_set != null else {},
 		"pos": [global_position.x, global_position.y, global_position.z],
 	}
 
@@ -169,5 +171,7 @@ func deserialize(data: Dictionary) -> void:
 	raid_stance = int(data.get("raid_stance", raid_stance))
 	_current_hp = int(data.get("hp", _current_hp))
 	_is_dead = bool(data.get("is_dead", false))
+	if skill_set != null and data.has("skills"):
+		skill_set.deserialize(data["skills"])
 	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))

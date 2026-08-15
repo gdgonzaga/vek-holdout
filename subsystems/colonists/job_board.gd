@@ -53,15 +53,15 @@ func get_jobs() -> Array[Job]:
 
 ## Best available job for `colonist`, or null. Selection (ARCH "Colonist works a
 ## job"): among available jobs whose labor is enabled for the colonist
-## (labor_priorities[labor_id] > 0), pick the highest-priority labor, then the
-## nearest by proximity. Does NOT assign — call Job.try_assign to join.
+## (labor_priorities[labor_id] > 0) and whose def requirements the colonist
+## meets (JobDef.meets_requirements — skill/item conditions, evaluated fresh
+## every poll), pick the highest-priority labor, then the nearest by proximity.
+## Does NOT assign — call Job.try_assign to join (it re-checks requirements as
+## the authoritative gate).
 ##
 ## First prunes dead jobs (no assignees AND not accepting more) so a no-source
 ## haul job, a satisfied-but-drained one, or a cancelled one can't linger and
 ## starve selection.
-##
-## Note: the documented L1 skill gate (skill_set.meets_requirement) is deferred
-## until skills are wired into the work loop; ignored here.
 func get_best_job_for(colonist: Colonist) -> Job:
 	_prune_dead_jobs()
 	var best: Job = null
@@ -74,6 +74,8 @@ func get_best_job_for(colonist: Colonist) -> Job:
 			continue
 		var priority: int = int(colonist.labor_priorities.get(job.labor_id, 0))
 		if priority <= 0:
+			continue
+		if job.def != null and not job.def.meets_requirements(colonist, job):
 			continue
 		if priority > best_priority:
 			best = job

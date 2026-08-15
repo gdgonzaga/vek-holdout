@@ -61,6 +61,19 @@ func has_item(item_id: String, count: int) -> bool:
 	return items.get(item_id, 0) >= count
 
 
+## True if items whose ItemDef carries `tag` total at least `count` across
+## stacks (e.g. any carried "tool"). Unknown items (no def) never match.
+func has_item_tag(tag: String, count: int = 1) -> bool:
+	var total := 0
+	for item_id in items:
+		var def := _get_def(item_id)
+		if def != null and def.tags.has(tag):
+			total += items[item_id]
+			if total >= count:
+				return true
+	return false
+
+
 func get_item_count(item_id: String) -> int:
 	return items.get(item_id, 0)
 

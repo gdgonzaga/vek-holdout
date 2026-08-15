@@ -82,12 +82,17 @@ func is_assigned(colonist_id: String) -> bool:
 
 
 ## Try to assign `colonist` to this job. Returns true on success, false if the
-## job can't accept it (full, no longer available, or already assigned). Pull,
-## not push: this only registers the colonist — it then asks get_next_leg when
-## ready (at claim, and after each leg).
+## job can't accept it (full, no longer available, already assigned, or the
+## colonist fails the def's actor requirements — the authoritative condition
+## gate; get_best_job_for pre-filters with the same check so a failure here
+## means the condition flipped mid-poll). Pull, not push: this only registers
+## the colonist — it then asks get_next_leg when ready (at claim, and after
+## each leg).
 func try_assign(colonist: Colonist) -> bool:
 	var cid := colonist.colonist_id
 	if not is_available() or is_assigned(cid):
+		return false
+	if def != null and not def.meets_requirements(colonist, self):
 		return false
 	_assigned_colonists.append(cid)
 	return true

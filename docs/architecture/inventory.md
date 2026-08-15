@@ -11,7 +11,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `storage_inventory.gd` | Script (`class_name StorageInventory`, extends Inventory) | Per-instance contents of a storage container (crates, shelves). Attached as a child of a `Furniture` (named `"StorageInventory"`) when its `FurnitureDef` has `storage_params`; reads `capacity` from those params at `_ready`. Player<->crate transfers use the inherited `transfer_to`. |
 | `storage_registry.gd` | Script (`class_name StorageRegistry`, on Colony) | Live index of storage crates, so hauling jobs can find a source for a blueprint's still-needed materials. Scans the current map's `FurnitureContainer` each call — no registration. See class reference. |
 | `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by `ItemDef.id` (the canonical item identity, e.g. `"wood_block"`). Read-only after `_ready`. |
-| `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `id: String` (canonical item identity — what `ItemDB` keys by and inventories store), `weight: float`, `icon: Texture2D`. |
+| `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `id: String` (canonical item identity — what `ItemDB` keys by and inventories store), `weight: float`, `icon: Texture2D`, `tags: Array[String]` (categorization — the `"tool"` tag exempts an item from hauling's surplus dump). |
 | `../data/items/` | Data | Item definition `.tres` files (one per item type). |
 
 ## Autoloads
@@ -57,6 +57,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `remove(item_id, count)` | `int` | Removes items; returns items NOT removed (excess request). Erases key when count hits zero. |
 | `can_add(item_id, count)` | `bool` | True if the items would fit by weight. False for unknown items. |
 | `has_item(item_id, count)` | `bool` | True if `items[item_id] >= count`. |
+| `has_item_tag(tag, count = 1)` | `bool` | True if items whose `ItemDef.tags` carry `tag` total at least `count` across stacks (e.g. any carried `"tool"`). Unknown items never match. |
 | `get_item_count(item_id)` | `int` | Current count of the item (0 if absent). |
 | `current_weight()` | `float` | Sum of `count × weight` for all stored items. |
 | `transfer_to(target, item_id, count)` | `int` | Moves items to another `Inventory`. Removes from self first, adds to target, returns overflow to self. Returns items that did NOT end up in the target. |

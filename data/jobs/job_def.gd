@@ -33,6 +33,33 @@ class_name JobDef
 ## single-colonist labors (construction); >1 lets a job be divvied (hauling).
 @export var max_assignees: int = 1
 
+## Actor requirements for jobs of this def — e.g. MinSkillCondition (the L1
+## gate) or HasItemCondition. Reuses the Condition resource family that
+## ActionOptions use (data/conditions/, subsystems/actions/), NOT ActionOption
+## itself (its label + GameAction are interaction-menu coupling a job lacks).
+##
+## Contract: these are HOT — JobBoard.get_best_job_for and Job.try_assign
+## evaluate them fresh on every poll/claim, so a condition may flip mid-job
+## run and the next evaluation sees it (unlike ActionOptions, which are checked
+## once when the interaction menu opens). Never cache the result. Keep them
+## actor-inherent facts (skill, carried items); world facts a def can check
+## procedurally (does a crate stock the tool?) belong in get_next_leg /
+## is_available instead — a def-level tool condition would lock out the very
+## colonists the job's FETCH_TOOL leg exists for.
+@export var conditions: Array[Condition] = []
+
+
+## True if `actor` satisfies every `conditions` entry, evaluated fresh against
+## the job's target node. Empty conditions (the default) mean any colonist.
+## Enforced by JobBoard.get_best_job_for (skip — no claim/release churn) and
+## Job.try_assign (the authoritative gate). Conditions must tolerate a null
+## target (patrol-style jobs have no target node).
+func meets_requirements(actor: Node, job: Job) -> bool:
+	for condition in conditions:
+		if not condition.is_met(actor, job.target_node):
+			return false
+	return true
+
 
 ## The next leg for `actor` on `job`, or null when this colonist has no further
 ## work (it should leave the job). Called at claim (leg 0) and after each leg's

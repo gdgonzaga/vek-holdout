@@ -63,19 +63,21 @@ Reusable template for one kind of colonist work — one subclass per Labor, auth
 | `display_name` | `String` | `[export]` Job Log / UI label. |
 | `labor_id` | `String` | `[export]` A `LaborDef.id`; gates `JobBoard.get_best_job_for`'s filter. |
 | `max_assignees` | `int` | `[export default 1]` Max colonists that may join one Job of this def at once. 1 for single-colonist labors (construction); >1 lets a job be divvied (hauling). |
+| `conditions` | `Array[Condition]` | `[export default []]` Actor requirements (skill/item gates — e.g. `MinSkillCondition`), evaluated hot every poll by `get_best_job_for` + `try_assign`. Author actor-inherent facts only; world-checkable facts belong in the virtual methods below. See [Jobs](jobs.md). |
 
 **Virtual methods** (overridden per Labor; `ColonistAI` drives them in its leg loop):
 - `get_next_leg(actor: Node, job: Job) -> JobLeg` — the next leg for this colonist, or `null` when it has no further work (called at claim and after each leg). Base default `null`.
-- `begin(actor: Node, leg: JobLeg, job: Job) -> float` — this leg's work duration in seconds (`0` = instant → `complete` fires the same tick). Base default `0.0`.
+- `begin(actor: Node, leg: JobLeg, job: Job) -> float` — this leg's work duration in seconds (`0` = instant → `complete` fires the same tick). Divide by `skill_set.get_multiplier(labor_id)` for skill-scaled work. Base default `0.0`.
 - `complete(actor: Node, leg: JobLeg, job: Job) -> void` — apply this leg's effect when its duration elapses. Base default no-op.
 - `on_end(success: bool, actor: Node, leg: JobLeg, job: Job, elapsed: float) -> void` — cleanup when a colonist leaves the job (finish or abort). Base default no-op.
 - `is_available(job: Job) -> bool` — labor-specific acceptability gate (combined with the slot count on `Job.is_available`). Base default `true`.
+- `meets_requirements(actor: Node, job: Job) -> bool` — every `conditions` entry `is_met(actor, job.target_node)`, fresh each call. Base default `true` (empty conditions).
 
 **`JobLeg`** (`data/jobs/job_leg.gd`, `RefCounted`) — one leg of a job's walk→act sequence; pure routing data. `location: Vector3` (walk-target), `target_node: Node` (the per-leg node — crate/blueprint; weak, freed-detectable), `kind: int` (opaque, def-owned discriminator, e.g. `HaulingJobDef.FETCH`/`DELIVER`).
 
-**Subclass — `ConstructionJobDef`** (`data/jobs/construction_job_def.gd`): construction labor, a **one-leg job** (`max_assignees=1`). `get_next_leg` returns the blueprint leg once then `null`; `begin` returns `BuildLibrary.get_def(bp.target_def_id).build_time` (0 if not a `Blueprint`/unknown def); `complete` resets `bp.work_done = 0` and calls `bp.complete(actor)`; `on_end(false)` persists `bp.work_done = elapsed` so a later attempt resumes; `is_available` = the blueprint still exists. Headless twin of the player's `BuildAction` (no gauge / mouse unlock / `set_busy`); ticks at 1× (skill × Stamina deferred).
+**Subclass — `ConstructionJobDef`** (`data/jobs/construction_job_def.gd`): construction labor, a **one-leg job** (`max_assignees=1`). `get_next_leg` returns the blueprint leg once then `null`; `begin` returns `BuildLibrary.get_def(bp.target_def_id).build_time / skill_set.get_multiplier(labor_id)` (the bare `build_time` for a non-Colonist actor; 0 if not a `Blueprint`/unknown def); `complete` resets `bp.work_done = 0` and calls `bp.complete(actor)`; `on_end(false)` persists `bp.work_done = elapsed` so a later attempt resumes; `is_available` = the blueprint still exists. Headless twin of the player's `BuildAction` (no gauge / mouse unlock / `set_busy`); skill-scaled (Stamina factor deferred).
 
-**Subclass — `HaulingJobDef`** (`data/jobs/hauling_job_def.gd`): hauling labor, a **multi-leg, multi-colonist job** (`max_assignees=3`). Each hauler independently loops FETCH (`crate.transfer_to(colonist.inventory, …)` per unsatisfied material) → DELIVER (`bp.deposit_from(actor)`) until `has_complete_materials()`; phase is derived from carry state, legs are instant. `get_next_leg`: bp gone/satisfied → `null`; carrying a needed material → DELIVER; no `remaining_capacity()` (carried tool / orphan items clogging it) → `null` — self-heals, since `on_end` dumps the surplus to a crate and the next claim retries clean; else FETCH from `StorageRegistry.find_source`, or `null` if no source. `on_end` returns surplus to `StorageRegistry.nearest_crate`. `is_available` = bp valid + unsatisfied + a crate holds a needed material. Haulers divvy through the blueprint's shared deposit counter (no per-colonist slices); the DELIVER that crosses the threshold emits `blueprint_materials_ready` → `Colony` spawns the construction job.
+**Subclass — `HaulingJobDef`** (`data/jobs/hauling_job_def.gd`): hauling labor, a **multi-leg, multi-colonist job** (`max_assignees=3`). Targets a **MaterialSink** (`subsystems/furniture/material_sink.gd` — the duck-typed `needed_item_ids`/`remaining_need`/`deposit_from`/`has_complete_materials` contract; `Blueprint` is the implementer today). Each hauler independently loops FETCH (`crate.transfer_to(colonist.inventory, …)` per still-needed item, read via `sink.needed_item_ids`/`remaining_need`) → DELIVER (`sink.deposit_from(actor)`) until `has_complete_materials()`; phase is derived from carry state, legs are instant. `get_next_leg`: sink gone/satisfied → `null`; carrying a needed material → DELIVER; no `remaining_capacity()` (carried tool / orphan items clogging it) → `null` — self-heals, since `on_end` dumps the surplus to a crate and the next claim retries clean; else FETCH from `StorageRegistry.find_source`, or `null` if no source. `on_end` returns surplus to `StorageRegistry.nearest_crate` **except tool-tagged items** (`ItemDef.tags` — a carried tool stays with the colonist). `is_available` = sink valid + unsatisfied + a crate holds a needed material. Haulers divvy through the sink's shared deposit counter (no per-colonist slices); the DELIVER that crosses the threshold emits the sink's materials-ready signal (`blueprint_materials_ready` for blueprints) → `Colony` spawns the follow-on job.
 
 ## `data/energy_config.tres` (Resource: `energy_config.gd`) — *(planned)*
 
@@ -192,9 +194,10 @@ One `ItemDef` per item type. The **canonical item identity is the `id` field** (
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | `String` | Canonical item identity (e.g. `"wood_block"`). Keyed by `ItemDB`; the dict key in inventories and in blueprint `_given` material progress. |
-| `weight` | `float` | Weight per unit (kg). Used by `Inventory` for capacity enforcement. |
+| `id` | `String` | Canonical item identity (e.g. `"wood_block"`, `"axe"`). Keyed by `ItemDB`; the dict key in inventories and in blueprint `_given` material progress. |
+| `weight` | `float` | Weight per unit (kg). Used by `Inventory` for capacity enforcement. Author tools low-weight so one doesn't clog carry capacity. |
 | `icon` | `Texture2D` | UI icon (nullable). |
+| `tags` | `Array[String]` | `[export default []]` Loose categorization (e.g. `axe.tres`: `["tool", "axe"]`). Read via `Inventory.has_item_tag` and `HasItemCondition`; the `"tool"` tag exempts an item from hauling's surplus dump (carried tools stay with the colonist). |
 
 ## `data/items/item_amount.gd` (Resource: `ItemAmount`)
 
@@ -248,11 +251,9 @@ The Key Item pool. Each Key Item drops at most once per playthrough (enforced by
 
 **MVP Key Items** (GDD §17): Radio Transceiver Unit (Command Center T2), Portable Generator (Workshop T2), Water Pump Motor (Farm T2), Medical Fridge Unit (Infirmary T2), Heavy Jack Lift (Garage T2), Insulation Panels (Living Quarters T2), Welding Gas Cylinders (Defenses T2).
 
-## `data/skills/skills.tres` (Resource: `skill_def_list.gd`) — *(planned)*
+## `data/skills/skills.tres` (Resource: `skill_def_list.gd`)
 
-> **Status: planned — `data/skills/` is empty; `skill_def_list.gd`/`skill_def.gd` do not exist yet** (Skills subsystem). Intended schema below.
-
-Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, and per-level work-speed multipliers. Loaded once and shared by all `SkillSet` components. See GDD §6.3.
+Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, and per-level work-speed multipliers. Loaded once (preloaded by `SkillSet`) and shared by all `SkillSet` components. See [Skills](skills.md).
 
 | Field | Type | Description |
 |---|---|---|
@@ -264,11 +265,11 @@ Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, an
 |---|---|---|
 | `skill_id` | `String` | `"medical"`, `"mechanical"`, `"construction"`, `"crafting"`, `"combat"`, `"farming"`. |
 | `display_name` | `String` | UI label. |
-| `labor` | `String` | The Labor this skill governs (e.g. `"construction"`). Skills map 1:1 to Labors except Farming (no Labor in MVP). |
+| `labor` | `String` | The LaborDef.id this skill governs. Shipped mappings: `construction`/`crafting`/`mechanical` → their same-named Labors; medical/combat/farming ship `""` (action-based or waiting on their Labor — farming's arrives with the farming jobs). A Labor with no governing skill (hauling) reads multiplier 1.0. |
 | `multipliers` | `Array[float]` | Work-speed multiplier per level, index 0–4 = L1–L5. Default `[1.0, 1.2, 1.4, 1.7, 2.0]`. |
-| `use_curve` | `Array[int]` | Successful uses required to reach each level, index 0–3 = L2–L5. Default `[20, 50, 100, 200]`. |
+| `use_curve` | `Array[int]` | Cumulative successful uses required to reach each level, index 0–3 = L2–L5. Default `[20, 50, 100, 200]`. |
 
-**MVP skills** (GDD §6.3): Medical (Clinic Bed), Mechanical (Vehicle Lift), Construction (build/repair blocks), Crafting (Workbench + Forge), Combat (raids/expeditions), Farming (Growing Trough, post-MVP — progression tracked but no Labor to consume it yet).
+**MVP skills** (GDD §6.3): Medical (Clinic Bed), Mechanical (Vehicle Lift), Construction (build/repair blocks), Crafting (Workbench + Forge), Combat (raids/expeditions), Farming (Growing Trough — progression tracked; its Labor arrives with the farming jobs).
 
 ## `data/recipes/<station>.tres` (Resource: `recipe_list.gd`) — *(planned)*
 

@@ -211,6 +211,14 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `def_id` | `String` | `[export default ""]` Canonical def id (e.g. `"workbench"`). The emitted id source in `remove_at` and the future save/load key. |
 | `def` | `BuildableDef` | Runtime back-ref to the definition (not serialized). Read static data through this (`def.hp`, `def.dimensions`, `def.action_options`). |
 | `label` | `String` | `[export, getter only]` Returns `def.display_name` (or `""` if `def` is null). The interaction menu reads this via `target.get("label")` so the UI stays decoupled from `FurnitureDef`. |
+| `state` | `Dictionary` | Per-instance capability state bag, `{ component-owned key: saved value }`. Future capability components (Growable, CraftingStation — see [Job System Extensions](job-extensions.md)) read/write their keys here so `serialize` never grows a branch per component; round-trips in the SaveSystem record. Empty for plain furniture. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_footprint_cells() -> Array[Vector3i]` | All voxel cells this furniture occupies (from `global_position` + `def.dimensions`, yaw-swapped). Used by `ColonistAI._path_for_leg`'s footprint-adjacent pathing. |
+| `serialize() -> Dictionary` / `deserialize(data)` | SaveSystem contract — `def_id`, the `state` bag, plus the `StorageInventory` child's stacks when present (storage = null otherwise). |
 
 > **Deferred:** per-instance HP/damage (GDD §7.7), Functional Rooms counting fields (§7.8), and crafting/storage/door/bed component slots (§7.9–§7.11) are not on this class yet — added as the owning subsystems land. Placement bookkeeping (anchor → node maps, cell ownership) stays in `FurnitureLayer`.
 
@@ -238,6 +246,9 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `complete(builder: Node = null) -> bool` | Build the target into the world and remove this blueprint. Forwards to `BlueprintLayer.complete_blueprint`. `builder` is the player now (passed through so colonist labor can attribute skill/stamina later). |
 | `has_complete_materials() -> bool` | True when every `material_cost` entry is fully contributed. Vacuously true when `material_cost` is empty (free builds). |
 | `given_count(item_id: String) -> int` | Count contributed toward one item id so far. |
+| `remaining_need(item_id: String) -> int` | Units of one item still owed (`material_cost` entry minus `_given`); 0 for items not in the cost. Part of the **MaterialSink** contract. |
 | `needed_item_ids() -> Array[String]` | item_ids whose `material_cost` entry isn't yet fully contributed (`material_cost` minus `_given`). Empty for a costless or satisfied blueprint. Single source of truth for "still needed", shared by the haul producer (`Colony`) and `HaulingJobDef`. |
 | `deposit_from(actor: Node) -> int` | Pull carried items from `actor` toward each `material_cost` entry (partial fulfillment allowed); updates `_given`, logs via `GameLog`, refreshes `info_text`. Returns total deposited. |
 | `serialize() -> Dictionary` / `deserialize(data) -> void` | SaveSystem contract — persists placement + the `_given` material-progress dict (so a half-filled blueprint resumes correctly on load). |
+
+> **MaterialSink:** `has_complete_materials` / `needed_item_ids` / `remaining_need` / `deposit_from` together form the duck-typed [MaterialSink](jobs.md) contract (`subsystems/furniture/material_sink.gd`) — `Blueprint` is the implementer hauling targets today; crafting stations are next. |
