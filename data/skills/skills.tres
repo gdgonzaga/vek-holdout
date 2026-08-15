@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="SkillDefList" format=3]
+[gd_resource type="Resource" script_class="SkillDefList" format=3 uid="uid://cferx6skx3ylf"]
 
-[ext_resource type="Script" path="res://data/skills/skill_def_list.gd" id="1_list"]
-[ext_resource type="Script" path="res://data/skills/skill_def.gd" id="2_def"]
+[ext_resource type="Script" uid="uid://d1g1c5fk84mkg" path="res://data/skills/skill_def_list.gd" id="1_list"]
+[ext_resource type="Script" uid="uid://b50r4p51ruala" path="res://data/skills/skill_def.gd" id="2_def"]
 
 [sub_resource type="Resource" id="Resource_construction"]
 script = ExtResource("2_def")
@@ -25,20 +25,17 @@ labor = "mechanics"
 script = ExtResource("2_def")
 skill_id = "medical"
 display_name = "Medical"
-labor = ""
 
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("2_def")
 skill_id = "combat"
 display_name = "Combat"
-labor = ""
 
 [sub_resource type="Resource" id="Resource_farming"]
 script = ExtResource("2_def")
 skill_id = "farming"
 display_name = "Farming"
-labor = ""
 
 [resource]
 script = ExtResource("1_list")
-skills = [SubResource("Resource_construction"), SubResource("Resource_crafting"), SubResource("Resource_mechanics"), SubResource("Resource_medical"), SubResource("Resource_combat"), SubResource("Resource_farming")]
+skills = Array[ExtResource("2_def")]([SubResource("Resource_construction"), SubResource("Resource_crafting"), SubResource("Resource_mechanics"), SubResource("Resource_medical"), SubResource("Resource_combat"), SubResource("Resource_farming")])

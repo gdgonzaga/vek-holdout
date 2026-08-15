@@ -3,7 +3,7 @@ extends RefCounted
 ## One immutable line in the game log. Held by GameLog's ring buffer and passed
 ## to LogFeed / LogHistory for rendering. Cheap (RefCounted, no Node overhead).
 
-enum Category { INFO, COMBAT, SYSTEM, CRAFT, COLONY }
+enum Category {INFO, COMBAT, SYSTEM, CRAFT, COLONY, DEBUG}
 
 var text: String
 var category: int = Category.INFO

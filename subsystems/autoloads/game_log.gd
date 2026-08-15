@@ -12,15 +12,17 @@ signal entry_added(entry: LogEntry)
 
 # Category -> BBCode hex color, used by the UI to colorize lines.
 const COLORS: Dictionary = {
-	LogEntry.Category.INFO:   "#ffffff",
+	LogEntry.Category.INFO: "#ffffff",
 	LogEntry.Category.COMBAT: "#ff7d7d",
 	LogEntry.Category.SYSTEM: "#7dcdff",
-	LogEntry.Category.CRAFT:  "#ffd24a",
+	LogEntry.Category.CRAFT: "#ffd24a",
 	LogEntry.Category.COLONY: "#7dff9a",
+	LogEntry.Category.DEBUG: "#c002aff",
 }
 
 @export var max_entries: int = 200
 @export var tail_lines: int = 6
+@export var debug_mode: bool = true
 
 var _buffer: Array[LogEntry] = []
 
@@ -44,6 +46,8 @@ func _ready() -> void:
 
 ## Main entry point. Gameplay code calls GameLog.log("...", LogEntry.Category.X).
 func log(message: String, category: int = LogEntry.Category.INFO) -> void:
+	if category == LogEntry.Category.DEBUG and not debug_mode:
+		return
 	var entry := LogEntry.new(message, category)
 	_buffer.append(entry)
 	while _buffer.size() > max_entries:
@@ -69,6 +73,10 @@ func craft(message: String) -> void:
 
 func colony(message: String) -> void:
 	self.log(message, LogEntry.Category.COLONY)
+
+
+func debug(message: String) -> void:
+	self.log(message, LogEntry.Category.DEBUG)
 
 
 ## Full history, oldest -> newest. LogHistory reads this on open.

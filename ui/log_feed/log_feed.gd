@@ -6,6 +6,9 @@ extends Control
 ## Behavior:
 ##   - Lines are fully opaque while shown (no age-based dimming).
 ##   - Each line disappears after `line_timeout` seconds (fade + slide off top).
+##   - A repeat of the newest message doesn't spawn a new line: the existing
+##     line stays and its counter increments ("Raid repelled. x3"), with its
+##     timeout refreshed.
 ##   - When a new line arrives, every existing line slides up by one slot; if
 ##     the feed is full the oldest is pushed off the top (fade + slide).
 ##
@@ -32,13 +35,18 @@ class _Line:
 	extends RefCounted
 	var label: RichTextLabel
 	var spawn_time: float
-	func _init(p_label: RichTextLabel, p_time: float) -> void:
+	# Collapse state: the entry's BBCode without any counter suffix, and how
+	# many consecutive identical entries this one line stands for.
+	var base_text: String
+	var count: int = 1
+	func _init(p_label: RichTextLabel, p_time: float, p_base_text: String = "") -> void:
 		label = p_label
 		spawn_time = p_time
+		base_text = p_base_text
 
 
-var _lines: Array[_Line] = []     # newest at index 0 (bottom)
-var _exiting: Array[_Line] = []   # lines animating out; not counted toward cap
+var _lines: Array[_Line] = [] # newest at index 0 (bottom)
+var _exiting: Array[_Line] = [] # lines animating out; not counted toward cap
 
 
 func _ready() -> void:
@@ -77,11 +85,20 @@ func _on_entry_added(entry: LogEntry) -> void:
 
 
 ## Instantiate a line for an entry. animate=false is used for the initial
-## repopulate (no tween — just place it).
+## repopulate (no tween — just place it). A repeat of the newest line doesn't
+## spawn a new line at all — the existing one's counter increments instead.
 func _spawn(entry: LogEntry, animate: bool) -> void:
+	if not _lines.is_empty() and _lines[0].base_text == GameLog.bbcode(entry):
+		_increment_line_count(_lines[0])
+		return
+	_add_new_entry(entry, animate)
+
+
+func _add_new_entry(entry: LogEntry, animate: bool) -> void:
 	var label := RichTextLabel.new()
 	label.bbcode_enabled = true
-	label.text = GameLog.bbcode(entry)
+	var base := GameLog.bbcode(entry)
+	label.text = base
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.clip_contents = true
 	label.add_theme_font_size_override("normal_font_size", font_size)
@@ -90,7 +107,7 @@ func _spawn(entry: LogEntry, animate: bool) -> void:
 	label.size = Vector2(feed_width, line_height)
 	label.position.x = float(margin_left)
 
-	var line := _Line.new(label, Time.get_ticks_msec() / 1000.0)
+	var line := _Line.new(label, Time.get_ticks_msec() / 1000.0, base)
 	_lines.push_front(line)
 
 	if animate:
@@ -113,6 +130,12 @@ func _spawn(entry: LogEntry, animate: bool) -> void:
 		label.modulate.a = 1.0
 
 
+## Bump the collapse counter on the newest line: rewrite its text in place
+## ("msg x3") and refresh its timeout so a still-repeating message stays up.
+func _increment_line_count(line: _Line) -> void:
+	line.count += 1
+	line.spawn_time = Time.get_ticks_msec() / 1000.0
+	line.label.text = line.base_text + " x" + str(line.count)
 ## Tween (or snap) every active line to its index-based target Y. `skip` is
 ## excluded — used for the freshly spawned line which animates itself.
 func _layout(animate: bool, skip: _Line = null) -> void:

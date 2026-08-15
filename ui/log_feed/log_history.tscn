@@ -1,19 +1,19 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://ddmx4fwxeu43w"]
 
-[ext_resource type="Script" path="res://ui/log_feed/log_history.gd" id="1_loghist"]
+[ext_resource type="Script" uid="uid://d8bckbt7a7p1" path="res://ui/log_feed/log_history.gd" id="1_loghist"]
 
-[node name="LogHistory" type="Control"]
+[node name="LogHistory" type="Control" unique_id=1093077593]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 script = ExtResource("1_loghist")
 
-[node name="Panel" type="PanelContainer" parent="."]
+[node name="Panel" type="PanelContainer" parent="." unique_id=502934371]
 layout_mode = 1
+anchors_preset = -1
 anchor_left = 0.1
 anchor_top = 0.1
 anchor_right = 0.9
@@ -21,33 +21,33 @@ anchor_bottom = 0.9
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBox" type="VBoxContainer" parent="Panel"]
+[node name="VBox" type="VBoxContainer" parent="Panel" unique_id=2024434563]
 layout_mode = 2
 
-[node name="Header" type="HBoxContainer" parent="Panel/VBox"]
+[node name="Header" type="HBoxContainer" parent="Panel/VBox" unique_id=1593637987]
 layout_mode = 2
 
-[node name="TitleLabel" type="Label" parent="Panel/VBox/Header"]
+[node name="TitleLabel" type="Label" parent="Panel/VBox/Header" unique_id=568222869]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Game Log"
 theme_override_font_sizes/font_size = 20
+text = "Game Log"
 
-[node name="CloseButton" type="Button" parent="Panel/VBox/Header"]
+[node name="CloseButton" type="Button" parent="Panel/VBox/Header" unique_id=1296519024]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
 text = "Close"
 
-[node name="Scroll" type="ScrollContainer" parent="Panel/VBox"]
+[node name="Scroll" type="ScrollContainer" parent="Panel/VBox" unique_id=1789906240]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="Content" type="RichTextLabel" parent="Panel/VBox/Scroll"]
+[node name="Content" type="RichTextLabel" parent="Panel/VBox/Scroll" unique_id=2003876830]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/normal_font_size = 14
 bbcode_enabled = true
 fit_content = true
 scroll_active = false
-theme_override_font_sizes/normal_font_size = 14
