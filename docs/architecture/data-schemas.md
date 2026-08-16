@@ -328,3 +328,47 @@ Player-created loadout templates, saved per run. Each template is an abstract sl
 **Equip resolution at runtime:** when auto-equip fires, LoadoutManager resolves each slot's `item_def_id` to the nearest unclaimed concrete item of that type in colony storage. If none available, the slot stays empty (partial equip; logged).
 
 **MVP note:** templates are per-colonist (one template assigned per colonist). "Colonist Groups" (assign a template to a group of colonists) is pinned post-MVP per GDD §12.
+
+## `data/crops/<id>.tres` (Resource: `crop_def.gd`)
+
+Global definition for a farmable crop (ARCH [Farming](farming.md), GDD §6). Scanned by `CropLibrary`. See authoring guide in `docs/HOWTO-author-crops.md`.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique; matches filename (e.g. `"cave_spud"`, `"holdout_wheat"`, `"bio_gel_orchid"`). |
+| `display_name` | `String` | Inspector and UI label. |
+| `growth_time_hours` | `float` | In-game hours to reach 100% maturity. |
+| `growth_stages` | `int` | Number of visual growth stages (default `3`). |
+| `stage_meshes` | `Array[Mesh]` | Optional custom meshes per stage. Falls back to procedural cylinder meshes if empty. |
+| `max_water` | `float` | Maximum water capacity (default `100.0`). |
+| `water_decay_per_hour` | `float` | Water percentage consumed per in-game hour. |
+| `thirsty_threshold` | `float` | Water percentage below which a `WaterJobDef` is spawned (default `30.0`). |
+| `tending_mode` | `int` / `TendingMode` | `0` = NONE, `1` = MILESTONE, `2` = DECAY. |
+| `tending_milestones` | `Array[float]` | Growth progress points (0.0 to 1.0) requiring tending. |
+| `tending_decay_hours` | `float` | In-game hours a tended state lasts before needing maintenance again (DECAY mode). |
+| `untended_growth_mult` | `float` | Growth speed multiplier while untended (`0.0` = frozen). |
+| `neglect_hours` | `float` | Buffer hours untended before neglect penalties accumulate. |
+| `neglect_yield_penalty` | `float` | Fraction of yield lost per `neglect_hours` exceeded. |
+| `plant_conditions` | `Array[Condition]` | Gating requirements to sow/plant this crop. |
+| `tend_conditions` | `Array[Condition]` | Gating requirements to tend this crop (e.g. `MinSkillCondition`, `HasItemCondition`). |
+| `seed_item_id` | `String` | Optional seed item required to plant. |
+| `yield_tiers` | `Array[CropYieldTier]` | Milestone yield definitions. |
+| `base_harvest_time` | `float` | Base harvest seconds (scaled by harvesting skill). |
+| `wither_hours` | `float` | In-game hours a mature crop can sit unharvested before withering (`0.0` = never). |
+
+## `data/crops/crop_yield_tier.gd` (Resource: `CropYieldTier`)
+
+Defines yields granted when harvesting a crop at or above a minimum growth progress.
+
+| Field | Type | Description |
+|---|---|---|
+| `min_growth_progress` | `float` | Minimum growth progress required (e.g. `0.5` for half-yield, `1.0` for full maturity). |
+| `yields` | `Array[ItemAmount]` | Items and counts awarded. |
+
+## `data/capability_params/farm_plot_params.gd` (Resource: `FarmPlotParams`)
+
+Capability sub-resource attached to farm plot `FurnitureDef`s (e.g. `Growing Trough`).
+
+| Field | Type | Description |
+|---|---|---|
+| `allowed_crops` | `Array[String]` | Allowed `CropDef` ids for this plot. Empty means all crops in `CropLibrary` are permitted. |
