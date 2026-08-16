@@ -1,15 +1,18 @@
 # Subsystem: Crafting
 
-Recipe-driven conversion of materials into items at crafting stations (GDD §7.9). The station is a **furniture component** (`CraftingStation`, the `StorageInventory` pattern — not a `Furniture` subclass), its order is a **MaterialSink** hauling can feed like a blueprint's, and crafting itself is a **Job** on the board (no special-casing). Consumes from colony storage via hauling; produces into the crafter's carry inventory (overflow to the nearest crate).
+Recipe-driven conversion of materials into items at crafting stations (GDD §7.9). The station is a **furniture component** (`CraftingStation`, the `StorageInventory` pattern — not a `Furniture` subclass), its order is a **MaterialSink** hauling can feed like a blueprint's, and crafting itself is **dual-mode**: a colonist craft Job or the player personally at the bench — one order, two possible workers, the same pattern blueprints already use (player `BuildAction` vs `ConstructionJobDef`).
 
-> **Status: built (2026-08-15, `test/suite_crafting_test.gd`).** Workbench ships with seed recipes (`data/recipes/planks.tres`: 1 wood block → 4 planks; `data/recipes/axe.tres`: 2 planks + 1 stone block → 1 axe). Forge + smelting deferred (no forge FurnitureDef, no smelting skill in the catalog) — the shared component/def make it data-only work later.
+> **Status: built (2026-08-15, `test/suite_crafting_test.gd`).** Workbench ships with seed recipes (`planks`: 1 wood block → 4 planks; `axe`: 2 planks + 1 stone block → 1 axe; plus the editor-authored `wooden_board`: 3 planks → 1). Forge + smelting deferred (no forge FurnitureDef, no smelting skill in the catalog) — the shared component/def make it data-only work later.
 
 **Design notes:**
 - **One unified `Recipe` shape** for all craftable output (`RecipeDef`: furniture, armor, weapons, ammo, smelting). Same fields regardless of output type.
 - **`CraftingStation` is a component attached to furniture nodes** (Workbench today, Forge later) — owns "which recipes are available here?" and the active order. The recipe data lives in `data/recipes/` referenced from the def's `CraftingParams`.
 - **No tech tree in MVP** — all recipes available from the start; the constraint is materials + station + skill gate (L1 Crafting via `RecipeDef.conditions`). Post-MVP: unlocking.
-- **Material flow goes through hauling** (MaterialSink → crates), not reservation at queue time and not the colonist's personal inventory at fetch time. This supersedes the original reserve-at-queue design — inputs are physically hauled to the station, the blueprint pattern.
-- **Queueing never rejects for missing materials** — the haul job drought-waits on the board (HaulingJobDef lifetime semantics) and restock resumes it with no new producer event.
+- **Material flow goes through hauling** (MaterialSink → crates), not reservation at queue time. Queueing never rejects for missing materials — the haul job drought-waits on the board (HaulingJobDef lifetime semantics) and restock resumes it with no new producer event.
+- **Dual-mode, one ledger**: the deposit ledger belongs to the order, not to a worker — haulers fill player-queued orders too, and the player may Craft-now any *ready* order (colonist-queued ones included). The modes differ only in who works: `worker "colony"` (craft job; the crossing emits `crafting_materials_ready`) vs `worker "player"` (reserved — no emit, no craft job; the order waits for the player).
+- **Claim lock**: while anyone is mid-WORK (a colonist's WORK phase or the player's ActionProgress gauge), the station is claimed; the other side refuses to start (Kenshi's one-worker-per-bench rule, enforced per order).
+- **Maintain orders** ("until stock: N", colony-only): on completion, if `StorageRegistry.colony_stock(first output) < N` the station requeues the same recipe through the standard chain — a RimWorld "do until you have X" one-shot, not a standing bill and not Kenshi's loop-forever repeat. Colony-order outputs land **crate-first** (pocket takes overflow) so the stock counter sees production; player crafts are pocket-first.
+- **Player SkillSet**: the Player carries a SkillSet (code-created, unseeded). Recipe conditions gate personal crafting, duration divides by the player's crafting multiplier, and personal crafts train it.
 
 ## Files
 
@@ -17,51 +20,51 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 |---|---|---|
 | `data/crafting/recipe_def.gd` | Script (Resource) | Data shape for one recipe: inputs/outputs (`Array[ItemAmount]`), `base_time`, recipe-level `conditions`. Pure data. See [Data Schemas](data-schemas.md). |
 | `data/capability_params/crafting_params.gd` | Script (Resource) | Capability sub-resource on `FurnitureDef`: `recipes: Array[RecipeDef]`. Non-null → FurnitureLayer attaches the station. |
-| `subsystems/crafting/crafting_station.gd` | Script (component on furniture) | The order + deposit ledger; implements MaterialSink from the active order; emits `crafting_order_queued` / `crafting_materials_ready`. Does NOT own the craft math. |
-| `data/jobs/crafting_job_def.gd` + `crafting.tres` | Script + data | Craft Job def: WORK leg at the station, skill-scaled duration, outputs + order clear on complete. |
+| `subsystems/crafting/crafting_station.gd` | Script (component on furniture) | The order + deposit ledger; implements MaterialSink from the active order; worker reservation, claim lock, maintain requeue, cancel. Does NOT own the craft math. |
+| `data/jobs/crafting_job_def.gd` + `crafting.tres` | Script + data | Colonist craft Job: WORK leg at the station, skill-scaled duration, claim handshake, crate-first production, `complete_order` resolution. `produce()` is the shared craft-math entry (CraftAction reuses it). |
+| `data/actions/craft_action.gd` | Script (GameAction) | The player's personal craft: claim, ActionProgress gauge (Esc persists `work_done`, restart resumes), pocket-first production, player XP. Invoked by the panel (no ActionOption wiring). |
+| `data/actions/open_crafting_action.gd` + `ui/crafting/craft_panel.tscn` | Action + UI | E on the workbench → the craft panel: per-recipe Queue (with "until stock" SpinBox) / Craft buttons, order section with Craft now / Cancel. |
 | `data/recipes/*.tres` | Data | Recipe resources referenced from the station def's CraftingParams. |
-| `ui/crafting/craft_panel.tscn` + `data/actions/open_crafting_action.gd` | UI + action | The queue surface: E on the workbench → craft panel → queue. |
 
 ## Signals
 
-Crafting is local to the base scene + Colony (Job Board) via the EventBus relay:
-
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `crafting_order_queued(station, anchor)` | `CraftingStation.queue_recipe` | Colony | Yes | Player Queues a Craft |
-| `crafting_materials_ready(station, anchor)` | `CraftingStation.deposit_from` (single-fire per order) | Colony | Yes | Player Queues a Craft |
-| `job_logged` / log feed entries | JobBoard / `GameLog.craft(...)` | log feed UI | Yes/No | queue, materials-ready, and crafted lines |
+| `crafting_order_queued(station, anchor)` | `CraftingStation.queue_recipe` (both workers, and every maintain requeue) | Colony | Yes | Player Queues a Craft |
+| `crafting_materials_ready(station, anchor)` | `CraftingStation.deposit_from` (single-fire per order, **colony orders only**) | Colony | Yes | Player Queues a Craft |
+| log feed entries | `GameLog.craft(...)` | log feed UI | No | queue / materials-ready / crafted / cancelled lines |
 
 ## Flow Trace: Player queues a craft (Workbench)
 
-**Trigger:** Player E-presses the workbench → `OpenCraftingAction` → `ui/crafting/craft_panel.tscn` → clicks a recipe row.
+**Trigger:** Player E-presses the workbench → `OpenCraftingAction` → `ui/crafting/craft_panel.tscn`.
 
-1. `CraftingStation.queue_recipe(recipe_id)`: no-op if an order is active (one per station in v1) or the recipe isn't offered; writes the order `{recipe_id, given:{}}` into the furniture's `state` bag (save/load round-trips free); emits `crafting_order_queued`.
-2. `Colony._on_crafting_order_queued`: spawns a **haul job bound to the station** (`HAULING_DEF`, `target_node` = the station — hauling is sink-generic), deduped by anchor + labor. Spawned regardless of crate stock: no stock → the job drought-waits on the board (unclaimable but not dead); restock flips it claimable within one 0.5s poll.
-3. Haulers loop FETCH (crate → carry) → DELIVER (`station.deposit_from`) until the order's inputs are covered.
-4. The DELIVER that crosses `has_complete_materials` emits `crafting_materials_ready` (single-fire per order — `given` never decreases).
-5. `Colony._on_crafting_materials_ready` → `_spawn_craft_job` (dedupe by anchor + labor, the `_spawn_construction_job` pattern).
+1. **Queue** (colony): `queue_recipe(id, "colony", maintain?)`. **Craft** (personal): `queue_recipe(id, "player")` then the panel deposits whatever the player carries (`station.deposit_from(player)`) — shortfalls are hauled either way. Both emit `crafting_order_queued`; an "until stock" SpinBox ≥ 1 attaches a maintain goal to a colony queue.
+2. `Colony._on_crafting_order_queued`: spawns a **haul job bound to the station** (deduped by anchor + labor), regardless of crate stock — droughts wait on the board.
+3. Haulers loop FETCH → DELIVER (`station.deposit_from`) until the order's inputs are covered.
+4. The DELIVER crossing `has_complete_materials`: colony orders emit `crafting_materials_ready` → `Colony._spawn_craft_job`; player orders emit nothing — the order waits ready for the player.
+5. **Who works it:** a colonist claims the craft Job (labor `crafting`, gated by `RecipeDef.conditions`), or the player presses **Craft now** (offered on any ready order) → `CraftAction`.
 
-**End state:** Craft Job on the board; the station reads as a satisfied sink; awaiting a crafter.
+**End state:** order worked → outputs produced (colony: crate-first; player: pocket-first) → `complete_order` resolves it (maintain orders requeue while stock < target) → next order can be queued.
 
-## Flow Trace: Craft Job executes (colonist claims + completes)
+## Flow Trace: Craft Job executes (colonist)
 
-**Trigger:** A colonist claims the craft Job via the standard Job Board flow (§6.10) — labor `crafting` (default priority 1), gated by `RecipeDef.conditions` through `CraftingJobDef.meets_requirements` (hot, every poll).
+1. Colonist claims via the standard Job Board flow; paths to the station (`job.location` = footprint center).
+2. `begin` = `recipe.base_time ÷ skill_set.get_multiplier("crafting")` and **claims the station** under the colonist's id. If the player's gauge holds the claim, `begin` reports instant and `complete` no-ops — the colonist backs off cleanly instead of double-producing.
+3. WORK ticks in ColonistAI; on elapse `complete` runs: `produce()` (crate-first, pocket overflow) → `complete_order()` (maintain requeue or clear) → `GameLog.craft`.
+4. XP is automatic (`record_use_for_labor("crafting")` in `_end_job`). A null next leg is always a clean finish for this def (the maintain requeue leaves a fresh not-ready order — not a stall).
 
-1. Colonist AI claims the Job; paths to the station (A* on the voxel grid, `job.location` = footprint center).
-2. `begin` = `recipe.base_time ÷ skill_set.get_multiplier("crafting")` (L1 = 1.0 … L5 = 2.0; the ConstructionJobDef pattern). Stamina factor still deferred (StaminaComponent stub).
-3. WORK ticks in ColonistAI; on elapse `complete` runs.
-4. `complete`: outputs → the crafter's carry inventory, overflow `add`ed to the nearest crate (StorageRegistry); `clear_order()` (the deposit ledger IS the consumption — inputs were virtual); `GameLog.craft("Crafted …")`.
-5. XP is automatic: `_end_job(true)` → `record_use_for_labor("crafting")` → Crafting skill progress.
-6. Post-complete `get_next_leg` → null (order gone) → clean finish; `should_close` → the Job leaves the board.
+## Flow Trace: Player crafts personally (CraftAction)
 
-**End state:** Inputs consumed; output carried (or stored); Crafting skill progressed; Job closed; station ready for the next order.
+1. Panel's **Craft now** closes the panel and runs `CraftAction.execute(player, station)` (guarded: ready + unclaimed).
+2. Duration = `base_time ÷ player skill multiplier`; instant path for 0-duration recipes. The gauge claims the station under `"player"`, locks the player (`set_busy`), frees the mouse; **Esc cancels** → claim released + `work_done` persisted on the order → a restart **resumes**.
+3. Completion re-guards workability (the order can't have been resolved by anyone else while claimed — but the station may have been freed): `produce()` pocket-first (crate overflow), `complete_order()`, `record_use_for_labor` → the player's crafting skill grows.
+4. Recipe conditions are evaluated by the *panel* (Craft button disabled + tooltip when the player fails) — the action itself only guards workability.
 
-## Flow Trace: Interruptions
+## Flow Trace: Cancel + interruptions
 
-- **Order cleared / station freed mid-anything:** haul jobs close via the sink's normal lifecycle (a no-order station reports no needs → "satisfied" → close); the craft job's `should_close` is station/order-gone; a freed station (deconstructed workbench) is caught by ColonistAI's freed-target guard.
-- **Craft aborted mid-WORK:** the order and its deposits survive on the station; the job stays claimable and a later attempt re-runs the full `base_time` (no partial-work persistence in v1 — the `work_done` seam blueprint construction has is not mirrored yet).
-- **Save/load:** the order round-trips through `Furniture.state`; jobs are NOT recreated on load (the pre-existing colony gap, applies to craft jobs too).
+- **Cancel** (order section): refunds the ledger to the nearest crate, clears the order. Bound jobs self-clean through the normal lifecycle (no-order station reads satisfied → haul job closes; craft job closes on order-gone).
+- **Station freed mid-anything:** ColonistAI's freed-target guard aborts the colonist; the player's gauge guards `is_instance_valid` on completion (the same stale-target guard backported to BuildAction).
+- **Save/load:** the order (recipe, given, worker, maintain, work_done) round-trips through `Furniture.state`; jobs and claims are runtime-only (a loaded order is never left locked); jobs aren't recreated on load (the pre-existing colony gap).
 
 ## Class Reference
 
@@ -69,29 +72,36 @@ Crafting is local to the base scene + Colony (Job Board) via the EventBus relay:
 
 **Extends:** Node (component on furniture nodes — Workbench today, Forge later)
 **Script:** `subsystems/crafting/crafting_station.gd`
-**Description:** Attached by `FurnitureLayer._create_furniture_node` when `def.crafting_params != null` (child named `"CraftingStation"`). Holds the station's recipe list (copied from the def at `_ready`) and the active order `{recipe_id, given}` in the furniture's `state` bag under `"craft_order"`. Implements the MaterialSink contract from the order's inputs — a station with no order reports no needs and vacuous-satisfied, which closes any bound haul job through HaulingJobDef's normal lifecycle. Does NOT own the craft math.
-**Used by:** craft panel UI (queue), HaulingJobDef (sink), CraftingJobDef (order API), Colony (signals).
+**Description:** Attached by `FurnitureLayer._create_furniture_node` when `def.crafting_params != null` (child named `"CraftingStation"`). Holds the station's recipes (from the def at `_ready`) and the active order in the furniture's `state` bag under `"craft_order"`: `{recipe_id, given, worker, maintain?, work_done}`. Implements the MaterialSink contract from the order's inputs; a station with no order reports no needs and vacuous-satisfied (closing bound haul jobs).
+**Used by:** craft panel, HaulingJobDef (sink), CraftingJobDef + CraftAction (order API), Colony (signals).
 
 | Property/Method | Type | Description |
 |---|---|---|
-| `recipes` | `Array[RecipeDef]` | Offered here; copied from `def.crafting_params` at `_ready`. |
-| `queue_recipe(recipe_id)` | `-> bool` | Start an order (no-op if one is active / unknown id); emits `crafting_order_queued`. |
-| `active_recipe()` | `-> RecipeDef?` | The order's recipe, or null (no order / def edited). |
-| `has_active_order()` | `-> bool` | Order present. |
-| `clear_order()` | `-> void` | Drop order + ledger (called by `CraftingJobDef.complete`). |
-| `given_count(item_id)` | `-> int` | Deposited toward the order (panel progress read). |
-| `anchor_cell()` | `-> Vector3i` | Footprint corner — Colony's dedupe key. |
-| `needed_item_ids` / `remaining_need` / `deposit_from` / `has_complete_materials` | MaterialSink | The haul contract, read from the order's inputs. |
+| `queue_recipe(id, worker, maintain)` | `-> bool` | Start an order (no-op if one is active); emits `crafting_order_queued`. |
+| `worker()` / `maintain_goal()` | `-> String/Dictionary` | Reservation ("colony"/"player") and maintain target reads. |
+| `is_ready()` / `can_player_work()` | `-> bool` | Inputs complete; ready AND unclaimed. |
+| `claim(owner)` / `release_claim(owner)` / `is_claimed()` | lock API | Owner-matched work claim (idempotent; mismatched release no-ops). |
+| `complete_order()` | `-> void` | Post-craft resolution: maintain requeue (via `queue_recipe`, so the haul producer refires) or clear; releases the claim. |
+| `cancel_order()` | `-> void` | Refund ledger to the nearest crate + clear; jobs self-clean. |
+| `work_done()` / `set_work_done(v)` | `-> float` | Player gauge resume state (persists in the state bag). |
+| `needed_item_ids` / `remaining_need` / `deposit_from` / `has_complete_materials` | MaterialSink | The haul contract, read from the order's inputs (crossing emits only for colony orders). |
 
 ### Class: CraftingJobDef
 
-**Extends:** JobDef (`data/jobs/crafting.tres`: id `craft`, labor `crafting`, single-assignee)
+**Extends:** JobDef (`crafting.tres`: labor `crafting`, single-assignee)
 **Script:** `data/jobs/crafting_job_def.gd`
-**Description:** Single WORK leg at the station (`job.target_node` = the CraftingStation node — it IS the sink, and freeing the furniture frees it, so the freed-target guard covers deconstruction). `begin` divides `recipe.base_time` by the crafter's skill multiplier; `complete` produces outputs (carry inventory first, overflow to the nearest crate) and clears the order. `meets_requirements` ANDs the active recipe's `conditions` (hot); `is_available` = order active + materials complete (the job only spawns on the crossing, and `given` never decreases, so it can't regress).
+**Description:** Single WORK leg at the station (`job.target_node` = the station node). `begin` divides `base_time` by the crafter's multiplier and claims the station; `complete` re-checks the claim (player-gauge race), produces crate-first, and resolves via `complete_order`. `produce(actor, station, recipe, pocket_first)` is the shared craft math — CraftAction reuses it pocket-first. `meets_requirements` ANDs the active recipe's conditions (hot).
+
+### Class: CraftAction
+
+**Extends:** GameAction (`data/actions/craft_action.gd`)
+**Description:** The player's personal craft — the BuildAction template applied to a station order: claim under `"player"`, `set_busy` + ActionProgress (`setup("Crafting …", duration, station.work_done())` — resume on Esc-cancel), completion re-guard, pocket-first `produce`, `complete_order`, `record_use_for_labor`. Panel-invoked (no `.tres`/ActionOption wiring). Player duration divides by the player's crafting multiplier (SkillSet on the Player).
 
 ## Known gaps / deferred
 
-- One order per station; no cancel/re-queue UI (rows disable while an order runs).
-- No partial-work persistence across craft attempts (order + deposits survive; elapsed work doesn't).
+- One order per station; no multi-item queue (Kenshi's per-bench queue) — the maintain goal covers batch needs.
+- Maintain orders are one-shot targets, not standing bills (stock falling later doesn't auto-resume).
+- Player orders don't participate in maintain; personal crafting is one-shot by design.
+- No partial-work persistence for *colonist* crafts (the order + deposits survive an abort; elapsed WORK doesn't — only the player gauge resumes).
 - Forge + smelting skill deferred; recipe unlocking post-MVP.
 - Jobs aren't recreated on save/load (pre-existing colony gap).

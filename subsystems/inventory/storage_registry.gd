@@ -65,6 +65,18 @@ func nearest_crate(near: Vector3) -> Furniture:
 	return best
 
 
+## Colony-wide stock of `item_id` across all crates (a maintain-order's
+## "craft until storage has N" reads this — pockets/actors don't count, only
+## what's physically in storage). Same live-scan idiom as the other queries.
+func colony_stock(item_id: String) -> int:
+	var total := 0
+	for crate in _crates():
+		var inv := inventory_of(crate)
+		if inv != null:
+			total += inv.get_item_count(item_id)
+	return total
+
+
 ## All live crate Furniture in the current map (Furniture nodes with a
 ## "StorageInventory" child). Computed each call so it never holds stale refs.
 func _crates() -> Array[Furniture]:

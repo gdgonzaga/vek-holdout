@@ -22,7 +22,7 @@ func execute(actor: Node, target: Node) -> void:
 	else:
 		push_warning("OpenCraftingAction: no hud/ui CanvasLayer found, parenting to actor")
 		actor.add_child(panel)
-	panel.setup(station)
+	panel.setup(station, actor as Player)
 
 
 static func _find_ui_layer(node: Node) -> CanvasLayer:

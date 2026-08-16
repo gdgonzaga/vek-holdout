@@ -46,6 +46,9 @@ text = "X"
 layout_mode = 2
 text = "No active order"
 
+[node name="OrderButtons" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+
 [node name="Scroll" type="ScrollContainer" parent="Panel/VBox"]
 layout_mode = 3
 size_flags_horizontal = 3

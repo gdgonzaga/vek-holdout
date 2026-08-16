@@ -29,16 +29,23 @@ func execute(actor: Node, target: Node) -> void:
 
 ## Lock the player, show the gauge, and react to its signals: complete forwards
 ## to Blueprint.complete; cancel persists the elapsed work so a retry resumes.
+## Both callbacks guard against the target resolving mid-gauge — the gauge is
+## purely time-based and never watches the blueprint, but a colonist's
+## ConstructionJobDef (or a cancel) can free it while the gauge runs; writing
+## work_done or calling complete on a freed node would crash.
 func _start_timed_build(actor: Node, bp: Blueprint, duration: float) -> void:
 	actor.set_busy(true)
 	var ui: Control = _progress_scene.instantiate()
 	ui.completed.connect(func() -> void:
 		actor.set_busy(false)
+		if not is_instance_valid(bp):
+			return  # freed mid-gauge (built/cancelled out from under us)
 		bp.work_done = 0.0
 		bp.complete(actor))
 	ui.cancelled.connect(func(elapsed: float) -> void:
 		actor.set_busy(false)
-		bp.work_done = elapsed)
+		if is_instance_valid(bp):
+			bp.work_done = elapsed)
 	_mount(ui, bp)
 	ui.setup(label if label != "" else "Build", duration, bp.work_done)
 

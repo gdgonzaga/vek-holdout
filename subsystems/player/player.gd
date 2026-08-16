@@ -46,6 +46,14 @@ signal interactable_changed(component: InteractionComponent)
 @onready var _camera: Camera3D = _rig.get_camera()
 @onready var inventory: CharacterInventory = $Inventory
 
+## Player skill progression (the same SkillSet colonists use — GDD §6.3).
+## Code-created (the Colonist's code-created-inventory precedent; script-only,
+## no scene edit) and unseeded: every skill reads L1 until trained by use
+## (personal crafting today). Wiring it means recipe conditions evaluate the
+## player naturally — MinSkillCondition reads actor.get("skill_set")
+## reflectively, so it already knew what to do.
+var skill_set: SkillSet
+
 
 ## The player's active Camera3D (via the rig). Used by BuildController for its
 ## screen-center raycast (ARCH line 335).
@@ -115,6 +123,11 @@ var _is_sprinting_on_jump := false
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# SkillSet child (skill catalog loads in its own _ready; unseeded = all L1).
+	var skills := SkillSet.new()
+	skills.name = "SkillSet"
+	add_child(skills)
+	skill_set = skills
 	# React to a buildable selection (emitted by the build menu) by entering
 	# Blueprint mode + recapturing the mouse. The selected id itself goes straight
 	# to BuildController via the same signal — Player doesn't carry it.

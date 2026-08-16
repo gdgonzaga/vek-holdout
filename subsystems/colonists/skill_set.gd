@@ -1,8 +1,9 @@
 extends Node
 class_name SkillSet
 ## Per-entity skill progression (GDD §6.3, ARCH "Subsystem: Skills"). Holds
-## level + use-progress for each of the 6 MVP skills for one entity (a Colonist;
-## Player wiring is post-MVP). Use-based leveling: record_use on successful
+## level + use-progress for each of the 6 MVP skills for one entity (a Colonist
+## or the Player — its SkillSet is code-created in Player._ready, unseeded).
+## Use-based leveling: record_use on successful
 ## completions, level-ups when cumulative uses cross the skill's use_curve.
 ##
 ## Work speed: get_multiplier(labor_id) maps Labor → governing skill → level →

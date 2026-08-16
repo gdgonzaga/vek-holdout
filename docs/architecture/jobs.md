@@ -213,21 +213,22 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 
 ### Class: CraftingJobDef
 
-**Extends:** `JobDef`
-**Script:** `data/jobs/crafting_job_def.gd` (`crafting.tres`: labor `crafting`, `max_assignees=1`)
-**Description:** Crafting labor — a **one-leg job** at a [CraftingStation](crafting.md): walk to the station, WORK over `recipe.base_time` ÷ skill multiplier, then produce. `job.target_node` is the station node (it IS the MaterialSink; freeing the furniture frees it, so the freed-target guard covers deconstruction). Spawned by Colony only when the order's deposits cross `has_complete_materials` (`crafting_materials_ready`) — the haul run feeding the station triggers it, exactly the blueprint→construction chain.
+**Extends:** JobDef (`data/jobs/crafting.tres`: labor `crafting`, `max_assignees=1`)
+**Script:** `data/jobs/crafting_job_def.gd`
+**Description:** Crafting labor — a **one-leg job** at a [CraftingStation](crafting.md): walk to the station, WORK over `recipe.base_time` ÷ skill multiplier, then produce. `job.target_node` is the station node (it IS the MaterialSink; freeing the furniture frees it, so the freed-target guard covers deconstruction). Spawned by Colony only when a **colony** order's deposits cross `has_complete_materials` (`crafting_materials_ready`) — player-reserved orders never spawn a craft job (the dual-mode reservation). A maintain order ("until stock N") self-requeues on completion, riding the same haul chain.
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `get_next_leg(actor, job) → JobLeg` | The station leg while the order is active AND materials-complete; null otherwise (complete cleared the order → the clean end-signal). |
-| `begin(actor, leg, job) → float` | `recipe.base_time / skill_set.get_multiplier(labor_id)` (the construction pattern); bare `base_time` for a non-Colonist actor; 0 if the order vanished. |
-| `complete(actor, leg, job) → void` | Outputs → the crafter's carry inventory, overflow `add`ed to the nearest crate; `station.clear_order()` (the deposit ledger IS the consumption); `GameLog.craft`. XP is automatic in `_end_job`. |
+| `get_next_leg(actor, job) → JobLeg` | The station leg while the order is active, materials-complete, AND unclaimed; null otherwise (complete cleared/requeued it → the clean end-signal; a claimed order means the player's gauge owns it). |
+| `begin(actor, leg, job) → float` | `recipe.base_time / skill_set.get_multiplier(labor_id)`; bare `base_time` for a non-Colonist actor; 0 if the order vanished **or the claim is held** (the colonist backs off — complete no-ops the same tick). Claims the station under the colonist's id for a timed WORK phase. |
+| `complete(actor, leg, job) → void` | Re-checks the claim (player-gauge race → no-op), then `produce()` crate-first (pocket overflow — maintain stock counters read crates) and `complete_order()` (maintain requeue or clear). XP is automatic in `_end_job`. |
+| `produce(actor, station, recipe, pocket_first) → bool` | The shared craft math — output routing with overflow into the other container. CraftAction (the player's personal craft) reuses it pocket-first. |
+| `on_end(success, actor, leg, job, elapsed) → void` | Release this colonist's claim (owner-matched — an aborting colonist can't unlock the player's gauge). |
 | `meets_requirements(actor, job) → bool` | Base def conditions AND the active recipe's `RecipeDef.conditions` (hot, per poll — a leveled-up colonist becomes eligible on the next poll). |
-| `is_available(job) → bool` | Station holds a materials-complete order (can't regress: `given` never decreases within an order). |
+| `is_available(job) → bool` | Station holds a materials-complete, unclaimed order (deposits never regress within an order). |
 | `should_close(job) → bool` | Station gone or order resolved — unlike hauling there is no drought state to wait out. |
-| `job_complete(job) → bool` | True when the order is gone (complete cleared it); an order still active means the run was cut short. |
 
 ### Class: Job
 

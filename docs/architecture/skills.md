@@ -1,6 +1,6 @@
 # Subsystem: Skills
 
-Per-entity skill progression (L1–L5, use-based). Determines work-speed multiplier; gates regular jobs at L1. GDD §6.3. Lives on Colonists as a `SkillSet` component (Player wiring is deferred — same component, no Player-side consumer yet). The Player screen's Skills *tab* is post-MVP (the data progresses now; the UI to view it is deferred).
+Per-entity skill progression (L1–L5, use-based). Determines work-speed multiplier; gates regular jobs at L1. GDD §6.3. Lives on Colonists AND the Player as a `SkillSet` component (the Player's is code-created in `Player._ready`, unseeded — personal crafting consumes and trains it; see [Crafting](crafting.md)). The Player screen's Skills *tab* is post-MVP (the data progresses now; the UI to view it is deferred).
 
 **Work-speed combination:** effective work rate = `base_rate × skill_multiplier × stamina_multiplier`. `SkillSet.get_multiplier(labor)` returns the skill factor (1.0 at L1 → 2.0 at L5); `StaminaComponent.get_work_multiplier()` returns the Stamina factor (**still a stub** — the stamina half of the formula is deferred). JobDefs divide their `begin()` duration by the skill factor (`ConstructionJobDef` today; see [Jobs](jobs.md)). See Flow Trace below.
 
