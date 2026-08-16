@@ -1,11 +1,12 @@
 # Subsystem: Jobs
 
-The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→act pattern, the `JobBoard` registry, and three shipped labors (Construction, Hauling, Crafting). Producers (currently [Colony](colonists.md) from blueprint + crafting-order events) create `Job` instances; consumers (`ColonistAI`) poll the board, assign, and execute legs. GDD §6.
+The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→act pattern, the `JobBoard` registry, and four shipped labors (Construction, Hauling, Crafting, Harvesting). Producers (currently [Colony](colonists.md) from blueprint + crafting-order events) create `Job` instances; consumers (`ColonistAI`) poll the board, assign, and execute legs. GDD §6.
 
-> **Sprint scope (built):** colonists work **multi-leg jobs**. A `JobDef` produces a stream of `JobLeg`s (walk-to → act); `ColonistAI` walks each leg and runs the def's `begin`/`complete` on arrival. Three labors ship:
+> **Sprint scope (built):** colonists work **multi-leg jobs**. A `JobDef` produces a stream of `JobLeg`s (walk-to → act); `ColonistAI` walks each leg and runs the def's `begin`/`complete` on arrival. Four labors ship:
 > - **Construction** — a blueprint with no unmet `material_cost` (costless or pre-satisfied) → a one-leg job: walk to a stand-adjacent cell, WORK over `build_time`, `Blueprint.complete` materializes it.
 > - **Hauling** — any blueprint with an unmet `material_cost` → up to `max_assignees` haulers divvy a run through the sink's shared deposit counter: each loops FETCH (crate → carry inventory) → DELIVER (`deposit_from` on the [MaterialSink](#jobs-furniture) — blueprints and crafting stations today) until `has_complete_materials()`. The DELIVER that crosses the threshold emits the sink's materials-ready signal (`blueprint_materials_ready` / `crafting_materials_ready`) → `Colony` spawns the follow-on job.
 > - **Crafting** — a queued recipe at a [CraftingStation](crafting.md) → hauling feeds the order's inputs (the station is a MaterialSink) → on the crossing `Colony` spawns a one-leg craft job: WORK over `recipe.base_time ÷ skill multiplier`, then outputs to the crafter's carry (overflow to the nearest crate) and the order clears.
+- **Harvesting** — a placed or spawned harvestable resource node (e.g. tree) with `HarvestParams` → marked via player interaction (`ToggleHarvestAction`) → `Colony` spawns a one-leg harvest job: WORK over `work_time ÷ skill multiplier`, then `Harvestable.complete` resolves yields to colonist carry inventory and removes the node.
 >
 > **Multi-assign:** a `Job` may hold several colonists at once (`try_assign`/`unassign`); **one colonist finishing ≠ job done** — the job leaves the board only when `should_close()` (no assignees left AND the def's `should_close` says dead). `JobBoard.get_best_job_for` prunes `should_close()` jobs on each poll.
 >
@@ -15,7 +16,7 @@ The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→ac
 >
 > **Known gaps:** a job `fail`-removed at 3 aborts won't respawn on restock (the producer only fires on placement); save-load doesn't recreate jobs for restored blueprints (see [Colonists](colonists.md)); there is no idle fallback activity yet (no wander, no rest — Stamina is a stub), so a colonist with no claimable work stands still.
 
-**Labors (GDD §6.4):** a *Labor* is a category of work, declared as a `LaborDef` resource under `data/labors/` (see [Data Schemas](data-schemas.md)) and referenced everywhere by its String `id`. Five ship today — `construction`, `crafting`, `hauling`, `mechanics`, `smelting` (Repair/Farming/Cooking post-MVP). The labor id is the join key of the subsystem: a `Job` carries one `labor_id` (what kind of work it is), and a [Colonist](colonists.md)'s `labor_priorities` Dict (`{labor_id: 0–5 weight}`) decides which jobs that colonist will accept — `JobBoard.get_best_job_for` skips any job whose labor has weight 0 for that colonist.
+**Labors (GDD §6.4):** a *Labor* is a category of work, declared as a `LaborDef` resource under `data/labors/` (see [Data Schemas](data-schemas.md)) and referenced everywhere by its String `id`. Six ship today — `construction`, `crafting`, `hauling`, `harvesting`, `mechanics`, `smelting` (Repair/Farming/Cooking post-MVP). The labor id is the join key of the subsystem: a `Job` carries one `labor_id` (what kind of work it is), and a [Colonist](colonists.md)'s `labor_priorities` Dict (`{labor_id: 0–5 weight}`) decides which jobs that colonist will accept — `JobBoard.get_best_job_for` skips any job whose labor has weight 0 for that colonist.
 
 ## Files
 
@@ -26,7 +27,12 @@ The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→ac
 | `data/jobs/construction_job_def.gd` | Script (Resource) | Construction labor: single-leg timed build — `Blueprint.complete` on finish, persists `work_done` on abort; `begin` divides `build_time` by the skill multiplier. |
 | `data/jobs/hauling_job_def.gd` | Script (Resource) | Hauling labor: multi-leg FETCH/DELIVER loop — deposit materials from crates into any MaterialSink via colonist carry inventory; tool-tagged items survive the surplus dump. |
 | `data/jobs/crafting_job_def.gd` | Script (Resource) | Crafting labor: single-leg timed craft at a [CraftingStation](crafting.md) — skill-scaled `begin`, outputs + order-clear on `complete`, recipe conditions ANDed into `meets_requirements`. |
-| `construction.tres` / `hauling.tres` / `crafting.tres` | Data | `JobDef` resources (labor_id, max_assignees, conditions). See [Data Schemas](data-schemas.md). |
+| `data/jobs/harvest_job_def.gd` | Script (Resource) | Harvesting labor: single-leg timed harvest of marked resource nodes — `Harvestable.complete` on finish, persists `work_done` on abort; `begin` divides `work_time` by the skill multiplier. |
+| `subsystems/harvesting/harvestable.gd` | Script (Node component) | Capability component attached by FurnitureLayer to furniture declaring `harvest_params`: tracks `is_marked_for_harvest` and `work_done`, and resolves harvest completion. |
+| `data/capability_params/harvest_params.gd` | Script (Resource) | Capability sub-resource on `FurnitureDef` defining `yields: Array[ItemAmount]`, `work_time: float`, and `respawn_time: float`. |
+| `data/actions/harvest_action.gd` | Script (GameAction) | Player direct LMB harvesting action with timed `ActionProgress` HUD gauge and skill XP scaling. |
+| `data/actions/toggle_harvest_action.gd` | Script (GameAction) | E interaction menu action to toggle `is_marked_for_harvest` on a targeted node. |
+| `construction.tres` / `hauling.tres` / `crafting.tres` / `harvest.tres` | Data | `JobDef` resources (labor_id, max_assignees, conditions). See [Data Schemas](data-schemas.md). |
 | `../furniture/material_sink.gd` | Script (static helper) | The duck-typed MaterialSink contract (4 methods) + `is_material_sink(node)` check. Blueprints and CraftingStation implement it. |
 | `../data/conditions/` | Data + scripts | Leaf conditions reusable on JobDefs (`MinSkillCondition`, `HasItemCondition`) and ActionOptions. See [Actions](actions.md). |
 | `colonists/job.gd` | Script (RefCounted) | Per-placement job instance — pure data + multi-assign bookkeeping (`try_assign`/`unassign`/`is_available`/`should_close`, `_assigned_colonists`). Leg behaviour lives on the `JobDef`. |
@@ -42,6 +48,7 @@ The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→ac
 | `blueprint_materials_ready(target_def_id, anchor, blueprint)` | `blueprint.gd` (`deposit_from`) | Colony | Yes | Haul → construction chain (single-fire per blueprint) |
 | `crafting_order_queued(station, anchor)` | `crafting_station.gd` (`queue_recipe`) | Colony | Yes | Craft order → haul chain ([Crafting](crafting.md)) |
 | `crafting_materials_ready(station, anchor)` | `crafting_station.gd` (`deposit_from`) | Colony | Yes | Haul → craft chain, single-fire per order ([Crafting](crafting.md)) |
+| `harvest_mark_toggled(furniture, anchor, is_marked)` | `harvestable.gd` (`set_marked`) | Colony | Yes | Resource mark → Harvest lifecycle |
 | `job_failed(job_id, reason)` | `job_board.gd` | Job Log UI | No | Job Failure Handling |
 | `job_logged(entry)` | `job_board.gd` | Job Log UI (when open) | Yes | Job Failure Handling |
 
@@ -84,6 +91,44 @@ The spatial counterpart to the lifecycle flow. A job is a sequence of legs; the 
 > **Why the ring search is the crux:** the injected predicate (`MapWiring._compose_walkability`) marks a cell walkable iff it is air, has a solid floor below, and is **not** furniture or a blueprint. Footprint-centers are rejected for free — the pathfinder never needs the footprint's shape or the def's `dimensions`; it just finds the nearest free neighbour.
 
 **End state:** Colonist stands adjacent to each leg target in turn; a builder WORKs the blueprint to completion (materializes via `Blueprint.complete`), a hauler fetches/delivers until materials are satisfied. Job resolves on the board; colonist idles.
+
+## Flow Trace: Resource mark → Harvest lifecycle
+
+The harvest subsystem provides dual-mode gathering: colonists work marked nodes as jobs, while the player can chop/gather nodes directly with LMB.
+
+**Trigger:** A player marks a harvestable furniture piece via interaction (`ToggleHarvestAction`), or points and left-clicks in Normal mode (`HarvestAction`).
+
+1. **Marking & Job Board Registration**:
+   - The player looks at a harvestable node (e.g. `tree1`) within `interact_distance` and presses `E` to open the interaction menu.
+   - Selecting "Toggle harvest" executes `ToggleHarvestAction`, calling `Harvestable.toggle_mark()`.
+   - `Harvestable.set_marked()` flips `is_marked_for_harvest` and emits `EventBus.harvest_mark_toggled(furniture, anchor, is_marked)`.
+   - `Colony._on_harvest_mark_toggled` receives the signal:
+     - `is_marked == true`: registers a new `Job` built from `HARVEST_DEF` (`title="Harvest <label>"`, `labor_id="harvesting"`, `target_node=furniture`, `anchor_cell=anchor`) onto `JobBoard`.
+     - `is_marked == false`: removes any `Job` matching that anchor from `JobBoard`.
+2. **Colonist Selection & Pathing**:
+   - An idle colonist with `labor_priorities["harvesting"] > 0` polls `JobBoard.get_best_job_for(colonist)`.
+   - `JobBoard` verifies `Job.is_available()` (which checks `is_marked_for_harvest` and validity) and `JobDef.meets_requirements`.
+   - `ColonistAI` claims the job via `job.try_assign(colonist)` and requests `get_next_leg(colonist, job)`.
+   - `HarvestJobDef.get_next_leg` returns a single `WORK` leg targeted at the furniture node.
+   - The colonist paths to a standable adjacent cell via `find_path_to_adjacent`.
+3. **Execution & Completion**:
+   - On arrival, `ColonistAI` calls `HarvestJobDef.begin(colonist, leg, job)`.
+   - `begin` returns `maxf(0.0, (params.work_time / skill_multiplier) - harvestable.work_done())`.
+   - If duration > 0, the colonist enters `WORK` state for that duration.
+   - Upon timer completion, `ColonistAI` calls `HarvestJobDef.complete(colonist, leg, job)`:
+     - Invokes `Harvestable.complete(colonist)`.
+     - Dispenses `HarvestParams.yields` into `colonist.inventory` (carry inventory).
+     - Posts a "Harvested <label>" entry to `GameLog`.
+     - Removes the furniture node from `FurnitureLayer` via `FurnitureLayer.remove_at(anchor)` (which emits `EventBus.furniture_removed`).
+     - Grants harvesting skill XP via `colonist.skill_set.record_use_for_labor("harvesting")`.
+   - `get_next_leg` now returns `null` (the node is freed), ending the job cleanly.
+4. **Dual-Mode: Direct Player Harvesting (LMB)**:
+   - In Normal mode, pressing LMB (`InputComponent.primary_action_pressed`) on a targeted interactable running `HarvestAction.execute(player, target)` starts the `ActionProgress` HUD gauge.
+   - `ActionProgress` is configured with `total_duration = params.work_time / player.skill_set.get_multiplier("harvesting")` and `start_elapsed = harvestable.work_done()`.
+   - **On Complete**: `HarvestAction._apply` calls `Harvestable.complete(player)` (granting yields directly to the player's pocket) and awards player harvesting XP.
+   - **On Cancel (Esc / interrupt)**: `ActionProgress.cancelled` emits `elapsed`, and `HarvestAction` calls `Harvestable.set_work_done(elapsed)` to persist partial progress for subsequent attempts.
+
+**End state:** The node is removed from the world, materials land in the actor's inventory, XP is awarded, and Colony drops any corresponding job from the board.
 
 ## Subsystem Interfaces
 
@@ -300,3 +345,59 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 | `has_source_for(item_ids) → bool` | Any crate holds any of `item_ids`. Used by the producer decision + hauling's `is_available`. |
 | `nearest_crate(near) → Furniture` | Nearest crate regardless of contents (for surplus return). |
 | `inventory_of(crate) → StorageInventory` | The crate's `StorageInventory` (or null). Shared resolution path for haul legs. |
+
+### Class: HarvestJobDef
+
+**Extends:** JobDef (`data/jobs/harvest.tres`: labor `harvesting`, `max_assignees=1`)
+**Script:** `data/jobs/harvest_job_def.gd`
+**Description:** Harvesting labor — a **one-leg job** targeting a marked resource node (e.g. tree): walk adjacent to the node, WORK over `HarvestParams.work_time` ÷ skill multiplier, then `Harvestable.complete` to grant yields and remove the node. Available exactly while `target_node` is valid AND `is_marked_for_harvest` is true.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `get_next_leg(actor, job) → JobLeg` | Returns the node leg while `is_marked_for_harvest` is true; null otherwise (unmarking or completion cleanly ends the job). |
+| `begin(actor, leg, job) → float` | `maxf(0.0, (params.work_time / skill_multiplier) - harvestable.work_done())`. Returns remaining work in seconds. |
+| `complete(actor, leg, job) → void` | Calls `harvestable.complete(actor)` and records harvesting skill XP. |
+| `on_end(success, actor, leg, job, elapsed) → void` | On abort, persists `harvestable.set_work_done(work_done + elapsed)`. |
+| `is_available(job) → bool` | Target valid AND `harvestable.is_marked_for_harvest()`. |
+| `should_close(job) → bool` | Target gone or `!is_marked_for_harvest()`. |
+
+### Class: Harvestable
+
+**Extends:** Node
+**Script:** `subsystems/harvesting/harvestable.gd`
+**Description:** Capability component attached under a `Furniture` node by `FurnitureLayer` when its def declares `harvest_params`. Tracks `is_marked_for_harvest` and `work_done` in the parent's `state` dictionary (`"harvest"` key). Exposes `complete(actor)` to resolve yields and node deletion.
+**Used by:** `HarvestJobDef`, `HarvestAction`, `ToggleHarvestAction`, `FurnitureLayer`, `Colony`.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `params() → HarvestParams` | Back-ref to definition's `def.harvest_params`. |
+| `anchor_cell() → Vector3i` | Footprint corner anchor cell. |
+| `is_marked_for_harvest() → bool` | Whether marked for colonist work. |
+| `set_marked(marked: bool) → void` | Update mark state, log change, and emit `EventBus.harvest_mark_toggled`. |
+| `toggle_mark() → void` | Flips mark state. |
+| `work_done() → float` / `set_work_done(amount: float) → void` | Accumulated work accessors. |
+| `complete(actor: Node) → bool` | Dispenses `params.yields` into `actor` inventory, logs "Harvested <label>", and removes the node via `FurnitureLayer.remove_at` (or `queue_free`). |
+
+### Class: HarvestParams
+
+**Extends:** Resource
+**Script:** `data/capability_params/harvest_params.gd`
+**Description:** Capability sub-resource on `FurnitureDef` configuring harvesting properties.
+**Properties:** `yields: Array[ItemAmount]`, `work_time: float` (default 4.0), `respawn_time: float` (0 = permanent), `required_tool_tag: String`.
+
+### Class: HarvestAction
+
+**Extends:** GameAction
+**Script:** `data/actions/harvest_action.gd`
+**Description:** Dual-mode player harvesting action executed on LMB click in Normal mode. Runs the `ActionProgress` HUD gauge scaled by player skill, invoking `Harvestable.complete(player)` on finish or persisting `elapsed` on cancel.
+
+### Class: ToggleHarvestAction
+
+**Extends:** GameAction
+**Script:** `data/actions/toggle_harvest_action.gd`
+**Description:** Interaction menu action bound to `toggle_harvest_action_option.tres`. Invokes `Harvestable.toggle_mark()` on the targeted furniture node.
+

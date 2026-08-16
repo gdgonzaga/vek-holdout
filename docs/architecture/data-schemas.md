@@ -139,8 +139,9 @@ _(No cost-helper methods — `material_cost` is read directly as an `Array[ItemA
 | `item_dispenser_params` | `ItemDispenserParams` | `[export, nullable]` Capability sub-resource consumed by `GiveItemAction` (the items it dispenses, as `Array[ItemAmount]`). Schema in `data/capability_params/`. |
 | `storage_params` | `StorageParams` | `[export, nullable]` Capability sub-resource consumed by `StorageInventory` (its `capacity`, default 100.0). Schema in `data/capability_params/`. |
 | `crafting_params` | `CraftingParams` | `[export, nullable]` Capability sub-resource: the station's `recipes: Array[RecipeDef]`. Non-null → FurnitureLayer attaches a `CraftingStation` child. Schema in `data/capability_params/`; recipes in `data/recipes/`. |
+| `harvest_params` | `HarvestParams` | `[export, nullable]` Capability sub-resource: the node's `yields`, `work_time`, and `respawn_time`. Non-null → FurnitureLayer attaches a `Harvestable` child component. Schema in `data/capability_params/`. |
 
-> **FurnitureDef capability parameters** *(built: `crafting_params` + `storage_params`; `test_params` is not yet read by any GameAction)*
+> **FurnitureDef capability parameters** *(built: `crafting_params`, `storage_params`, `harvest_params`; `test_params` is not yet read by any GameAction)*
 >
 > When two furniture defs differ only in parameters a `GameAction` reads (e.g. a Workbench vs Workbench-T2 differing in craft speed and max recipe tier), those parameters live on **nullable sub-resources referenced from `FurnitureDef`**, not on the def itself. The pattern: each capability gets a small `Resource` subclass (`CraftingParams`, `StorageParams`, …) exposed as a nullable `@export` on `FurnitureDef`; a placed furniture reads it via `def.crafting` (null if absent). Param schemas live in `data/capability_params/`; `test_params` is the seed of this pattern.
 >
@@ -150,6 +151,18 @@ _(No cost-helper methods — `material_cost` is read directly as an `Array[ItemA
 > - **Chosen for the multi-capability case specifically.** For a single capability on a single furniture type, a `CrafterDef` subclass would also be fine; composition wins once combinations are plausible (Workbench, Clinic Bed, Storage Crate per GDD §7.9–§7.11).
 >
 > **Escape hatch:** a `params: Dictionary` on the base `FurnitureDef` remains valid for genuinely one-off, action-local values that no other system will ever read (e.g. a signal fire's smoke color). Typed, named, cross-consumer data goes on a sub-resource; truly bespoke single-action data goes in the dict.
+
+
+### `data/capability_params/harvest_params.gd` (Resource: `HarvestParams`)
+
+Capability sub-resource for harvestable furniture (trees, resources).
+
+| Field | Type | Description |
+|---|---|---|
+| `yields` | `Array[ItemAmount]` | List of items and counts produced when harvested. |
+| `work_time` | `float` | Base work duration in seconds (default 4.0). Scaled by actor harvesting skill multiplier. |
+| `respawn_time` | `float` | Respawn interval in seconds (default 0.0 = permanent removal). |
+| `required_tool_tag` | `String` | Optional tag for required equipment (default empty). |
 
 ## `data/actions/<id>.tres` (Resource: `game_action.gd`)
 

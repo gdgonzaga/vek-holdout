@@ -101,19 +101,24 @@ Shipped 2026-08-15 (`data/crafting/recipe_def.gd`, `data/capability_params/craft
 
 **Design note:** supersedes [Crafting](crafting.md)'s reserve-at-queue step — inputs are physically hauled to the station (the blueprint pattern, matching the "furniture creates the job once hauling finishes" requirement) instead of reserved in crates. Crafting's material-flow-through-storage, skill, Stamina, and output-to-storage points otherwise stand.
 
-### Harvesting — furniture nodes + carried tools
+> **Status: Harvesting Feature is built (2026-08-16, `test/suite_harvesting_test.gd`).**
 
-Files: `HarvestParams` capability sub-resource, `data/jobs/harvest_job_def.gd` + `harvest.tres`, `data/labors/harvesting.tres` (new labor), `subsystems/autoloads/colony.gd` producer on `furniture_placed`.
+### Harvesting — furniture nodes, marking, and manual chop
 
-Trees = furniture authored into maps (or spawned later) with `HarvestParams`: `yields: Array[ItemAmount]`, `work_time: float`, `respawn_time: float` (0 = removed permanently). The producer spawns a harvest job per node (dedupe by anchor).
+Files: `HarvestParams` capability sub-resource, `subsystems/harvesting/harvestable.gd` component, `data/jobs/harvest_job_def.gd` + `harvest.tres`, `data/labors/harvesting.tres` (new labor), `data/actions/harvest_action.gd` (player LMB action), `data/actions/toggle_harvest_action.gd` (E interaction option), `subsystems/autoloads/colony.gd` routing on `harvest_mark_toggled`.
 
-`HarvestJobDef` — the tool pattern (rule 1):
+Trees/resources = furniture authored into maps with `HarvestParams`: `yields: Array[ItemAmount]`, `work_time: float`, `respawn_time: float` (0 = removed permanently). FurnitureLayer attaches the `Harvestable` component and injects the `ToggleHarvestAction` into the `InteractionComponent`.
 
-- `get_next_leg`: required tool not carried AND a crate stocks a tool-tagged item → **FETCH_TOOL** leg (crate target — hauling's FETCH shape); tool carried + node valid → WORK leg at the node; node gone → null.
-- `is_available`: node valid AND storage stocks the required tool (rule 5 — without the stock check, toolless colonists hot-loop).
-- `complete`: yields → colonist inventory (overflow → crate); node removed via `furniture_layer.remove_at` or depleted pending `respawn_time`; `record_use`.
-- `on_end`: keeps the tool (rule 3 protects it across later haul jobs).
-- Def conditions: `MinSkill` only.
+Dual-mode harvesting:
+- **Player manual harvest (LMB)**: In Normal mode, pressing LMB looking at a harvestable target runs `HarvestAction` with the `ActionProgress` HUD gauge (duration scaled by player's harvesting skill). Completes work directly or persists partial progress on cancel.
+- **Colonist job via marking (E interaction)**: Interacting with E allows toggling the "Mark for Harvest" state on `Harvestable`. Toggling emits `EventBus.harvest_mark_toggled`, prompting Colony to register/unregister a `HarvestJob` on `JobBoard`.
+
+`HarvestJobDef`:
+- `get_next_leg`: returns a WORK leg targeting the marked node (null if un-marked or node gone).
+- `is_available`: node valid AND `is_marked_for_harvest` is true.
+- `begin`: duration = `work_time / skill_multiplier - work_done`.
+- `complete`: applies work → yields to colonist inventory → node removed via `FurnitureLayer.remove_at`; records harvesting skill XP.
+- `on_end`: persists elapsed work on abort.
 
 **Voxel node harvesting** (follow-up, after Demolition): `BlockDef` gains `drops: Array[ItemAmount]`; a `MiningJobDef` targets a cell — `job.anchor_cell` is the cell's identity (dedupe/cancel by anchor, exactly like blueprints) and `leg.location` the walk target; `complete` drives `VoxelGrid.apply_damage` per swing until `block_destroyed` → drops. The pathfinder is already cell-native (`find_stand_near_cell`; `ColonistAI._path_for_leg` falls back to `find_path_to_adjacent` for non-furniture legs), so no `JobLeg` change is required — an optional `target_cell: Vector3i` is identity sugar. [Tech Debt](tech-debt.md)'s "Demolition (as a Job)" needs the same cell-targeted leg shape and is the smaller proving ground — build it first. Resource veins additionally need worldgen (flat generator today) — a separate effort.
 
