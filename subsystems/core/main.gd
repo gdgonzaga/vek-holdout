@@ -59,3 +59,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			SceneManager.close_screen()
 		elif not UiGate.is_input_blocked():
 			SceneManager.open_screen("log_history")
+	elif event.is_action_pressed("colony_management"):
+		if SceneManager.is_screen_open():
+			SceneManager.close_screen()
+		elif not UiGate.is_input_blocked():
+			SceneManager.open_screen("colony_management")
