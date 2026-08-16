@@ -72,3 +72,72 @@ func test_colonist_tab_roster_and_details() -> void:
 	
 	var act_lbl: Label = _scene.get_node("%DetailActivityLabel") as Label
 	assert_str(act_lbl.text).contains("Current Activity:")
+
+
+func test_labors_tab_empty_roster() -> void:
+	Colony.colonists.clear()
+	_scene.call("_refresh_labors_matrix")
+
+	var no_col: Label = _scene.get_node("%NoColonistsLabel") as Label
+	var grid: GridContainer = _scene.get_node("%LaborsGrid") as GridContainer
+	assert_object(no_col).is_not_null()
+	assert_bool(no_col.visible).is_true()
+	assert_bool(grid.visible).is_false()
+
+
+func test_labors_tab_populates_matrix() -> void:
+	Colony.colonists.clear()
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	colonist.display_name = "Worker Alpha"
+	Colony.colonists.append(colonist)
+
+	_scene.call("_refresh_labors_matrix")
+
+	var no_col: Label = _scene.get_node("%NoColonistsLabel") as Label
+	var grid: GridContainer = _scene.get_node("%LaborsGrid") as GridContainer
+	assert_bool(no_col.visible).is_false()
+	assert_bool(grid.visible).is_true()
+
+	# 6 labors + 1 colonist column = 7 columns
+	assert_int(grid.columns).is_equal(7)
+	# 7 header cells + 7 row cells (1 name + 6 labor cells) = 14 children
+	assert_int(grid.get_child_count()).is_equal(14)
+
+
+func test_labor_cell_left_right_click_and_clamping() -> void:
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	colonist.display_name = "Matrix Worker"
+	colonist.set_labor_priority("construction", 1)
+
+	var cell_scene: PackedScene = load("res://ui/colony_management/labor_cell.tscn")
+	var cell: LaborCell = auto_free(cell_scene.instantiate() as LaborCell)
+	add_child(cell)
+	cell.setup(colonist, "construction", "Construction")
+
+	assert_str(cell.text).is_equal("1")
+
+	# Increment to max (5) and clamp
+	cell.call("_change_priority", 1) # 2
+	assert_str(cell.text).is_equal("2")
+	cell.call("_change_priority", 1) # 3
+	assert_str(cell.text).is_equal("3")
+	cell.call("_change_priority", 1) # 4
+	assert_str(cell.text).is_equal("4")
+	cell.call("_change_priority", 1) # 5
+	assert_str(cell.text).is_equal("5")
+	cell.call("_change_priority", 1) # Clamp at 5
+	assert_str(cell.text).is_equal("5")
+	assert_int(colonist.labor_priorities["construction"]).is_equal(5)
+
+	# Decrement to min (0) and clamp
+	cell.call("_change_priority", -1) # 4
+	cell.call("_change_priority", -1) # 3
+	cell.call("_change_priority", -1) # 2
+	cell.call("_change_priority", -1) # 1
+	cell.call("_change_priority", -1) # 0
+	assert_str(cell.text).is_equal("0")
+	cell.call("_change_priority", -1) # Clamp at 0
+	assert_str(cell.text).is_equal("0")
+	assert_int(colonist.labor_priorities["construction"]).is_equal(0)

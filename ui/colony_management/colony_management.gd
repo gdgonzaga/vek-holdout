@@ -6,6 +6,8 @@ extends Control
 
 const COLONIST_ENTRY_SCENE := preload("res://ui/colony_management/colonist_entry.tscn")
 const ColonistEntryScript := preload("res://ui/colony_management/colonist_entry.gd")
+const LABOR_CELL_SCENE := preload("res://ui/colony_management/labor_cell.tscn")
+const LaborCellScript := preload("res://ui/colony_management/labor_cell.gd")
 
 @onready var _close_button: Button = %CloseButton
 @onready var _tab_container: TabContainer = %TabContainer
@@ -24,6 +26,9 @@ const ColonistEntryScript := preload("res://ui/colony_management/colonist_entry.
 @onready var _detail_inventory_weight_label: Label = %DetailInventoryWeightLabel
 @onready var _detail_item_list: VBoxContainer = %DetailItemList
 
+@onready var _labors_grid: GridContainer = %LaborsGrid
+@onready var _no_colonists_label: Label = %NoColonistsLabel
+
 var _selected_colonist: Colonist = null
 
 
@@ -33,6 +38,7 @@ func _ready() -> void:
 	if _tab_container != null:
 		_tab_container.tab_changed.connect(_on_tab_changed)
 	_refresh_colonist_roster()
+	_refresh_labors_matrix()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -48,6 +54,8 @@ func _on_close_pressed() -> void:
 func _on_tab_changed(_tab_index: int) -> void:
 	if _tab_index == 1:
 		_refresh_colonist_roster()
+	elif _tab_index == 2:
+		_refresh_labors_matrix()
 
 
 func _refresh_colonist_roster() -> void:
@@ -170,3 +178,107 @@ func _populate_carried_items() -> void:
 		lbl.text = "• %s  x%d  (%.1f kg)" % [iname, count, weight]
 		lbl.add_theme_font_size_override("font_size", 13)
 		_detail_item_list.add_child(lbl)
+
+
+func _get_available_labors() -> Array[LaborDef]:
+	var labors: Array[LaborDef] = []
+	var loaded_ids: Dictionary = {}
+
+	var dir := DirAccess.open("res://data/labors/")
+	if dir != null:
+		dir.list_dir_begin()
+		var fname := dir.get_next()
+		while fname != "":
+			if not dir.current_is_dir() and fname.ends_with(".tres"):
+				var res = load("res://data/labors/" + fname)
+				if res is LaborDef and res.id != "" and not loaded_ids.has(res.id):
+					labors.append(res)
+					loaded_ids[res.id] = true
+			fname = dir.get_next()
+
+	var fallback_paths := [
+		"res://data/labors/construction.tres",
+		"res://data/labors/crafting.tres",
+		"res://data/labors/harvesting.tres",
+		"res://data/labors/hauling.tres",
+		"res://data/labors/mechanics.tres",
+		"res://data/labors/smelting.tres",
+	]
+	for path in fallback_paths:
+		if ResourceLoader.exists(path):
+			var res = load(path)
+			if res is LaborDef and res.id != "" and not loaded_ids.has(res.id):
+				labors.append(res)
+				loaded_ids[res.id] = true
+
+	labors.sort_custom(func(a: LaborDef, b: LaborDef) -> bool:
+		return a.display_name.naturalcasecmp_to(b.display_name) < 0
+	)
+	return labors
+
+
+func _refresh_labors_matrix() -> void:
+	if _labors_grid == null:
+		return
+
+	for child in _labors_grid.get_children():
+		child.queue_free()
+
+	var roster: Array[Colonist] = Colony.colonists
+	var valid_roster: Array[Colonist] = []
+	for c in roster:
+		if is_instance_valid(c):
+			valid_roster.append(c)
+
+	if valid_roster.is_empty():
+		if _no_colonists_label != null:
+			_no_colonists_label.visible = true
+		_labors_grid.visible = false
+		return
+
+	if _no_colonists_label != null:
+		_no_colonists_label.visible = false
+	_labors_grid.visible = true
+
+	var labors := _get_available_labors()
+	_labors_grid.columns = 1 + labors.size()
+
+	# Row 0: Header Row
+	var name_hdr := PanelContainer.new()
+	var name_hdr_lbl := Label.new()
+	name_hdr_lbl.text = " Colonist "
+	name_hdr_lbl.add_theme_font_size_override("font_size", 14)
+	name_hdr_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8, 1))
+	name_hdr.add_child(name_hdr_lbl)
+	name_hdr.custom_minimum_size = Vector2(140, 36)
+	_labors_grid.add_child(name_hdr)
+
+	for labor in labors:
+		var labor_hdr := PanelContainer.new()
+		var labor_hdr_lbl := Label.new()
+		labor_hdr_lbl.text = " %s " % labor.display_name
+		labor_hdr_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		labor_hdr_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		labor_hdr_lbl.add_theme_font_size_override("font_size", 14)
+		labor_hdr_lbl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9, 1))
+		labor_hdr.add_child(labor_hdr_lbl)
+		labor_hdr.custom_minimum_size = Vector2(80, 36)
+		if labor.description != "":
+			labor_hdr.tooltip_text = "%s\n%s" % [labor.display_name, labor.description]
+		_labors_grid.add_child(labor_hdr)
+
+	# Rows 1..M: Colonists
+	for colonist in valid_roster:
+		var name_panel := PanelContainer.new()
+		var name_lbl := Label.new()
+		name_lbl.text = " %s " % colonist.display_name
+		name_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		name_lbl.add_theme_font_size_override("font_size", 14)
+		name_panel.add_child(name_lbl)
+		name_panel.custom_minimum_size = Vector2(140, 36)
+		_labors_grid.add_child(name_panel)
+
+		for labor in labors:
+			var cell: Button = LABOR_CELL_SCENE.instantiate() as Button
+			_labors_grid.add_child(cell)
+			cell.call("setup", colonist, labor.id, labor.display_name)

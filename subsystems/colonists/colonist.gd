@@ -114,9 +114,8 @@ func _die() -> void:
 	EventBus.colonist_died.emit(colonist_id)
 
 
-func set_labor_priority(labord_id: String, priority: int) -> void:
-	# TODO: Add a guard vs configured min/max values
-	labor_priorities[labord_id] = priority
+func set_labor_priority(labor_id: String, priority: int) -> void:
+	labor_priorities[labor_id] = clampi(priority, 0, 5)
 
 
 func set_raid_stance(stance: int) -> void:
