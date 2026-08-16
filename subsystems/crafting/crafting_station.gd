@@ -44,6 +44,10 @@ const ORDER_KEY := "craft_order"
 const WORKER_COLONY := "colony"
 const WORKER_PLAYER := "player"
 
+## Claim owner used by CraftAction (same string as WORKER_PLAYER — the player
+## is both the reservation and the claimant).
+const PLAYER_CLAIM := "player"
+
 ## Recipes offered here — copied from def.crafting_params at _ready.
 var recipes: Array[RecipeDef] = []
 
@@ -167,10 +171,15 @@ func is_ready() -> bool:
 
 
 ## Whether the player may start crafting this order personally: it must be
-## ready and unclaimed — either by a colonist mid-WORK or by the player's own
-## running gauge (a double-start would double-produce).
+## ready, and no COLONIST may hold the work claim. The player's OWN claim does
+## not block — the player cannot overlap their own gauge (the panel closes and
+## busy-locks before one starts), and treating it as non-blocking makes a
+## stale player claim self-heal (Craft now re-opens) instead of bricking the
+## station.
 func can_player_work() -> bool:
-	return is_ready() and not is_claimed()
+	if not is_ready():
+		return false
+	return not is_claimed() or claim_owner() == PLAYER_CLAIM
 
 
 ## Resolve the order after a craft applied its effects (CraftingJobDef.complete

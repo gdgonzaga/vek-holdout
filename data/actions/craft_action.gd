@@ -17,8 +17,6 @@ extends GameAction
 const CRAFTING_DEF: CraftingJobDef = preload("res://data/jobs/crafting.tres")
 const _progress_scene: PackedScene = preload("res://ui/action_progress/action_progress.tscn")
 
-const PLAYER_CLAIM := "player"
-
 
 func execute(actor: Node, target: Node) -> void:
 	var station := _station_of(target)
@@ -37,12 +35,13 @@ func execute(actor: Node, target: Node) -> void:
 	_start_timed_craft(actor, station, recipe, duration)
 
 
-## Claim the station, lock the player, run the gauge. Completion re-guards:
-## if the order vanished mid-gauge (station freed, order externally resolved)
-## nothing is produced; cancel releases the claim and persists the elapsed
-## work for resume.
+## Claim the station, lock the player, run the gauge. Completion re-guards
+## with can_player_work — the player's own claim doesn't block it (that's the
+## state the gauge itself created), so this rejects only when the order was
+## resolved or freed externally mid-gauge. Cancel releases the claim and
+## persists the elapsed work for resume.
 func _start_timed_craft(actor: Node, station: CraftingStation, recipe: RecipeDef, duration: float) -> void:
-	if not station.claim(PLAYER_CLAIM):
+	if not station.claim(CraftingStation.PLAYER_CLAIM):
 		return
 	actor.set_busy(true)
 	var ui: Control = _progress_scene.instantiate()
@@ -51,11 +50,13 @@ func _start_timed_craft(actor: Node, station: CraftingStation, recipe: RecipeDef
 		if not is_instance_valid(station):
 			return
 		if station.can_player_work():
-			_apply(actor, station, recipe))
+			_apply(actor, station, recipe)
+		else:
+			GameLog.craft("%s was resolved elsewhere" % recipe.label()))
 	ui.cancelled.connect(func(elapsed: float) -> void:
 		actor.set_busy(false)
 		if is_instance_valid(station):
-			station.release_claim(PLAYER_CLAIM)
+			station.release_claim(CraftingStation.PLAYER_CLAIM)
 			station.set_work_done(elapsed))
 	_mount(ui, station)
 	ui.setup("Crafting %s" % recipe.label(), duration, station.work_done())

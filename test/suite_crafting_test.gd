@@ -438,13 +438,18 @@ func test_colony_order_crossing_still_spawns_craft_job() -> void:
 
 func test_claim_lock_arbitration() -> void:
 	var station := _satisfied_order_station()
-	assert_bool(station.claim("player")).is_true()
-	assert_bool(station.can_player_work()).is_false()
-	assert_bool(station.claim("c1")).is_false()    # a second claim is refused
-	assert_bool(station.claim("player")).is_true() # idempotent for the owner
-	station.release_claim("c1")                    # mismatched release no-ops
+	# The player's OWN claim does not block the player (they can't overlap
+	# their own gauge) — it blocks only colonists, and self-heals if stale.
+	assert_bool(station.claim(CraftingStation.PLAYER_CLAIM)).is_true()
+	assert_bool(station.can_player_work()).is_true()
+	assert_bool(station.claim("c1")).is_false()  # colonist claim refused
+	station.release_claim(CraftingStation.PLAYER_CLAIM)
+	assert_bool(station.claim("c1")).is_true()
+	assert_bool(station.can_player_work()).is_false()  # colonist mid-WORK blocks
+	assert_bool(station.claim("c1")).is_true()         # idempotent for the owner
+	station.release_claim("c2")                        # mismatched release no-ops
 	assert_bool(station.is_claimed()).is_true()
-	station.release_claim("player")
+	station.release_claim("c1")
 	assert_bool(station.is_claimed()).is_false()
 
 
@@ -569,6 +574,29 @@ func test_craft_action_instant_path_produces_for_player() -> void:
 	assert_bool(station.has_active_order()).is_false()
 	# Personal crafting trains the player's crafting skill.
 	assert_int(int(player.skill_set.skills.get("crafting", {}).get("progress", 0))).is_equal(1)
+
+
+func test_craft_action_timed_path_produces_and_releases() -> void:
+	# Regression for the gauge bug: the completion re-guard must not reject
+	# the craft because of the player's OWN claim (the state the gauge
+	# created) — outputs must land, the order resolve, the claim release.
+	var station := _make_station([_recipe("planks", ["plank", 2], ["plank", 4], 0.05)])
+	station.queue_recipe("planks", CraftingStation.WORKER_PLAYER)
+	var player := _make_player()
+	player.inventory.add("plank", 2)
+	var ready := SignalCounter.new(EventBus.crafting_materials_ready)
+	station.deposit_from(player)  # player deposits their own materials
+	ready.read()
+	var action := CraftAction.new()
+	action.execute(player, station)  # timed path (base_time 0.05 → gauge)
+	assert_bool(station.is_claimed()).is_true()
+	assert_str(station.claim_owner()).is_equal(CraftingStation.PLAYER_CLAIM)
+	assert_bool(player.is_busy()).is_true()
+	await get_tree().create_timer(0.4).timeout  # let the gauge settle
+	assert_int(player.inventory.get_item_count("plank")).is_equal(4)  # pocket-first
+	assert_bool(station.has_active_order()).is_false()
+	assert_bool(station.is_claimed()).is_false()
+	assert_bool(player.is_busy()).is_false()
 
 
 func test_craft_action_guarded_when_not_workable() -> void:

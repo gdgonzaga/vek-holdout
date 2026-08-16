@@ -101,7 +101,7 @@ func _refresh_order_section() -> void:
 			Colony.storage_registry.colony_stock(item_id),
 			int(maintain.get("count", 0)),
 		]
-	if _station.is_claimed():
+	if _station.is_claimed() and _station.claim_owner() != CraftingStation.PLAYER_CLAIM:
 		tag += " · being crafted"
 	_order_label.text = "%s — %s · %s" % [recipe.label(), "  ".join(parts), tag]
 	_craft_now_button.visible = _station.is_ready()
