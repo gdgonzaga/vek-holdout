@@ -79,6 +79,10 @@ func colony_stock(item_id: String) -> int:
 
 ## All live crate Furniture in the current map (Furniture nodes with a
 ## "StorageInventory" child). Computed each call so it never holds stale refs.
+func get_all_crates() -> Array[Furniture]:
+	return _crates()
+
+
 func _crates() -> Array[Furniture]:
 	var out: Array[Furniture] = []
 	if _container == null:

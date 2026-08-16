@@ -373,8 +373,45 @@ theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 metadata/_tab_index = 4
 
-[node name="Label" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage"]
+[node name="StorageContent" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage"]
 layout_mode = 2
-size_flags_horizontal = 4
+theme_override_constants/separation = 12
+
+[node name="StorageHeader" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage/StorageContent"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="StorageTitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage/StorageContent/StorageHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 18
-text = "Storage — Stockpiled item breakdown and capacity tracking (Stub)"
+text = "Colony Storage & Stockpiles"
+
+[node name="StorageSubtitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage/StorageContent/StorageHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Track stockpiled resources and storage capacity across all colony containers."
+
+[node name="HSeparator" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage/StorageContent"]
+layout_mode = 2
+
+[node name="NoStorageLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage/StorageContent"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 14
+text = "No storage containers built in colony."
+
+[node name="StorageScrollContainer" type="ScrollContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage/StorageContent"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="StorageList" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Storage/StorageContent/StorageScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12

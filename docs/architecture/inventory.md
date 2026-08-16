@@ -102,6 +102,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `nearest_crate(near: Vector3) -> Furniture` | Nearest crate regardless of contents (for surplus return). |
 | `colony_stock(item_id: String) -> int` | Colony-wide stock of one item across all crates — a crafting maintain order's "craft until storage has N" target read (pockets don't count). |
 | `inventory_of(crate: Furniture) -> StorageInventory` | The crate's `StorageInventory` (or null if the crate is null/freed or has no such child). Shared resolution path so haul legs don't each re-fetch the child node. |
+| `get_all_crates() -> Array[Furniture]` | All live crate `Furniture` nodes in the current map. |
 
 ## Design Notes
 

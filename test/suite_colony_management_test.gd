@@ -141,3 +141,48 @@ func test_labor_cell_left_right_click_and_clamping() -> void:
 	cell.call("_change_priority", -1) # Clamp at 0
 	assert_str(cell.text).is_equal("0")
 	assert_int(colonist.labor_priorities["construction"]).is_equal(0)
+
+
+func test_storage_tab_empty() -> void:
+	_scene.call("_refresh_storage")
+	var no_storage: Label = _scene.get_node("%NoStorageLabel") as Label
+	var list: VBoxContainer = _scene.get_node("%StorageList") as VBoxContainer
+	assert_object(no_storage).is_not_null()
+	assert_bool(no_storage.visible).is_true()
+	assert_bool(list.visible).is_false()
+
+
+func test_storage_tab_with_container() -> void:
+	var map_container: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(map_container)
+
+	var furniture: Furniture = auto_free(Furniture.new()) as Furniture
+	furniture.def_id = "storage_crate"
+
+	var inv: StorageInventory = StorageInventory.new()
+	inv.name = "StorageInventory"
+	inv.capacity = 100.0
+	furniture.add_child(inv)
+
+	map_container.add_child(furniture)
+	furniture.global_position = Vector3(10.0, 0.0, -5.0)
+	Colony.storage_registry.on_map_wired(map_container)
+
+	inv.items["wood_block"] = 15
+
+	_scene.call("_refresh_storage")
+
+	var no_storage: Label = _scene.get_node("%NoStorageLabel") as Label
+	var list: VBoxContainer = _scene.get_node("%StorageList") as VBoxContainer
+	assert_bool(no_storage.visible).is_false()
+	assert_bool(list.visible).is_true()
+	assert_int(list.get_child_count()).is_equal(1)
+
+	var row: PanelContainer = list.get_child(0) as PanelContainer
+	assert_object(row).is_not_null()
+
+	var name_lbl: Label = row.get_node("%ContainerNameLabel") as Label
+	assert_str(name_lbl.text).contains("@ (10, 0, -5)")
+
+	var weight_lbl: Label = row.get_node("%WeightLabel") as Label
+	assert_str(weight_lbl.text).contains("Stored Weight:")

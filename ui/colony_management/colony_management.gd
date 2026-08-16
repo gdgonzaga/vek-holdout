@@ -8,7 +8,9 @@ const COLONIST_ENTRY_SCENE := preload("res://ui/colony_management/colonist_entry
 const ColonistEntryScript := preload("res://ui/colony_management/colonist_entry.gd")
 const LABOR_CELL_SCENE := preload("res://ui/colony_management/labor_cell.tscn")
 const CRAFTING_STATION_ROW_SCENE := preload("res://ui/colony_management/crafting_station_row.tscn")
+const STORAGE_CONTAINER_ROW_SCENE := preload("res://ui/colony_management/storage_container_row.tscn")
 const LaborCellScript := preload("res://ui/colony_management/labor_cell.gd")
+const StorageContainerRowScript := preload("res://ui/colony_management/storage_container_row.gd")
 
 @onready var _close_button: Button = %CloseButton
 @onready var _tab_container: TabContainer = %TabContainer
@@ -32,6 +34,10 @@ const LaborCellScript := preload("res://ui/colony_management/labor_cell.gd")
 
 @onready var _crafting_station_list: VBoxContainer = %CraftingStationList
 @onready var _no_stations_label: Label = %NoStationsLabel
+
+@onready var _storage_list: VBoxContainer = %StorageList
+@onready var _no_storage_label: Label = %NoStorageLabel
+@onready var _storage_subtitle_label: Label = %StorageSubtitleLabel
 
 var _selected_colonist: Colonist = null
 
@@ -62,6 +68,8 @@ func _on_tab_changed(_tab_index: int) -> void:
 		_refresh_labors_matrix()
 	elif _tab_index == 3:
 		_refresh_crafting_stations()
+	elif _tab_index == 4:
+		_refresh_storage()
 
 
 func _refresh_colonist_roster() -> void:
@@ -328,3 +336,51 @@ func _get_all_crafting_stations() -> Array[CraftingStation]:
 			if station != null:
 				stations.append(station)
 	return stations
+
+
+func _refresh_storage() -> void:
+	if _storage_list == null:
+		return
+
+	for child in _storage_list.get_children():
+		child.queue_free()
+
+	var containers := _get_all_storage_containers()
+	if containers.is_empty():
+		if _no_storage_label != null:
+			_no_storage_label.visible = true
+		_storage_list.visible = false
+		if _storage_subtitle_label != null:
+			_storage_subtitle_label.text = "No storage containers built in colony."
+		return
+
+	if _no_storage_label != null:
+		_no_storage_label.visible = false
+	_storage_list.visible = true
+
+	var total_weight: float = 0.0
+	var total_capacity: float = 0.0
+	var unique_item_types: Dictionary = {}
+
+	for container in containers:
+		var inv: StorageInventory = Colony.storage_registry.inventory_of(container) if (Colony != null and Colony.storage_registry != null) else (container.get_node_or_null("StorageInventory") as StorageInventory)
+		if inv != null:
+			total_weight += inv.current_weight()
+			total_capacity += inv.capacity
+			for item_id in inv.items:
+				unique_item_types[item_id] = unique_item_types.get(item_id, 0) + inv.items[item_id]
+
+		var row := STORAGE_CONTAINER_ROW_SCENE.instantiate() as PanelContainer
+		_storage_list.add_child(row)
+		row.setup(container)
+
+	if _storage_subtitle_label != null:
+		_storage_subtitle_label.text = "Containers: %d  |  Total Stock: %.1f / %.1f kg  |  Unique Item Types: %d" % [
+			containers.size(), total_weight, total_capacity, unique_item_types.size()
+		]
+
+
+func _get_all_storage_containers() -> Array[Furniture]:
+	if Colony != null and Colony.storage_registry != null:
+		return Colony.storage_registry.get_all_crates()
+	return []
