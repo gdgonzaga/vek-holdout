@@ -15,6 +15,16 @@ const StorageContainerRowScript := preload("res://ui/colony_management/storage_c
 @onready var _close_button: Button = %CloseButton
 @onready var _tab_container: TabContainer = %TabContainer
 
+@onready var _info_current_day_label: Label = %InfoCurrentDayLabel
+@onready var _info_elapsed_days_label: Label = %InfoElapsedDaysLabel
+@onready var _info_play_time_label: Label = %InfoPlayTimeLabel
+@onready var _info_colonist_count_label: Label = %InfoColonistCountLabel
+@onready var _info_colonist_status_label: Label = %InfoColonistStatusLabel
+@onready var _info_activity_summary_label: Label = %InfoActivitySummaryLabel
+@onready var _info_active_jobs_label: Label = %InfoActiveJobsLabel
+@onready var _info_storage_summary_label: Label = %InfoStorageSummaryLabel
+@onready var _info_stations_count_label: Label = %InfoStationsCountLabel
+
 @onready var _colonist_list: VBoxContainer = %ColonistList
 @onready var _no_selection_label: Label = %NoSelectionLabel
 @onready var _details_content: VBoxContainer = %DetailsContent
@@ -47,8 +57,14 @@ func _ready() -> void:
 		_close_button.pressed.connect(_on_close_pressed)
 	if _tab_container != null:
 		_tab_container.tab_changed.connect(_on_tab_changed)
+	_refresh_colony_info()
 	_refresh_colonist_roster()
 	_refresh_labors_matrix()
+
+
+func _process(_delta: float) -> void:
+	if visible and _tab_container != null and _tab_container.current_tab == 0:
+		_update_time_labels()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -62,7 +78,9 @@ func _on_close_pressed() -> void:
 
 
 func _on_tab_changed(_tab_index: int) -> void:
-	if _tab_index == 1:
+	if _tab_index == 0:
+		_refresh_colony_info()
+	elif _tab_index == 1:
 		_refresh_colonist_roster()
 	elif _tab_index == 2:
 		_refresh_labors_matrix()
@@ -326,9 +344,10 @@ func _get_all_crafting_stations() -> Array[CraftingStation]:
 	var stations: Array[CraftingStation] = []
 	if Colony == null or Colony.storage_registry == null:
 		return stations
-	var container: Node3D = Colony.storage_registry.get("_container") as Node3D
-	if container == null or not is_instance_valid(container):
+	var raw_container = Colony.storage_registry.get("_container")
+	if raw_container == null or not is_instance_valid(raw_container):
 		return stations
+	var container: Node3D = raw_container as Node3D
 
 	for child in container.get_children():
 		if is_instance_valid(child) and child is Furniture:
@@ -384,3 +403,77 @@ func _get_all_storage_containers() -> Array[Furniture]:
 	if Colony != null and Colony.storage_registry != null:
 		return Colony.storage_registry.get_all_crates()
 	return []
+
+
+
+func _refresh_colony_info() -> void:
+	_update_time_labels()
+	_update_population_summary()
+	_update_operations_summary()
+
+
+func _update_time_labels() -> void:
+	if _info_current_day_label != null:
+		var tod_pct := int(TimeSystem.get_time_of_day_fraction() * 100.0)
+		_info_current_day_label.text = "Current Day: Day %d (%d%%)" % [GameState.current_day, tod_pct]
+	if _info_elapsed_days_label != null:
+		_info_elapsed_days_label.text = "Elapsed In-Game Days: %.2f days" % TimeSystem.get_elapsed_days()
+	if _info_play_time_label != null:
+		_info_play_time_label.text = "Realtime Play Time: %s" % TimeSystem.get_realtime_play_time_formatted()
+
+
+func _update_population_summary() -> void:
+	var roster: Array[Colonist] = Colony.colonists
+	var valid_roster: Array[Colonist] = []
+	for c in roster:
+		if is_instance_valid(c):
+			valid_roster.append(c)
+
+	var count := valid_roster.size()
+	var cap: int = Colony.MVP_CAP
+
+	if _info_colonist_count_label != null:
+		_info_colonist_count_label.text = "Colonists: %d / %d" % [count, cap]
+
+	var healthy := 0
+	var injured := 0
+	var working := 0
+	var idle := 0
+
+	for c in valid_roster:
+		if c.get_hp() >= c.get_max_hp():
+			healthy += 1
+		else:
+			injured += 1
+
+		if c.current_job != null:
+			working += 1
+		else:
+			idle += 1
+
+	if _info_colonist_status_label != null:
+		_info_colonist_status_label.text = "Status: Healthy (%d) | Injured (%d)" % [healthy, injured]
+
+	if _info_activity_summary_label != null:
+		_info_activity_summary_label.text = "Activity: Working (%d) | Idle (%d)" % [working, idle]
+
+
+func _update_operations_summary() -> void:
+	if _info_active_jobs_label != null:
+		var job_count := Colony.job_board.get_jobs().size() if (Colony != null and Colony.job_board != null) else 0
+		_info_active_jobs_label.text = "Jobs on Board: %d" % job_count
+
+	if _info_storage_summary_label != null:
+		var containers := _get_all_storage_containers()
+		var total_weight: float = 0.0
+		var total_cap: float = 0.0
+		for container in containers:
+			var inv: StorageInventory = Colony.storage_registry.inventory_of(container) if (Colony != null and Colony.storage_registry != null) else (container.get_node_or_null("StorageInventory") as StorageInventory)
+			if inv != null:
+				total_weight += inv.current_weight()
+				total_cap += inv.capacity
+		_info_storage_summary_label.text = "Storage: %d crates (%.1f / %.1f kg)" % [containers.size(), total_weight, total_cap]
+
+	if _info_stations_count_label != null:
+		var stations := _get_all_crafting_stations()
+		_info_stations_count_label.text = "Crafting Workstations: %d" % stations.size()

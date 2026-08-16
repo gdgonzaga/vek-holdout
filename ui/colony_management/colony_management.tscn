@@ -76,11 +76,169 @@ theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 metadata/_tab_index = 0
 
-[node name="Label" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info"]
+[node name="ColonyInfoContent" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info"]
 layout_mode = 2
-size_flags_horizontal = 4
+theme_override_constants/separation = 16
+
+[node name="InfoHeader" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="InfoTitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/InfoHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 18
-text = "Colony Info — Overview, population summary, and threat status (Stub)"
+text = "COLONY OVERVIEW & CHRONOLOGY"
+
+[node name="InfoSubtitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/InfoHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Real-time colony metrics, population health, time progression, and infrastructure status."
+
+[node name="HSeparator" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent"]
+layout_mode = 2
+
+[node name="CardsScroll" type="ScrollContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CardsContainer" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="ChronologyCard" type="PanelContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer"]
+layout_mode = 2
+
+[node name="ChronologyMargin" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/ChronologyCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="ChronologyVBox" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/ChronologyCard/ChronologyMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ChronologyTitle" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/ChronologyCard/ChronologyMargin/ChronologyVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "CHRONOLOGY & PLAY TIME"
+
+[node name="ChronologyGrid" type="GridContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/ChronologyCard/ChronologyMargin/ChronologyVBox"]
+layout_mode = 2
+columns = 3
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 6
+
+[node name="InfoCurrentDayLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/ChronologyCard/ChronologyMargin/ChronologyVBox/ChronologyGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Current Day: Day 1"
+
+[node name="InfoElapsedDaysLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/ChronologyCard/ChronologyMargin/ChronologyVBox/ChronologyGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Elapsed In-Game Days: 0.00 days"
+
+[node name="InfoPlayTimeLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/ChronologyCard/ChronologyMargin/ChronologyVBox/ChronologyGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Realtime Play Time: 00:00:00"
+
+[node name="PopulationCard" type="PanelContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer"]
+layout_mode = 2
+
+[node name="PopulationMargin" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/PopulationCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="PopulationVBox" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/PopulationCard/PopulationMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PopulationTitle" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/PopulationCard/PopulationMargin/PopulationVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.9, 0.5, 1)
+theme_override_font_sizes/font_size = 16
+text = "POPULATION & ROSTER"
+
+[node name="PopulationGrid" type="GridContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/PopulationCard/PopulationMargin/PopulationVBox"]
+layout_mode = 2
+columns = 3
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 6
+
+[node name="InfoColonistCountLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/PopulationCard/PopulationMargin/PopulationVBox/PopulationGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Colonists: 0 / 5"
+
+[node name="InfoColonistStatusLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/PopulationCard/PopulationMargin/PopulationVBox/PopulationGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Status: Healthy (0) | Injured (0)"
+
+[node name="InfoActivitySummaryLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/PopulationCard/PopulationMargin/PopulationVBox/PopulationGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Activity: Working (0) | Idle (0)"
+
+[node name="OperationsCard" type="PanelContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer"]
+layout_mode = 2
+
+[node name="OperationsMargin" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/OperationsCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="OperationsVBox" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/OperationsCard/OperationsMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="OperationsTitle" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/OperationsCard/OperationsMargin/OperationsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1.0, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 16
+text = "OPERATIONS & INFRASTRUCTURE"
+
+[node name="OperationsGrid" type="GridContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/OperationsCard/OperationsMargin/OperationsVBox"]
+layout_mode = 2
+columns = 3
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 6
+
+[node name="InfoActiveJobsLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/OperationsCard/OperationsMargin/OperationsVBox/OperationsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Jobs on Board: 0"
+
+[node name="InfoStorageSummaryLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/OperationsCard/OperationsMargin/OperationsVBox/OperationsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Storage: 0 crates (0.0 kg)"
+
+[node name="InfoStationsCountLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colony Info/ColonyInfoContent/CardsScroll/CardsContainer/OperationsCard/OperationsMargin/OperationsVBox/OperationsGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Crafting Workstations: 0"
 
 [node name="Colonists" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer"]
 unique_name_in_owner = true
