@@ -22,7 +22,21 @@ const DECONSTRUCT_ICON = preload("res://assets/item_icons/__deconstruct__.png")
 
 
 func _ready() -> void:
+	UiGate.open_modal(self)
 	_close_button.pressed.connect(close)
+
+
+func _exit_tree() -> void:
+	UiGate.close_modal(self)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Esc and B both dismiss the menu without a selection. The menu is a
+	# registered modal, so InputComponent is gated and the Player's B router
+	# never sees these presses; mark them handled so nothing else reacts.
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("build_toggle"):
+		get_viewport().set_input_as_handled()
+		close()
 
 
 ## Read BuildLibrary and fill the list with one entry per unlocked buildable.
@@ -52,9 +66,8 @@ func _on_entry_pressed(id: String) -> void:
 	queue_free()
 
 
-## Called by the opener when the menu should close without a selection (B-toggle
-## from the menu state). Esc no longer closes it — it's reserved for the Pause
-## Menu (GDD §4 controls table, line 214), and B is owned by the Player.
+## Close without a selection (Esc, B, or the header Close button — all routed
+## through _unhandled_input / the button). The opener reacts via `closed`.
 func close() -> void:
 	closed.emit()
 	queue_free()

@@ -219,7 +219,6 @@ func _item_name(item_id: String) -> String:
 
 func close() -> void:
 	closed.emit()
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	queue_free()
 
 
@@ -230,4 +229,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _ready() -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	UiGate.open_modal(self)
+
+
+func _exit_tree() -> void:
+	UiGate.close_modal(self)

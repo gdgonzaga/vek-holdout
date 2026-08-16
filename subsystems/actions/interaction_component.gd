@@ -22,10 +22,8 @@ func interact(actor: Node) -> void:
 func _open_interaction_ui(actor: Node, target: Node, options: Array[ActionOption], component: InteractionComponent) -> void:
 	_actor = actor
 	_target = target
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var ui: Control = _interaction_ui_scene.instantiate()
 	ui.action_selected.connect(_on_action_selected)
-	ui.closed.connect(_on_ui_closed)
 
 	# Mount on a CanvasLayer first so @onready nodes resolve before setup().
 	var layer := get_tree().get_first_node_in_group("hud_layer") as CanvasLayer
@@ -40,14 +38,6 @@ func _open_interaction_ui(actor: Node, target: Node, options: Array[ActionOption
 
 
 func _on_action_selected(option: ActionOption) -> void:
+	# The UI frees itself after emitting; the cursor round-trip is owned by
+	# UiGate (the action may open another panel, e.g. storage).
 	option.action.execute(_actor, _target)
-	close()
-
-
-func _on_ui_closed() -> void:
-	close()
-
-
-func close() -> void:
-	# Re-capture mouse after interaction menu is dismissed.
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

@@ -61,6 +61,11 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _active:
 		return
+	# Placement stays armed across screen opens (e.g. the world map over
+	# placement), but its keys must not — this reads actions directly, outside
+	# InputComponent, so the UiGate check is on us (see docs ui.md).
+	if UiGate.is_input_blocked():
+		return
 	# LMB = place (routed to the strategy), RMB = remove.
 	# Wheel = rotate 90° step, R = cycle rotation axis (GDD §4 controls table).
 	# In Deconstruct, LMB also removes — the mode is removal-only.

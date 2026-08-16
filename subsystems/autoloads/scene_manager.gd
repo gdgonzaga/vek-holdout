@@ -238,11 +238,13 @@ func open_screen(screen_id: String) -> void:
 	var screen: Node = scene.instantiate()
 	_ui_layer.add_child(screen)
 	_current_screen = screen
+	UiGate.open_modal(screen)
 
 
 ## Close the current full-screen UI screen, if any.
 func close_screen() -> void:
 	if _current_screen != null:
+		UiGate.close_modal(_current_screen)
 		_current_screen.queue_free()
 		_current_screen = null
 

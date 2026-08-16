@@ -70,6 +70,12 @@ func _on_interactable_changed(component: InteractionComponent) -> void:
 
 func _process(delta: float) -> void:
 	if _holding_interact:
+		# A modal opened mid-hold (e.g. Esc -> pause menu) — abandon the
+		# tap/hold so the timer can't fire the menu on top of it later.
+		if UiGate.is_input_blocked():
+			_holding_interact = false
+			_hold_timer = 0.0
+			return
 		_hold_timer += delta
 		if _hold_timer >= _HOLD_THRESHOLD:
 			_holding_interact = false
@@ -99,9 +105,12 @@ func _on_interact_released() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# I toggles the inventory, but never on top of another open modal (e.g. a
+	# storage panel) — closing our own panel is always allowed.
 	if event.is_action_pressed("inventory_toggle"):
-		_toggle_inventory()
-		get_viewport().set_input_as_handled()
+		if _inventory_open or not UiGate.is_input_blocked():
+			_toggle_inventory()
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_cancel") and _inventory_open:
 		_close_inventory()
 		get_viewport().set_input_as_handled()
@@ -117,14 +126,14 @@ func _toggle_inventory() -> void:
 func _open_inventory() -> void:
 	_inventory_open = true
 	_inventory_panel.visible = true
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	UiGate.open_modal(_inventory_panel)
 	_refresh_inventory()
 
 
 func _close_inventory() -> void:
 	_inventory_open = false
 	_inventory_panel.visible = false
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	UiGate.close_modal(_inventory_panel)
 
 
 func _refresh_inventory() -> void:

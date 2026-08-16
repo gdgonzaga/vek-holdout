@@ -73,7 +73,6 @@ func _rebuild_list(list: VBoxContainer, source: Inventory, dest: Inventory) -> v
 
 func close() -> void:
 	closed.emit()
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	queue_free()
 
 
@@ -84,4 +83,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _ready() -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	UiGate.open_modal(self)
+
+
+func _exit_tree() -> void:
+	UiGate.close_modal(self)

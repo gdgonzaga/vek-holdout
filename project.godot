@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 GameState="*res://subsystems/autoloads/game_state.gd"
 EventBus="*res://subsystems/autoloads/event_bus.gd"
+UiGate="*res://subsystems/autoloads/ui_gate.gd"
 GameLog="*res://subsystems/autoloads/game_log.gd"
 SceneManager="*res://subsystems/autoloads/scene_manager.gd"
 SaveSystem="*res://subsystems/autoloads/save_system.gd"

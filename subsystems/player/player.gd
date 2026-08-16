@@ -138,11 +138,11 @@ func _ready() -> void:
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
 
 
-## B is the single navigation key across the three blueprint states (GDD §4
-## controls table, line 202: "Toggle Blueprint mode — B"):
-##   - Normal        -> open the build menu
-##   - Menu open     -> close the menu, back to Normal
-##   - Placement     -> leave placement, reopen the build menu
+## Blueprint key routing (GDD §4 controls table):
+##   - B in Normal    -> open the build menu
+##   - B in Placement -> back to the build menu (quick item swap)
+## The menu itself consumes B and Esc while it's open (it registers with UiGate,
+## which gates InputComponent), and Esc exits placement straight to Normal.
 func _on_build_key_pressed() -> void:
 	if _busy:
 		return
@@ -150,9 +150,6 @@ func _on_build_key_pressed() -> void:
 		# Placement -> menu. Drop the selected buildable and reopen the menu.
 		_exit_build_placement_mode()
 		open_build_menu()
-	elif mode == Mode.BUILD_MENU:
-		if _build_menu != null:
-			_build_menu.close()
 	else:
 		open_build_menu()
 
@@ -175,10 +172,9 @@ func open_build_menu() -> void:
 		get_tree().current_scene.add_child(layer)
 	layer.add_child(menu)
 	menu.populate()
-	# Release the cursor so the player can click the menu.
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	# Selection is broadcast via EventBus (menu emits directly); only the
-	# no-selection dismissal is handled locally.
+	# The menu registers with UiGate on _ready, which shows the cursor so the
+	# player can click entries. Selection is broadcast via EventBus (menu emits
+	# directly); only the no-selection dismissal is handled locally.
 	menu.closed.connect(_on_build_menu_closed)
 	_build_menu = menu
 	mode = Mode.BUILD_MENU
@@ -187,22 +183,20 @@ func open_build_menu() -> void:
 
 func _on_buildable_selected(_id: String) -> void:
 	# The selected id flows menu -> EventBus -> BuildController directly; Player
-	# only reacts to the event to flip its own mode and recapture the mouse.
-	# The menu frees itself on selection without emitting closed(), so clear the
-	# tracked ref here.
+	# only reacts to the event to flip its own mode. The menu frees itself on
+	# selection without emitting closed(), so clear the tracked ref here; its
+	# unregistration re-captures the mouse for placement.
 	_build_menu = null
 	EventBus.build_menu_toggled.emit(false)
 	mode = Mode.BUILD_PLACEMENT
 	EventBus.build_placement_toggled.emit(true)
-	_recapture_mouse()
 
 
 func _on_build_menu_closed() -> void:
-	# Menu closed without a selection (B-toggle from menu, or menu freed). Clear
-	# the tracked ref and recapture the mouse.
+	# Menu closed without a selection (Esc/B/Close button). Clear the tracked
+	# ref; the menu's unregistration re-captures the mouse.
 	_build_menu = null
 	EventBus.build_menu_toggled.emit(false)
-	_recapture_mouse()
 	mode = Mode.NORMAL
 
 
@@ -211,13 +205,18 @@ func _recapture_mouse() -> void:
 
 
 func _on_ui_cancel() -> void:
-	# Esc is reserved for the Pause Menu (GDD §4 controls table, line 214). It no
-	# longer exits blueprint mode — B handles all blueprint navigation.
-	pass
+	# Esc exits Blueprint placement straight back to Normal (the build menu
+	# handles its own Esc). This runs synchronously inside InputComponent's
+	# _unhandled_input, so marking the event handled here also stops Main from
+	# treating the same press as "open pause menu".
+	if mode == Mode.BUILD_PLACEMENT:
+		get_viewport().set_input_as_handled()
+		mode = Mode.NORMAL
+		EventBus.build_placement_toggled.emit(false)
 
 
-## Exit Blueprint mode (e.g. when the player wants to stop building). Re-entering
-## is via the build menu (B).
+## Leave placement and reopen the build menu (B in placement — quick item swap).
+## Esc exits placement straight to Normal instead (see _on_ui_cancel).
 func _exit_build_placement_mode() -> void:
 	mode = Mode.BUILD_MENU
 	EventBus.build_placement_toggled.emit(false)
@@ -261,7 +260,7 @@ func _interaction_raycast() -> Dictionary:
 ## Every-frame crosshair check. Updates _current_interactable so the HUD can
 ## display what the player is looking at, and E press can act on it.
 func _update_interaction_target() -> void:
-	if mode != Mode.NORMAL:
+	if mode != Mode.NORMAL or UiGate.is_input_blocked():
 		if _current_interactable != null:
 			_current_interactable = null
 			interactable_changed.emit(null)

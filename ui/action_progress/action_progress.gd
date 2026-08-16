@@ -8,10 +8,10 @@ extends Control
 ## knows nothing about what it is timing (no Blueprint, no Player references).
 ##
 ## Lifecycle: instantiated by the triggering action, mounted on a CanvasLayer,
-## freed on completion or cancel. While up, the mouse is shown (so the Cancel
-## button is clickable) — which also freezes camera-look, since CameraRig only
-## orbits while the mouse is captured (camera_rig.gd). Mouse is re-captured on
-## settle.
+## freed on completion or cancel. Registers with UiGate while up, which shows
+## the cursor (so the Cancel button is clickable) and blocks gameplay input;
+## CameraRig only orbits while the mouse is captured, so camera-look freezes
+## too. Unregistering on free re-captures the cursor.
 
 ## Fired exactly once when the bar fills to `duration`.
 signal completed()
@@ -31,6 +31,14 @@ var _elapsed: float = 0.0
 var _settled := false
 
 
+func _ready() -> void:
+	UiGate.open_modal(self)
+
+
+func _exit_tree() -> void:
+	UiGate.close_modal(self)
+
+
 ## Configure and start the gauge.
 ##   label_text    — title shown in the header.
 ##   duration      — seconds the bar takes to fill.
@@ -48,8 +56,6 @@ func setup(label_text: String, duration: float, start_elapsed: float = 0.0) -> v
 func _begin(label_text: String) -> void:
 	_title_label.text = label_text if label_text != "" else "Working..."
 	_cancel_button.pressed.connect(_cancel)
-	# Show the cursor so Cancel is clickable (also freezes camera-look).
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_update_bar()
 	set_process(true)
 
@@ -69,13 +75,13 @@ func _cancel() -> void:
 	_settle(false)
 
 
-## Emit exactly one terminal signal, stop ticking, restore the mouse, and free.
+## Emit exactly one terminal signal, stop ticking, and free. UiGate re-captures
+## the cursor when the freed gauge unregisters.
 func _settle(success: bool) -> void:
 	if _settled:
 		return
 	_settled = true
 	set_process(false)
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if success:
 		completed.emit()
 	else:

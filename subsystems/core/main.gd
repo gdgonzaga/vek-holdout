@@ -40,20 +40,22 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	# Esc: close whatever screen is open (pause menu, world map, log history);
-	# otherwise open the pause menu. The pause menu owns pause + cursor state via
-	# its lifecycle, so we don't touch GameState/Input from here.
+	# otherwise, if a modal panel is open it owns that Esc and closes itself;
+	# only a clean game state opens the pause menu. M/H toggle their screens
+	# but never open one on top of an open panel — UiGate prevents stacking.
 	if event.is_action_pressed("ui_cancel"):
 		if SceneManager.is_screen_open():
 			SceneManager.close_screen()
 			return
-		SceneManager.open_screen("pause_menu")
+		if not UiGate.is_input_blocked():
+			SceneManager.open_screen("pause_menu")
 	elif event.is_action_pressed("world_map"):
 		if SceneManager.is_screen_open():
 			SceneManager.close_screen()
-		else:
+		elif not UiGate.is_input_blocked():
 			SceneManager.open_screen("world_map")
 	elif event.is_action_pressed("log_history"):
 		if SceneManager.is_screen_open():
 			SceneManager.close_screen()
-		else:
+		elif not UiGate.is_input_blocked():
 			SceneManager.open_screen("log_history")

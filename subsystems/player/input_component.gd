@@ -2,10 +2,11 @@ class_name InputComponent
 extends Node
 ## Reads raw player input and exposes it via query methods.
 ##
-## Handles discrete actions (build toggle, interact, click-to-recapture,
-## blueprint cancel) through _unhandled_input. Continuous actions (movement,
-## sprint, jump) are exposed as per-frame query methods called by the parent
-## Player in _physics_process.
+## The single choke point for gameplay input: every read — discrete actions
+## (build toggle, interact, click-to-recapture, blueprint cancel) through
+## _unhandled_input and continuous actions (movement, sprint, jump) via the
+## per-frame query methods — goes dead while UiGate reports a modal UI open, so
+## gameplay keys can never leak through an open screen or stack screens.
 
 ## Emitted when the player presses the build toggle key (B).
 signal build_toggle_pressed()
@@ -32,6 +33,11 @@ const _WHEEL_BUTTONS := [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN,
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Open panels own the keyboard (including their Esc handling); only the
+	# click-to-recapture recovery stays reachable with a visible cursor, and
+	# even that is part of gameplay, not of a panel.
+	if UiGate.is_input_blocked():
+		return
 	if event.is_action_pressed("build_toggle"):
 		build_toggle_pressed.emit()
 		return
@@ -54,6 +60,8 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Normalized camera-relative movement input (WASD).
 ## Positive y = backward, negative y = forward, positive x = right, negative x = left.
 func get_movement_input() -> Vector2:
+	if UiGate.is_input_blocked():
+		return Vector2.ZERO
 	var input := Vector2.ZERO
 	if Input.is_action_pressed("move_forward"): input += Vector2.UP
 	if Input.is_action_pressed("move_backward"): input += Vector2.DOWN
@@ -64,9 +72,9 @@ func get_movement_input() -> Vector2:
 
 ## Whether the jump key (Space) is currently held.
 func wants_jump() -> bool:
-	return Input.is_action_pressed("jump")
+	return not UiGate.is_input_blocked() and Input.is_action_pressed("jump")
 
 
 ## Whether the sprint key (Shift) is currently held.
 func wants_sprint() -> bool:
-	return Input.is_action_pressed("sprint")
+	return not UiGate.is_input_blocked() and Input.is_action_pressed("sprint")

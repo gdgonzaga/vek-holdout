@@ -1,19 +1,16 @@
 extends CanvasLayer
 ## Pause overlay opened by Esc from any player mode (NORMAL / BUILD_MENU /
 ## BUILD_PLACEMENT). Owns pause state through its own lifecycle: entering pauses
-## the sim and releases the cursor; being freed (Resume, Esc again, or another
-## screen replacing it) unpauses and restores the prior cursor mode.
+## the sim, being freed (Resume, Esc again, or another screen replacing it)
+## unpauses. The cursor is owned by UiGate — registering as a screen shows it,
+## unregistering (Resume/Esc) re-captures it, and Quit works because the main
+## menu registers in the same swap.
 ##
 ## Rooted on a dedicated layer-30 CanvasLayer so it always renders above the
 ## layer-20 UI (build menu, screens) and the layer-10 HUD. SceneManager adds this
 ## node under Main's UILayer; nested CanvasLayers still render at their own layer
 ## index, so it sits on top regardless of sibling draw order. process_mode =
 ## ALWAYS keeps it interactive while GameState.set_paused disables map_root.
-
-var _prior_mouse_mode: int = Input.MOUSE_MODE_VISIBLE
-# Set when the player picks Quit — tells _exit_tree to leave the mouse visible
-# for the main menu instead of restoring the captured gameplay mode.
-var _quitting: bool = false
 
 @onready var _resume_btn: Button = %Resume
 @onready var _quit_btn: Button = %Quit
@@ -25,20 +22,12 @@ func _ready() -> void:
 	_resume_btn.pressed.connect(_on_resume_pressed)
 	_quit_btn.pressed.connect(_on_quit_pressed)
 	_save_btn.pressed.connect(_on_save_pressed)
-	# Snapshot the cursor mode so NORMAL / BUILD_PLACEMENT (captured) are restored
-	# on resume, while BUILD_MENU (already visible) round-trips unchanged.
-	_prior_mouse_mode = Input.mouse_mode
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	GameState.set_paused(true)
 
 
 func _exit_tree() -> void:
 	# Fires on close_screen() (Resume / Esc) and when open_screen() replaces this.
 	GameState.set_paused(false)
-	# Restore the captured gameplay cursor — UNLESS we're quitting to the main
-	# menu, where the mouse must stay visible for button interaction.
-	if not _quitting:
-		Input.mouse_mode = _prior_mouse_mode
 
 
 func _on_resume_pressed() -> void:
@@ -55,10 +44,6 @@ func _on_save_pressed() -> void:
 	
 
 func _on_quit_pressed() -> void:
-	# Flag the quit path so _exit_tree (fired by open_screen's close_screen)
-	# leaves the mouse visible for the main menu rather than restoring the
-	# captured gameplay cursor.
-	_quitting = true
 	# If this run was never saved, drop its stub slot so it can't show up
 	# unloadable in the Load list. No-op for slots saved at least once. Done
 	# before map teardown — it only touches the slot dir + _active_slot/_parked.

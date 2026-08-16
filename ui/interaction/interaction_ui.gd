@@ -16,6 +16,14 @@ var _actor: Node = null
 var _target: Node = null
 
 
+func _ready() -> void:
+	UiGate.open_modal(self)
+
+
+func _exit_tree() -> void:
+	UiGate.close_modal(self)
+
+
 ## Populate the button list from the target's action options.
 func setup(actor: Node, target: Node, options: Array[ActionOption], component: InteractionComponent) -> void:
 	_actor = actor

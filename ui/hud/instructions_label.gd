@@ -1,7 +1,7 @@
 extends Label
 
-const _MENU_TEXT := "Click an item to place\nB: cancel"
-const _PLACEMENT_TEXT := "B: cancel"
+const _MENU_TEXT := "Click an item to place\nEsc: cancel"
+const _PLACEMENT_TEXT := "Esc: cancel"
 
 func _ready() -> void:
 	EventBus.build_menu_toggled.connect(_on_build_menu_toggled)
