@@ -628,3 +628,32 @@ func test_work_done_round_trips_through_state_bag() -> void:
 	restored_furniture.deserialize(data)
 	assert_float(restored.work_done()).is_equal(1.25)
 	assert_str(restored.worker()).is_equal(CraftingStation.WORKER_PLAYER)
+
+
+func test_paused_station_blocks_workable_and_persists() -> void:
+	var station := _satisfied_order_station()
+	assert_bool(station.is_paused()).is_false()
+
+	station.set_paused(true)
+	assert_bool(station.is_paused()).is_true()
+
+	var colonist := _make_colonist()
+	var job := _workable_job(station)
+	assert_object(CRAFTING_DEF.get_next_leg(colonist, job)).is_null()
+	assert_bool(CRAFTING_DEF.is_available(job)).is_false()
+
+	# Verify state round-tripping through furniture serialize/deserialize
+	var furniture := station.get_parent() as Furniture
+	var data := furniture.serialize()
+	var restored_furniture := Furniture.new()
+	auto_free(restored_furniture)
+	var restored := CraftingStation.new()
+	restored.name = "CraftingStation"
+	restored_furniture.add_child(restored)
+	restored_furniture.deserialize(data)
+	assert_bool(restored.is_paused()).is_true()
+
+	station.set_paused(false)
+	assert_bool(station.is_paused()).is_false()
+	assert_object(CRAFTING_DEF.get_next_leg(colonist, job)).is_not_null()
+	assert_bool(CRAFTING_DEF.is_available(job)).is_true()

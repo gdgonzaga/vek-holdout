@@ -40,6 +40,7 @@ extends Node
 ## "work_done": float (player gauge resume)}. Older saves lacking the new keys
 ## read as worker "colony", no maintain, 0.0.
 const ORDER_KEY := "craft_order"
+const PAUSED_KEY := "crafting_paused"
 
 const WORKER_COLONY := "colony"
 const WORKER_PLAYER := "player"
@@ -83,6 +84,21 @@ func is_claimed() -> bool:
 
 func claim_owner() -> String:
 	return _claim_owner
+
+
+## Whether colonist craft jobs are paused at this workstation. Stored in parent
+## furniture's state bag under PAUSED_KEY for seamless save/load.
+func is_paused() -> bool:
+	var furniture := get_parent() as Furniture
+	if furniture == null:
+		return false
+	return bool(furniture.state.get(PAUSED_KEY, false))
+
+
+func set_paused(value: bool) -> void:
+	var furniture := get_parent() as Furniture
+	if furniture != null:
+		furniture.state[PAUSED_KEY] = value
 
 
 func _ready() -> void:

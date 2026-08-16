@@ -143,7 +143,7 @@ func on_end(_success: bool, actor: Node, leg: JobLeg, _job: Job, _elapsed: float
 
 func _workable(job: Job) -> bool:
 	var station := _station_of_job(job)
-	return station != null and not station.is_claimed() \
+	return station != null and not station.is_paused() and not station.is_claimed() \
 			and station.has_active_order() and station.has_complete_materials()
 
 

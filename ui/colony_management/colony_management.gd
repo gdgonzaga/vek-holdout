@@ -7,6 +7,7 @@ extends Control
 const COLONIST_ENTRY_SCENE := preload("res://ui/colony_management/colonist_entry.tscn")
 const ColonistEntryScript := preload("res://ui/colony_management/colonist_entry.gd")
 const LABOR_CELL_SCENE := preload("res://ui/colony_management/labor_cell.tscn")
+const CRAFTING_STATION_ROW_SCENE := preload("res://ui/colony_management/crafting_station_row.tscn")
 const LaborCellScript := preload("res://ui/colony_management/labor_cell.gd")
 
 @onready var _close_button: Button = %CloseButton
@@ -28,6 +29,9 @@ const LaborCellScript := preload("res://ui/colony_management/labor_cell.gd")
 
 @onready var _labors_grid: GridContainer = %LaborsGrid
 @onready var _no_colonists_label: Label = %NoColonistsLabel
+
+@onready var _crafting_station_list: VBoxContainer = %CraftingStationList
+@onready var _no_stations_label: Label = %NoStationsLabel
 
 var _selected_colonist: Colonist = null
 
@@ -56,6 +60,8 @@ func _on_tab_changed(_tab_index: int) -> void:
 		_refresh_colonist_roster()
 	elif _tab_index == 2:
 		_refresh_labors_matrix()
+	elif _tab_index == 3:
+		_refresh_crafting_stations()
 
 
 func _refresh_colonist_roster() -> void:
@@ -282,3 +288,43 @@ func _refresh_labors_matrix() -> void:
 			var cell: Button = LABOR_CELL_SCENE.instantiate() as Button
 			_labors_grid.add_child(cell)
 			cell.call("setup", colonist, labor.id, labor.display_name)
+
+
+func _refresh_crafting_stations() -> void:
+	if _crafting_station_list == null:
+		return
+
+	for child in _crafting_station_list.get_children():
+		child.queue_free()
+
+	var stations := _get_all_crafting_stations()
+	if stations.is_empty():
+		if _no_stations_label != null:
+			_no_stations_label.visible = true
+		_crafting_station_list.visible = false
+		return
+
+	if _no_stations_label != null:
+		_no_stations_label.visible = false
+	_crafting_station_list.visible = true
+
+	for station in stations:
+		var row: CraftingStationRow = CRAFTING_STATION_ROW_SCENE.instantiate() as CraftingStationRow
+		_crafting_station_list.add_child(row)
+		row.setup(station)
+
+
+func _get_all_crafting_stations() -> Array[CraftingStation]:
+	var stations: Array[CraftingStation] = []
+	if Colony == null or Colony.storage_registry == null:
+		return stations
+	var container: Node3D = Colony.storage_registry.get("_container") as Node3D
+	if container == null or not is_instance_valid(container):
+		return stations
+
+	for child in container.get_children():
+		if is_instance_valid(child) and child is Furniture:
+			var station := child.get_node_or_null("CraftingStation") as CraftingStation
+			if station != null:
+				stations.append(station)
+	return stations
