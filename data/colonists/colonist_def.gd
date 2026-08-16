@@ -30,4 +30,5 @@ class_name ColonistDef
 	"construction": 1,
 	"crafting": 1,
 	"hauling": 1,
+	"harvesting": 1,
 }

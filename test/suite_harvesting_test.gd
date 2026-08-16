@@ -125,7 +125,8 @@ func test_harvest_job_lifecycle_and_completion() -> void:
 
 	# Complete the job via complete()
 	job_def.complete(colonist, leg, job)
-	assert_bool(colonist.inventory.has_item("wood_block", 3)).is_true()
+	var yield_def := TREE_DEF.harvest_params.yields[0]
+	assert_bool(colonist.inventory.has_item(yield_def.item_def.id, yield_def.count)).is_true()
 	assert_int(colonist.skill_set.get_level("harvesting")).is_greater_equal(1)
 
 
@@ -151,12 +152,13 @@ func test_player_harvest_action_completes() -> void:
 	var harvestable := tree_node.get_node_or_null("Harvestable") as Harvestable
 
 	var player := _make_player()
-	assert_bool(player.inventory.has_item("wood_block", 1)).is_false()
+	var yield_def := TREE_DEF.harvest_params.yields[0]
+	assert_bool(player.inventory.has_item(yield_def.item_def.id, 1)).is_false()
 
 	var action := HarvestAction.new()
 	action._apply(player, harvestable)
 
-	assert_bool(player.inventory.has_item("wood_block", 3)).is_true()
+	assert_bool(player.inventory.has_item(yield_def.item_def.id, yield_def.count)).is_true()
 	assert_int(player.skill_set.get_level("harvesting")).is_greater_equal(1)
 
 

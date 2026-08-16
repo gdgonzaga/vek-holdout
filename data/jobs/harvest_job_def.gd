@@ -66,10 +66,13 @@ func should_close(job: Job) -> bool:
 	return harvestable == null or not is_instance_valid(harvestable) or not harvestable.is_marked_for_harvest()
 
 
-func _harvestable_from(node: Node) -> Harvestable:
-	if node == null or not is_instance_valid(node):
+func _harvestable_from(node: Variant) -> Harvestable:
+	if not is_instance_valid(node):
 		return null
-	var h := node as Harvestable
+	var n := node as Node
+	if n == null:
+		return null
+	var h := n as Harvestable
 	if h != null:
 		return h
-	return node.get_node_or_null("Harvestable") as Harvestable
+	return n.get_node_or_null("Harvestable") as Harvestable

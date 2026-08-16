@@ -10,7 +10,8 @@ extends Node
 
 const STATE_KEY := "harvest"
 
-@onready var _furniture: Furniture = get_parent() as Furniture
+var _furniture: Furniture:
+	get: return get_parent() as Furniture
 
 
 ## Back-ref to the definition's HarvestParams.
