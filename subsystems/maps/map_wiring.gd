@@ -93,9 +93,7 @@ static func wire_colonists(map: Map) -> Node3D:
 	# furniture/blueprint occupancy) into every colonist's pathfinder. Re-run
 	# per map load so base<->POI swaps pick up the new map's layers.
 	var predicate := _compose_walkability(map)
-	for c in Colony.colonists:
-		if is_instance_valid(c) and c.pathfinder != null:
-			c.pathfinder.set_walkability(predicate)
+	Colony.set_walkability_predicate(predicate)
 	return container
 
 

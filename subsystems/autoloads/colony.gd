@@ -47,6 +47,9 @@ var colonists: Array[Colonist] = []
 ## The ColonistContainer of the currently wired map (null until on_map_wired).
 var _container: Node3D = null
 
+## Cached walkability predicate from the active map (used for runtime-spawned colonists).
+var _walkability_predicate: Callable = Callable()
+
 
 func _ready() -> void:
 	job_board = JobBoard.new()
@@ -72,19 +75,45 @@ func on_map_wired(container: Node3D, spawn_positions: Array) -> void:
 	_container = container
 	if colonists.is_empty():
 		for pos in spawn_positions:
-			if colonists.size() >= MVP_CAP:
-				break
-			var c: Colonist = preload("res://subsystems/colonists/colonist.tscn").instantiate()
-			# Add to the tree BEFORE setting global_position — it only resolves in-tree.
-			container.add_child(c)
-			c.global_position = pos
-			colonists.append(c)
+			spawn_colonist(null, pos)
 	else:
 		for c in colonists:
 			if is_instance_valid(c) and c.get_parent() != container:
 				if c.get_parent() != null:
 					c.get_parent().remove_child(c)
 				container.add_child(c)
+
+
+## Store the active map's walkability predicate and inject it into all current colonists.
+func set_walkability_predicate(predicate: Callable) -> void:
+	_walkability_predicate = predicate
+	for c in colonists:
+		if is_instance_valid(c) and c.pathfinder != null:
+			c.pathfinder.set_walkability(predicate)
+
+
+## Instantiate, position, register, and wire a new colonist.
+## Returns the new Colonist instance, or null if the roster is full or no map is wired.
+func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZERO) -> Colonist:
+	if colonists.size() >= MVP_CAP:
+		push_warning("Colony: roster full (MVP cap %d)" % MVP_CAP)
+		return null
+	if _container == null:
+		push_warning("Colony: no active map container to spawn colonist into")
+		return null
+
+	var c: Colonist = preload("res://subsystems/colonists/colonist.tscn").instantiate()
+	if colonist_def != null:
+		c.colonist_def = colonist_def
+
+	# Add to tree BEFORE setting global_position — it only resolves in-tree.
+	_container.add_child(c)
+	c.global_position = pos
+	if _walkability_predicate.is_valid() and c.pathfinder != null:
+		c.pathfinder.set_walkability(_walkability_predicate)
+
+	colonists.append(c)
+	return c
 
 
 ## Recruit a colonist (random world event / radio, post-MVP). Respects the cap.
@@ -95,6 +124,8 @@ func add_colonist(c: Colonist) -> void:
 	colonists.append(c)
 	if _container != null and c.get_parent() == null:
 		_container.add_child(c)
+		if _walkability_predicate.is_valid() and c.pathfinder != null:
+			c.pathfinder.set_walkability(_walkability_predicate)
 
 
 ## Drop a colonist by id (death or departure). Frees the node.

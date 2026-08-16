@@ -43,12 +43,15 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 | `colonists` | `Array[Colonist]` | Active colonists (capped at `MVP_CAP = 5`). Node instances live in the current map's `ColonistContainer`; this Array is the cross-scene authority. |
 | `job_board` | `JobBoard` | The [Job Board](jobs.md) (a child Node). |
 | `storage_registry` | `StorageRegistry` | The storage-crate index (a child Node). See [Inventory](inventory.md). |
+| `_walkability_predicate` | `Callable` | Cached walkability predicate from the active map (used for runtime-spawned colonists). |
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `on_map_wired(container, spawn_positions) → void` | Empty roster → spawn one colonist per `ColonistSpawn` marker (up to `MVP_CAP`); non-empty → reparent existing nodes into the new map. |
+| `on_map_wired(container, spawn_positions) → void` | Empty roster → spawn one colonist per `ColonistSpawn` marker via `spawn_colonist`; non-empty → reparent existing nodes into the new map. |
+| `set_walkability_predicate(predicate: Callable) → void` | Stores the active map's walkability predicate and injects it into all current roster colonists. |
+| `spawn_colonist(colonist_def = null, pos = Vector3.ZERO) → Colonist` | Instantiate, position, register, and wire a new colonist. Returns the new `Colonist` instance, or `null` if the roster is full or no map is wired. |
 | `add_colonist` / `remove_colonist` | Recruit / drop a colonist (post-MVP / death). |
 | `_on_blueprint_placed(target_def_id, anchor, blueprint) → void` | Decide haul-vs-construct (any unmet material_cost → haul, regardless of stock — the job drought-waits until crates can satisfy it; else construction), bind + add the Job. See [Jobs](jobs.md). |
 | `_on_blueprint_materials_ready(target_def_id, anchor, blueprint) → void` | Materials crossed complete (player or hauler deposit) → `_spawn_construction_job`. |

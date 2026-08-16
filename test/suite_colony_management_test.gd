@@ -239,3 +239,37 @@ func test_colony_info_tab_populates_metrics() -> void:
 	assert_str(count_lbl.text).contains("Colonists: 1 / 5")
 	assert_str(elapsed_lbl.text).contains("Elapsed In-Game Days:")
 	assert_str(play_time_lbl.text).contains("Realtime Play Time:")
+
+
+func test_spawn_colonist_success() -> void:
+	Colony.colonists.clear()
+	var dummy_container: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(dummy_container)
+	Colony.on_map_wired(dummy_container, [])
+
+	var spawned: Colonist = Colony.spawn_colonist(null, Vector3(10, 0, 5))
+	assert_object(spawned).is_not_null()
+	assert_object(spawned.get_parent()).is_equal(dummy_container)
+	assert_vector(spawned.global_position).is_equal(Vector3(10, 0, 5))
+	assert_int(Colony.colonists.size()).is_equal(1)
+	assert_object(Colony.colonists[0]).is_equal(spawned)
+
+	# Clean up
+	Colony.colonists.clear()
+
+
+func test_spawn_colonist_cap_reached() -> void:
+	Colony.colonists.clear()
+	var dummy_container: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(dummy_container)
+	Colony.on_map_wired(dummy_container, [])
+
+	for i in range(Colony.MVP_CAP):
+		var c: Colonist = Colony.spawn_colonist(null, Vector3.ZERO)
+		assert_object(c).is_not_null()
+
+	var excess: Colonist = Colony.spawn_colonist(null, Vector3.ZERO)
+	assert_object(excess).is_null()
+
+	# Clean up
+	Colony.colonists.clear()
