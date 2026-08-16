@@ -101,6 +101,14 @@ func heal(amount: int) -> void:
 	_current_hp = clamp(_current_hp + amount, 0, colonist_def.max_hp)
 
 
+func get_hp() -> int:
+	return _current_hp
+
+
+func get_max_hp() -> int:
+	return colonist_def.max_hp if colonist_def != null else 100
+
+
 func _die() -> void:
 	_is_dead = true
 	EventBus.colonist_died.emit(colonist_id)
