@@ -1,5 +1,7 @@
 class_name FurnitureLayer
 extends RefCounted
+
+const TOGGLE_HARVEST_OPTION: ActionOption = preload("res://data/action_options/toggle_harvest_action_option.tres")
 ## Free-standing furniture placement layer (ARCH "Build" subsystem).
 ##
 ## The sibling of VoxelGridAdapter for non-block buildables. Where the adapter
@@ -151,14 +153,25 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	if yaw_quarters != 0:
 		root.rotate_y(float(yaw_quarters) * PI * 0.5)
 
-	# Attach interaction only when the def offers actions (FurnitureDef only).
+	# Attach interaction when the def offers actions or has harvest params.
 	# Player._find_interaction_component expects a direct child named exactly
 	# "InteractionComponent"; component.display_name is the UI fallback.
-	if def is FurnitureDef and not (def as FurnitureDef).action_options.is_empty():
-		var interaction := InteractionComponent.new()
-		interaction.name = "InteractionComponent"
-		root.add_child(interaction)
-		interaction.action_options = (def as FurnitureDef).action_options
+	var fdef := def as FurnitureDef
+	if fdef != null:
+		var options: Array[ActionOption] = fdef.action_options.duplicate()
+		if fdef.harvest_params != null and not options.has(TOGGLE_HARVEST_OPTION):
+			options.append(TOGGLE_HARVEST_OPTION)
+		if not options.is_empty():
+			var interaction := InteractionComponent.new()
+			interaction.name = "InteractionComponent"
+			root.add_child(interaction)
+			interaction.action_options = options
+
+	# Attach a harvestable component when the def declares harvest params.
+	if fdef != null and fdef.harvest_params != null:
+		var harvestable := Harvestable.new()
+		harvestable.name = "Harvestable"
+		root.add_child(harvestable)
 
 	# Attach storage contents only when the def declares storage params.
 	# StorageInventory reads def.storage_params.capacity in its _ready, so it

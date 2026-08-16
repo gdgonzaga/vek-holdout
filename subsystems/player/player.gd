@@ -134,6 +134,7 @@ func _ready() -> void:
 	EventBus.buildable_selected.connect(_on_buildable_selected)
 	# Wire discrete input actions from the InputComponent child.
 	_input.build_toggle_pressed.connect(_on_build_key_pressed)
+	_input.primary_action_pressed.connect(_on_primary_action)
 	_input.recapture_requested.connect(_recapture_mouse)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
 
@@ -435,3 +436,13 @@ func _resolve_air_axis(neg_held: bool, pos_held: bool, momentum: float) -> float
 	if neg_held:
 		return momentum if momentum < 0.0 else -jump_move_speed
 	return 0.0 # released -> axis stops dead
+
+func _on_primary_action() -> void:
+	if _busy or mode != Mode.NORMAL or UiGate.is_input_blocked():
+		return
+	if _current_interactable != null:
+		var target := _current_interactable.get_parent()
+		var harvestable := target.get_node_or_null("Harvestable") as Harvestable if target != null else null
+		if harvestable != null:
+			var action := HarvestAction.new()
+			action.execute(self, target)

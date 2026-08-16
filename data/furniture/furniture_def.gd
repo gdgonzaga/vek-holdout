@@ -44,3 +44,7 @@ class_name FurnitureDef
 ## FurnitureLayer attaches a CraftingStation child (which implements
 ## MaterialSink from the active order's inputs, so hauling can supply it).
 @export var crafting_params: CraftingParams
+
+## Harvesting capability (GDD §6.10): the yields and work time for harvesting this
+## node. Non-null → FurnitureLayer attaches a Harvestable child component.
+@export var harvest_params: HarvestParams

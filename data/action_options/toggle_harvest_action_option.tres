@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ActionOption" format=3]
+
+[ext_resource type="Resource" path="res://data/actions/toggle_harvest_action.tres" id="1_action"]
+[ext_resource type="Script" path="res://subsystems/actions/action_option.gd" id="2_option"]
+
+[resource]
+script = ExtResource("2_option")
+action = ExtResource("1_action")

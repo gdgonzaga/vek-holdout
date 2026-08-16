@@ -37,6 +37,7 @@ const MVP_CAP := 5  # Roster capacity (ARCH "max 5 in MVP").
 const CONSTRUCTION_DEF := preload("res://data/jobs/construction.tres")
 const HAULING_DEF := preload("res://data/jobs/hauling.tres")
 const CRAFTING_DEF := preload("res://data/jobs/crafting.tres")
+const HARVEST_DEF := preload("res://data/jobs/harvest.tres")
 
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
@@ -59,6 +60,8 @@ func _ready() -> void:
 	EventBus.blueprint_materials_ready.connect(_on_blueprint_materials_ready)
 	EventBus.crafting_order_queued.connect(_on_crafting_order_queued)
 	EventBus.crafting_materials_ready.connect(_on_crafting_materials_ready)
+	EventBus.harvest_mark_toggled.connect(_on_harvest_mark_toggled)
+	EventBus.furniture_removed.connect(_on_furniture_removed)
 
 
 ## MapWiring.wire_colonists → here, on every map load. Empty roster + authored
@@ -243,3 +246,35 @@ func _world_location_for(target_def_id: String, anchor: Vector3i) -> Vector3:
 		return Vector3(anchor)
 	var dims := FurnitureLayer.dimensions_of(def)
 	return FurnitureLayer.world_origin(anchor, dims, 0)
+
+
+# --- Harvesting (GDD §6.10, ARCH "Harvesting") --------------------------------
+
+func _on_harvest_mark_toggled(furniture: Node, anchor: Vector3i, is_marked: bool) -> void:
+	if is_marked:
+		_spawn_harvest_job(furniture, anchor)
+	else:
+		_remove_harvest_job(anchor)
+
+
+func _on_furniture_removed(_def_id: String, anchor: Vector3i) -> void:
+	_remove_harvest_job(anchor)
+
+
+func _spawn_harvest_job(furniture: Node, anchor: Vector3i) -> void:
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.labor_id == "harvesting":
+			return
+	var job := Job.from_def(HARVEST_DEF)
+	var f := furniture as Furniture
+	job.title = "Harvest %s" % (f.label if f != null else "resource")
+	job.anchor_cell = anchor
+	job.location = f.global_position if f != null else Vector3(anchor)
+	job.target_node = furniture
+	job_board.add_job(job)
+
+
+func _remove_harvest_job(anchor: Vector3i) -> void:
+	for job in job_board.get_jobs():
+		if job.anchor_cell == anchor and job.labor_id == "harvesting":
+			job_board.remove_job(job.id)

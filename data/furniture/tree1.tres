@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://ciujx1u7c5wdl"]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_r4dti"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_o2ths"]
+[ext_resource type="ArrayMesh" uid="uid://dgupn3yvmgwje" path="res://assets/animpic-mega-survival-construction/tree1/SM_Tree_01.SM_Tree_01.mesh" id="3_27bby"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="3_yiung"]
+[ext_resource type="Resource" uid="uid://mi5d1i724fpw" path="res://data/items/wood_block.tres" id="4_wood"]
+[ext_resource type="Texture2D" uid="uid://cvn2otun3im08" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="5_leesm"]
+[ext_resource type="Script" path="res://data/capability_params/harvest_params.gd" id="6_hparams"]
+
+[sub_resource type="Resource" id="Resource_yield_wood"]
+script = ExtResource("2_o2ths")
+item_def = ExtResource("4_wood")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[sub_resource type="Resource" id="Resource_harvest"]
+script = ExtResource("6_hparams")
+yields = Array[ExtResource("2_o2ths")]([SubResource("Resource_yield_wood")])
+work_time = 4.0
+respawn_time = 0.0
+
+[resource]
+script = ExtResource("3_yiung")
+id = "tree1"
+display_name = "Tree"
+hp = 200
+mesh = ExtResource("3_27bby")
+texture = ExtResource("5_leesm")
+harvest_params = SubResource("Resource_harvest")
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://cvn2otun3im08" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="5_8a6na"]
 [ext_resource type="ArrayMesh" uid="uid://c1ibess520i8c" path="res://assets/animpic-mega-survival-construction/shelf1/SM_Food_Shelf_01.SM_Food_Shelf_01.mesh" id="6_vb1k7"]
 [ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="7_vb1k7"]
+[ext_resource type="ArrayMesh" uid="uid://dgupn3yvmgwje" path="res://assets/animpic-mega-survival-construction/tree1/SM_Tree_01.SM_Tree_01.mesh" id="8_i4gsa"]
 
 [sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_vqmwu"]
 database_path = "res://data/maps/base/map.sqlite"
@@ -18,6 +19,9 @@ channel = 0
 library = ExtResource("3_vb1k7")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i4gsa"]
+albedo_texture = ExtResource("5_8a6na")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_am8c4"]
 albedo_texture = ExtResource("5_8a6na")
 
 [node name="MapTemplate" type="Node3D" unique_id=1931621002]
@@ -50,7 +54,7 @@ shadow_enabled = true
 [node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=1064301555]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
 
-[node name="ColonistSpawn" type="Marker3D" parent="SpawnPoints" unique_id=7400000001]
+[node name="ColonistSpawn" type="Marker3D" parent="SpawnPoints" unique_id=-1189934591]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 5, 0)
 
 [node name="Furniture_shelf1_0" type="Marker3D" parent="SpawnPoints" unique_id=1949884466]
@@ -73,3 +77,14 @@ metadata/anchor = Vector3i(-2, 0, 2)
 [node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_wood_block_dispenser_1" unique_id=1363968254]
 cast_shadow = 0
 mesh = ExtResource("7_vb1k7")
+
+[node name="Furniture_tree1_2" type="Marker3D" parent="SpawnPoints" unique_id=655621083]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 0, 2.5)
+metadata/def_id = "tree1"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(-6, 0, 2)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_2" unique_id=2082656407]
+material_override = SubResource("StandardMaterial3D_am8c4")
+cast_shadow = 0
+mesh = ExtResource("8_i4gsa")
