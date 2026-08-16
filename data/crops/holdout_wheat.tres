@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="CropDef" format=3]
+
+[ext_resource type="Script" path="res://data/crops/crop_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://data/crops/crop_yield_tier.gd" id="2_tier"]
+[ext_resource type="Script" path="res://data/items/item_amount.gd" id="3_amount"]
+[ext_resource type="Resource" path="res://data/items/holdout_wheat.tres" id="4_wheat"]
+
+[sub_resource type="Resource" id="Resource_wheat_half_item"]
+script = ExtResource("3_amount")
+item_def = ExtResource("4_wheat")
+count = 6
+
+[sub_resource type="Resource" id="Resource_wheat_full_item"]
+script = ExtResource("3_amount")
+item_def = ExtResource("4_wheat")
+count = 15
+
+[sub_resource type="Resource" id="Resource_wheat_tier_half"]
+script = ExtResource("2_tier")
+min_growth_progress = 0.5
+yields = Array[ExtResource("3_amount")]([SubResource("Resource_wheat_half_item")])
+
+[sub_resource type="Resource" id="Resource_wheat_tier_full"]
+script = ExtResource("2_tier")
+min_growth_progress = 1.0
+yields = Array[ExtResource("3_amount")]([SubResource("Resource_wheat_full_item")])
+
+[resource]
+resource_name = "Holdout Wheat"
+script = ExtResource("1_def")
+id = "holdout_wheat"
+display_name = "Holdout Wheat"
+growth_time_hours = 18.0
+growth_stages = 3
+max_water = 100.0
+water_decay_per_hour = 4.0
+thirsty_threshold = 30.0
+tending_mode = 1
+tending_milestones = Array[float]([0.5])
+untended_growth_mult = 0.0
+neglect_hours = 6.0
+neglect_yield_penalty = 0.25
+yield_tiers = Array[ExtResource("2_tier")]([SubResource("Resource_wheat_tier_half"), SubResource("Resource_wheat_tier_full")])
+base_harvest_time = 3.0

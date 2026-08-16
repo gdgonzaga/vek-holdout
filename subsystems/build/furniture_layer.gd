@@ -2,6 +2,8 @@ class_name FurnitureLayer
 extends RefCounted
 
 const TOGGLE_HARVEST_OPTION: ActionOption = preload("res://data/action_options/toggle_harvest_action_option.tres")
+const INSPECT_CROP_OPTION: ActionOption = preload("res://data/action_options/inspect_crop_action_option.tres")
+const SELECT_CROP_OPTION: ActionOption = preload("res://data/action_options/select_crop_action_option.tres")
 ## Free-standing furniture placement layer (ARCH "Build" subsystem).
 ##
 ## The sibling of VoxelGridAdapter for non-block buildables. Where the adapter
@@ -153,7 +155,7 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	if yaw_quarters != 0:
 		root.rotate_y(float(yaw_quarters) * PI * 0.5)
 
-	# Attach interaction when the def offers actions or has harvest params.
+	# Attach interaction when the def offers actions, harvest params, or farm plot params.
 	# Player._find_interaction_component expects a direct child named exactly
 	# "InteractionComponent"; component.display_name is the UI fallback.
 	var fdef := def as FurnitureDef
@@ -161,17 +163,30 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		var options: Array[ActionOption] = fdef.action_options.duplicate()
 		if fdef.harvest_params != null and not options.has(TOGGLE_HARVEST_OPTION):
 			options.append(TOGGLE_HARVEST_OPTION)
+		if fdef.farm_plot_params != null:
+			if not options.has(INSPECT_CROP_OPTION):
+				options.append(INSPECT_CROP_OPTION)
+			if not options.has(SELECT_CROP_OPTION):
+				options.append(SELECT_CROP_OPTION)
+			if not options.has(TOGGLE_HARVEST_OPTION):
+				options.append(TOGGLE_HARVEST_OPTION)
 		if not options.is_empty():
 			var interaction := InteractionComponent.new()
 			interaction.name = "InteractionComponent"
 			root.add_child(interaction)
 			interaction.action_options = options
 
-	# Attach a harvestable component when the def declares harvest params.
-	if fdef != null and fdef.harvest_params != null:
+	# Attach a harvestable component when the def declares harvest params or farm plot params.
+	if fdef != null and (fdef.harvest_params != null or fdef.farm_plot_params != null):
 		var harvestable := Harvestable.new()
 		harvestable.name = "Harvestable"
 		root.add_child(harvestable)
+
+	# Attach a growable component when the def declares farm plot params.
+	if fdef != null and fdef.farm_plot_params != null:
+		var growable := Growable.new()
+		growable.name = "Growable"
+		root.add_child(growable)
 
 	# Attach storage contents only when the def declares storage params.
 	# StorageInventory reads def.storage_params.capacity in its _ready, so it

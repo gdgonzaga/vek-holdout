@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/farm_plot_params.gd" id="2_params"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_trough"]
+size = Vector3(1, 0.35, 1)
+
+[sub_resource type="Resource" id="Resource_plot_params"]
+script = ExtResource("2_params")
+
+[resource]
+resource_name = "Growing Trough"
+script = ExtResource("1_fdef")
+id = "growing_trough"
+display_name = "Growing Trough"
+hp = 100
+dimensions = Vector3i(1, 1, 1)
+mesh = SubResource("BoxMesh_trough")
+farm_plot_params = SubResource("Resource_plot_params")
+unlocked_by_default = true

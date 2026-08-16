@@ -38,6 +38,9 @@ const CONSTRUCTION_DEF := preload("res://data/jobs/construction.tres")
 const HAULING_DEF := preload("res://data/jobs/hauling.tres")
 const CRAFTING_DEF := preload("res://data/jobs/crafting.tres")
 const HARVEST_DEF := preload("res://data/jobs/harvest.tres")
+const SOW_DEF := preload("res://data/jobs/sow.tres")
+const WATER_DEF := preload("res://data/jobs/water.tres")
+const TEND_DEF := preload("res://data/jobs/tend.tres")
 
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
@@ -64,6 +67,9 @@ func _ready() -> void:
 	EventBus.crafting_order_queued.connect(_on_crafting_order_queued)
 	EventBus.crafting_materials_ready.connect(_on_crafting_materials_ready)
 	EventBus.harvest_mark_toggled.connect(_on_harvest_mark_toggled)
+	EventBus.plot_needs_sowing.connect(_on_plot_needs_sowing)
+	EventBus.plot_needs_water.connect(_on_plot_needs_water)
+	EventBus.plot_needs_tending.connect(_on_plot_needs_tending)
 	EventBus.furniture_removed.connect(_on_furniture_removed)
 
 
@@ -290,6 +296,105 @@ func _on_harvest_mark_toggled(furniture: Node, anchor: Vector3i, is_marked: bool
 
 func _on_furniture_removed(_def_id: String, anchor: Vector3i) -> void:
 	_remove_harvest_job(anchor)
+	_remove_sow_job(anchor)
+	_remove_water_job(anchor)
+	_remove_tend_job(anchor)
+
+
+# --- Farming (GDD §6 / Farming, ARCH "Farming") -----------------------------
+
+func _on_plot_needs_sowing(growable: Node, anchor: Vector3i, crop_id: String, needed: bool) -> void:
+	if needed:
+		_spawn_sow_job(growable, anchor, crop_id)
+	else:
+		_remove_sow_job(anchor)
+
+
+func _on_plot_needs_water(growable: Node, anchor: Vector3i, needed: bool) -> void:
+	if needed:
+		_spawn_water_job(growable, anchor)
+	else:
+		_remove_water_job(anchor)
+
+
+func _on_plot_needs_tending(growable: Node, anchor: Vector3i, needed: bool) -> void:
+	if needed:
+		_spawn_tend_job(growable, anchor)
+	else:
+		_remove_tend_job(anchor)
+
+
+func _spawn_sow_job(growable: Node, anchor: Vector3i, crop_id: String) -> void:
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.def == SOW_DEF:
+			return
+	var job := Job.from_def(SOW_DEF)
+	var crop_def := CropLibrary.get_crop(crop_id)
+	job.title = "Sow %s" % (crop_def.display_name if crop_def != null else "crop")
+	job.anchor_cell = anchor
+	job.location = _target_node_location(growable, anchor)
+	job.target_node = _target_node_of(growable)
+	job_board.add_job(job)
+
+
+func _remove_sow_job(anchor: Vector3i) -> void:
+	for job in job_board.get_jobs():
+		if job.anchor_cell == anchor and job.def == SOW_DEF:
+			job_board.remove_job(job.id)
+
+
+func _spawn_water_job(growable: Node, anchor: Vector3i) -> void:
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.def == WATER_DEF:
+			return
+	var job := Job.from_def(WATER_DEF)
+	job.title = "Water crop"
+	job.anchor_cell = anchor
+	job.location = _target_node_location(growable, anchor)
+	job.target_node = _target_node_of(growable)
+	job_board.add_job(job)
+
+
+func _remove_water_job(anchor: Vector3i) -> void:
+	for job in job_board.get_jobs():
+		if job.anchor_cell == anchor and job.def == WATER_DEF:
+			job_board.remove_job(job.id)
+
+
+func _spawn_tend_job(growable: Node, anchor: Vector3i) -> void:
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.def == TEND_DEF:
+			return
+	var job := Job.from_def(TEND_DEF)
+	job.title = "Tend crop"
+	job.anchor_cell = anchor
+	job.location = _target_node_location(growable, anchor)
+	job.target_node = _target_node_of(growable)
+	job_board.add_job(job)
+
+
+func _remove_tend_job(anchor: Vector3i) -> void:
+	for job in job_board.get_jobs():
+		if job.anchor_cell == anchor and job.def == TEND_DEF:
+			job_board.remove_job(job.id)
+
+
+func _target_node_of(node: Node) -> Node:
+	if node == null:
+		return null
+	if node is Furniture:
+		return node
+	var parent := node.get_parent()
+	if parent != null:
+		return parent
+	return node
+
+
+func _target_node_location(node: Node, anchor: Vector3i) -> Vector3:
+	var target := _target_node_of(node)
+	if target is Node3D:
+		return (target as Node3D).global_position
+	return Vector3(anchor)
 
 
 func _spawn_harvest_job(furniture: Node, anchor: Vector3i) -> void:

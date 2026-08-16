@@ -48,3 +48,7 @@ class_name FurnitureDef
 ## Harvesting capability (GDD §6.10): the yields and work time for harvesting this
 ## node. Non-null → FurnitureLayer attaches a Harvestable child component.
 @export var harvest_params: HarvestParams
+
+## Farming capability (GDD §7.2 / Farming): non-null → FurnitureLayer
+## attaches Growable and Harvestable child components.
+@export var farm_plot_params: FarmPlotParams

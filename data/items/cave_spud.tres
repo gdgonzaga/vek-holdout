@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Cave Spud"
+script = ExtResource("1_def")
+id = "cave_spud"
+weight = 0.2
+tags = Array[String](["food", "crop"])

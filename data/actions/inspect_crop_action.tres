@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="InspectCropAction" format=3]
+
+[ext_resource type="Script" path="res://data/actions/inspect_crop_action.gd" id="1_act"]
+
+[resource]
+resource_name = "Inspect Crop"
+script = ExtResource("1_act")
+label = "Inspect Crop"

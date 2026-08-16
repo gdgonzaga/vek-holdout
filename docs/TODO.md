@@ -53,6 +53,7 @@ Do not re-litigate without explicit reason.
 
 ### Mostly specced — needs architecture coverage
 
+- [ ] **Crop Irrigation Tier 2 (Water Physics & Automation)** — Voxel hydration, trench/aqueduct water flow, or piped sprinkler network to automate soil hydration without manual colonist watering. Requires voxel fluid/water simulation pass.
 - [ ] **Encounter templates** (GDD §5) — no encounter-definition data file, no spawner reading them, no link to POI difficulty tiers. Three templates specced: Basic (2× Brawler), Standard (2× Brawler + 1× Shooter), Hard (3× Brawler + 2× Shooter).
   - *Open Q:* are templates the same data structure as raid waves (probably — both feed SpawnManager)? How do POI difficulty tiers map to templates?
 - [ ] **Demolition as a Job** (GDD §7.5) — only the low-level `VoxelGrid.remove_block_at()` exists. No demolition-as-Job flow, no "mark for demolition" UI, no Job-Board registration. Removal rate = 2× build rate.

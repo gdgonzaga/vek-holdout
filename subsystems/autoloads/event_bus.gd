@@ -42,5 +42,8 @@ signal blueprint_materials_ready(target_def_id: String, anchor: Vector3i, bluepr
 signal crafting_order_queued(station: Node, anchor: Vector3i) # CraftingStation.queue_recipe -> Colony (spawn the haul job feeding the station)
 signal crafting_materials_ready(station: Node, anchor: Vector3i) # CraftingStation.deposit_from -> Colony (spawn craft job; single-fire per order)
 signal harvest_mark_toggled(furniture: Node, anchor: Vector3i, is_marked: bool) # Harvestable.toggle_mark -> Colony (spawn/cancel harvest job)
+signal plot_needs_sowing(growable: Node, anchor: Vector3i, crop_id: String, needed: bool) # Growable -> Colony (spawn/cancel sow job)
+signal plot_needs_water(growable: Node, anchor: Vector3i, needed: bool) # Growable -> Colony (spawn/cancel water job)
+signal plot_needs_tending(growable: Node, anchor: Vector3i, needed: bool) # Growable -> Colony (spawn/cancel tend job)
 signal item_picked_up(item_id: String, count: int) # inventory -> HUD
 signal job_logged(entry: Dictionary) # colonists (Job Board) -> Job Log UI

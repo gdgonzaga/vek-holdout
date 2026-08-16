@@ -44,6 +44,7 @@ nav:
     - Loot: loot.md
     - Inventory: inventory.md
     - Crafting: crafting.md
+    - Farming: farming.md
     - UI: ui.md
     - "Game Log": game-log.md
     - "Debug Console": debug-console.md

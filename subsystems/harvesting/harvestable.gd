@@ -1,12 +1,12 @@
 class_name Harvestable
 extends Node
-## Capability component for harvestable furniture (GDD §6.10, ARCH "Harvesting").
+## Capability component for harvestable furniture (GDD §6.10, ARCH "Harvesting", ARCH "Farming").
 ## Attached under a Furniture by FurnitureLayer when its def declares harvest_params
-## — the CraftingStation/StorageInventory pattern.
+## or farm_plot_params — the CraftingStation/StorageInventory pattern.
 ##
 ## Tracks work_done toward completion and is_marked_for_harvest (for colonist job
 ## dispatch). When complete() is invoked, grants yields to the harvesting actor
-## and removes the furniture node via FurnitureLayer.
+## and either removes the furniture node (trees/rocks) or resets the farm plot (crops).
 
 const STATE_KEY := "harvest"
 
@@ -69,13 +69,28 @@ func set_work_done(amount: float) -> void:
 		_furniture.state[STATE_KEY] = state
 
 
-## Resolve the harvest: grant yields to actor's inventory and remove the node.
-## Returns true if successfully harvested.
+## Resolve the harvest: grant yields to actor's inventory and either reset the plot
+## or remove the furniture node. Returns true if successfully harvested.
 func complete(actor: Node) -> bool:
+	var pocket := _pocket_of(actor)
+	var growable := _furniture.get_node_or_null("Growable") as Growable if _furniture != null else null
+
+	if growable != null:
+		var yields := growable.get_harvest_yields()
+		for entry in yields:
+			if entry == null or entry.item_def == null:
+				continue
+			if pocket != null:
+				pocket.add(entry.item_def.id, entry.count)
+		if _furniture != null:
+			GameLog.info("Harvested %s" % _furniture.label)
+		growable.on_harvested(actor)
+		EventBus.harvest_mark_toggled.emit(_furniture, anchor_cell(), false)
+		return true
+
 	var p := params()
 	if p == null:
 		return false
-	var pocket := _pocket_of(actor)
 	for entry in p.yields:
 		if entry == null or entry.item_def == null:
 			continue

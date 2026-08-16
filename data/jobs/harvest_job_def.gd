@@ -1,8 +1,8 @@
 extends JobDef
 class_name HarvestJobDef
-## Harvesting labor (GDD §6.10, ARCH "Harvesting"): chop or gather a marked
-## resource node over its HarvestParams.work_time, then resolve yields into the
-## harvester's carry inventory and remove the node.
+## Harvesting labor (GDD §6.10, ARCH "Harvesting", ARCH "Farming"): chop or gather
+## a marked resource node over its work_time, then resolve yields into the
+## harvester's carry inventory.
 ##
 ## Expressed as a single-leg job: get_next_leg returns the node leg once (the
 ## colonist walks to a stand-adjacent cell), begin reports the skill-scaled
@@ -27,13 +27,24 @@ func begin(actor: Node, leg: JobLeg, _job: Job) -> float:
 	var harvestable := _harvestable_from(leg.target_node)
 	if harvestable == null:
 		return 0.0
-	var params := harvestable.params()
-	if params == null:
-		return 0.0
+	var base_time: float = 0.0
+	var target_node := leg.target_node as Node
+	var growable: Growable = null
+	if target_node != null:
+		growable = target_node.get_node_or_null("Growable") as Growable
+	if growable != null:
+		var cdef := growable.get_crop_def()
+		base_time = cdef.base_harvest_time if cdef != null else 3.0
+	else:
+		var params := harvestable.params()
+		if params == null:
+			return 0.0
+		base_time = params.work_time
+
 	var colonist := actor as Colonist
-	var duration: float = params.work_time
+	var duration: float = base_time
 	if colonist != null and colonist.skill_set != null:
-		duration = params.work_time / colonist.skill_set.get_multiplier(labor_id)
+		duration = base_time / colonist.skill_set.get_multiplier(labor_id)
 	return maxf(0.0, duration - harvestable.work_done())
 
 

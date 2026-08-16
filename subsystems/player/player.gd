@@ -442,7 +442,13 @@ func _on_primary_action() -> void:
 		return
 	if _current_interactable != null:
 		var target := _current_interactable.get_parent()
-		var harvestable := target.get_node_or_null("Harvestable") as Harvestable if target != null else null
-		if harvestable != null:
-			var action := HarvestAction.new()
-			action.execute(self, target)
+		if target != null:
+			var growable := target.get_node_or_null("Growable") as Growable
+			if growable != null:
+				var farm_action := FarmManualAction.new()
+				farm_action.execute(self, target)
+				return
+			var harvestable := target.get_node_or_null("Harvestable") as Harvestable
+			if harvestable != null:
+				var action := HarvestAction.new()
+				action.execute(self, target)

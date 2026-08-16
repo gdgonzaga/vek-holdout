@@ -35,6 +35,7 @@ display_name = "Combat"
 script = ExtResource("2_def")
 skill_id = "farming"
 display_name = "Farming"
+labor = "farming"
 
 [sub_resource type="Resource" id="Resource_i4gsa"]
 script = ExtResource("2_def")

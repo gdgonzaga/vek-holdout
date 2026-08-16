@@ -148,6 +148,10 @@ Authoritative list of `event_bus.gd` signals. Cross-scene only.
 | `furniture_removed(def_id: String, anchor: Vector3i)` | FurnitureLayer | Colony (Functional Rooms), GameLog | Furniture removed from world — decrements the relevant Functional Rooms counter; GameLog posts a "Removed <def_id>" line |
 | `blueprint_placed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | Colony (registers a construction Job) | A blueprint (construction plan) was spawned — Colony's JobBoard connects here to create a construction Job a colonist then walks to |
 | `blueprint_removed(target_def_id: String, anchor: Vector3i)` | `BlueprintLayer` | Colony (cancels the construction Job) | A blueprint was removed (built or cancelled) — Colony's JobBoard drops any Job targeting that anchor |
+| `harvest_mark_toggled(furniture: Node, anchor: Vector3i, is_marked: bool)` | `Harvestable.toggle_mark` | Colony | Toggles harvest mark on resources/crops |
+| `plot_needs_sowing(growable: Node, anchor: Vector3i, crop_id: String, needed: bool)` | `Growable` | Colony | Spawns or removes sow job for empty farm plots |
+| `plot_needs_water(growable: Node, anchor: Vector3i, needed: bool)` | `Growable` | Colony | Spawns or removes water job for thirsty crops |
+| `plot_needs_tending(growable: Node, anchor: Vector3i, needed: bool)` | `Growable` | Colony | Spawns or removes tend job for crops needing maintenance |
 | `item_picked_up(item_id: String, count: int)` | inventory subsystem | HUD (hotbar/inventory refresh) | Inventory changed while Player screen closed |
 | `job_logged(entry: Dictionary)` | colonists (Job Board) | UI (Job Log panel, when open) | Diagnostic feed for job failures |
 

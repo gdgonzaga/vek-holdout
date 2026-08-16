@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Holdout Wheat"
+script = ExtResource("1_def")
+id = "holdout_wheat"
+weight = 0.1
+tags = Array[String](["raw_material", "crop"])

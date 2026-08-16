@@ -36,6 +36,7 @@ Last updated: 2026-08-15 (job-system extension foundations built: JobDef require
 | [Loot](loot.md) | Loot tables, containers, Key Item pool | §17 |
 | [Inventory](inventory.md) | Weight-based inventory, ItemDef, ItemDB autoload | §4.5, §7.3 |
 | [Crafting](crafting.md) | Recipes, Workbench/Forge, craft Jobs | §7.9 |
+| [Farming](farming.md) | Farm plots, hydration, tending, crop growth & yields | §6 |
 | [UI](ui.md) | HUD + all full-screen screens | §12 |
 | [Game Log](game-log.md) | On-screen message feed, history buffer | §12 |
 | [Debug Console](debug-console.md) | Command registry, dev-only tools | §17 |
