@@ -23,6 +23,7 @@ reports/
 
 # ZCode agent state (plans, scratch)
 .zcode/
+.agents/
 
 # MkDocs build output
 site/
