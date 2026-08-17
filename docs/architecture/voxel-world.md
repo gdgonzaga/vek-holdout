@@ -23,7 +23,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 
 | File | Type | Responsibility |
 |---|---|---|
-| `map.tscn` / `map.gd` | Scene/Script | The MapRoot — the current game world (`Map`, structural container only — no gameplay logic). Swapped by SceneManager on base↔POI transitions. Holds BlockyGrid + optional SmoothGrid + containers for player/colonists/enemies/furniture. Authored POIs have per-map scenes at `data/maps/<id>/map.tscn` (see [Maps](maps.md) subsystem); the pristine template lives at `subsystems/maps/map_template.tscn`. |
+| `map.tscn` / `map.gd` | Scene/Script | The MapRoot — the current game world (`Map`, structural container only — no gameplay logic). Swapped by SceneManager on base↔POI transitions. Holds BlockyGrid (structures-only — the template bakes no blocky generator) + optional SmoothGrid (the initial terrain; new maps default `terrain_gen` to the 50 m deep `data/terrain/default_ground.tres`) + containers for player/colonists/enemies/furniture. Authored POIs have per-map scenes at `data/maps/<id>/map.tscn` (see [Maps](maps.md) subsystem); the pristine template lives at `subsystems/maps/map_template.tscn`. |
 | `blocky_grid.gd` | Script | The structures half. Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the surface-tagged Godot-physics raycast (see `docs/VOXEL-TOOL-NOTES.md`). Owns block get/set, per-cell HP, the damage surface, and the blocky terrain's collision layer (2). Does NOT own placement UX (that's Build). |
 | `smooth_grid.gd` | Script | The natural-terrain half — BlockyGrid's mirror, different mesher/generator. `carve`/`add_material` sphere primitives (F8 semantics), cached `height_at` with D4 invalidation, `raycast_to_surface` masked to TerrainSmooth. Opt-in: a `MapDef` without `terrain_gen` makes the node free itself at `_ready` (SceneManager injects the def pre-tree). |
 | `block_library.gd` | Script (Resource) | Owns the `VoxelBlockyLibrary` the blocky mesher renders with; maps string block_id ↔ integer library index, and id → `BlockDef`. Enforces the index convention (0 = air, terrain = 1) and bakes the library from `data/blocks/`. |
@@ -172,7 +172,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 **Script:** `block_library.gd`
 **Description:** Registry of block types. Owns the `VoxelBlockyLibrary` the mesher renders with, maps string `block_id` ↔ integer library index, and resolves id → `BlockDef`. Assembled from `data/blocks/` in `_init()`.
 **Used by:** `BlockyGrid` (mesher wiring, id↔index translation, def lookup for HP).
-**Index convention:** `0` = air (`VoxelBlockyModelEmpty`); **terrain is forced to index 1** so `VoxelGeneratorFlat` (which emits `voxel_type = 1`) renders as terrain without remapping; the rest load alphabetically. Deterministic across runs.
+**Index convention:** `0` = air (`VoxelBlockyModelEmpty`); **terrain is forced to index 1** (what `VoxelGeneratorFlat` emits, what legacy scenes and the paint tool's "terrain" brush expect); the rest load alphabetically. Deterministic across runs.
 
 **Functions:**
 

@@ -113,7 +113,7 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 
 ## `data/terrain/<id>.tres` (Resource: `terrain_gen_def.gd`) — `TerrainGenDef`
 
-Dual-voxel natural-terrain generator params (conversion D2/D4). A `MapDef.terrain_gen` pointing at one of these opts a map into smooth terrain; **null = no smooth grid at all** (the map's `SmoothGrid` frees itself). Fields: `id`, `display_name`, `noise_seed`, `noise_frequency`, `height_start`, `height_range` (1:1 with `VoxelGeneratorNoise2D`, F8-verified names), and `max_walk_slope_deg` (the D4 slope gate, <= 45, consumed in Phase 3). `SceneManager` injects the def into the `SmoothGrid` before the map enters the tree.
+Dual-voxel natural-terrain generator params (conversion D2/D4). A `MapDef.terrain_gen` pointing at one of these opts a map into smooth terrain; **null = no smooth grid at all** (the map's `SmoothGrid` frees itself). Since the template dropped its flat blocky generator (2026-08-18), `terrain_gen` **is** a new map's initial terrain — `voxel_paint_plugin._create_map_def` pre-fills it with `data/terrain/default_ground.tres` (50 m deep rolling ground; frequency is a slope budget: max slope ≈ `height_range`·π·`noise_frequency` must stay under the walk gate). Fields: `id`, `display_name`, `noise_seed`, `noise_frequency`, `height_start`, `height_range` (1:1 with `VoxelGeneratorNoise2D`, F8-verified names), and `max_walk_slope_deg` (the D4 slope gate, <= 45, consumed in Phase 3). `SceneManager` injects the def into the `SmoothGrid` before the map enters the tree.
 
 ## `data/terrain/materials/<id>.tres` (Resource: `terrain_material_def.gd`) — `TerrainMaterialDef`
 
