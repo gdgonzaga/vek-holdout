@@ -69,7 +69,7 @@ res://
 └── tools/              # Editor/build utilities (EditorScript tools — not shipped)
 ```
 
-**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `subsystems/autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `tests/`. UI scenes live in `ui/` (project root), not under `subsystems/`. Editor-only tooling (no runtime code) goes in `addons/`; standalone `EditorScript` build/bake utilities go in `tools/`.
+**Placement rules:** subsystem folder = architecture section by default. Ambiguous ownership → `core/`. Autoloads always in `subsystems/autoloads/`. All data in `data/` (centralized, not scattered). Playtest/manual scenes go in `testing/`, automated tests in `test/`. UI scenes live in `ui/` (project root), not under `subsystems/`. Editor-only tooling (no runtime code) goes in `addons/`; standalone `EditorScript` build/bake utilities go in `tools/`.
 
 ### Editor plugins (`addons/`)
 
