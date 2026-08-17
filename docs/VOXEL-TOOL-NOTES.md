@@ -30,10 +30,14 @@
    VoxelBlockyLibrary section.)
 5. **The baked library is what makes terrain visible in the editor.** Not the
    stream, not a `VoxelViewer`. (See F5.)
+6. **Smooth terrain (`VoxelMesherTransvoxel`) works at RUNTIME** — renders,
+   collides, and coexists with a blocky terrain in one scene. Keep terrain
+   nodes at the origin: a translated `VoxelTerrain` collides at the offset but
+   renders no meshes. (See F7.)
 
 ---
 
-## Verified facts (F1–F6)
+## Verified facts (F1–F7)
 
 ### F1 — No in-editor paint tool ships with zylann.voxel
 `VoxelTerrainEditorPlugin` auto-registers but provides only previews + a monitor
@@ -92,7 +96,8 @@ camera is an adequate implicit viewer).
 - `VoxelGeneratorGraph` + `VoxelMesherTransvoxel` does **NOT** render in this
   build even with a valid graph and the warning cleared → **do not plan on
   graph-based live editor authoring.** Sculpted terrain is done with the paint
-  plugin (or MagicaVoxel import), same as structures.
+  plugin (or MagicaVoxel import), same as structures. (Runtime smooth meshing
+  itself was later proven fine — see F7; it is the editor viewport that fails.)
 
 ### F6 — Scripts on VoxelGenerator/VoxelStream must not be `@tool`
 Generators/streams are native resources (`VoxelGeneratorFlat`,
@@ -100,6 +105,37 @@ Generators/streams are native resources (`VoxelGeneratorFlat`,
 `EditorPlugin`, **not** a `@tool` script on the terrain — the correct pattern.
 (If you ever script a generator/stream, do not mark it `@tool`, or the terrain's
 preview/streaming can misbehave in the editor.)
+
+### F7 — Smooth terrain works at RUNTIME; translated VoxelTerrain nodes don't render (2026-08-17 spike)
+Validated by `testing/zylann/smooth_terrain_spike.tscn` (code-built world,
+windowed run with viewport screenshots + a 441-column physics raycast scan;
+automated via `--auto-quit`, see the scene's header for CLI flags):
+
+- **`VoxelTerrain` AND `VoxelLodTerrain` with `VoxelMesherTransvoxel` +
+  `VoxelGeneratorNoise2D` render, collide, and coexist with a blocky
+  `VoxelTerrain` in the same scene.** F5's editor-viewport failure does NOT
+  extend to runtime. This is the precondition for any "smooth terrain +
+  blocky structures" split; verdict GO for both node types.
+- **Smooth slopes produce non-axis-aligned raycast normals** (369/371 sampled
+  columns). Anything deriving voxel cells from `hit.position + normal`
+  (`VoxelGrid.raycast_to_voxel`) will need grid-snapping against such hits.
+- **A translated `VoxelTerrain` (`position != origin`) collides at the offset
+  but renders NO meshes** — bisect-proven: same blocky terrain at the origin
+  renders, moved to `(96, 0, 0)` it is invisible while its collision still
+  answers at world x=96. Rule: keep terrain nodes at the origin; offset
+  content in voxel space or via a parent node. (The existing transform warning
+  for `do_sphere` in the VoxelTool notes is the same landmine, different fuse.)
+- **Body-vs-terrain collision is layer/mask bidirectional.** Setting only
+  `collision_layer` on a terrain stops `RigidBody` interaction silently while
+  physics raycasts still hit (a ray tests query-mask vs collider-layer only).
+  Set `collision_mask` to include the probe/body layer whenever you assign a
+  custom layer to a terrain.
+- **`VoxelTerrain.aabb` stays zero in this build even when terrain visibly
+  renders** (the known-good blocky control reads `(0,0,0)` while on screen).
+  Never use `aabb` as a "did it mesh" probe; use screenshots or collision.
+- Headless runs use the dummy rendering server, which rejects voxel mesh
+  surfaces entirely — collision and raycasts still work headless, rendering
+  does not. Judge rendering only from a windowed run.
 
 ---
 
@@ -271,8 +307,8 @@ both done with the paint plugin.
   visible geometry in this addon's editor viewport** even after the
   generator↔mesher warning clears. The "two WYSIWYG tools compose" framing is not
   supported for editor authoring. A graph may still be used for runtime-only
-  generation (a graph baked into a scene that's never live-edited), but treat
-  that as untested.
+  generation — runtime smooth meshing itself is proven (F7) — but graph-in-editor
+  remains dead.
 - **MagicaVoxel is demoted to optional.** Its importer (`VoxelVoxEditorPlugin`)
   produces a PackedScene/ArrayMesh — not blocky `VoxelTerrain` data — and there
   is no built-in MagicaVoxel-color→block-type mapping (that's a DIY step on the
