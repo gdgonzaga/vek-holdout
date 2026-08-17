@@ -4,12 +4,27 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 
 > **Voxel-tool gotchas & verified facts** (editor hit-detection, the 40-frame settle, library/stream behavior, Blender export) live in `docs/VOXEL-TOOL-NOTES.md`.
 
+## Collision layers
+
+The dual-voxel layer plan (locked decisions in `docs/TODO.md`): blocky structures and the future smooth natural terrain each own a layer, so physics queries can address one ground without the other. `VoxelGrid._ready` assigns its terrain layer 2 in code — the map templates don't carry it, so already-stamped POIs get it at runtime.
+
+| Layer | Name | Who lives there |
+|---|---|---|
+| 1 | World | Furniture trimesh statics |
+| 2 | TerrainBlocky | The blocky `VoxelTerrain` (this subsystem) |
+| 3 | TerrainSmooth | Reserved for the smooth terrain (conversion Phase 2) |
+| 4 | Player | Player capsule |
+| 5 | Build | Furniture/blueprint `BuildBody` interaction boxes |
+| 6 | Colonist | Colonist capsules |
+
+Masks that follow from it: player + colonist bodies and the camera spring arm mask `1|2|4` (statics + both terrains — never Build boxes or other capsules); the build/deconstruct ray masks `1|2|16` (statics + blocky terrain + Build boxes — see `VoxelGrid.BUILD_RAY_MASK`); terrain bodies mask `8|32` (the bodies that stand on terrain). F7 (VOXEL-TOOL-NOTES): a terrain's layer and mask must move together — assigning only `collision_layer` silently stops body interaction while rays keep hitting.
+
 ## Files
 
 | File | Type | Responsibility |
 |---|---|---|
 | `map.tscn` / `map.gd` | Scene/Script | The MapRoot — the current game world (`Map`, structural container only — no gameplay logic). Swapped by SceneManager on base↔POI transitions. Holds VoxelGrid + containers for player/colonists/enemies/furniture. Authored POIs have per-map scenes at `data/maps/<id>/map.tscn` (see [Maps](maps.md) subsystem); the pristine template lives at `subsystems/maps/map_template.tscn`. |
-| `voxel_grid.gd` | Script | Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the Godot-physics raycast (see `docs/VOXEL-TOOL-NOTES.md`). Owns block get/set, per-cell HP, and the damage surface. Does NOT own placement UX (that's Build). |
+| `voxel_grid.gd` | Script | Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the Godot-physics raycast (see `docs/VOXEL-TOOL-NOTES.md`). Owns block get/set, per-cell HP, the damage surface, and the terrain's collision layer (2, TerrainBlocky — assigned in `_ready`). Does NOT own placement UX (that's Build). |
 | `block_library.gd` | Script (Resource) | Owns the `VoxelBlockyLibrary` the mesher renders with; maps string block_id ↔ integer library index, and id → `BlockDef`. Enforces the index convention (0 = air, terrain = 1) and bakes the library from `data/blocks/`. |
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, terrain). See [Data Schemas](data-schemas.md). |
 
@@ -65,7 +80,7 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 **Script:** `voxel_grid.gd`
 **Description:** Implements `IBlockGrid` (defined in `build/i_block_grid.gd`). The sole owner of voxel_tool access for build/placement queries. Block identity is a string `block_id` everywhere outside this class; internally the integer voxel-tool library index is stored and `BlockLibrary` does the id↔index translation. Tracks per-position HP (`_hp_by_pos`) so combat/raids can damage blocks below their `BlockDef.hp` before destroying them.
 **Used by:** Build (placement + raycast), Colonists (A* pathfinding), Raids (breach + damage), Combat (`apply_damage`).
-**Lifecycle:** `_ready()` constructs the `BlockLibrary`, wires its `VoxelBlockyLibrary` into the terrain mesher, and fetches the `VoxelTool` reference from the `VoxelTerrain` child.
+**Lifecycle:** `_ready()` assigns the terrain its collision layer + body mask (F7: they move together), constructs the `BlockLibrary`, wires its `VoxelBlockyLibrary` into the terrain mesher, and fetches the `VoxelTool` reference from the `VoxelTerrain` child.
 
 **Properties:**
 
@@ -91,7 +106,8 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 | `get_block_at(pos: Vector3i) -> String` | Returns block ID at position; empty string if air. |
 | `set_block_at(pos: Vector3i, block_id: String) -> void` | Places a block; seeds `_hp_by_pos[pos] = def.hp`; emits `block_placed`. |
 | `remove_block_at(pos: Vector3i) -> void` | Removes a block; clears its HP entry; emits `block_destroyed`. |
-| `raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary` | Godot physics raycast → voxel index + face normal. Returns `{position, normal, hit}`. `exclude` is an `Array[RID]` to skip (player body). NOT `VoxelTool.raycast` (see gotcha). |
+| `raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary` | Godot physics raycast → voxel index + face normal. Returns `{position, normal, hit}`. Masked to `BUILD_RAY_MASK` (World statics + this terrain + Build bodies). `exclude` is an `Array[RID]` to skip (player body). NOT `VoxelTool.raycast` (see gotcha). |
+| `height_at(x: float, z: float, normal_out: Array = []) -> float` | Height of the highest terrain surface at column (x, z) — downward ray masked to the terrain's layer, so statics/bodies never answer. `NAN` on no ground; `normal_out` receives the surface normal on hit (slope gating). |
 | `get_hp_at(pos: Vector3i) -> int` | Current HP of the block at pos, or 0 if air/terrain. |
 | `has_block_at(pos: Vector3i) -> bool` | Whether a buildable block exists at pos (HP entry present). |
 | `apply_damage(pos: Vector3i, amount: int) -> void` | Applies damage to a buildable block; destroys it (and emits `block_destroyed`) when HP hits 0. Terrain is ignored (no HP entry). |
