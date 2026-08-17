@@ -62,3 +62,12 @@ func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: A
 	if _grid == null:
 		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false}
 	return _grid.raycast_to_voxel(origin, dir, max_dist, exclude)
+
+
+## Ground height at world column (x, z) on the blocky terrain (delegates to
+## VoxelGrid). NAN when no ground within range. `normal_out` optionally
+## receives the surface normal on hit.
+func height_at(x: float, z: float, normal_out: Array = []) -> float:
+	if _grid == null:
+		return NAN
+	return _grid.height_at(x, z, normal_out)

@@ -97,29 +97,47 @@ static func wire_colonists(map: Map) -> Node3D:
 	return container
 
 
-## Build the per-cell is_walkable Callable from the map's voxel grid + build
-## layers. A cell is standable iff it is air, has a solid floor below, has head
-## clearance above (the 1.6 m capsule spans two 1 m cells — without this check
-## colonists path into 1-high gaps and grind against the ceiling forever), and
-## is not occupied by furniture or a blueprint (colonist stands ADJACENT to a
-## build target, never on its footprint).
+## Build the per-cell is_walkable Callable for a map: an injectable ground
+## probe ANDed with furniture/blueprint occupancy. The probe is the dual-voxel
+## seam — today it is blocky-only; the conversion's Phase 3 widens it with a
+## smooth-terrain source (docs/TODO.md D4) without touching occupancy rules.
 static func _compose_walkability(map: Map) -> Callable:
 	var grid: VoxelGrid = map.get_grid()
 	var ctrl := map.find_child("BuildController") as BuildController
 	var fl: FurnitureLayer = ctrl.furniture_layer if ctrl != null else null
 	var bl: BlueprintLayer = ctrl.blueprint_layer if ctrl != null else null
+	return compose_walkability(blocky_ground_probe(Callable(grid, "get_block_at")), fl, bl)
+
+
+## Blocky-only ground probe: a cell is standable iff it is air, has a solid
+## floor below, and has head clearance above (the 1.6 m capsule spans two 1 m
+## cells — without this check colonists path into 1-high gaps and grind against
+## the ceiling forever). Takes get_block_at as a Callable so the probe composes
+## over any blocky-grid-shaped source (and so tests stub it freely).
+static func blocky_ground_probe(get_block_at: Callable) -> Callable:
 	const DOWN := Vector3i(0, -1, 0)
+	const UP := Vector3i(0, 1, 0)
+	return func(cell: Vector3i) -> bool:
+		if get_block_at.call(cell) != "":             # solid (terrain/block)
+			return false
+		if get_block_at.call(cell + DOWN) == "":      # no floor below
+			return false
+		if get_block_at.call(cell + UP) != "":        # no head clearance
+			return false
+		return true
+
+
+## Compose the full is_walkable predicate: ground probe AND not occupied by
+## non-steppable furniture or a blueprint (at the cell or overhead) — colonists
+## stand ADJACENT to a build target, never on its footprint.
+static func compose_walkability(ground_probe: Callable, fl: FurnitureLayer, bl: BlueprintLayer) -> Callable:
 	const UP := Vector3i(0, 1, 0)
 	## Furniture shorter than this is steppable — colonists walk over it
 	## the same way the player does via StepClimber. Matches the colonist
 	## scene's StepClimber.step_height (see colonist.tscn).
 	const STEP_HEIGHT := 0.5
 	return func(cell: Vector3i) -> bool:
-		if grid.get_block_at(cell) != "":             # solid (terrain/block)
-			return false
-		if grid.get_block_at(cell + DOWN) == "":      # no floor below
-			return false
-		if grid.get_block_at(cell + UP) != "":        # no head clearance
+		if not ground_probe.call(cell):
 			return false
 		if fl != null and fl.has_at(cell):
 			if not fl.is_steppable_at(cell, STEP_HEIGHT):

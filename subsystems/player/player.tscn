@@ -15,7 +15,8 @@ radius = 0.3
 height = 1.6
 
 [node name="Player" type="CharacterBody3D" unique_id=348076264]
-collision_layer = 2
+collision_layer = 8
+collision_mask = 7
 floor_snap_length = 0.5
 script = ExtResource("1_i0iyb")
 

@@ -132,9 +132,11 @@ colony_management={
 [layer_names]
 
 3d_physics/layer_1="World"
-3d_physics/layer_2="Player"
-3d_physics/layer_3="Build"
-3d_physics/layer_4="Colonist"
+3d_physics/layer_2="TerrainBlocky"
+3d_physics/layer_3="TerrainSmooth"
+3d_physics/layer_4="Player"
+3d_physics/layer_5="Build"
+3d_physics/layer_6="Colonist"
 
 [physics]
 

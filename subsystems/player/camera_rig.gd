@@ -30,7 +30,10 @@ func _ready() -> void:
 	# Build the rig as children so player.tscn only needs the CameraRig node.
 	_spring = SpringArm3D.new()
 	_spring.spring_length = spring_length
-	_spring.collision_mask = 1
+	# World statics + both terrain layers (dual-voxel layer plan, see
+	# docs/architecture/voxel-world.md): the arm collides with furniture and
+	# ground, never with player/colonist capsules or build interaction bodies.
+	_spring.collision_mask = 7
 	add_child(_spring)
 
 	var cam := Camera3D.new()

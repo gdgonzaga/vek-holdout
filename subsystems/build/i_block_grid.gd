@@ -34,3 +34,10 @@ func remove_block_at(_pos: Vector3i) -> void:
 ## VoxelTool.raycast.
 func raycast_to_voxel(_origin: Vector3, _dir: Vector3, _max_dist: float) -> Dictionary:
 	return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false}
+
+## Ground height at world column (x, z) via a downward physics ray masked to
+## the terrain's collision layer (World statics / bodies / other terrains never
+## answer). Returns NAN when no ground is hit within range. `normal_out`
+## (optional): Array that receives the surface normal on hit (slope gating).
+func height_at(_x: float, _z: float, _normal_out: Array = []) -> float:
+	return NAN

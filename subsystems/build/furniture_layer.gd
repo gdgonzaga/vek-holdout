@@ -139,8 +139,8 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	# CollisionObject3D — cast accordingly. Without this the cast returned null and
 	# the cell-aligned box below was never configured, leaving furniture with only
 	# the per-mesh trimesh (which doesn't fill footprint cells reliably). This box
-	# is what the build/deconstruct ray stops on, since that ray queries every
-	# collision layer and the box is sized exactly to the footprint.
+	# is what the build/deconstruct ray stops on (that ray's mask includes the
+	# Build layer), and the box is sized exactly to the footprint.
 	var build_shape := root.get_node("BuildBody/BuildCollider") as CollisionShape3D
 	if build_shape != null:
 		var box := BoxShape3D.new()
@@ -149,7 +149,9 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		# Center the box in its footprint cells (root Y is the footprint bottom).
 		build_shape.position = Vector3(0, dims.y * 0.5, 0)
 		var build_body = root.get_node("BuildBody") as StaticBody3D
-		build_body.set_collision_layer_value(3, true)
+		# Build interaction bodies live on layer 5 (Build) — bodies and terrain
+		# rays reach them, character capsules never collide with them.
+		build_body.set_collision_layer_value(5, true)
 	
 	# Apply rotation to root so both mesh and collision rotate together.
 	if yaw_quarters != 0:

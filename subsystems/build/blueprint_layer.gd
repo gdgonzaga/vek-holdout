@@ -121,14 +121,15 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 	mesh_node.material_override = _hologram_material()
 
 	# Non-physical (GDD §7.6: blueprints don't collide or block pathing until
-	# construction starts). Deliberately NO trimesh on World (layer 1) — that's
-	# the only layer the player physically collides with (its mask defaults to
-	# World), so a trimesh there would make the blueprint solid. Rays still
+	# construction starts). Deliberately NO trimesh on World (layer 1) — the
+	# player physically collides only with layers its mask covers (World +
+	# terrains), so a trimesh there would make the blueprint solid. Rays still
 	# target the footprint box below: the interaction ray and the build/
-	# deconstruct ray both query all layers and hit it; the player passes through.
+	# deconstruct ray both include the Build layer in their masks and hit it;
+	# the player passes through.
 
-	# Footprint-sized box on layer 3 so the build/deconstruct ray stops on a
-	# cell-aligned volume (reliable for removal), matching FurnitureLayer.
+	# Footprint-sized box on layer 5 (Build) so the build/deconstruct ray stops
+	# on a cell-aligned volume (reliable for removal), matching FurnitureLayer.
 	var build_shape := root.get_node_or_null("BuildBody/BuildCollider") as CollisionShape3D
 	if build_shape != null:
 		var box := BoxShape3D.new()
@@ -141,7 +142,9 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 			else Vector3(0, dims.y * 0.5, 0)
 		var build_body := root.get_node_or_null("BuildBody") as StaticBody3D
 		if build_body != null:
-			build_body.set_collision_layer_value(3, true)
+			# Build interaction layer (5): the build/deconstruct ray's mask
+			# reaches it, character capsules never do.
+			build_body.set_collision_layer_value(5, true)
 
 	# Rotate root so mesh and collision rotate together.
 	if yaw_quarters != 0:
