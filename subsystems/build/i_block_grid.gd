@@ -28,6 +28,22 @@ func set_block_at(_pos: Vector3i, _block_id: String) -> void:
 func remove_block_at(_pos: Vector3i) -> void:
 	pass
 
+
+## True if a block can be placed at cell: the cell is air (not terrain, not an
+## existing buildable block).
+func is_valid_placement(_pos: Vector3i) -> bool:
+	return false
+
+
+## True when cell is supported by ground: a solid voxel directly below, or a
+## smooth surface within one cell of the cell's floor (smooth-hit placements
+## have no blocky floor by construction — D3). Only smooth-derived placement
+## cells are gated on this; blocky/body-derived cells keep is_valid_placement
+## alone (their support exists by construction, and wall/ceiling placement
+## must not regress).
+func is_ground_supported(_pos: Vector3i) -> bool:
+	return false
+
 ## Physics raycast resolved to a voxel index + face normal.
 ## Returns { position: Vector3i, normal: Vector3i, hit: bool, surface: String }
 ## (hit=false if no intersection). `surface` classifies the collider: "blocky"

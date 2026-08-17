@@ -3,13 +3,21 @@ extends RefCounted
 ## IBlockGrid implementation wrapping voxel/blocky_grid.gd (ARCH "Build").
 ## Keeps BuildController voxel-agnostic: it talks to this adapter, never to
 ## voxel_tool or BlockyGrid directly. Holds a BlockyGrid reference set at wiring
-## time (map mounts the controller + hands it the grid).
+## time (map mounts the controller + hands it the grid), plus an optional
+## SmoothGrid for ground-support queries on smooth placements (dual-voxel D3).
 
 var _grid: BlockyGrid = null
+var _smooth: SmoothGrid = null
 
 
 func set_grid(grid: BlockyGrid) -> void:
 	_grid = grid
+
+
+## Optional natural-terrain half (MapWiring passes the live SmoothGrid, or
+## null on terrain-less maps) — used only by is_ground_supported.
+func set_smooth_grid(smooth: SmoothGrid) -> void:
+	_smooth = smooth
 
 
 func get_grid() -> BlockyGrid:
@@ -45,6 +53,25 @@ func is_valid_placement(pos: Vector3i) -> bool:
 		return false
 	var id := _grid.get_block_at(pos)
 	return id == ""
+
+
+## True when cell sits on natural or blocky ground: a solid blocky voxel
+## directly below, or a smooth surface within one cell of the cell's floor.
+## Placement cells derived from a smooth hit (D3: floor(point + normal * 0.5))
+## have no blocky floor by construction — this is their support check. The
+## one-cell window is generous by design: the derived cell of a smooth hit can
+## sit up to half a cell above the surface on steep slopes (model embed on
+## slopes is the accepted v1 trade-off, not a support failure).
+func is_ground_supported(pos: Vector3i) -> bool:
+	if _grid == null:
+		return false
+	if _grid.get_block_at(pos + Vector3i(0, -1, 0)) != "":
+		return true
+	if _smooth != null:
+		var h: float = _smooth.height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
+		if not is_nan(h) and h >= float(pos.y - 1) and h <= float(pos.y + 1):
+			return true
+	return false
 
 
 ## Snap a world-space candidate to the integer voxel cell containing it.

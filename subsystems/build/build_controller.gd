@@ -124,24 +124,30 @@ func _physics_process(_delta: float) -> void:
 		return
 	# Placement cell = the struck voxel + the face normal (the adjacent empty cell
 	# where a new block/furniture anchor would go). Smooth hits already carry the
-	# derived cell — slope normals aren't axis-aligned offsets (D3).
+	# derived cell — slope normals aren't axis-aligned offsets (D3) — and their
+	# validity additionally requires ground support.
 	var cell: Vector3i = _placement_cell(hit)
+	var smooth_hit: bool = hit.get("surface", "") == "smooth"
 	if DEBUG_RAYCAST:
 		print("[DEBUG] hit pos=%s norm=%s cell=%s selected_id=%s" % [hit["position"], hit["normal"], cell, selected_id])
 	var ghost_pos: Vector3
 	var valid: bool
 	if _is_furniture(selected_id):
-		# Furniture: footprint center on XZ; valid only if every covered cell is free.
+		# Furniture: footprint center on XZ; valid only if every covered cell is free
+		# (anchor-cell support when the hit was smooth ground).
 		ghost_pos = _furniture_ghost_pos(cell)
-		valid = _is_footprint_free(cell, BuildLibrary.get_def(selected_id))
+		valid = _is_footprint_free(cell, BuildLibrary.get_def(selected_id)) \
+			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
 		if DEBUG_RAYCAST:
 			print("[DEBUG] furniture ghost_pos=%s valid=%s" % [ghost_pos, valid])
 	else:
 		# Block (or nothing selected): single cell at the corner. Valid only if
-		# the cell is air and not already covered by a blueprint.
+		# the cell is air, not already covered by a blueprint, and — for
+		# smooth-ground hits — supported by ground within one cell.
 		ghost_pos = Vector3(cell)
 		valid = grid_adapter.is_valid_placement(cell) \
-			and (blueprint_layer == null or not blueprint_layer.has_at(cell))
+			and (blueprint_layer == null or not blueprint_layer.has_at(cell)) \
+			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
 		if DEBUG_RAYCAST:
 			print("[DEBUG] block ghost_pos=%s valid=%s" % [ghost_pos, valid])
 	_ghost.show_at(ghost_pos, valid)
@@ -217,16 +223,22 @@ func _try_commit() -> void:
 	if not hit.get("hit", false):
 		return
 	var cell: Vector3i = _placement_cell(hit)
+	var smooth_hit: bool = hit.get("surface", "") == "smooth"
 	# Per-kind VALIDITY only (block = air; furniture = free footprint), neither
-	# overlapping an existing blueprint. Commit itself is the strategy's job —
-	# instant or blueprint — so the controller hands off the same way for both.
+	# overlapping an existing blueprint — plus ground support for smooth-hit
+	# cells (D3/Phase 3). Commit itself is the strategy's job — instant or
+	# blueprint — so the controller hands off the same way for both.
 	if def is BlockDef:
 		if not grid_adapter.is_valid_placement(cell):
 			return
 		if blueprint_layer != null and blueprint_layer.has_at(cell):
 			return
+		if smooth_hit and not grid_adapter.is_ground_supported(cell):
+			return
 	else:
 		if not _is_footprint_free(cell, def):
+			return
+		if smooth_hit and not grid_adapter.is_ground_supported(cell):
 			return
 	var t := Transform3D.IDENTITY
 	t.origin = Vector3(cell)
@@ -259,8 +271,8 @@ func _try_remove() -> void:
 
 ## Placement cell from a raycast hit. Blocky/body hits resolve to the struck
 ## cell + face normal; smooth hits come pre-derived (floor(point + normal*0.5))
-## with a zero normal, so they are taken as-is. Smooth-hit cells skip the
-## "supported?" question until Phase 3's support check lands (D3).
+## with a zero normal, so they are taken as-is. Smooth-hit cells additionally
+## pass the ground-support check (is_ground_supported) at the validity sites.
 func _placement_cell(hit: Dictionary) -> Vector3i:
 	if hit.get("surface", "") == "smooth":
 		return hit["position"]
