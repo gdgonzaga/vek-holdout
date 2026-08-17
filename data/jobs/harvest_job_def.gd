@@ -28,22 +28,9 @@ func begin(actor: Node, leg: JobLeg, _job: Job) -> float:
 	var harvestable := _harvestable_from(leg.target_node)
 	if harvestable == null:
 		return 0.0
-	var base_time: float = 0.0
-	var target_node := leg.target_node as Node
-	var growable: Growable = null
-	if target_node != null:
-		growable = target_node.get_node_or_null("Growable") as Growable
-	if growable != null:
-		var cdef := growable.get_crop_def()
-		base_time = cdef.base_harvest_time if cdef != null else 3.0
-	else:
-		var params := harvestable.params()
-		if params == null:
-			return 0.0
-		base_time = params.work_time
-
+	var base_time := harvestable.effective_work_time()
 	var colonist := actor as Colonist
-	var duration: float = base_time
+	var duration := base_time
 	if colonist != null and colonist.skill_set != null:
 		duration = base_time / colonist.skill_set.get_multiplier(labor_id)
 	return maxf(0.0, duration - harvestable.work_done())

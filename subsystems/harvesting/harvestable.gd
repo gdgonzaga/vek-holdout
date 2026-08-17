@@ -69,6 +69,22 @@ func set_work_done(amount: float) -> void:
 		_furniture.state[STATE_KEY] = state
 
 
+## Seconds of WORK this node demands before the skill multiplier. A farm plot's
+## Growable overrides the furniture's HarvestParams.work_time with its crop's
+## base_harvest_time — the crop decides the effort, not the plot. Resolution
+## lives here (Harvestable already cooperates with Growable on completion) so
+## job defs and player actions need no crop knowledge.
+func effective_work_time() -> float:
+	var growable := _furniture.get_node_or_null("Growable") as Growable if _furniture != null else null
+	if growable != null:
+		var cdef := growable.get_crop_def()
+		# 3.0 matches FarmManualAction's fallback for the same degenerate
+		# marked-but-cropless-plot case.
+		return cdef.base_harvest_time if cdef != null else 3.0
+	var p := params()
+	return p.work_time if p != null else 0.0
+
+
 ## Resolve the harvest: grant yields to actor's inventory and either reset the plot
 ## or remove the furniture node. Returns true if successfully harvested.
 func complete(actor: Node) -> bool:

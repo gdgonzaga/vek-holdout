@@ -113,7 +113,7 @@ The harvest subsystem provides dual-mode gathering: colonists work marked nodes 
    - The colonist paths to a standable adjacent cell via `find_path_to_adjacent`.
 3. **Execution & Completion**:
    - On arrival, `ColonistAI` calls `HarvestJobDef.begin(colonist, leg, job)`.
-   - `begin` returns `maxf(0.0, (params.work_time / skill_multiplier) - harvestable.work_done())`.
+   - `begin` returns `maxf(0.0, (harvestable.effective_work_time() / skill_multiplier) - harvestable.work_done())`.
    - If duration > 0, the colonist enters `WORK` state for that duration.
    - Upon timer completion, `ColonistAI` calls `HarvestJobDef.complete(colonist, leg, job)`:
      - Invokes `Harvestable.complete(colonist)`.
@@ -357,7 +357,7 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 | Function | Description |
 |---|---|
 | `get_next_leg(actor, job) → JobLeg` | Returns the node leg while `is_marked_for_harvest` is true; null otherwise (unmarking or completion cleanly ends the job). |
-| `begin(actor, leg, job) → float` | `maxf(0.0, (params.work_time / skill_multiplier) - harvestable.work_done())`. Returns remaining work in seconds. |
+| `begin(actor, leg, job) → float` | `maxf(0.0, (harvestable.effective_work_time() / skill_multiplier) - harvestable.work_done())`. Returns remaining work in seconds. Crop knowledge stays on `Harvestable` — the def only scales and subtracts. |
 | `complete(actor, leg, job) → void` | Calls `harvestable.complete(actor)` and records harvesting skill XP. |
 | `on_end(success, actor, leg, job, elapsed) → void` | On abort, persists `harvestable.set_work_done(work_done + elapsed)`. |
 | `is_available(job) → bool` | Target valid AND `harvestable.is_marked_for_harvest()`. |
@@ -380,6 +380,7 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 | `set_marked(marked: bool) → void` | Update mark state, log change, and emit `EventBus.harvest_mark_toggled`. |
 | `toggle_mark() → void` | Flips mark state. |
 | `work_done() → float` / `set_work_done(amount: float) → void` | Accumulated work accessors. |
+| `effective_work_time() → float` | Seconds of WORK before the skill multiplier: a farm plot's `Growable` overrides `HarvestParams.work_time` with its crop's `base_harvest_time`. The farming↔harvesting meeting point — callers need no crop knowledge. |
 | `complete(actor: Node) → bool` | Dispenses `params.yields` into `actor` inventory, logs "Harvested <label>", and removes the node via `FurnitureLayer.remove_at` (or `queue_free`). |
 
 ### Class: HarvestParams
