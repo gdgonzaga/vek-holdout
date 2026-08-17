@@ -15,6 +15,7 @@ extends Node
 const _DIR_BLOCKS := "res://data/blocks/"
 const _DIR_BUILDABLES := "res://data/buildables/"
 const _DIR_FURNITURE := "res://data/furniture/"
+const _DIR_MATERIALS := "res://data/terrain/materials/"
 
 ## Sentinel id for the Deconstruct tool entry. It is not a BuildableDef (no mesh,
 ## cost, or placeable target) — selecting it routes LMB to removal instead of
@@ -42,12 +43,16 @@ static func is_dig_tool(id: String) -> bool:
 	return id == DIG_ID
 
 var _defs_by_id: Dictionary = {}   # id (String) -> BuildableDef
+# Terrain materials are NOT BuildableDefs (different shape, no unlock state) —
+# they get their own map so buildables lookups stay typed/fail-safe.
+var _materials_by_id: Dictionary = {}   # id (String) -> TerrainMaterialDef
 
 
 func _ready() -> void:
 	_load_dir(_DIR_BLOCKS)
 	_load_dir(_DIR_BUILDABLES)
 	_load_dir(_DIR_FURNITURE)   # FurnitureDef (loaded as BuildableDef — polymorphic)
+	_load_materials()
 	# Seed the default-unlocked buildables into RunProgress. Done at startup (first
 	# run) AND on run_started (New Game: RunProgress was reset, re-add defaults
 	# without re-reading the data). Additive + idempotent, so order is irrelevant.
@@ -116,3 +121,38 @@ func get_all_defs() -> Array[BuildableDef]:
 	for def in _defs_by_id.values():
 		out.append(def)
 	return out
+
+
+# --- terrain materials (smooth placement, Phase 5) -------------------------------
+
+## Load TerrainMaterialDefs from data/terrain/materials/. Not unlock-gated:
+## natural materials are ambient content like the tool sentinels — the palette
+## lists them unconditionally (there is no RunProgress entry to gate on).
+func _load_materials() -> void:
+	var dir := DirAccess.open(_DIR_MATERIALS)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".tres"):
+			var res = load(_DIR_MATERIALS + fname)
+			if res is TerrainMaterialDef and res.id != "":
+				_materials_by_id[res.id] = res
+		fname = dir.get_next()
+	dir.list_dir_end()
+
+
+## True for a terrain material id (the smooth-placement palette entries).
+func is_terrain_material(id: String) -> bool:
+	return _materials_by_id.has(id)
+
+
+## The terrain material def for `id`, or null.
+func get_terrain_material(id: String) -> TerrainMaterialDef:
+	return _materials_by_id.get(id)
+
+
+## All terrain materials (for the build menu's palette section).
+func get_terrain_materials() -> Array:
+	return _materials_by_id.values()

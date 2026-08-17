@@ -21,3 +21,12 @@ class_name TerrainMaterialDef
 ## material and yields its drops — authoring per-material yields is ready for
 ## the day real material representation lands.
 @export var yields: Array[ItemAmount] = []
+
+## Radius of the sphere one placement of this material adds (also the blob
+## ghost's radius — the preview shows exactly the volume). Fixed size in v1,
+## matching the dig tool's carve radius decision.
+@export var place_radius: float = 1.5
+
+## Palette icon (build menu). Optional — iconless materials fall back to the
+## menu's default icon.
+@export var icon: Texture2D = null

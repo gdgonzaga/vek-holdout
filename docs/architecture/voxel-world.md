@@ -38,7 +38,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 |---|---|---|---|---|
 | `block_placed(pos: Vector3i, block_id: String)` | `blocky_grid.gd` | Build (ghost validation), colonists (pathfinding re-bake) | No (same scene) | Place Blueprint |
 | `block_destroyed(pos: Vector3i)` | `blocky_grid.gd` | colonists (pathfinding), raids (breach detection) | No | Enemy Attack Block |
-| `material_placed(pos: Vector3, material_id: String)` | `smooth_grid.gd` | (none yet — smooth placement lands next) | No | — |
+| `material_placed(pos: Vector3, material_id: String)` | `smooth_grid.gd` | (none yet — `SmoothPlacementStrategy` calls `add_material` directly; the signal is the future sound/particles hook) | No | — |
 | `material_carved(pos: Vector3)` | `smooth_grid.gd` | (none yet — DigAction calls `carve` directly; the signal is the future sound/particles hook) | No | — |
 
 ## Flow Trace: Player targets ground (raycast)

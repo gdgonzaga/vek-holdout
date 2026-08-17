@@ -78,9 +78,15 @@ separated by collision layers. Feasibility is proven by the runtime spike
       outgoing map no longer parks over the restored slot (`_loading`). Full
       save/load round-trip verified on dev (carve + block + HP survive;
       215/215 tests).
-- [ ] **5 Player-facing editing**: mining dig mode (yields via the harvesting
+- [x] **5 Player-facing editing**: mining dig mode (yields via the harvesting
       pattern) + smooth placement mode (add-sphere, blob ghost) through the
-      existing placement-strategy shape; HUD/UX respects `UiGate`.
+      existing placement-strategy shape; HUD/UX respects `UiGate`. Done —
+      Dig tool sentinel + trigger-agnostic `DigAction` (gauge/busy/yields/
+      mining skill; stats in `data/mining/dig_tool.tres`), mining skill +
+      labor entered the catalog, `TerrainMaterialDef.yields`,
+      `SmoothPlacementStrategy` + material palette + blob ghost with
+      overlap validity; suites `suite_mining_test` / `suite_smooth_placement_test`;
+      dig→yield→place→save→load smoke on dev 22/22 (226/226 tests).
 - [ ] **6 Perf & docs**: `VoxelLodTerrain` trial, viewer/collision tuning,
       height-cache soak, HOWTO + arch sweep.
 

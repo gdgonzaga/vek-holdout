@@ -46,6 +46,11 @@ static func wire_build(map: Map) -> FurnitureLayer:
 	var strategy := BlueprintPlacementStrategy.new()
 	strategy.set_blueprint_layer(bl)
 	ctrl.strategy = strategy
+	# Smooth-material strategy (Phase 5): add-sphere placement of terrain
+	# materials. Null grid on terrain-less maps — commit fails safe (false).
+	var smooth_strategy := SmoothPlacementStrategy.new()
+	smooth_strategy.set_smooth_grid(_live_smooth_grid(map))
+	ctrl.smooth_strategy = smooth_strategy
 	return fl
 
 

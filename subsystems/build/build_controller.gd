@@ -28,6 +28,9 @@ var grid_adapter: VoxelGridAdapter
 # i_placement_strategy.gd). Held untyped so either InstantPlacementStrategy or
 # BlueprintPlacementStrategy can be wired without a parse-time base-class dance.
 var strategy
+# Second strategy for terrain materials (smooth placement, Phase 5) — the
+# controller routes by selected-id kind; materials never reach `strategy`.
+var smooth_strategy
 var furniture_layer: FurnitureLayer
 var blueprint_layer: BlueprintLayer
 # The persistent Player, wired by MapWiring.wire_player. The dig tool's timed
@@ -131,6 +134,9 @@ func _physics_process(_delta: float) -> void:
 	if BuildLibrary.is_dig_tool(selected_id):
 		_update_dig_ghost(hit)
 		return
+	if BuildLibrary.is_terrain_material(selected_id):
+		_update_material_ghost(hit)
+		return
 	# Placement cell = the struck voxel + the face normal (the adjacent empty cell
 	# where a new block/furniture anchor would go). Smooth hits already carry the
 	# derived cell — slope normals aren't axis-aligned offsets (D3) — and their
@@ -226,6 +232,11 @@ func _set_ghost_mesh():
 
 func _try_commit() -> void:
 	if grid_adapter == null or _camera == null or strategy == null or selected_id == "":
+		return
+	# Terrain materials place through their own strategy (add-sphere at the
+	# ghost blob's center) — before the BuildableDef lookup, which they aren't.
+	if BuildLibrary.is_terrain_material(selected_id):
+		_try_commit_smooth()
 		return
 	var def := BuildLibrary.get_def(selected_id)
 	if def == null:
@@ -327,6 +338,83 @@ func _cursor_ray() -> Dictionary:
 	var origin := _camera.project_ray_origin(center)
 	var dir := _camera.project_ray_normal(center)
 	return grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
+
+
+# --- smooth material placement (Phase 5) -----------------------------------------
+
+## Character layers for the placement overlap check: Player (layer 4 = value 8)
+## and Colonist (layer 6 = value 32) — a blob must not entomb a character.
+const _CHARACTER_MASK := 8 | 32
+
+## Terrain-material ghost: a blob sphere of the material's place radius over
+## the aimed smooth surface (green/red by overlap validity), hidden when the
+## crosshair isn't on natural terrain. Center rides half a radius out of the
+## surface so the blob anchors into the ground instead of perching on a single
+## tangent point — mirror of the dig's half-radius bite.
+func _update_material_ghost(hit: Dictionary) -> void:
+	var mat := BuildLibrary.get_terrain_material(selected_id)
+	if mat == null:
+		_ghost.hide_()
+		return
+	var surface := _smooth_surface_hit(hit)
+	if surface.is_empty():
+		_ghost.hide_()
+		return
+	var center: Vector3 = surface["point"] + surface["normal"] * (mat.place_radius * 0.5)
+	_ghost.show_sphere_at(center, mat.place_radius, _is_smooth_placement_valid(center, mat.place_radius))
+
+
+## LMB with a terrain material selected: commit the blob at the ghost center
+## through the smooth strategy (instant, HP-free — the InstantPlacementStrategy
+## counterpart for natural materials).
+func _try_commit_smooth() -> void:
+	if smooth_strategy == null:
+		return
+	var mat := BuildLibrary.get_terrain_material(selected_id)
+	if mat == null:
+		return
+	var surface := _smooth_surface_hit(_cursor_ray())
+	if surface.is_empty():
+		return
+	var center: Vector3 = surface["point"] + surface["normal"] * (mat.place_radius * 0.5)
+	if not _is_smooth_placement_valid(center, mat.place_radius):
+		return
+	var t := Transform3D.IDENTITY
+	t.origin = center
+	smooth_strategy.commit(t, rotation_state, selected_id)
+
+
+## Validity for smooth-material placement: no character body inside the sphere
+## (player or colonist — don't entomb anyone), no furniture footprint and no
+## blueprint in any cell the blob's AABB touches, and no BUILT blocky block
+## engulfed. Natural plate ground is exempt — hills already bury the plate, and
+## shaping ground over it is exactly what the tool is for (BlockDef.is_terrain
+## distinguishes generated ground from built blocks).
+func _is_smooth_placement_valid(center: Vector3, radius: float) -> bool:
+	var min_c := Vector3i(int(floor(center.x - radius)), int(floor(center.y - radius)), int(floor(center.z - radius)))
+	var max_c := Vector3i(int(floor(center.x + radius)), int(floor(center.y + radius)), int(floor(center.z + radius)))
+	for x: int in range(min_c.x, max_c.x + 1):
+		for y: int in range(min_c.y, max_c.y + 1):
+			for z: int in range(min_c.z, max_c.z + 1):
+				var cell := Vector3i(x, y, z)
+				var id := grid_adapter.get_block_at(cell)
+				if id != "":
+					var block_def := BuildLibrary.get_def(id) as BlockDef
+					if block_def == null or not block_def.is_terrain:
+						return false
+				if furniture_layer != null and furniture_layer.has_at(cell):
+					return false
+				if blueprint_layer != null and blueprint_layer.has_at(cell):
+					return false
+	var shape := SphereShape3D.new()
+	shape.radius = radius
+	var params := PhysicsShapeQueryParameters3D.new()
+	params.shape = shape
+	params.transform = Transform3D(Basis.IDENTITY, center)
+	params.collision_mask = _CHARACTER_MASK
+	params.collide_with_areas = false
+	params.collide_with_bodies = true
+	return get_world_3d().direct_space_state.intersect_shape(params, 1).is_empty()
 
 
 # --- kind helpers -------------------------------------------------------------

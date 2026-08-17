@@ -65,6 +65,14 @@ func populate() -> void:
 		entry.setup(def)
 		entry.pressed_id.connect(_on_entry_pressed)
 
+	# Natural terrain materials (smooth placement, Phase 5): add-sphere blobs
+	# of ground material. Ambient content like the tools — not unlock-gated.
+	for mat in BuildLibrary.get_terrain_materials():
+		var mat_entry: BuildMenuEntry = _EntryScene.instantiate()
+		_list.add_child(mat_entry)
+		mat_entry.setup_tool(mat.id, mat.display_name, mat.icon)
+		mat_entry.pressed_id.connect(_on_entry_pressed)
+
 
 func _on_entry_pressed(id: String) -> void:
 	# Broadcast the selection globally. BuildController listens and sets its

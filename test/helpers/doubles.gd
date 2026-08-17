@@ -49,6 +49,10 @@ class MockStorageInventory extends StorageInventory:
 ## default_material is a plain export and is set directly by tests.
 class RecordingSmoothGrid extends SmoothGrid:
 	var carves: Array = []   # [{pos: Vector3, radius: float}]
+	var adds: Array = []     # [{pos: Vector3, material_id: String, radius: float}]
 
 	func carve(pos: Vector3, radius: float) -> void:
 		carves.append({"pos": pos, "radius": radius})
+
+	func add_material(pos: Vector3, material_id: String, radius: float) -> void:
+		adds.append({"pos": pos, "material_id": material_id, "radius": radius})
