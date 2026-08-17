@@ -18,10 +18,10 @@ A furniture interaction is four `.tres` resources layered together:
 ```
 FurnitureDef (e.g. data/furniture/workbench.tres)
 └── action_options: Array[ActionOption]
-    └── ActionOption        (data/actions/options/<id>.tres)
+    └── ActionOption        (data/action_options/<id>.tres)
         ├── action:    GameAction     (data/actions/<id>.tres)  ← what happens
         └── conditions: Array[Condition]                        ← gating (optional)
-            └── Condition / AnyOf / AllOf / NotCondition
+            └── Condition / AnyOf / AllOf / NotCondition / leaves
 ```
 
 - **`GameAction`** — "what happens" when the player picks the option (override
@@ -87,16 +87,16 @@ Three composites already exist in `subsystems/actions/`:
 To use one, create a `.tres` of that class and populate its `conditions` (or
 `condition` for `NotCondition`) array.
 
-> **No leaf conditions exist yet.** There is no `HasItem`, `HasTool`,
-> `IsDaytime`, etc. — only the three composites. A standalone combinator with
-> empty children is meaningless until at least one leaf condition class is
-> written. Until then, conditions can only gate on the composites wrapping other
-> composites, so most options will simply have an empty `conditions` array
-> (always available).
+> **Leaf conditions exist.** `data/conditions/` ships `MinSkillCondition`
+> (`skill_id` + `min_level` — gates on the actor's skill), `HasItemCondition`
+> (`item_id` or `item_tag` + `count` — gates on the actor's inventory), and
+> `CanCarryDispensedItems` (dispenser capacity check), plus authored
+> `true.tres` / `false.tres` constants. Combine them with the composites above.
+> An option with an empty `conditions` array is always available.
 
-To author a real gate (e.g. "needs a Hammer equipped"), first write a leaf
-`Condition` subclass in `data/actions/` (or a new `data/conditions/` folder),
-then reference its `.tres` from the `ActionOption`.
+To author a new gate kind (e.g. "is daytime"), write a leaf `Condition`
+subclass in `data/conditions/`, then reference its `.tres` from the
+`ActionOption`.
 
 ---
 
@@ -104,11 +104,10 @@ then reference its `.tres` from the `ActionOption`.
 
 An `ActionOption` binds one `GameAction` to its gating `Condition`s.
 
-1. Create the directory `data/actions/options/` (it does not exist yet —
-   `furniture_def.gd` cites it as the intended location).
-2. In the editor, **New Resource → ActionOption**, save as
-   `data/actions/options/<id>.tres`.
-3. In the inspector:
+1. In the editor, **New Resource → ActionOption**, save as
+   `data/action_options/<id>.tres` (the directory exists — ten options ship
+   there today).
+2. In the inspector:
    - Drag your `GameAction.tres` from Step 1 into the **Action** field.
    - Drag zero-or-more `Condition.tres` from Step 2 into the **Conditions**
      array.
@@ -139,8 +138,8 @@ Leave `Conditions` empty for an always-available option.
 
 1. Run the project, place the furniture (Build mode → select it → LMB), exit
    Build mode.
-2. Point the crosshair at the furniture. You should see a console line
-   `[interact] targeting: <Furniture node name>`.
+2. Point the crosshair at the furniture — the HUD's **InteractLabel** under the
+   crosshair shows the target's name and action hint.
 3. Press **E**. A pop-up menu appears with:
    - A **label** at the top — the furniture's `display_name` (resolved via the
      `Furniture.label` getter, which returns `def.display_name`).
@@ -171,9 +170,8 @@ If the menu doesn't appear, see Troubleshooting below.
   creates the node; if you hand-place a component in a scene, match the name.
 - **Menu mounts on the wrong layer.** `InteractionComponent._open_interaction_ui`
   prefers a CanvasLayer in the `"hud_layer"` group, falling back to `"ui_layer"`.
-  In the shipped `main.tscn`, only `UILayer` carries the `"ui_layer"` group
-  (`HUDLayer` is in no group), so the menu currently mounts on `UILayer`. Add
-  `HUDLayer` to the `"hud_layer"` group to change this.
+  In the shipped `main.tscn` **both** layers carry their groups (`HUDLayer` is in
+  `"hud_layer"`, `UILayer` in `"ui_layer"`), so the menu mounts on the HUDLayer.
 - **Button is disabled when it shouldn't be.** Check the option's `conditions` —
   every condition's `is_met` must return `true`. Remember `ActionOption`
   ANDs its conditions, and `AllOf` inside an option is redundant.

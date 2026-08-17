@@ -31,7 +31,7 @@ CropDef (data/crops/<id>.tres)
 ### Step 1: Create the Harvest Item
 
 Ensure the crop harvest product exists in `data/items/<id>.tres` (e.g. `data/items/cave_spud.tres`).
-The harvest product must be an `ItemDef` resource defining `id`, `display_name`, `icon`, `stack_limit`, and category tags.
+The harvest product must be an `ItemDef` resource defining `id`, `weight`, `icon`, and `tags` (see `data/items/item_def.gd` — there is no `display_name` or `stack_limit` field).
 
 ---
 
@@ -165,7 +165,7 @@ You can provide custom meshes in `stage_meshes = [mesh_sprout, mesh_growing, mes
 
 ### Step 7: Restrict to Specific Farm Plots (Optional)
 
-By default, farm plot furniture (`Growing Trough`, `Hydroponics Basin`) accepts all crops in `CropLibrary`.
+By default, farm plot furniture (`Growing Trough` — the only farm plot shipped today) accepts all crops in `CropLibrary`.
 To restrict a specific plot type to certain crops, edit the plot's `FurnitureDef` and set `FarmPlotParams.allowed_crops`:
 
 ```ini

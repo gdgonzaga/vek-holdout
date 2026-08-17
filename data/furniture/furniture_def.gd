@@ -23,11 +23,13 @@ class_name FurnitureDef
 @export var dimensions: Vector3i = Vector3i.ONE
 
 ## Interaction options offered when the player points at this furniture and
-## presses E. Each entry is an ActionOption resource (data/actions/options/*.tres)
+## presses E. Each entry is an ActionOption resource (data/action_options/*.tres)
 ## referencing a GameAction plus optional Conditions. FurnitureLayer copies these
-## verbatim onto the spawned furniture's InteractionComponent, so empty (the
-## default) means non-interactable. BlockDef intentionally has no equivalent —
-## voxel blocks resolve through the voxel grid, not as Node3D instances.
+## onto the spawned furniture's InteractionComponent (auto-appending harvest/crop
+## options for harvest_params/farm_plot_params defs), so empty (the default)
+## means non-interactable — unless those params are set. BlockDef intentionally
+## has no equivalent — voxel blocks resolve through the voxel grid, not as
+## Node3D instances.
 @export var action_options: Array[ActionOption] = []
 
 ## Composition-pattern placeholder for capability-specific parameters (crafting
