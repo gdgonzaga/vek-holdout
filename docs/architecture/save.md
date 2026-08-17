@@ -203,7 +203,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 | Caller | How it uses SaveSystem |
 |---|---|
 | `SceneManager._wire_map` | After `wire_build`, calls `SaveSystem.apply_parked_state_if_any(map_id, map)`. If it returns true, skips authored furniture marker replay (avoids double-spawn on loaded saves). |
-| `SceneManager._ready` (implicit via autoload order) | SaveSystem (autoload #5) comes after SceneManager (#4); safe to call `SceneManager.get_current_map()` / `get_player()` at runtime. |
+| `SceneManager._ready` (implicit via autoload order) | SaveSystem (autoload #6) comes after SceneManager (#5); safe to call `SceneManager.get_current_map()` / `get_player()` at runtime. |
 | `main_menu._start_new_game` | Calls `SaveSystem.create_save(display_name)` before `RunProgress.reset_for_new_game()`. |
 | `pause_menu._on_save_pressed` | Calls `SaveSystem.save_game()` then `SceneManager.close_screen()`. |
 | `pause_menu._on_quit_pressed` | Calls `SaveSystem.discard_unsaved_active_slot()` before unloading the map — drops the slot if the run was never saved. |
@@ -214,7 +214,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 ### Class: SaveSystem
 
-**Extends:** Node (autoload, position #5 in `project.godot`)
+**Extends:** Node (autoload, position #6 in `project.godot`)
 **Script:** `save_system.gd`
 **Description:** Orchestrator for run-state persistence. Calls each subsystem's `serialize()` / `deserialize()`. Owns the in-memory `_parked` dict and the active slot id. Treats `user://maps/` as scratch space; snapshots into / restores from the active slot directory.
 **Used by:** `SceneManager` (parked-state application), `main_menu` (create_save on New Game), `pause_menu` (save_game on Save), `EventBus.map_unloading` (park hook), `EventBus.day_rolled_over` (autosave hook).

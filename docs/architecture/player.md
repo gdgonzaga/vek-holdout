@@ -7,11 +7,11 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | File | Type | Responsibility |
 |---|---|---|
 | `player.tscn` / `player.gd` | Scene/Script | CharacterBody3D + camera rig. Owns movement physics (WASD + sprint + jump with mid-air momentum preservation), inline Mode+State enums, build menu interaction (opens `build_menu.tscn` on a CanvasLayer), blueprint mode entry via menu selection + B-driven navigation across three states (Normal → Menu → Placement). Exposes `get_camera()` for BuildController raycasts. Does NOT own raw input reading (delegates to InputComponent), combat resolution (delegates to Combat), or build UX (delegates to Build when in Blueprint mode). **TODO:** source movement stats from CharacterDef instead of `@export` vars. |
-| `input_component.gd` | Script (Node) | Child node on the Player. Reads all raw player input and exposes it via signals (discrete actions: build toggle, interact, mouse recapture, ui cancel) and per-frame query methods (`get_movement_input()`, `wants_jump()`, `wants_sprint()`). Does NOT own mouse-motion (CameraRig handles that) or mouse-mode management (Player owns that as a game-state concern). |
+| `input_component.gd` | Script (Node) | Child node on the Player. Reads all raw player input and exposes it via signals (discrete actions: build toggle, primary action (LMB), interact press/release, mouse recapture, ui cancel) and per-frame query methods (`get_movement_input()`, `wants_jump()`, `wants_sprint()`). Does NOT own mouse-motion (CameraRig handles that) or mouse-mode management (Player owns that as a game-state concern). |
 | `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). **Over-the-shoulder framing** via `Camera3D.h_offset`/`v_offset` (export `h_offset`/`v_offset`): the frustum shifts so the body sits screen-left/bottom while the aim direction stays along the spring-arm axis (no camera rotation). LMB/RMB reserved for item actions, not consumed here. |
 | `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Build Menu/Build Placement × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
 | `../core/step_climber.gd` | Script (component) | Shared stair-step / hop assist, added as a `StepClimber` child of both `player.tscn` and `colonist.tscn` (lives in core — the AGENTS ambiguous-ownership rule). Ticks after the body's `move_and_slide()` and walks the player over low lips/risers up to `step_height` (0.5); `hop_height` stays 0 on the player (the Space jump remains manual). See the class reference below. |
-| `../data/characters/player.tres` | Data | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See [Data Schemas](data-schemas.md). |
+| `../data/characters/player.tres` | Data *(planned — does not exist yet)* | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See [Data Schemas](data-schemas.md). |
 
 ## Signals
 
@@ -26,7 +26,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 
 ## Flow Trace: Enter Blueprint Mode
 
-**Trigger:** Player presses `build_toggle` (B). B is the single navigation key across the three blueprint states (GDD §4 controls table, line 202: "Toggle Blueprint mode — B"). Esc no longer participates in blueprint navigation — it opens the Pause Menu (handled by `Main._unhandled_input`, GDD line 214).
+**Trigger:** Player presses `build_toggle` (B). B is the single navigation key across the three blueprint states (GDD §4 controls table, line 202: "Toggle Blueprint mode — B"). Esc exits placement straight back to Normal (`_on_ui_cancel`, which marks the event handled so `Main` doesn't also open the Pause overlay); the build menu consumes its own Esc while open.
 
 1. `InputComponent._unhandled_input` catches `build_toggle` → emits `build_toggle_pressed`.
 2. `player.gd._on_build_key_pressed` (connected to InputComponent's `build_toggle_pressed`) routes by `mode`:
@@ -34,11 +34,11 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
    - **Build Menu** (`mode == BUILD_MENU`) → calls `_build_menu.close()`: menu emits `closed` → `_on_build_menu_closed` clears `_build_menu`, emits `build_menu_toggled(false)`, re-captures the mouse, and sets `mode = NORMAL`.
    - **Placement** (`mode == BUILD_PLACEMENT`) → calls `_exit_build_placement_mode()` (sets `mode = BUILD_MENU`, emits `build_placement_toggled(false)`), then `open_build_menu()` to return to item selection (which emits `build_menu_toggled(true)`).
 3. Player selects a buildable from the menu → menu emits `EventBus.buildable_selected(id)` and frees itself → `player.gd._on_buildable_selected(id)`: clears `_build_menu`; emits `build_menu_toggled(false)`; sets `mode = BUILD_PLACEMENT`; emits `build_placement_toggled(true)` via EventBus; re-captures mouse.
-4. The **InstructionsLabel** node — its own `instructions_label.gd`, decoupled from `hud.gd` — self-registers on both signals and drives its own `text` + `visible`: `build_placement_toggled(true)` shows the placement text ("B: cancel"), while `hud.gd` hides the crosshair; `build_menu_toggled(true)` shows the menu text ("Click an item to place · B: cancel"). Both emit synchronously across a state change, and the entering-state handler's write lands last (e.g. Menu→Placement: the menu handler hides the label, then the placement handler shows it with placement text — same frame, no flicker). On exit, each handler sets the label's `visible = false`.
+4. The **InstructionsLabel** node — its own `instructions_label.gd`, decoupled from `hud.gd` — self-registers on both signals and drives its own `text` + `visible`: `build_placement_toggled(true)` shows the placement text ("Esc: cancel"), while `hud.gd` hides the crosshair; `build_menu_toggled(true)` shows the menu text ("Click an item to place\nEsc: cancel"). Both emit synchronously across a state change, and the entering-state handler's write lands last (e.g. Menu→Placement: the menu handler hides the label, then the placement handler shows it with placement text — same frame, no flicker). On exit, each handler sets the label's `visible = false`.
 5. BuildController activates; routes LMB (place) / RMB (remove) / mouse wheel (rotate step) / R (cycle axis) to placement + rotation.
 6. Movement states still apply (player can walk while building).
 
-**End state:** Build UX active; LMB/RMB/wheel/R repurposed; movement unaffected. Exit is via B (Placement → Menu → Normal), not Esc.
+**End state:** Build UX active; LMB/RMB/wheel/R repurposed; movement unaffected. B exits Placement back to the Menu (quick item swap); Esc exits Placement straight to Normal.
 
 ## Flow Trace: Interact (E key)
 
@@ -132,9 +132,10 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `_on_build_menu_closed() -> void` | Menu dismissed without a selection: clears `_build_menu`; emits `build_menu_toggled(false)`; re-captures the mouse; sets `mode = NORMAL`. |
 | `execute_default_action() -> void` | Quick-tap E path (the HUD calls this on a <0.3s tap): runs `action_options[0].action.execute(self, target)` directly with no menu, then re-emits `interactable_changed` so the label refreshes. |
 | `open_interaction_menu() -> void` | Long-press E path (the HUD calls this after a ≥0.3s hold): calls `_current_interactable.interact(self)` to build + mount the full action menu. |
+| `_on_primary_action() -> void` | LMB handler (connected to InputComponent's `primary_action_pressed`). In Normal mode with a crosshair target: runs `FarmManualAction` on a `Growable` target or `HarvestAction` on a `Harvestable` target. No-op while busy, in Blueprint mode, or when UiGate blocks input. |
 | `clear_interactable() -> void` | Clears `_current_interactable` and emits `interactable_changed(null)`. Called by `SceneManager.unload_current_map` before the map's InteractionComponent children are freed (so the HUD label doesn't linger over the title screen). |
 | `_recapture_mouse() -> void` | Sets `Input.mouse_mode = CAPTURED`. Connected to InputComponent's `recapture_requested` signal (click-to-recapture after alt-tab). |
-| `_on_ui_cancel() -> void` | Esc handler (connected to InputComponent's `ui_cancel_pressed`). No-op here — Esc opens the Pause overlay, handled by `Main._unhandled_input` (`SceneManager.open_screen("pause_menu")`), not the Player. |
+| `_on_ui_cancel() -> void` | Esc handler (connected to InputComponent's `ui_cancel_pressed`). In `BUILD_PLACEMENT` it exits straight to Normal: marks the event handled (so `Main._unhandled_input` doesn't also open the Pause overlay), sets `mode = NORMAL`, emits `build_placement_toggled(false)`. Otherwise a no-op — the build menu owns its own Esc, and plain Esc opens the Pause overlay via `Main`. |
 | `_interaction_raycast() -> Dictionary` | Screen-center physics raycast (`interact_distance`, bodies only, player excluded). Returns the raw hit dict (empty if nothing struck). |
 | `_update_interaction_target() -> void` | Per-tick crosshair check; updates `_current_interactable` via `_find_interaction_component`. Skipped in Blueprint mode. |
 | `_find_interaction_component(node: Node) -> InteractionComponent` | Walks up the parent chain from a hit collider looking for a child named exactly `"InteractionComponent"`. |
@@ -152,6 +153,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | Signal | Description |
 |---|---|
 | `build_toggle_pressed()` | Emitted on B key (`build_toggle` action). |
+| `primary_action_pressed()` | Emitted on LMB during gameplay. Handled by `_on_primary_action`: runs `FarmManualAction` / `HarvestAction` on the crosshair target when it carries a `Growable` / `Harvestable` component. |
 | `interact_pressed()` | Emitted on E key-down (`interact` action). Consumed by the HUD for hold detection. |
 | `interact_released()` | Emitted on E key-up (`interact` action). Consumed by the HUD: release before the hold threshold = quick tap. |
 | `recapture_requested()` | Emitted on mouse click while cursor is visible. |

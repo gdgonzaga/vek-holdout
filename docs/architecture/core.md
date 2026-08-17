@@ -14,7 +14,7 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 | `../autoloads/save_system.gd` | Autoload | Multi-slot save/load orchestrator — see [Save / Load](save.md) for the full contract, slot layout, and invariants. Autosaves on midnight (day_rolled_over hook); parks on map swap (map_unloading hook); manual save via pause menu. Does NOT decide when to save (callers do). |
 | `../autoloads/time_system.gd` | Autoload | Continuous time advance; emits `day_rolled_over` at midnight. `advance_to_midnight()` is the intended sleep trigger (no gameplay caller yet). |
 | `../data/game_config.tres` | Data | Engine-level constants (gravity, target FPS). See [Data Schemas](data-schemas.md). |
-| `../data/starting_conditions.tres` | Data | Day-1 resources/equipment/structure (GDD §9). See [Data Schemas](data-schemas.md). |
+| `../data/starting_conditions.tres` | Data | Planned — does not exist yet. Day-1 resources/equipment/structure (GDD §9; tech-debt C7). |
 
 ## Signals
 
@@ -24,8 +24,8 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 | `day_changed(new_day)` | `game_state.gd` | *(planned: HUD day counter — not yet connected)* | No (GameState signal) | — |
 | `pause_state_changed(paused)` | `game_state.gd` | All sim nodes | No (GameState signal) | Pause Menu |
 | `save_slot_changed(slot)` | `game_state.gd` | SaveSystem | No (GameState signal) | New Game / Load |
-| `map_loading(map_id)` | `scene_manager.gd` | HUD (loading screen, planned) | Yes | Map swap (load any map) |
-| `map_loaded(map_id)` | `scene_manager.gd` | world map UI, HUD | Yes | Map swap (load any map) |
+| `map_loading(map_id)` | `scene_manager.gd` | — none yet (loading screen planned) | Yes | Map swap (load any map) |
+| `map_loaded(map_id)` | `scene_manager.gd` | world map UI | Yes | Map swap (load any map) |
 | `map_unloading(map_id)` | `scene_manager.gd` | save_system (park on leave) | Yes | Map swap — park outgoing map before `queue_free` |
 
 ## Flow Trace: Sleep → Day Summary → Save
@@ -65,13 +65,13 @@ The root scenes, shared utilities, global UI shell, save system, and time. Other
 
 ## Flow Trace: Pause / World Map input (Esc + M)
 
-**Trigger:** Player presses Esc or M during gameplay.
+**Trigger:** Player presses Esc, M, H, or Tab during gameplay.
 
 1. `Main._unhandled_input` routes the keys (Esc = `ui_cancel`, M = `world_map`).
 2. **Esc** — if a full-screen UI is open, `SceneManager.close_screen()` and stop (so Esc closes the world map before it ever pauses). Otherwise `SceneManager.open_screen("pause_menu")` → mounts the **layer-30** Pause overlay (see [UI](ui.md)); the pause menu's own lifecycle owns pause + cursor — its `_ready` calls `GameState.set_paused(true)` (→ `pause_state_changed` → simulation nodes get `process_mode = DISABLED`) and releases the mouse; being freed (Resume / Esc again / replaced) unpause + restores the prior cursor mode.
-3. **M** (the `world_map` action) — if a screen is open, close it; otherwise `SceneManager.open_screen("world_map")` → loads `ui/world_map/world_map.tscn` into the layer-20 slot. (A third toggle, `log_history`, follows the same open/close pattern.)
+3. **M** (the `world_map` action) — if a screen is open, close it; otherwise `SceneManager.open_screen("world_map")` → loads `ui/world_map/world_map.tscn` into the layer-20 slot. Two more toggles follow the same open/close pattern: **H** (`log_history` → `ui/log_history/log_history.tscn`) and **Tab** (`colony_management` → the colony overview screen with roster/labor/station/storage tabs).
 
-**End state:** World map / log history toggle open/closed; Esc always dismisses an open screen first, then opens the Pause overlay.
+**End state:** World map / log history / colony management toggle open/closed; Esc always dismisses an open screen first, then opens the Pause overlay.
 
 ## Flow Trace: Map swap (`swap_map`)
 

@@ -9,9 +9,15 @@ HUD + all full-screen UIs. Each screen is its own `.tscn` scene; reusable subsce
 | `hud/hud.tscn` / `hud.gd` | Scene/Script | Persistent in-game overlay mounted on the HUDLayer (CanvasLayer 10). Contains the **Crosshair**, the **InstructionsLabel** (see its own row below), the **InteractLabel** (target name + default-action hint under the crosshair), and an **InventoryPanel** side panel toggled with **I**. Also owns the E-key tap-vs-hold timer (tap → `Player.execute_default_action`, hold → `Player.open_interaction_menu`) and listens to `build_placement_toggled` (hides the crosshair during placement). HP/Durability/Stamina/Breath bars, hotbar, and day counter are **planned** (not yet built). |
 | `hud/instructions_label.gd` | Script (on the `InstructionsLabel` `Label` node in `hud.tscn`) | Self-registers in `_ready()` on `EventBus.build_placement_toggled` / `build_menu_toggled` and drives its own `text` + `visible` (placement → "Esc: cancel"; menu → "Click an item to place · Esc: cancel"). Decoupled from `hud.gd`, which no longer references the label. |
 | `interaction/interaction_ui.tscn` | Scene | E-key pop-up menu: `Label` + button list, one `Button` per `ActionOption` (disabled if its `Condition`s fail). Instantiated by the [Actions & Interaction](actions.md) `InteractionComponent` on a CanvasLayer; label resolved from the target's `label` property (e.g. `Furniture.label`) with `component.display_name` / node-name fallbacks. |
-| `log_feed/log_feed.tscn` (+ `log_history.tscn`) | Scene | The on-screen game log: `log_feed` is the persistent HUD tail (mounted on the HUDLayer); `log_history` is the full-screen scrollback opened with **H** (`SceneManager.open_screen("log_history")`). Both read from the `GameLog` autoload — see [Game Log](game-log.md). |
+| `log_feed/log_feed.tscn` | Scene | The persistent game-log HUD tail mounted on the HUDLayer. Reads from the `GameLog` autoload — see [Game Log](game-log.md). |
+| `log_history/log_history.tscn` | Scene | Full-screen game-log scrollback opened with **H** (`SceneManager.open_screen("log_history")`). Also reads from `GameLog`. |
+| `colony_management/colony_management.tscn` | Scene | Full-screen colony overview opened with **Tab** (`SceneManager.open_screen("colony_management")`). Tabbed sections: colony overview, colonist roster, labor assignments, crafting stations, storage management. Sub-scenes: `colonist_entry`, `labor_cell`, `crafting_station_row`, `storage_container_row`. Reads/writes via the `Colony` autoload's public methods. |
 | `build_menu/build_menu.tscn` (+ `build_menu_entry.tscn`) | Scene | The build-mode selection menu: one entry per unlocked buildable + a Deconstruct tool entry. Clicking an entry emits `EventBus.buildable_selected(id)` and frees itself. See [Build](build.md). |
 | `storage/storage_panel.tscn` | Scene | Player↔container transfer panel, instantiated by `OpenStorageAction` on a CanvasLayer when the player opens a piece of furniture with storage. |
+| `crafting/craft_panel.tscn` | Scene | Crafting panel for one station — the dual-mode surface (`Queue` colony orders incl. maintain-until-stock vs `Craft` reserved-for-player orders, deposit progress, Craft now / Cancel). Opened by `OpenCraftingAction`. See [Crafting](crafting.md). |
+| `crop_inspect/crop_inspect.tscn` | Scene | Farm-plot inspector: growth progress, hydration, tending state, estimated harvest. Opened by `InspectCropAction`; can chain into the crop picker. See [Farming](farming.md). |
+| `crop_picker/crop_picker.tscn` | Scene | Modal crop selector for empty farm plots (lists `CropLibrary` crops). Registers with UiGate. |
+| `action_progress/action_progress.tscn` | Scene | Radial/linear progress gauge for timed manual actions (today: `BuildAction`; any action that runs over a fixed duration). Instantiated by the triggering action, registers with UiGate, emits `completed` / `cancelled`. |
 | `world_map/world_map.tscn` | Scene | World map, opened with **M** (`SceneManager.open_screen("world_map")`). *(Hex-grid + Expeditions integration are partial/planned.)* |
 | `pause_menu/pause_menu.tscn` | Scene | Pause overlay (a **layer-30 `CanvasLayer`**, not layer-20, so it renders above the build menu and full-screen screens). Resume / Save / Quit to Main Menu. Entering pauses the sim + releases the cursor; Resume/Esc/replace restores them. Save calls `SaveSystem.save_game()`; Quit discards the active slot if the run was never saved (`SaveSystem.discard_unsaved_active_slot()`), unloads the live map, then opens the Main Menu. |
 | `main_menu/main_menu.tscn` | Scene | Title screen after splash. **New Game** + **Load Game** buttons (Continue / Settings land later). New Game allocates a fresh save slot (`SaveSystem.create_save`), resets run state, emits `run_started`, discovers POIs, and `swap_map("base")`. Load Game opens the Load Game screen (see `load_menu`). |
@@ -29,7 +35,7 @@ HUD + all full-screen UIs. Each screen is its own `.tscn` scene; reusable subsce
 There is **no `screen_opened` / `screen_closed` signal**. Screens are mounted/freed imperatively by `SceneManager`, and pause is owned by the pause overlay's own node lifecycle:
 
 - **Full-screen screens** swap through the layer-20 slot via `SceneManager.open_screen(id)` (loads `res://ui/<id>/<id>.tscn`, closing any open screen first) and `SceneManager.close_screen()`. `is_screen_open()` reports whether one is mounted.
-- **Opening keys** (routed in `Main._unhandled_input`): **Esc** closes an open screen, else opens `pause_menu` — unless a modal panel is open (it owns that Esc); **M** toggles `world_map`; **H** toggles `log_history`. M/H never open on top of an open panel. The HUD toggles its inventory panel with **I** directly (same no-stacking rule).
+- **Opening keys** (routed in `Main._unhandled_input`): **Esc** closes an open screen, else opens `pause_menu` — unless a modal panel is open (it owns that Esc); **M** toggles `world_map`; **H** toggles `log_history`; **Tab** toggles `colony_management`. M/H/Tab never open on top of an open panel. The HUD toggles its inventory panel with **I** directly (same no-stacking rule).
 - **Pause** is driven by the `pause_menu` node itself: its `_ready` calls `GameState.set_paused(true)`; being freed (Resume / Esc / replaced) unpauses. Other full-screen screens (world map, log history) do **not** pause, and the HUD does not hide on screen open.
 
 ## Input gating (UiGate)
@@ -70,7 +76,7 @@ First, pick which kind of UI you're adding — the recipe differs.
 
 You do **not** touch `Main` for a panel: panels are opened by gameplay code (E on furniture, a button), not by global hotkeys, and all gameplay keys are already dead while the panel is registered.
 
-**B. Full-screen screen** — one scene per screen at `ui/<id>/<id>.tscn`, swapped through the layer-20 slot. Examples: world map, log history, pause menu.
+**B. Full-screen screen** — one scene per screen at `ui/<id>/<id>.tscn`, swapped through the layer-20 slot. Examples: world map, log history, colony management, pause menu.
 
 1. Nothing UiGate-related goes in the screen's script: `SceneManager.open_screen(id)` / `close_screen()` register and unregister it for you.
 2. Esc needs no code either — `Main._unhandled_input` closes any open screen before doing anything else. Just add a Close button that calls `SceneManager.close_screen()`.
@@ -85,14 +91,14 @@ You do **not** touch `Main` for a panel: panels are opened by gameplay code (E o
 
 ### Who owns which key
 
-`Main._unhandled_input` is **not** where input goes in general — it's only the router for global screen hotkeys (M, H), the close-on-Esc for full-screen screens, and the pause-menu fallback. Everything else lives where it belongs:
+`Main._unhandled_input` is **not** where input goes in general — it's only the router for global screen hotkeys (M, H, Tab), the close-on-Esc for full-screen screens, and the pause-menu fallback. Everything else lives where it belongs:
 
 | Input | Owner | While a modal is open |
 |---|---|---|
 | Gameplay keys (WASD, E, B, jump, sprint, click-to-recapture) | `InputComponent` (signals + polled queries) | Dead — it checks `UiGate.is_input_blocked()` |
 | A panel's own close keys (Esc, close button) | The panel's `_unhandled_input`, consumed with `set_input_as_handled()` | Active — the panel *is* the current UI |
 | A full-screen screen's Esc | `Main._unhandled_input` (first branch closes the open screen) | Active |
-| Global screen hotkeys (M, H) + Esc → pause fallback | `Main._unhandled_input` | Ignored while a panel is open (`is_input_blocked()` guard); they still toggle their *own* screen closed |
+| Global screen hotkeys (M, H, Tab) + Esc → pause fallback | `Main._unhandled_input` | Ignored while a panel is open (`is_input_blocked()` guard); they still toggle their *own* screen closed |
 
 One caveat: InputComponent's gate only covers input read *through* InputComponent. Gameplay code that reads actions on its own — `BuildController`'s LMB/RMB/R during placement, for example — must check `UiGate.is_input_blocked()` itself before acting (as BuildController does), otherwise its keys stay live under an open screen.
 

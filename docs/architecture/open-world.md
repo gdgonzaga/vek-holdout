@@ -19,7 +19,7 @@ persistence — not a rewrite — but real work, correctly deferred past MVP.
 
 | Asset | Where | Why it matters |
 |---|---|---|
-| `IBlockGrid` interface | `build/i_block_grd.gd` (see [Voxel/World](voxel-world.md)) | Build and gameplay talk to the interface, not `voxel_tool` directly. The voxel *backend* can be swapped without rewiring gameplay. The single most important seam for open-world. |
+| `IBlockGrid` interface | `build/i_block_grid.gd` (see [Voxel/World](voxel-world.md)) | Build and gameplay talk to the interface, not `voxel_tool` directly. The voxel *backend* can be swapped without rewiring gameplay. The single most important seam for open-world. |
 | Global `BlockLibrary` | `block_library.gd` | Block definitions are not per-map — they carry over unchanged. |
 | `VoxelGeneratorFlat` base terrain | `map.tscn` | voxel_tool's `VoxelGenerator` family is exactly the mechanism open-world games use (noise generators → infinite terrain). The tech stack supports it natively; we already use it for the base colony. |
 | Persistent Player reparent + VoxelViewer reuse | `MapWiring.wire_player` ([Maps](maps.md)) | The Player already survives transitions and the viewer doesn't stack on repeated swaps. |

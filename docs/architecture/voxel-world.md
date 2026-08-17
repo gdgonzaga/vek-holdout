@@ -57,6 +57,7 @@ The buildable blocky-voxel world. Wraps Zylann's `voxel_tool` plugin. All voxel 
 | `get_grid() -> VoxelGrid` | Convenience proxy (most callers want the grid, not the world). |
 | `get_terrain() -> VoxelTerrain` | Delegates to `voxel_grid.get_terrain()`. |
 | `get_furniture_container() -> Node3D` | The furniture parent node. |
+| `get_colonist_container() -> Node3D` | The colonist parent node (where persistent colonists reparent on map swaps). |
 
 ### Class: VoxelGrid
 

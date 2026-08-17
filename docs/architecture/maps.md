@@ -67,7 +67,7 @@ Maps has no signals of its own — it's read by `SceneManager` (load) and `Exped
 |---|---|
 | `wire_build(map: Map) -> FurnitureLayer` | Wires BuildController deps: adapter→grid, `FurnitureLayer`→container, `BlueprintLayer`→container/grid/furniture, `BlueprintPlacementStrategy`→blueprint_layer. Returns the FurnitureLayer or `null` if no BuildController. |
 | `wire_player(map: Map, player: Player) -> void` | Attaches the player, wires its camera into BuildController, adds the player's exclude body. Reuses an existing `VoxelViewer` child (creates one on first swap) so repeated swaps don't stack viewers. |
-| `wire_colonists(map: Map) -> Node3D` | Hands the map's `ColonistContainer` + authored `ColonistSpawn` positions to `Colony.on_map_wired` (spawn on empty roster, reparent on non-empty — the base↔POI persist idiom), then composes the walkability predicate (`_compose_walkability`: air cell with solid floor below, head clearance above — the 1.6 m capsule spans two cells — and neither the cell nor its overhead neighbour occupied by non-steppable furniture or blueprints; furniture <= 0.5 m mesh height is steppable) and passes it to `Colony.set_walkability_predicate(predicate)`. Returns the container (or `null`). Called after `wire_player`; re-run per map load so swaps pick up the new map's layers. |
+| `wire_colonists(map: Map) -> Node3D` | Hands the map's `ColonistContainer` + authored `ColonistSpawn` positions to `Colony.on_map_wired` (spawn on empty roster, reparent on non-empty — the base↔POI persist idiom), calls `Colony.storage_registry.on_map_wired(map.get_furniture_container())` (re-home the storage registry on the new map), then composes the walkability predicate (`_compose_walkability`: air cell with solid floor below, head clearance above — the 1.6 m capsule spans two cells — and neither the cell nor its overhead neighbour occupied by non-steppable furniture or blueprints; furniture <= 0.5 m mesh height is steppable) and passes it to `Colony.set_walkability_predicate(predicate)`. Returns the container (or `null`). Called after `wire_player`; re-run per map load so swaps pick up the new map's layers. |
 
 ### Class: SpawnHelpers
 
@@ -80,5 +80,5 @@ Maps has no signals of its own — it's read by `SceneManager` (load) and `Exped
 
 | Function | Description |
 |---|---|
-| `read_spawns(map: Map) -> Dictionary` | `{ "player": Vector3, "enemies": Array[Vector3], "furniture": Array[{def_id, anchor, yaw}] }` from the `SpawnPoints` node's children. Zeros/empty if absent. |
+| `read_spawns(map: Map) -> Dictionary` | `{ "player": Vector3, "enemies": Array[Vector3], "colonists": Array[Vector3], "furniture": Array[{def_id, anchor, yaw}] }` from the `SpawnPoints` node's children (`ColonistSpawn` markers feed the colonists list). Zeros/empty if absent. |
 | `clear_furniture_markers(map: Map) -> void` | Frees the `Furniture_*` markers after their records have been replayed into the live `FurnitureLayer` (each also carries an editor `PreviewMesh` child that would otherwise duplicate the spawned mesh). No-op if the map has no `SpawnPoints`. |
