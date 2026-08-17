@@ -45,17 +45,19 @@ separated by collision layers. Feasibility is proven by the runtime spike
 
 ### Phases
 
-- [ ] **1 Foundations** (single-terrain world, no gameplay-visible change):
+- [x] **1 Foundations** (single-terrain world, no gameplay-visible change):
       atomic collision-layer remap + explicit masks everywhere; `height_at`
       ground query on the blocky grid (via `IBlockGrid`); injectable
       ground-probe seam in `MapWiring._compose_walkability`.
-- [ ] **2 Mirrored grids + editable smooth terrain**: `blocky_grid.gd` rename
+- [x] **2 Mirrored grids + editable smooth terrain**: `blocky_grid.gd` rename
       (consumers updated, no behavior change); extended spike proving carve/add
       + sqlite-override semantics + material representation + block-loaded
       signal names (record as F8); `data/terrain/` schema + `map_def.terrain_gen`
       (null → no smooth grid at all); `smooth_grid.gd`; map template gains the
       smooth node + second stream slot; paint tool binds the blocky terrain
-      only; dev map with generator hills overlapping the blocky plate.
+      only; dev map with generator hills overlapping the blocky plate. Done —
+      F8 recorded (carve/add + sqlite override + no material API + signal
+      names); dev map smoke: 421 smooth-first / 20 blocky-first columns.
 - [ ] **3 Gameplay reads on smooth ground**: walkability smooth source wired
       into the seam; pathfinder stand-cell fallbacks; combined
       TerrainBlocky|TerrainSmooth spawn ground query; build support on slopes;
@@ -125,7 +127,7 @@ Do not re-litigate without explicit reason.
 - [ ] **Crop Irrigation Tier 2 (Water Physics & Automation)** — Voxel hydration, trench/aqueduct water flow, or piped sprinkler network to automate soil hydration without manual colonist watering. Requires voxel fluid/water simulation pass.
 - [ ] **Encounter templates** (GDD §5) — no encounter-definition data file, no spawner reading them, no link to POI difficulty tiers. Three templates specced: Basic (2× Brawler), Standard (2× Brawler + 1× Shooter), Hard (3× Brawler + 2× Shooter).
   - *Open Q:* are templates the same data structure as raid waves (probably — both feed SpawnManager)? How do POI difficulty tiers map to templates?
-- [ ] **Demolition as a Job** (GDD §7.5) — only the low-level `VoxelGrid.remove_block_at()` exists. No demolition-as-Job flow, no "mark for demolition" UI, no Job-Board registration. Removal rate = 2× build rate.
+- [ ] **Demolition as a Job** (GDD §7.5) — only the low-level `BlockyGrid.remove_block_at()` exists. No demolition-as-Job flow, no "mark for demolition" UI, no Job-Board registration. Removal rate = 2× build rate.
   - *Open Q:* player-instant AND colonist-Job, or one or the other? Does demolition refund materials?
 - [ ] **Colonist capacity / bed-capping** (GDD §6.8) — no bed-count → cap enforcement, `Colony.add_colonist` doesn't check capacity, no signal on bed built/destroyed. MVP cap 5, hard cap 10.
   - *Open Q:* what happens if a bed is destroyed while a colonist is assigned?

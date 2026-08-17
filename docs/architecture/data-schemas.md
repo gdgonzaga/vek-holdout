@@ -101,7 +101,7 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 
 ## `data/blocks/<type>.tres` (Resource: `block_def.gd`)
 
-`BlockDef` `extends BuildableDef` — voxel blocks. Inherits `id` / `display_name` / `icon` / `hp` / `mesh` / `texture` / `texture_variation` / `material_cost` / `unlocked_by_default` from `BuildableDef`. The string id is also referred to as "block_id" throughout the voxel subsystem (`VoxelGrid`, `BlockLibrary`).
+`BlockDef` `extends BuildableDef` — voxel blocks. Inherits `id` / `display_name` / `icon` / `hp` / `mesh` / `texture` / `texture_variation` / `material_cost` / `unlocked_by_default` from `BuildableDef`. The string id is also referred to as "block_id" throughout the voxel subsystem (`BlockyGrid`, `BlockLibrary`).
 
 | Field | Type | Description |
 |---|---|---|
@@ -110,6 +110,14 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 | `hp` | `int` | *(inherited)* Block HP (50/100/300/600/1200). |
 | `mesh` | `Mesh` | *(inherited)* Blocky-mode mesh (unit cube). |
 | `material_cost` | `Array[ItemAmount]` | *(inherited)* Materials consumed when building (see `ItemAmount`). |
+
+## `data/terrain/<id>.tres` (Resource: `terrain_gen_def.gd`) — `TerrainGenDef`
+
+Dual-voxel natural-terrain generator params (conversion D2/D4). A `MapDef.terrain_gen` pointing at one of these opts a map into smooth terrain; **null = no smooth grid at all** (the map's `SmoothGrid` frees itself). Fields: `id`, `display_name`, `noise_seed`, `noise_frequency`, `height_start`, `height_range` (1:1 with `VoxelGeneratorNoise2D`, F8-verified names), and `max_walk_slope_deg` (the D4 slope gate, <= 45, consumed in Phase 3). `SceneManager` injects the def into the `SmoothGrid` before the map enters the tree.
+
+## `data/terrain/materials/<id>.tres` (Resource: `terrain_material_def.gd`) — `TerrainMaterialDef`
+
+Identity/stats for a natural material. F8 verdict: `VoxelMesherTransvoxel` has **no material API** in this build — voxel values are pure SDF density, so there is deliberately **no mesh/material reference** here (the terrain has one fixed visual appearance). Fields: `id`, `display_name`, `hardness` (relative dig-effort multiplier for the Phase-5 mining action).
 
 ## `data/buildables/<id>.tres` (Resource: `buildable_def.gd`)
 

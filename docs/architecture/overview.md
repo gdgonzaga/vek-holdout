@@ -97,8 +97,10 @@ Dev-facing editor tooling, not shipped gameplay. Documented here because the map
   - CanvasLayer (`layer=20`) — Full-screen UI layer (WorldMap/LogHistory/ColonyManagement/MainMenu/LoadMenu/GameOver/Settings). Only one present at a time; managed by `SceneManager.open_screen` / `close_screen`. (The **Pause overlay** is the exception — it mounts its own **layer-30** `CanvasLayer` so it always renders above the layer-20 UI and the layer-10 HUD.)
   - **MapRootSlot** (Node) — the mount point for the current map. Swapped by SceneManager on base↔POI transitions.
     - **Map** (`map.tscn` / per-map `data/maps/<id>/map.tscn`, root script `map.gd` — `Map`) — the current game world; a structural container only (no gameplay logic). See [Maps](maps.md) subsystem.
-    - VoxelGrid (Node, `voxel_grid.gd`) — the `IBlockGrid` owner; sole voxel_tool access point
+    - BlockyGrid (Node, `blocky_grid.gd`) — the `IBlockGrid` owner; sole voxel_tool access point for structures
       - VoxelTerrain (`voxel_tool` blocky mode). Its `VoxelStreamSQLite` is injected/redirected by SceneManager at load time (runtime copy lives in `user://maps/<id>/`).
+    - SmoothGrid (Node, `smooth_grid.gd`, optional) — natural terrain half of the dual-voxel world. Present in the template; frees itself at `_ready` unless `MapDef.terrain_gen` was injected (SceneManager, pre-tree).
+      - VoxelTerrain (`VoxelMesherTransvoxel` + `VoxelGeneratorNoise2D` from the def). Carries the map's `terrain.sqlite` stream slot.
     - **Player** (`player.tscn`)
     - ColonistContainer (Node3D) — holds active colonist instances
     - EnemyContainer (Node3D) — holds active enemy instances

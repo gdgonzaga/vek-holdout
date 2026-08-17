@@ -2,13 +2,13 @@
 
 Tracks which functional-furniture types are placed in the colony and how many of each. Gates capability unlocks (world map, crafting, smelting, etc.) and feeds the raid visibility bonus. GDD §7.8.
 
-> **Implementation status: planned, not yet built.** The design below is the intended shape, but **none of it exists in `colony.gd` yet** — there is no `functional_counts` state, no `_on_block_placed` / `_on_block_destroyed` listeners, and no `count_functional_furniture()` / `count_of()` / `has_functional()` surface. The `FurnitureDef` class exists (with `dimensions` + `action_options`), but the `is_functional` / `functional_area` fields this subsystem needs are still pending (C1). Treat this section as the spec to implement against, not a description of current code. The pieces it depends on *do* exist: `VoxelGrid` emits `block_placed` / `block_destroyed`, and `FurnitureLayer` emits `furniture_placed` / `furniture_removed` (the more likely source once furniture is non-block — see note below).
+> **Implementation status: planned, not yet built.** The design below is the intended shape, but **none of it exists in `colony.gd` yet** — there is no `functional_counts` state, no `_on_block_placed` / `_on_block_destroyed` listeners, and no `count_functional_furniture()` / `count_of()` / `has_functional()` surface. The `FurnitureDef` class exists (with `dimensions` + `action_options`), but the `is_functional` / `functional_area` fields this subsystem needs are still pending (C1). Treat this section as the spec to implement against, not a description of current code. The pieces it depends on *do* exist: `BlockyGrid` emits `block_placed` / `block_destroyed`, and `FurnitureLayer` emits `furniture_placed` / `furniture_removed` (the more likely source once furniture is non-block — see note below).
 
 **Design notes:**
 - **No room detection** — there's no bounding-box or enclosure check. "Functional area unlocked" means *at least one of the furniture type exists in the colony*, placed anywhere.
 - **"Functional furniture" = the 7 area-defining types only** (Clinic Bed, Workbench, Forge, Command Desk, Vehicle Lift, Colonist Bed, Growing Trough). Storage crates, watchtowers, spike traps, lamps do NOT count.
 - **Counts live directly on the Colony autoload** (not a separate child). It's just 7 integers — too small to justify a 5th Colony child. Colony exposes the query surface; ThreatModel and UI read from it.
-- **Signal source — open question.** The doc previously assumed Colony subscribes to `VoxelGrid.block_placed` / `block_destroyed`. With the two-kind placement model now landed (Build subsystem), functional furniture is a `FurnitureDef` placed via `FurnitureLayer`, which emits `furniture_placed` / `furniture_removed` on EventBus — not `block_placed`. Decide at implementation time whether to count from the furniture emissions, the voxel emissions (only relevant if a functional type is ever a `BlockDef`), or both.
+- **Signal source — open question.** The doc previously assumed Colony subscribes to `BlockyGrid.block_placed` / `block_destroyed`. With the two-kind placement model now landed (Build subsystem), functional furniture is a `FurnitureDef` placed via `FurnitureLayer`, which emits `furniture_placed` / `furniture_removed` on EventBus — not `block_placed`. Decide at implementation time whether to count from the furniture emissions, the voxel emissions (only relevant if a functional type is ever a `BlockDef`), or both.
 
 ## Files
 
@@ -19,11 +19,11 @@ Tracks which functional-furniture types are placed in the colony and how many of
 
 ## Signals
 
-*(No new signals — Functional Rooms subscribes to VoxelGrid's `block_placed`/`block_destroyed` and exposes query methods. The consumer-side reaction is pull-based: ThreatModel and UI call `Colony.count_functional_furniture()` when they need it.)*
+*(No new signals — Functional Rooms subscribes to BlockyGrid's `block_placed`/`block_destroyed` and exposes query methods. The consumer-side reaction is pull-based: ThreatModel and UI call `Colony.count_functional_furniture()` when they need it.)*
 
 ## Flow Trace: Placing functional furniture updates the registry
 
-**Trigger:** Player (or colonist via construction Job) places a furniture block via the Build subsystem; VoxelGrid emits `block_placed(pos, block_id)`.
+**Trigger:** Player (or colonist via construction Job) places a furniture block via the Build subsystem; BlockyGrid emits `block_placed(pos, block_id)`.
 
 1. Colony listens for `block_placed`.
 2. Looks up the block's FurnitureDef (from `data/furniture/`).
@@ -54,8 +54,8 @@ Tracks which functional-furniture types are placed in the colony and how many of
 | `count_functional_furniture() -> int` | Sum of all 7 functional-furniture counts (per-item). Used by ThreatModel for the visibility bonus. |
 | `count_of(type: String) -> int` | Count of a specific functional type (e.g. `"workbench"`). |
 | `has_functional(type: String) -> bool` | True if at least one of `type` is placed. Used by UI for capability-unlock gating (e.g. world-map tab greyed out until `has_functional("command_desk")`). |
-| `_on_block_placed(pos: Vector3i, block_id: String) -> void` | VoxelGrid signal listener; increments `functional_counts` if the block is functional furniture. |
-| `_on_block_destroyed(pos: Vector3i) -> void` | VoxelGrid signal listener; decrements the relevant counter. |
+| `_on_block_placed(pos: Vector3i, block_id: String) -> void` | BlockyGrid signal listener; increments `functional_counts` if the block is functional furniture. |
+| `_on_block_destroyed(pos: Vector3i) -> void` | BlockyGrid signal listener; decrements the relevant counter. |
 
 **State on Colony:**
 

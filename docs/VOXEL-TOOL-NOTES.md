@@ -85,7 +85,7 @@ along the camera ray (the generator's *data* layer IS queryable in the editor
 even with no chunks). Do **not** use physics raycast or `VoxelTool.raycast` in
 the editor plugin.
 
-> **Contrast with runtime:** `VoxelGrid.raycast_to_voxel` *does* use the Godot
+> **Contrast with runtime:** `BlockyGrid.raycast_to_voxel` *does* use the Godot
 > physics raycast, because at runtime the player's `VoxelViewer` drives streaming
 > and chunks/collision exist. That code is correct for runtime; do not "port" it
 > into the editor plugin, and do not "fix" the editor plugin to use physics.
@@ -123,7 +123,7 @@ automated via `--auto-quit`, see the scene's header for CLI flags):
   blocky structures" split; verdict GO for both node types.
 - **Smooth slopes produce non-axis-aligned raycast normals** (369/371 sampled
   columns). Anything deriving voxel cells from `hit.position + normal`
-  (`VoxelGrid.raycast_to_voxel`) will need grid-snapping against such hits.
+  (`BlockyGrid.raycast_to_voxel`) will need grid-snapping against such hits.
 - **A translated `VoxelTerrain` (`position != origin`) collides at the offset
   but renders NO meshes** — bisect-proven: same blocky terrain at the origin
   renders, moved to `(96, 0, 0)` it is invisible while its collision still
@@ -186,7 +186,7 @@ green light for `smooth_grid.gd` (dual-voxel conversion Phase 2, docs/TODO.md):
 ### Runtime: use Godot's physics raycast
 At runtime the player's `VoxelViewer` streams terrain + collision. Use Godot's
 physics raycast against the collision bodies `VoxelTerrain` generates
-(`VoxelGrid.raycast_to_voxel` does this). Requires the player's `VoxelViewer`
+(`BlockyGrid.raycast_to_voxel` does this). Requires the player's `VoxelViewer`
 (added by `MapWiring.wire_player`) to precede any build interaction — chunks must
 exist before the raycast hits anything.
 
@@ -358,7 +358,7 @@ both done with the paint plugin.
 - **Fallback persistence form (proven):** if stream-based persistence ever proves
   awkward at scale, store authored structures as
   `Array[Dictionary]{pos: Vector3i, block_id: String}` and replay at runtime via
-  `VoxelGrid.set_block_at()`. Verified to round-trip string ids exactly.
+  `BlockyGrid.set_block_at()`. Verified to round-trip string ids exactly.
 
 ---
 

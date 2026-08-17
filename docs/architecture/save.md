@@ -62,7 +62,7 @@ Two top-level scopes, mirroring how state actually lives in memory:
   },
   "maps": {                            // per-map state, keyed by MapDef.id
     "base": {
-      "voxel_hp":   { ... },           // VoxelGrid.serialize()   — block HP only (types are in the sqlite)
+      "voxel_hp":   { ... },           // BlockyGrid.serialize()   — block HP only (types are in the sqlite)
       "furniture":  { ... },           // FurnitureLayer.serialize()
       "blueprints": { ... }            // BlueprintLayer.serialize()
     },
@@ -182,7 +182,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 6. `SceneManager.wipe_map_cache()` (INV-2 Load row).
 7. `_restore_maps_from_slot()` → copy slot's `maps/<id>/map.sqlite` into `user://maps/<id>/map.sqlite`. Warn (don't crash) on unknown map ids.
 8. **Do NOT emit `run_started`** — see New Game flow step 3.
-9. `await SceneManager.swap_map(meta.current_scene_id)` → the saved map loads; because its runtime sqlite already exists (step 7), `_redirect_sqlite_stream` skips the `res://` copy. `_wire_map` calls `SaveSystem.apply_parked_state_if_any(map_id, map)` — returns true, applies `_parked[map_id]` to the freshly-wired VoxelGrid/FurnitureLayer/BlueprintLayer, **skips authored furniture marker replay** (would otherwise double-spawn).
+9. `await SceneManager.swap_map(meta.current_scene_id)` → the saved map loads; because its runtime sqlite already exists (step 7), `_redirect_sqlite_stream` skips the `res://` copy. `_wire_map` calls `SaveSystem.apply_parked_state_if_any(map_id, map)` — returns true, applies `_parked[map_id]` to the freshly-wired BlockyGrid/FurnitureLayer/BlueprintLayer, **skips authored furniture marker replay** (would otherwise double-spawn).
 10. `_restore_player(_pending_player)` → Player is now in the tree; `deserialize` sets position + camera + inventory.
 11. (No SaveSystem-level flag to clear — the per-layer `_is_restoring` flags already reset themselves at the end of their `deserialize()` in step 9.)
 

@@ -18,7 +18,7 @@ Last updated: 2026-08-17 (doc-vs-code audit: as-built pages synced with the code
 |---|---|---|
 | [Core](core.md) | Root scenes, shared utilities, time | — |
 | [Save / Load](save.md) | Multi-slot persistence, parked state, conventions | — |
-| [Voxel / World](voxel-world.md) | Blocky-voxel world, VoxelGrid, BlockLibrary | — |
+| [Voxel / World](voxel-world.md) | Blocky + smooth voxel worlds, BlockyGrid/SmoothGrid, BlockLibrary | — |
 | [Player](player.md) | Third-person controller, camera rig, Mode+State | §4 |
 | [Build](build.md) | Blueprint mode, BuildLibrary, ghost preview, furniture layer | §7.4 |
 | [Actions & Interaction](actions.md) | E-key menu, GameAction/Condition/ActionOption chain | §4 |

@@ -12,7 +12,7 @@ context isn't lost once the MVP map system ships.
 Feasible. The engine layer is ready; the cost is concentrated in the top-level
 world/session model (loadable map → streaming world) and in moving per-position
 runtime state out of scene nodes and an in-memory dictionary into chunk-keyed
-persistence. A meaningful refactor of `SceneManager`, `Map`, and `VoxelGrid`'s
+persistence. A meaningful refactor of `SceneManager`, `Map`, and `BlockyGrid`'s
 persistence — not a rewrite — but real work, correctly deferred past MVP.
 
 ## What's Already in Our Favor
@@ -52,9 +52,9 @@ persistent world root plus spatial activation/deactivation — not "loaded with
 the map." Furniture isolation today is per-scene authored markers; that authoring
 model doesn't extend to a continuous world.
 
-### 3. Block HP is an in-memory, per-VoxelGrid Dictionary
+### 3. Block HP is an in-memory, per-BlockyGrid Dictionary
 
-`VoxelGrid._hp_by_pos` (`Vector3i -> int`) works for MVP but grows unbounded and
+`BlockyGrid._hp_by_pos` (`Vector3i -> int`) works for MVP but grows unbounded and
 doesn't survive area unload (see [Voxel/World](voxel-world.md)).
 Open world needs block HP **chunk-keyed and persisted** — ideally into/alongside
 the voxel stream so damage survives paging out and back in.
@@ -81,7 +81,7 @@ the copy-on-load plumbing would be removed.
 
 - **`SceneManager`** — swap lifecycle → streaming/region lifecycle.
 - **`Map`** — current-world node → persistent world root with spatial activation.
-- **`VoxelGrid`** persistence — in-memory `_hp_by_pos` → chunk-keyed, persistent.
+- **`BlockyGrid`** persistence — in-memory `_hp_by_pos` → chunk-keyed, persistent.
 - **Furniture / spawns** — authored scene nodes → spatial stores + dynamic
   generation.
 

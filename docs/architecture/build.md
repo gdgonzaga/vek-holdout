@@ -4,7 +4,7 @@ Blueprint mode UX: cursor raycast, rotation state, ghost preview, validity check
 
 **Two-kind placement, strategy-driven commit:** a single `BuildController` does per-kind VALIDITY only (block = air; furniture = free footprint, neither overlapping a blueprint), then delegates COMMIT to an `IPlacementStrategy`. Which strategy is wired decides what commit does:
 - **`BlueprintPlacementStrategy`** (default) → spawns a non-physical `Blueprint` (an interactable furniture-like node) for the player to complete by interacting (Build action). The incremental step toward blueprint-then-build (GDD §7.4); see the blueprint flow trace below.
-- **`InstantPlacementStrategy`** (MVP/debug fallback) → `BlockDef` → `VoxelGridAdapter` → voxel grid; everything else → `FurnitureLayer` spawn. Materializes immediately.
+- **`InstantPlacementStrategy`** (MVP/debug fallback) → `BlockDef` → `VoxelGridAdapter` → blocky grid; everything else → `FurnitureLayer` spawn. Materializes immediately.
 
 The def's shape still drives VALIDITY everywhere: `BuildController._is_furniture(id)` is `def != null and not (def is BlockDef)`, the ghost uses the same test to pick a single-cell preview vs. a footprint-center preview, and `FurnitureLayer`/`BlueprintLayer` read `FurnitureDef.dimensions` for multi-cell validity + placement.
 
@@ -16,13 +16,13 @@ The def's shape still drives VALIDITY everywhere: `BuildController._is_furniture
 | `build_library.gd` | Autoload | Global catalog (`id → BuildableDef`) of everything buildable. Loads `data/blocks/`, `data/buildables/`, `data/furniture/`. Delegates "unlocked" to `RunProgress`; seeds defaults at startup + on `EventBus.run_started`. See Autoloads table. |
 | `ghost_preview.gd` | Script | `MeshInstance3D` (translucent, validity-tinted green/red). Mesh is driven by the selected def's `mesh`; positioned each frame by the controller — single cell corner for blocks, footprint center for furniture. |
 | `rotation_state.gd` | Script | Axis cycle (R: Z→X→Y) + 90° step wheel (mouse wheel: CW = `cycle_step`, CCW = `cycle_step_back`) + the even-footprint 0.5m pivot rule (GDD §7.4). **Rotation is now wired** in `BuildController._unhandled_input` (wheel up/down + R), and the ghost yaw is applied each frame in `_physics_process`. **Still a stub:** the 0.5m pivot is unimplemented (`get_yaw_degrees` returns a Y-axis yaw = `step * 90°`), and axis rotation has no visible effect on cube blocks — it only matters for multi-cell furniture footprints today. |
-| `i_block_grid.gd` | Script (interface) | Documentation-only contract: `get_block_at`, `set_block_at`, `remove_block_at`, `is_valid_placement`, `raycast_to_voxel`, `snap_transform`. Implementations duck-type; they do NOT extend it. |
+| `i_block_grid.gd` | Script (interface) | Documentation-only contract: `get_block_at`, `set_block_at`, `remove_block_at`, `is_valid_placement`, `raycast_to_voxel` (surface-tagged: `"blocky"`/`"smooth"`/`"body"`; smooth hits carry the pre-derived placement cell — see [Voxel / World](voxel-world.md)), `snap_transform`, `height_at`. Implementations duck-type; they do NOT extend it. |
 | `i_placement_strategy.gd` | Script (interface) | Documentation-only contract: `commit(transform, rotation, item_id) -> bool`. Implementations duck-type; they do NOT extend it. |
 | `instant_placement_strategy.gd` | Script (`RefCounted`) | MVP/debug strategy: resolves the cell from `transform.origin` and materializes directly — `BlockDef` → `VoxelGridAdapter.set_block_at`, else `FurnitureLayer.spawn`. Handles both kinds so it stays a complete fallback. Cost deduction deferred (TODO). |
 | `blueprint_placement_strategy.gd` | Script (`RefCounted`) | Default strategy: spawns a `Blueprint` (via `BlueprintLayer`) for the player to complete by interacting — the incremental blueprint-then-build step (GDD §7.4). The second `IPlacementStrategy` impl alongside `InstantPlacementStrategy`. |
 | `blueprint_layer.gd` | Script (`RefCounted`) | Sibling of `FurnitureLayer`. Owns blueprint spawn/remove + cell registry and the single `complete_blueprint()` entry point both the player (`BuildAction`) and colonists (`ConstructionJobDef.complete`, ticked by `ColonistAI` WORK) drive — `blueprint_placed`/`blueprint_removed` are wired to Colony (which creates/cancels the construction Job). Reuses `FurnitureLayer`'s static geometry helpers. |
 | `blueprint.gd` / `blueprint_template.tscn` | Script/Scene | `Blueprint extends Furniture` — an interactable node carrying `target_def_id`/`target_rotation_step`/`anchor_cell`. The Build action calls its `complete()`, which forwards to `BlueprintLayer.complete_blueprint`. |
-| `voxel_grid_adapter.gd` | Script (`RefCounted`) | `IBlockGrid` impl wrapping `voxel/voxel_grid.gd`. Adds `is_valid_placement` + `snap_transform` + raycast `exclude` passthrough (for player-body exclusion) + `height_at` passthrough. |
+| `voxel_grid_adapter.gd` | Script (`RefCounted`) | `IBlockGrid` impl wrapping `voxel/blocky_grid.gd`. Adds `is_valid_placement` + `snap_transform` + raycast `exclude` passthrough (for player-body exclusion) + `height_at` passthrough. |
 | `furniture_layer.gd` | Script (`RefCounted`) | Free-standing furniture layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns a `Furniture` node (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model (cell-box `dimensions`, yaw swaps x/z), overlap rejection, and removal-by-pointing-at-any-covered-cell. Emits `furniture_placed` / `furniture_removed` on EventBus. |
 | `new_furniture_template.tscn` | Scene | Node template for spawned furniture: a root `Furniture` node (`subsystems/furniture/furniture.gd`) holding a `Mesh` `MeshInstance3D` (gets a runtime trimesh `StaticBody3D` on collision layer 1, World) + a `BuildBody` `StaticBody3D` with a footprint-sized `BoxShape3D` (collision layer 5, Build). Rotated as a unit by yaw. |
 | `../data/blocks/` | Data | `BlockDef` per block type (wood, scrap, stone, metal, reinforced, terrain). See [Data Schemas](data-schemas.md). |
@@ -40,7 +40,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `build_placement_toggled(active)` | player subsystem | `BuildController` (activates/deactivates), HUD (crosshair), `InstructionsLabel` (placement text) | Yes | Enter/Exit Build Placement |
 | `build_menu_toggled(open)` | player subsystem | `InstructionsLabel` (menu text) | Yes | Build menu visibility |
 | `buildable_selected(id)` | build menu (`build_menu.gd`) | `BuildController` (sets `selected_id` + ghost mesh), Player (enters BUILD_PLACEMENT + recaptures mouse) | Yes | Select a Buildable |
-| `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
+| `block_placed(pos, block_id)` | `BlockyGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
 | `furniture_placed(def_id, anchor)` | `FurnitureLayer` | GameLog | Yes | Place Furniture |
 | `furniture_removed(def_id, anchor)` | `FurnitureLayer` | Colony (job cleanup), GameLog | Yes | Remove Furniture |
 | `blueprint_placed(target_def_id, anchor, blueprint)` | `BlueprintLayer` | Colony (registers a construction Job) | Yes | Spawn Blueprint |
@@ -51,10 +51,10 @@ Build placement has no same-scene signals — the controller calls strategies/la
 **Trigger:** Player LMB-clicks (`build_place` action) in Blueprint mode with a `BlockDef` selected and valid placement.
 
 1. `BuildController._try_commit` raycasts from screen center (player body excluded).
-2. Target cell = struck voxel + face normal. Confirmed valid via `grid_adapter.is_valid_placement(cell)` (cell is air).
+2. Target cell via `_placement_cell` — surface-tagged: blocky/body hit = struck voxel + face normal; smooth hit = the pre-derived cell (slope normals aren't axis-aligned, D3). Confirmed valid via `grid_adapter.is_valid_placement(cell)` (cell is air).
 3. `_try_commit` (inline — no per-kind method) builds a `Transform3D` at the cell origin and calls `strategy.commit(transform, rotation_state, selected_id)`.
 4. `InstantPlacementStrategy.commit` resolves the cell from the transform origin and calls `grid_adapter.set_block_at(cell, item_id)`.
-5. Adapter delegates to `VoxelGrid.set_block_at` → emits `block_placed(pos, block_id)` (consumed by colonist pathfinding, raids, Functional Rooms).
+5. Adapter delegates to `BlockyGrid.set_block_at` → emits `block_placed(pos, block_id)` (consumed by colonist pathfinding, raids, Functional Rooms).
 
 **End state:** Block exists in the voxel grid; downstream listeners notified. Materials consumed (deferred — strategy TODO).
 
@@ -62,7 +62,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 **Trigger:** Player LMB-clicks (`build_place`) with a non-block def selected (`BuildableDef` or `FurnitureDef`) and a free footprint. (Under the default `BlueprintPlacementStrategy`, LMB spawns a blueprint instead — see the blueprint flow below. This trace is the `InstantPlacementStrategy` path.)
 
-1. `BuildController._try_commit` raycasts from screen center; cell = struck voxel + face normal.
+1. `BuildController._try_commit` raycasts from screen center; cell via `_placement_cell` (blocky = struck + face normal; smooth = pre-derived).
 2. Because the def is not a `BlockDef`, validity runs via `_is_footprint_free` (rather than the block's single-cell air check).
 3. `_is_footprint_free(anchor, def)`: for every cell in the (yaw-rotated) footprint, confirms `grid_adapter.is_valid_placement(cell)` AND `furniture_layer.has_at(cell)` is false AND `blueprint_layer.has_at(cell)` is false. Rejects overlap with terrain, blocks, existing furniture, or an existing blueprint.
 4. `_try_commit` builds the `Transform3D` and calls `strategy.commit(...)` → `InstantPlacementStrategy.commit` → `FurnitureLayer.spawn(def, anchor, rotation_state.step)`:
@@ -157,17 +157,17 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 **Extends:** RefCounted
 **Script:** `voxel_grid_adapter.gd`
-**Description:** `IBlockGrid` implementation wrapping `voxel/voxel_grid.gd`. Keeps `BuildController` voxel-agnostic. Holds a `VoxelGrid` reference set at wiring time.
+**Description:** `IBlockGrid` implementation wrapping `voxel/blocky_grid.gd`. Keeps `BuildController` voxel-agnostic. Holds a `BlockyGrid` reference set at wiring time.
 **Used by:** `BuildController` (raycast + validity queries), `InstantPlacementStrategy` (block set), `BlueprintLayer` (block materialization on `complete_blueprint`), `FurnitureLayer` (footprint validity queries).
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `set_grid(grid: VoxelGrid) -> void` | Wiring. |
+| `set_grid(grid: BlockyGrid) -> void` | Wiring. |
 | `get_block_at(pos: Vector3i) -> String` | Block id at cell, or `""` for air. |
-| `set_block_at(pos: Vector3i, block_id: String) -> void` | Delegates to `VoxelGrid`; emits `block_placed` there. |
-| `remove_block_at(pos: Vector3i) -> void` | Delegates to `VoxelGrid`; emits `block_destroyed` there. |
+| `set_block_at(pos: Vector3i, block_id: String) -> void` | Delegates to `BlockyGrid`; emits `block_placed` there. |
+| `remove_block_at(pos: Vector3i) -> void` | Delegates to `BlockyGrid`; emits `block_destroyed` there. |
 | `is_valid_placement(pos: Vector3i) -> bool` | True if the cell is air. (TODO: ownership/footprint checks once multi-cell blocks exist.) |
 | `raycast_to_voxel(origin, dir, max_dist, exclude: Array = []) -> Dictionary` | Physics raycast → `{position, normal, hit}`. `exclude` is an `Array[RID]` to ignore (player body). |
 | `snap_transform(world_pos: Vector3) -> Vector3i` | Snap a world position to its containing cell. |
