@@ -146,6 +146,34 @@ func remove_colonist(colonist_id: String) -> void:
 			return
 
 
+# --- Job production plumbing ---------------------------------------------------
+# Every producer path is the same shape: dedupe by anchor + def, build from the
+# def, bind the placement, register. Def identity works as the dedupe key
+# because the DEF consts above are preloaded singletons — and it's the only
+# workable key for the farming defs, which all share labor_id "farming".
+
+
+## Build + register a Job at `anchor` bound to `target`, unless one from the
+## same def already exists there.
+func _spawn_job(def: JobDef, title: String, anchor: Vector3i, location: Vector3, target: Node) -> void:
+	for j in job_board.get_jobs():
+		if j.anchor_cell == anchor and j.def == def:
+			return
+	var job := Job.from_def(def)
+	job.title = title
+	job.anchor_cell = anchor
+	job.location = location
+	job.target_node = target
+	job_board.add_job(job)
+
+
+## Drop jobs at `anchor` — every def's when `def` is null, else only that def's.
+func _remove_jobs_at(anchor: Vector3i, def: JobDef = null) -> void:
+	for job in job_board.get_jobs():
+		if job.anchor_cell == anchor and (def == null or job.def == def):
+			job_board.remove_job(job.id)
+
+
 ## BlueprintLayer -> EventBus -> here. Decide haul-vs-construct:
 ##   - blueprint has an unsatisfied material_cost (needed_item_ids non-empty) →
 ##     spawn a HAUL job, regardless of current stock: haulers loop FETCH/DELIVER
@@ -164,12 +192,8 @@ func _on_blueprint_placed(target_def_id: String, anchor: Vector3i, blueprint: No
 		# board until storage can satisfy it). Else build now (costless /
 		# pre-satisfied).
 		if not needed.is_empty():
-			var job := Job.from_def(HAULING_DEF)
-			job.title = "Haul materials for %s" % target_def_id
-			job.anchor_cell = anchor
-			job.location = _world_location_for(target_def_id, anchor)
-			job.target_node = blueprint
-			job_board.add_job(job)
+			_spawn_job(HAULING_DEF, "Haul materials for %s" % target_def_id, anchor,
+					_world_location_for(target_def_id, anchor), blueprint)
 			return
 	_spawn_construction_job(target_def_id, anchor, blueprint)
 
@@ -190,15 +214,8 @@ func _on_blueprint_materials_ready(target_def_id: String, anchor: Vector3i, blue
 ## footprint-center approach point; ColonistAI refines it into a real adjacent
 ## standing cell at navigation time.
 func _spawn_construction_job(target_def_id: String, anchor: Vector3i, blueprint: Node) -> void:
-	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.labor_id == "construction":
-			return
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.title = "Build %s" % target_def_id
-	job.anchor_cell = anchor
-	job.location = _world_location_for(target_def_id, anchor)
-	job.target_node = blueprint
-	job_board.add_job(job)
+	_spawn_job(CONSTRUCTION_DEF, "Build %s" % target_def_id, anchor,
+			_world_location_for(target_def_id, anchor), blueprint)
 
 
 ## BlueprintLayer -> EventBus -> here. Fires on BOTH cancel and completion
@@ -206,9 +223,7 @@ func _spawn_construction_job(target_def_id: String, anchor: Vector3i, blueprint:
 ## anchor so a colonist is never sent to a blueprint that no longer exists.
 ## Erasing an already-removed id (colonist completed it first) is a harmless no-op.
 func _on_blueprint_removed(_target_def_id: String, anchor: Vector3i) -> void:
-	for job in job_board.get_jobs():
-		if job.anchor_cell == anchor:
-			job_board.remove_job(job.id)
+	_remove_jobs_at(anchor)
 
 
 # --- Crafting (GDD §7.9) -------------------------------------------------------
@@ -225,21 +240,13 @@ func _on_blueprint_removed(_target_def_id: String, anchor: Vector3i) -> void:
 ## them via the station's deposit_from. Spawned regardless of current stock:
 ## through a drought the job waits on the board (HaulingJobDef.should_close)
 ## and restock resumes it with no new producer event. Deduped by anchor +
-## labor so a re-queue can't double the haul run.
+## def so a re-queue can't double the haul run.
 func _on_crafting_order_queued(station: Node, anchor: Vector3i) -> void:
 	if not MaterialSink.is_material_sink(station):
 		return
 	if station.has_complete_materials():
 		return
-	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.labor_id == "hauling":
-			return
-	var job := Job.from_def(HAULING_DEF)
-	job.title = "Haul materials for crafting"
-	job.anchor_cell = anchor
-	job.location = _station_location(station)
-	job.target_node = station
-	job_board.add_job(job)
+	_spawn_job(HAULING_DEF, "Haul materials for crafting", anchor, _station_location(station), station)
 
 
 ## CraftingStation.deposit_from -> EventBus.crafting_materials_ready -> here.
@@ -252,16 +259,9 @@ func _on_crafting_materials_ready(station: Node, anchor: Vector3i) -> void:
 ## Build + register a crafting Job at `anchor` bound to `station`, unless one
 ## already exists there. Single-assignee (crafting.tres default).
 func _spawn_craft_job(station: Node, anchor: Vector3i) -> void:
-	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.labor_id == "crafting":
-			return
-	var job := Job.from_def(CRAFTING_DEF)
 	var recipe: RecipeDef = station.active_recipe()
-	job.title = "Craft %s" % recipe.label() if recipe != null else "Craft order"
-	job.anchor_cell = anchor
-	job.location = _station_location(station)
-	job.target_node = station
-	job_board.add_job(job)
+	var title := "Craft %s" % recipe.label() if recipe != null else "Craft order"
+	_spawn_job(CRAFTING_DEF, title, anchor, _station_location(station), station)
 
 
 ## Walk target for station-bound jobs: the furniture's position, which
@@ -291,14 +291,14 @@ func _on_harvest_mark_toggled(furniture: Node, anchor: Vector3i, is_marked: bool
 	if is_marked:
 		_spawn_harvest_job(furniture, anchor)
 	else:
-		_remove_harvest_job(anchor)
+		_remove_jobs_at(anchor, HARVEST_DEF)
 
 
 func _on_furniture_removed(_def_id: String, anchor: Vector3i) -> void:
-	_remove_harvest_job(anchor)
-	_remove_sow_job(anchor)
-	_remove_water_job(anchor)
-	_remove_tend_job(anchor)
+	_remove_jobs_at(anchor, HARVEST_DEF)
+	_remove_jobs_at(anchor, SOW_DEF)
+	_remove_jobs_at(anchor, WATER_DEF)
+	_remove_jobs_at(anchor, TEND_DEF)
 
 
 # --- Farming (GDD §6 / Farming, ARCH "Farming") -----------------------------
@@ -307,76 +307,37 @@ func _on_plot_needs_sowing(growable: Node, anchor: Vector3i, crop_id: String, ne
 	if needed:
 		_spawn_sow_job(growable, anchor, crop_id)
 	else:
-		_remove_sow_job(anchor)
+		_remove_jobs_at(anchor, SOW_DEF)
 
 
 func _on_plot_needs_water(growable: Node, anchor: Vector3i, needed: bool) -> void:
 	if needed:
 		_spawn_water_job(growable, anchor)
 	else:
-		_remove_water_job(anchor)
+		_remove_jobs_at(anchor, WATER_DEF)
 
 
 func _on_plot_needs_tending(growable: Node, anchor: Vector3i, needed: bool) -> void:
 	if needed:
 		_spawn_tend_job(growable, anchor)
 	else:
-		_remove_tend_job(anchor)
+		_remove_jobs_at(anchor, TEND_DEF)
 
 
 func _spawn_sow_job(growable: Node, anchor: Vector3i, crop_id: String) -> void:
-	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.def == SOW_DEF:
-			return
-	var job := Job.from_def(SOW_DEF)
 	var crop_def := CropLibrary.get_crop(crop_id)
-	job.title = "Sow %s" % (crop_def.display_name if crop_def != null else "crop")
-	job.anchor_cell = anchor
-	job.location = _target_node_location(growable, anchor)
-	job.target_node = _target_node_of(growable)
-	job_board.add_job(job)
-
-
-func _remove_sow_job(anchor: Vector3i) -> void:
-	for job in job_board.get_jobs():
-		if job.anchor_cell == anchor and job.def == SOW_DEF:
-			job_board.remove_job(job.id)
+	var title := "Sow %s" % (crop_def.display_name if crop_def != null else "crop")
+	_spawn_job(SOW_DEF, title, anchor, _target_node_location(growable, anchor), _target_node_of(growable))
 
 
 func _spawn_water_job(growable: Node, anchor: Vector3i) -> void:
-	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.def == WATER_DEF:
-			return
-	var job := Job.from_def(WATER_DEF)
-	job.title = "Water crop"
-	job.anchor_cell = anchor
-	job.location = _target_node_location(growable, anchor)
-	job.target_node = _target_node_of(growable)
-	job_board.add_job(job)
-
-
-func _remove_water_job(anchor: Vector3i) -> void:
-	for job in job_board.get_jobs():
-		if job.anchor_cell == anchor and job.def == WATER_DEF:
-			job_board.remove_job(job.id)
+	_spawn_job(WATER_DEF, "Water crop", anchor,
+			_target_node_location(growable, anchor), _target_node_of(growable))
 
 
 func _spawn_tend_job(growable: Node, anchor: Vector3i) -> void:
-	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.def == TEND_DEF:
-			return
-	var job := Job.from_def(TEND_DEF)
-	job.title = "Tend crop"
-	job.anchor_cell = anchor
-	job.location = _target_node_location(growable, anchor)
-	job.target_node = _target_node_of(growable)
-	job_board.add_job(job)
-
-
-func _remove_tend_job(anchor: Vector3i) -> void:
-	for job in job_board.get_jobs():
-		if job.anchor_cell == anchor and job.def == TEND_DEF:
-			job_board.remove_job(job.id)
+	_spawn_job(TEND_DEF, "Tend crop", anchor,
+			_target_node_location(growable, anchor), _target_node_of(growable))
 
 
 func _target_node_of(node: Node) -> Node:
@@ -398,19 +359,7 @@ func _target_node_location(node: Node, anchor: Vector3i) -> Vector3:
 
 
 func _spawn_harvest_job(furniture: Node, anchor: Vector3i) -> void:
-	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.labor_id == "harvesting":
-			return
-	var job := Job.from_def(HARVEST_DEF)
 	var f := furniture as Furniture
-	job.title = "Harvest %s" % (f.label if f != null else "resource")
-	job.anchor_cell = anchor
-	job.location = f.global_position if f != null else Vector3(anchor)
-	job.target_node = furniture
-	job_board.add_job(job)
-
-
-func _remove_harvest_job(anchor: Vector3i) -> void:
-	for job in job_board.get_jobs():
-		if job.anchor_cell == anchor and job.labor_id == "harvesting":
-			job_board.remove_job(job.id)
+	var title := "Harvest %s" % (f.label if f != null else "resource")
+	var location := f.global_position if f != null else Vector3(anchor)
+	_spawn_job(HARVEST_DEF, title, anchor, location, furniture)

@@ -39,7 +39,7 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 **Trigger:** Player E-presses the workbench → `OpenCraftingAction` → `ui/crafting/craft_panel.tscn`.
 
 1. **Queue** (colony): `queue_recipe(id, "colony", maintain?)`. **Craft** (personal): `queue_recipe(id, "player")` then the panel deposits whatever the player carries (`station.deposit_from(player)`) — shortfalls are hauled either way. Both emit `crafting_order_queued`; an "until stock" SpinBox ≥ 1 attaches a maintain goal to a colony queue.
-2. `Colony._on_crafting_order_queued`: spawns a **haul job bound to the station** (deduped by anchor + labor), regardless of crate stock — droughts wait on the board.
+2. `Colony._on_crafting_order_queued`: spawns a **haul job bound to the station** (deduped by anchor + def), regardless of crate stock — droughts wait on the board.
 3. Haulers loop FETCH → DELIVER (`station.deposit_from`) until the order's inputs are covered.
 4. The DELIVER crossing `has_complete_materials`: colony orders emit `crafting_materials_ready` → `Colony._spawn_craft_job`; player orders emit nothing — the order waits ready for the player.
 5. **Who works it:** a colonist claims the craft Job (labor `crafting`, gated by `RecipeDef.conditions`), or the player presses **Craft now** (offered on any ready order) → `CraftAction`.

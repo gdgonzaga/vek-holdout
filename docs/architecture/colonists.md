@@ -56,6 +56,8 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 | `_on_blueprint_placed(target_def_id, anchor, blueprint) → void` | Decide haul-vs-construct (any unmet material_cost → haul, regardless of stock — the job drought-waits until crates can satisfy it; else construction), bind + add the Job. See [Jobs](jobs.md). |
 | `_on_blueprint_materials_ready(target_def_id, anchor, blueprint) → void` | Materials crossed complete (player or hauler deposit) → `_spawn_construction_job`. |
 | `_spawn_construction_job(target_def_id, anchor, blueprint) → void` | Build + add a construction Job, deduped by anchor (defensive against a duplicate `blueprint_materials_ready`). |
+| `_spawn_job(def, title, anchor, location, target) → void` | Shared producer plumbing every `_spawn_*` routes through: dedupe by anchor + def, `Job.from_def`, bind the placement, `add_job`. Def identity works because the def consts are preloaded singletons (required for the farming defs, which share `labor_id "farming"`). |
+| `_remove_jobs_at(anchor, def = null) → void` | Drop jobs at an anchor — every def's when `def` is null (blueprint removal), else only that def's. |
 | `_on_blueprint_removed(target_def_id, anchor) → void` | Removes any Job targeting that anchor (fires on cancel and completion). Idempotent. |
 
 ### Class: Colonist
