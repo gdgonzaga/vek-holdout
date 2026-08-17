@@ -95,10 +95,11 @@ func _handles(object: Object) -> bool:
 
 
 # Bind to a freshly selected terrain; never unbind on other selections so the
-# paint target stays stable while the user edits markers etc.
+# paint target stays stable while the user edits markers etc. Blocky terrains
+# only — selecting the smooth terrain must not rebind (see _find_scene_terrain).
 func _edit(object: Object) -> void:
-	if _active and object is VoxelTerrain:
-		_bind_terrain(object)
+	if _active and _is_blocky_terrain(object as Node):
+		_bind_terrain(object as VoxelTerrain)
 
 
 # The toolbar button follows the 3D editor's visibility (hidden in 2D/Script),
@@ -144,17 +145,35 @@ func _ensure_library() -> void:
 
 # --- Terrain binding --------------------------------------------------------
 
-## Returns the VoxelTerrain to bind on activation: the selected one if any,
-## otherwise the first VoxelTerrain in the edited scene, else null.
+## Returns the BLOCKY terrain to bind on activation: a selected VoxelTerrain
+## owned by a BlockyGrid, else the first such terrain in the edited scene, else
+## null. Never binds the smooth terrain — scenes carry two VoxelTerrain nodes
+## since the dual-voxel template, both named "VoxelTerrain", so identification
+## is by the owning grid's script (never node name/order). In-editor smooth
+## painting is impossible anyway: the editor viewport can't render Transvoxel
+## terrain (F5), and the paint tool's block model assumes the blocky library.
 func _find_scene_terrain() -> VoxelTerrain:
 	var sel := EditorInterface.get_selection().get_selected_nodes()
 	for n in sel:
-		if n is VoxelTerrain:
+		if _is_blocky_terrain(n):
 			return n
 	var root := EditorInterface.get_edited_scene_root()
 	if root != null:
-		return root.find_child("VoxelTerrain", true, false) as VoxelTerrain
+		for t in root.find_children("VoxelTerrain", "VoxelTerrain", true, false):
+			if _is_blocky_terrain(t):
+				return t
 	return null
+
+
+## True when node is a VoxelTerrain parented by a BlockyGrid — the structures
+## terrain and the only paintable one. SmoothGrid's terrain parent has
+## smooth_grid.gd; unparented terrains (spike scenes) bind nothing.
+func _is_blocky_terrain(node: Node) -> bool:
+	if node is not VoxelTerrain:
+		return false
+	var parent := node.get_parent()
+	return parent != null and parent.get_script() != null \
+		and str(parent.get_script().resource_path) == "res://subsystems/voxel/blocky_grid.gd"
 
 
 ## Bind painting to a terrain. Recreates the ghost + furniture helper; the panel
