@@ -163,3 +163,38 @@ func test_map_editor_mouse_look() -> void:
 	assert_float(editor._cam_pitch).is_less(initial_pitch)
 	assert_float(editor._camera.rotation_degrees.x).is_equal_approx(editor._cam_pitch, 0.001)
 	assert_float(editor._camera.rotation_degrees.y).is_equal_approx(editor._cam_yaw, 0.001)
+
+
+func test_editor_hud_block_info() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	hud.set_mode(MapEditorClass.Mode.BLOCK)
+	assert_bool(hud._block_info_panel.visible).is_true()
+
+	hud.set_block_info("Planks", 3.5)
+	assert_str(hud._block_label.text).contains("Planks")
+	assert_str(hud._radius_label.text).contains("3.5")
+
+	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
+	assert_bool(hud._block_info_panel.visible).is_false()
+
+
+func test_map_editor_block_editing_init() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	
+	assert_object(editor._block_library).is_not_null()
+	assert_int(editor._selected_block_index).is_equal(6)
+	assert_float(editor._brush_radius).is_equal_approx(1.0, 0.001)
+	assert_object(editor._ghost).is_not_null()
+	assert_bool(editor._ghost.visible).is_false()
+
+
+func test_map_editor_cycle_block() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	
+	var initial_idx := editor._selected_block_index
+	editor._cycle_block(1)
+	assert_int(editor._selected_block_index).is_not_equal(initial_idx)

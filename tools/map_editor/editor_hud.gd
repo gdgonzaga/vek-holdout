@@ -10,6 +10,10 @@ var _map_info_label: Label
 var _hotkey_label: Label
 var _crosshair: Control
 
+var _block_info_panel: PanelContainer
+var _block_label: Label
+var _radius_label: Label
+
 const MODE_NAMES: Array[String] = [
 	"NAVIGATE",
 	"BLOCK",
@@ -40,6 +44,44 @@ func _build_ui() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+
+	# --- Block Info (Top Left) ---
+	_block_info_panel = PanelContainer.new()
+	_block_info_panel.name = "BlockInfoPanel"
+	_block_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_block_info_panel.offset_left = 16.0
+	_block_info_panel.offset_top = 16.0
+	_block_info_panel.offset_right = 240.0
+	_block_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_block_info_panel.visible = false
+
+	var block_style := StyleBoxFlat.new()
+	block_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
+	block_style.border_color = Color(0.2, 0.25, 0.35, 0.8)
+	block_style.set_border_width_all(1)
+	block_style.set_corner_radius_all(4)
+	block_style.set_content_margin_all(8)
+	_block_info_panel.add_theme_stylebox_override("panel", block_style)
+
+	var vbox := VBoxContainer.new()
+	vbox.name = "BlockInfoVBox"
+	_block_info_panel.add_child(vbox)
+
+	_block_label = Label.new()
+	_block_label.name = "BlockLabel"
+	_block_label.text = "Block: Wood"
+	_block_label.add_theme_font_size_override("font_size", 13)
+	_block_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	vbox.add_child(_block_label)
+
+	_radius_label = Label.new()
+	_radius_label.name = "RadiusLabel"
+	_radius_label.text = "Brush Radius: 1.0"
+	_radius_label.add_theme_font_size_override("font_size", 13)
+	_radius_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	vbox.add_child(_radius_label)
+
+	root.add_child(_block_info_panel)
 
 	# --- Mode Badge (Top Center) ---
 	_mode_badge = PanelContainer.new()
@@ -149,12 +191,22 @@ func _build_ui() -> void:
 	root.add_child(_crosshair)
 
 
+func set_block_info(block_name: String, radius: float) -> void:
+	if _block_label != null:
+		_block_label.text = "Block: " + block_name
+	if _radius_label != null:
+		_radius_label.text = "Brush Radius: %.1f" % radius
+
+
 func set_mode(mode: int) -> void:
 	if mode < 0 or mode >= MODE_NAMES.size():
 		return
 	var key_num := mode + 1
 	_mode_label.text = "[ F%d ] %s" % [key_num, MODE_NAMES[mode]]
 	_hotkey_label.text = MODE_HOTKEYS[mode]
+
+	if _block_info_panel != null:
+		_block_info_panel.visible = (mode == 1) # Mode.BLOCK
 
 	# Color the mode badge
 	var badge_style := _mode_badge.get_theme_stylebox("panel") as StyleBoxFlat
