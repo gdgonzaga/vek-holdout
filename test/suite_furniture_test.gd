@@ -46,3 +46,32 @@ func test_yaw_swaps_footprint_axes() -> void:
 	assert_int(cells.size()).is_equal(2)
 	assert_bool(cells.has(Vector3i(0, 1, 0))).is_true()
 	assert_bool(cells.has(Vector3i(0, 1, 1))).is_true()
+
+
+func test_is_steppable_at_short_and_tall_furniture() -> void:
+	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
+	var container: Node3D = auto_free(Node3D.new())
+	add_child(container)
+	layer.set_container(container)
+
+	var short_def: FurnitureDef = auto_free(FurnitureDef.new())
+	short_def.id = "trough"
+	var short_mesh := BoxMesh.new()
+	short_mesh.size = Vector3(1.0, 0.35, 1.0)
+	short_def.mesh = short_mesh
+	short_def.dimensions = Vector3i(1, 1, 1)
+
+	var tall_def: FurnitureDef = auto_free(FurnitureDef.new())
+	tall_def.id = "workbench"
+	var tall_mesh := BoxMesh.new()
+	tall_mesh.size = Vector3(1.0, 1.2, 1.0)
+	tall_def.mesh = tall_mesh
+	tall_def.dimensions = Vector3i(1, 1, 1)
+
+	layer.spawn(short_def, Vector3i(0, 0, 0), 0)
+	layer.spawn(tall_def, Vector3i(2, 0, 0), 0)
+
+	assert_bool(layer.is_steppable_at(Vector3i(0, 0, 0), 0.5)).is_true()
+	assert_bool(layer.is_steppable_at(Vector3i(0, 0, 0), 0.2)).is_false()
+	assert_bool(layer.is_steppable_at(Vector3i(2, 0, 0), 0.5)).is_false()
+	assert_bool(layer.is_steppable_at(Vector3i(5, 0, 0), 0.5)).is_false()

@@ -110,6 +110,10 @@ static func _compose_walkability(map: Map) -> Callable:
 	var bl: BlueprintLayer = ctrl.blueprint_layer if ctrl != null else null
 	const DOWN := Vector3i(0, -1, 0)
 	const UP := Vector3i(0, 1, 0)
+	## Furniture shorter than this is steppable — colonists walk over it
+	## the same way the player does via StepClimber. Matches the colonist
+	## scene's StepClimber.step_height (see colonist.tscn).
+	const STEP_HEIGHT := 0.5
 	return func(cell: Vector3i) -> bool:
 		if grid.get_block_at(cell) != "":             # solid (terrain/block)
 			return false
@@ -118,11 +122,13 @@ static func _compose_walkability(map: Map) -> Callable:
 		if grid.get_block_at(cell + UP) != "":        # no head clearance
 			return false
 		if fl != null and fl.has_at(cell):
-			return false
+			if not fl.is_steppable_at(cell, STEP_HEIGHT):
+				return false
 		if bl != null and bl.has_at(cell):
 			return false
 		if fl != null and fl.has_at(cell + UP):       # furniture overhead
-			return false
+			if not fl.is_steppable_at(cell + UP, STEP_HEIGHT):
+				return false
 		if bl != null and bl.has_at(cell + UP):       # blueprint overhead
 			return false
 		return true

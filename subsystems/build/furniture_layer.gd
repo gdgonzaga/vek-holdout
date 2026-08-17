@@ -232,6 +232,21 @@ func has_at(cell: Vector3i) -> bool:
 	return _anchor_by_cell.has(cell)
 
 
+## True when the furniture covering `cell` is short enough to step over.
+## Uses the mesh AABB height (the physical shape the StepClimber encounters)
+## rather than `dimensions.y` (which is always in whole cells and would be
+## too coarse — a 0.35 m trough still has dimensions.y == 1).
+func is_steppable_at(cell: Vector3i, max_height: float) -> bool:
+	var anchor: Variant = _anchor_by_cell.get(cell)
+	if anchor == null:
+		return false
+	var node: Furniture = _node_by_anchor.get(anchor)
+	if node == null or node.def == null or node.def.mesh == null:
+		return false
+	var mesh_height: float = node.def.mesh.get_aabb().size.y
+	return mesh_height <= max_height
+
+
 ## The Furniture instance covering `cell` (any covered cell resolves to its root
 ## node), or null. Used by the deconstruct ghost to overlay the targeted piece's
 ## own mesh + transform.

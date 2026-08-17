@@ -195,6 +195,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D` | Place an item; returns the node (runtime type `Furniture`) or `null` if unwired/overlapping/no mesh. Emits `furniture_placed(def.id, anchor)`. |
 | `remove_at(cell: Vector3i) -> bool` | Remove the item covering `cell` (any covered cell resolves to its anchor). Reads `node.def_id` for the emitted id — the canonical key, not the cosmetic node name. Emits `furniture_removed`. |
 | `has_at(cell: Vector3i) -> bool` | Whether any item covers `cell`. |
+| `is_steppable_at(cell: Vector3i, max_height: float) -> bool` | True if the furniture at `cell` has mesh AABB height <= `max_height` (used by pathfinder walkability). |
 
 ### Class: Furniture
 

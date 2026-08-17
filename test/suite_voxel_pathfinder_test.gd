@@ -96,3 +96,29 @@ func test_jump_used_when_no_detour() -> void:
 	var finder := _make_finder(solid)
 	var path := finder.find_path(Vector3i(0, 1, 0), Vector3i(4, 1, 0))
 	assert_bool(path.has(Vector3i(2, 2, 0))).is_true()
+
+
+## Short steppable furniture is treated as walkable so colonists route through it,
+## while tall furniture remains blocking.
+func test_routes_across_steppable_furniture() -> void:
+	var solid := {}
+	_fill_floor(solid, -5, 5, -5, 5, 0)
+	var steppable_furniture := {Vector3i(2, 1, 0): true}
+	var tall_furniture := {Vector3i(2, 1, 1): true}
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	var predicate := func(cell: Vector3i) -> bool:
+		if solid.has(cell) or not solid.has(cell + _DOWN) or solid.has(cell + _UP):
+			return false
+		if tall_furniture.has(cell):
+			return false
+		return true
+	finder.set_walkability(predicate)
+
+	# Direct route across the cell with steppable furniture (2, 1, 0)
+	var path := finder.find_path(Vector3i(0, 1, 0), Vector3i(4, 1, 0))
+	assert_int(path.size()).is_equal(5)
+	assert_bool(path.has(Vector3i(2, 1, 0))).is_true()
+
+	# Route blocked by tall furniture at (2, 1, 1) has to go around
+	var path_around := finder.find_path(Vector3i(0, 1, 1), Vector3i(4, 1, 1))
+	assert_bool(path_around.has(Vector3i(2, 1, 1))).is_false()
