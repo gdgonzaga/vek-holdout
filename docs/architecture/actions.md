@@ -13,7 +13,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 
 | File | Type | Responsibility |
 |---|---|---|
-| `subsystems/actions/interaction_component.gd` | Script (Node) | The runtime attachment. Parented under a Furniture node (named exactly `"InteractionComponent"`); `interact(actor)` spawns the UI, mounting it on a CanvasLayer. Owns the actor/target cache and mouse-mode toggling. |
+| `subsystems/actions/interaction_component.gd` | Script (Node) | The runtime attachment. Parented under a Furniture node (named exactly `"InteractionComponent"`); `interact(actor)` spawns the UI, mounting it on a CanvasLayer. Owns the actor/target cache; the cursor/mouse round-trip is owned by [UiGate](ui.md) (the UI registers as a modal). |
 | `subsystems/actions/game_action.gd` | Script (Resource) | Base class for "what happens". One `label: String` export (the button text) + a virtual `execute(actor, target)`. |
 | `subsystems/actions/condition.gd` | Script (Resource) | Base class for gating. A virtual `is_met(actor, target) -> bool` (default `true`). |
 | `subsystems/actions/action_option.gd` | Script (Resource) | One menu button. References a `GameAction` plus an `Array[Condition]`; `is_available` ANDs all conditions. |
@@ -22,8 +22,8 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 | `subsystems/actions/not.gd` | Script (Resource) | Condition composite (`class_name NotCondition`) — inverts a single child `condition`. |
 | `../data/conditions/` | Script (Resource) | Leaf conditions — `CanCarryDispensedItems` (dispenser pickup capacity check), `MinSkillCondition` + `HasItemCondition` (actor gates, shared with `JobDef.conditions`). |
 | `../ui/interaction/interaction_ui.tscn` / `.gd` | Scene/Script | Pop-up `Control` (Label + button list). Built by `InteractionComponent`; one `Button` per `ActionOption`. See [UI](ui.md). |
-| `../data/actions/` | Data | `GameAction` subclasses + their `.tres`. Currently only `print_action.gd` / `print_action.tres` (a smoke test). See [Data Schemas](data-schemas.md). |
-| `../data/actions/options/` | Data *(planned — directory does not exist yet)* | `ActionOption` `.tres` resources. Path is cited in `furniture_def.gd` as the intended location. |
+| `../data/actions/` | Data | `GameAction` subclasses + their `.tres`. Thirteen ship (print/build/instant_build/add_materials/give_item/open_storage/open_crafting/craft/harvest/toggle_harvest/farm_manual/inspect_crop/select_crop). See [Data Schemas](data-schemas.md). |
+| `../data/action_options/` | Data | `ActionOption` `.tres` resources — ten ship (one per shipped action family, e.g. `build_action_option`, `toggle_harvest_action_option`, `select_crop_action_option`). |
 
 ## Signals
 
@@ -37,9 +37,9 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 2. On a hit, `Player._find_interaction_component(hit.collider)` walks **up** the parent chain looking for a direct child named exactly `"InteractionComponent"` (handles any nesting depth). The result is cached in `_current_interactable`.
 3. E press → `Player._try_interact`: if `_current_interactable` is non-null **and** its `action_options` is non-empty, calls `_current_interactable.interact(self)`.
 4. `InteractionComponent.interact(actor)` calls `_open_interaction_ui(actor, get_parent(), action_options, self)` — note the target is the component's **parent** (the Furniture node).
-5. `_open_interaction_ui` releases the mouse, instantiates `interaction_ui.tscn`, connects its `action_selected` / `closed` signals, and mounts it on a CanvasLayer (group `"hud_layer"`, falling back to `"ui_layer"`; in the shipped `main.tscn` only `UILayer` is grouped, so the menu mounts there). The mount happens **before** `setup()` so `@onready` refs resolve.
+5. `_open_interaction_ui` instantiates `interaction_ui.tscn`, connects its `action_selected` signal, and mounts it on a CanvasLayer (group `"hud_layer"` first — the shipped `main.tscn`'s HUDLayer carries it — falling back to `"ui_layer"`). The mount happens **before** `setup()` so `@onready` refs resolve. The UI registers with `UiGate` in its `_ready` (cursor + gameplay-input gating — see [UI](ui.md)).
 6. `InteractionUI.setup(actor, target, options, component)` clears the list, sets the label (`target.get("label")` → falls back to `component.display_name` → then `target.name`), and builds one `Button` per option — text from `option.action.label`, `disabled = not option.is_available(actor, target)`. If the list ends up empty, the UI frees itself immediately.
-7. Player clicks a button → `_on_option_pressed` emits `action_selected(option)` → `_on_action_selected` calls `option.action.execute(actor, target)` → `close()`. Esc (`ui_cancel`) or an empty list also call `close()`.
+7. Player clicks a button → `_on_option_pressed` emits `action_selected(option)` → `_on_action_selected` calls `option.action.execute(actor, target)` and the UI closes (`close()` → freed; Esc also calls `close()`; the empty-list case in step 6 frees directly). The cursor round-trip on free is UiGate's.
 
 **End state:** The selected `GameAction.execute` has run (with the player as `actor` and the Furniture node as `target`); the menu is freed and the mouse re-captured.
 
@@ -48,7 +48,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 **Trigger:** A furniture def with non-empty `action_options` is placed via the [Build](build.md) subsystem.
 
 1. `FurnitureLayer._create_furniture_node(def, dims, yaw)` instantiates `new_furniture_template.tscn` (a `Furniture` root) and assigns `root.def_id = def.id`, `root.def = def`.
-2. After mesh/collision/yaw wiring, if `def is FurnitureDef and not def.action_options.is_empty()`, it creates an `InteractionComponent`, sets `interaction.name = "InteractionComponent"`, adds it as a child of the Furniture root, and copies `def.action_options` onto it verbatim.
+2. After mesh/collision/yaw wiring, the attach condition is capability-driven: a `FurnitureDef` with non-empty `action_options` gets an `InteractionComponent` — and `harvest_params` / `farm_plot_params` auto-append their options to the list before the check (`ToggleHarvest` for harvestable or farm-plot defs; `InspectCrop` + `SelectCrop` + `ToggleHarvest` for farm plots). It creates the component, sets `interaction.name = "InteractionComponent"`, adds it as a child of the Furniture root, and copies the combined options onto it.
 
 **End state:** The spawned Furniture node carries a discoverable `InteractionComponent` child (the exact name `Player._find_interaction_component` looks for) pre-populated with the def's options.
 
@@ -58,28 +58,28 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 
 **Extends:** Node
 **Script:** `subsystems/actions/interaction_component.gd`
-**Description:** The runtime handle the player's raycast resolves to. Parented under a Furniture node (or any interactable); `interact(actor)` builds and mounts the interaction menu. Owns actor/target caching and the mouse-mode flip while the menu is open.
-**Used by:** `Player._try_interact` (calls `interact`), `FurnitureLayer._create_furniture_node` (creates + populates it), `InteractionUI` (the component wires the UI's signals to its own callbacks).
+**Description:** The runtime handle the player's raycast resolves to. Parented under a Furniture node (or any interactable); `interact(actor)` builds and mounts the interaction menu. Owns actor/target caching; the cursor/mouse round-trip while the menu is open is owned by UiGate (the UI registers as a modal), not this component.
+**Used by:** `Player._try_interact` (calls `interact`), `FurnitureLayer._create_furniture_node` (creates + populates it), `InteractionUI` (the component wires the UI's `action_selected` signal to its own callback).
 
 **Properties:**
 
 | Property | Type | Description |
 |---|---|---|
-| `action_options` | `Array[ActionOption]` | The options offered by this target. Plain `var` (not `@export`) — runtime-populated by `FurnitureLayer`, copied from `FurnitureDef.action_options`. |
+| `action_options` | `Array[ActionOption]` | The options offered by this target. Plain `var` (not `@export`) — runtime-populated by `FurnitureLayer`, copied from `FurnitureDef.action_options` (+ the auto-appended harvest/crop options). |
 | `display_name` | `String` | `[export default ""]` UI label fallback for targets without a `label` property (test cubes, ad-hoc bodies). |
+| `info_text` | `String` | Optional live status line the parent furniture sets at runtime (e.g. a blueprint's "Plank 3/15"); the HUD InteractLabel shows it under the action hint. |
 
 **Functions:**
 
 | Function | Description |
 |---|---|
 | `interact(actor: Node) -> void` | Entry point. Opens the UI on `get_parent()` (the target) with `action_options`. |
-| `close() -> void` | Re-captures the mouse after the menu closes. |
 
 ### Class: GameAction
 
 **Extends:** Resource
 **Script:** `subsystems/actions/game_action.gd`
-**Description:** Base class for "what happens when the player picks this option". Subclasses override `execute`. One concrete impl exists: `PrintAction` (`data/actions/print_action.gd`).
+**Description:** Base class for "what happens when the player picks this option". Subclasses override `execute`. Thirteen concrete impls ship (see [Data Schemas](data-schemas.md) for the list — from `PrintAction`'s smoke test through build, storage, crafting, harvest, and crop actions).
 **Used by:** `ActionOption.action`, invoked by `InteractionComponent._on_action_selected`.
 
 **Properties:**

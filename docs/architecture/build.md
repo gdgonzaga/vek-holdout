@@ -41,9 +41,9 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `build_menu_toggled(open)` | player subsystem | `InstructionsLabel` (menu text) | Yes | Build menu visibility |
 | `buildable_selected(id)` | build menu (`build_menu.gd`) | `BuildController` (sets `selected_id` + ghost mesh), Player (enters BUILD_PLACEMENT + recaptures mouse) | Yes | Select a Buildable |
 | `block_placed(pos, block_id)` | `VoxelGrid` (via adapter) | colonists (pathfinding), raids (breach), Functional Rooms | No | Place Block |
-| `furniture_placed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter), GameLog | Yes | Place Furniture |
-| `furniture_removed(def_id, anchor)` | `FurnitureLayer` | Colony (Functional Rooms counter), GameLog | Yes | Remove Furniture |
-| `blueprint_placed(target_def_id, anchor)` | `BlueprintLayer` | Colony (registers a construction Job) | Yes | Spawn Blueprint |
+| `furniture_placed(def_id, anchor)` | `FurnitureLayer` | GameLog | Yes | Place Furniture |
+| `furniture_removed(def_id, anchor)` | `FurnitureLayer` | Colony (job cleanup), GameLog | Yes | Remove Furniture |
+| `blueprint_placed(target_def_id, anchor, blueprint)` | `BlueprintLayer` | Colony (registers a construction Job) | Yes | Spawn Blueprint |
 | `blueprint_removed(target_def_id, anchor)` | `BlueprintLayer` | Colony (cancels the construction Job) | Yes | Build / cancel Blueprint |
 
 ## Flow Trace: Place a voxel block (MVP → Instant)
@@ -67,12 +67,12 @@ Build placement has no same-scene signals — the controller calls strategies/la
 3. `_is_footprint_free(anchor, def)`: for every cell in the (yaw-rotated) footprint, confirms `grid_adapter.is_valid_placement(cell)` AND `furniture_layer.has_at(cell)` is false AND `blueprint_layer.has_at(cell)` is false. Rejects overlap with terrain, blocks, existing furniture, or an existing blueprint.
 4. `_try_commit` builds the `Transform3D` and calls `strategy.commit(...)` → `InstantPlacementStrategy.commit` → `FurnitureLayer.spawn(def, anchor, rotation_state.step)`:
    - Instantiates `new_furniture_template.tscn` (a `Furniture` root); assigns `root.def_id = def.id` and `root.def = def` (the runtime back-ref static data is read through). Assigns `def.mesh` to the `Mesh` node and builds a footprint-sized `BoxShape3D` collision on the `BuildBody` (layer 3) + a trimesh body (layer 1).
-   - When `def is FurnitureDef` and its `action_options` is non-empty, attaches an `InteractionComponent` child named exactly `"InteractionComponent"` and copies the options onto it — see [Actions & Interaction](actions.md) flow trace.
+   - When `def is FurnitureDef`: `action_options` non-empty, or `harvest_params` / `farm_plot_params` set (which auto-append their harvest/crop options), attaches an `InteractionComponent` child named exactly `"InteractionComponent"` and copies the combined options onto it — see [Actions & Interaction](actions.md) flow trace.
    - Positions at `FurnitureLayer.world_origin(anchor, dims, yaw)` (footprint center on XZ, anchor Y).
    - Registers every covered cell in `anchor_by_cell` (so removal by pointing at any covered cell resolves to the item) and the node in `node_by_anchor`.
-   - Emits `furniture_placed(def.id, anchor)` on EventBus → Colony's Functional Rooms counter increments.
+   - Emits `furniture_placed(def.id, anchor)` on EventBus → GameLog posts a "Built" line (Functional Rooms is planned, not a listener yet).
 
-**End state:** Furniture node exists under `FurnitureContainer`; every covered cell reserved; Functional Rooms notified.
+**End state:** Furniture node exists under `FurnitureContainer`; every covered cell reserved; GameLog notified.
 
 ## Flow Trace: Place a blueprint → interact to build (default strategy)
 
@@ -177,7 +177,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 **Extends:** RefCounted
 **Script:** `furniture_layer.gd`
 **Description:** Free-standing furniture placement layer — sibling of `VoxelGridAdapter` for non-block buildables. Spawns a `Furniture` node (from `new_furniture_template.tscn`) under the world's `FurnitureContainer`; owns the anchor + footprint model. Never touches `voxel_tool` — it asks `VoxelGridAdapter` whether candidate cells are free.
-**Used by:** `BuildController` (non-block commit/remove), Colony (Functional Rooms, via `furniture_placed`/`furniture_removed`).
+**Used by:** `BuildController` (non-block commit/remove), Colony (job cleanup, via `furniture_removed`), GameLog (both placement log lines).
 
 **Static helpers:**
 

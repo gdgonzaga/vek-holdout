@@ -17,7 +17,7 @@ Player-facing counterpart to the [Debug Console](debug-console.md): the Debug Co
 | `subsystems/autoloads/game_log.gd` | Script (autoload) | Single owner of log history. Capped ring buffer; emits `entry_added`; auto-subscribes to EventBus signals; exposes `log()` / `info()` / `combat()` / etc. and query APIs. No `class_name` (autoload convention). |
 | `ui/log_feed/log_entry.gd` | Script (`class_name LogEntry`, `RefCounted`) | Immutable value object for one log line: `text`, `category`, `day`, `timestamp`. Cheap to hold by the hundreds in the ring buffer. |
 | `ui/log_feed/log_feed.tscn` / `log_feed.gd` | Scene/Script (`class_name LogFeed`) | Persistent HUD tail mounted on the HUDLayer (layer 10) by [Core](core.md). Renders the last N lines; per-line timeout; tween-driven slide-up on arrival. |
-| `ui/log_feed/log_history.tscn` / `log_history.gd` | Scene/Script (`class_name LogHistory`) | Full scrollback view opened via `SceneManager.open_screen("log_history")` on the UILayer (layer 20). Live-appends while open. |
+| `ui/log_history/log_history.tscn` / `log_history.gd` | Scene/Script (`class_name LogHistory`) | Full scrollback view opened via `SceneManager.open_screen("log_history")` on the UILayer (layer 20). Live-appends while open. |
 
 ## Signals
 
@@ -65,7 +65,7 @@ GameLog also **listens** to these existing EventBus signals (no new EventBus sig
 
 **Trigger:** Player presses `log_history` input (key **H**), handled in `main.gd::_unhandled_input`.
 
-1. `SceneManager.open_screen("log_history")` loads `ui/log_feed/log_history.tscn` onto the UILayer (layer 20).
+1. `SceneManager.open_screen("log_history")` loads `ui/log_history/log_history.tscn` onto the UILayer (layer 20).
 2. `LogHistory._ready` calls `_rebuild_all()` — reads `GameLog.get_entries()` and appends each as BBCode; scrolls to the newest line.
 3. Subscribes to `GameLog.entry_added` so new entries while open append live.
 4. Player dismisses via Close button, **H** again, or **Esc** → `SceneManager.close_screen()` frees the node.
@@ -88,6 +88,7 @@ GameLog also **listens** to these existing EventBus signals (no new EventBus sig
 |---|---|---|
 | `max_entries` | `int` (`@export`, default 200) | Ring buffer cap. Older entries are dropped on overflow. |
 | `tail_lines` | `int` (`@export`, default 6) | How many recent lines `LogFeed` shows at once. Read by the feed as `GameLog.tail_lines`. |
+| `debug_mode` | `bool` (`@export`, default `true`) | When false, `log()` drops DEBUG-category entries entirely (they never enter the buffer). |
 
 **Signals:**
 
@@ -100,10 +101,11 @@ GameLog also **listens** to these existing EventBus signals (no new EventBus sig
 | Function | Description |
 |---|---|
 | `log(message: String, category: int = INFO) -> void` | Primary entry point. Builds a `LogEntry`, appends to the ring buffer, emits `entry_added`. |
-| `info(message) -> void` / `combat(...)` / `system(...)` / `craft(...)` / `colony(...)` | Category convenience wrappers. Internal impl uses `self.log(...)` to avoid clashing with Godot's global `log()` math function. |
+| `info(message) -> void` / `combat(...)` / `system(...)` / `craft(...)` / `colony(...)` / `debug(...)` | Category convenience wrappers. Internal impl uses `self.log(...)` to avoid clashing with Godot's global `log()` math function. |
 | `get_entries() -> Array[LogEntry]` | Full history, oldest → newest. `LogHistory` reads this on open. |
 | `recent(count: int) -> Array[LogEntry]` | Last N entries, oldest → newest of the slice. `LogFeed` reads this on mount. |
 | `clear() -> void` | Wipes history. Called on `EventBus.run_started`. |
+| `serialize() -> Dictionary` / `deserialize(data)` | SaveSystem contract. Only `text`/`category`/`day` persist (`timestamp` is engine uptime, transient); restored entries append **without** emitting `entry_added` (the UI reads `get_entries()`/`recent()` on mount — re-emitting would flood live listeners during a load). |
 | `bbcode(entry: LogEntry) -> String` (static) | Wraps `entry.text` in a `[color=...]` tag per category. Both UI consumers call this so coloring is defined in one place. |
 
 ### Class: LogEntry
@@ -118,7 +120,7 @@ GameLog also **listens** to these existing EventBus signals (no new EventBus sig
 | Property | Type | Description |
 |---|---|---|
 | `text` | `String` | Already-formatted message body (no color/timestamp — coloring applied at render via `GameLog.bbcode()`). |
-| `category` | `int` (Category enum) | `INFO`, `COMBAT`, `SYSTEM`, `CRAFT`, `COLONY`. Drives color. |
+| `category` | `int` (Category enum) | `INFO`, `COMBAT`, `SYSTEM`, `CRAFT`, `COLONY`, `DEBUG`. Drives color. |
 | `day` | `int` | Snapshot of `GameState.current_day` at creation. Guarded so unit tests (no autoloads) don't crash. |
 | `timestamp` | `float` | `Time.get_ticks_msec() / 1000.0` at creation. Used by `LogFeed` for timeout. |
 
@@ -165,7 +167,7 @@ GameLog also **listens** to these existing EventBus signals (no new EventBus sig
 ### Class: LogHistory
 
 **Extends:** Control
-**Script:** `log_history.gd` (in `ui/log_feed/`, `class_name LogHistory`)
+**Script:** `log_history.gd` (in `ui/log_history/`, `class_name LogHistory`)
 **Description:** Full scrollback view. Opened via `SceneManager.open_screen("log_history")` on the UILayer (layer 20); closed via Close button, the `log_history` input toggle, or `ui_cancel` (Esc) — all routed through `SceneManager.close_screen()`. A single scrollable `RichTextLabel` that reads `GameLog.get_entries()` on open and live-appends via `entry_added`. Deliberately simple — none of the index/tween bookkeeping `LogFeed` needs, because the autoload middleman isolates presentation concerns.
 **Used by:** Opened by the `log_history` input in `main.gd::_unhandled_input`.
 **Lifecycle:** `_ready()` rebuilds from history then subscribes to `entry_added`.
