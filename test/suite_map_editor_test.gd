@@ -172,12 +172,85 @@ func test_editor_hud_block_info() -> void:
 	hud.set_mode(MapEditorClass.Mode.BLOCK)
 	assert_bool(hud._block_info_panel.visible).is_true()
 
-	hud.set_block_info("Planks", 3.5)
+	hud.set_block_info("Planks", 5)
 	assert_str(hud._block_label.text).contains("Planks")
-	assert_str(hud._radius_label.text).contains("3.5")
+	assert_str(hud._brush_label.text).contains("5x5x5")
+
+	hud.set_block_info("Wood", 1)
+	assert_str(hud._brush_label.text).contains("1x1x1")
 
 	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
 	assert_bool(hud._block_info_panel.visible).is_false()
+
+
+func test_brush_box_matches_diameter() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	var cell := Vector3i(10, 10, 10)
+
+	# Odd diameters center exactly on the cell; end is inclusive (do_box build).
+	editor._brush_diameter = 1
+	assert_vector(editor._brush_box(cell)[0]).is_equal(cell)
+	assert_vector(editor._brush_box(cell)[1]).is_equal(cell)
+
+	editor._brush_diameter = 5
+	assert_vector(editor._brush_box(cell)[0]).is_equal(cell - Vector3i(2, 2, 2))
+	assert_vector(editor._brush_box(cell)[1]).is_equal(cell + Vector3i(2, 2, 2))
+
+	# Even diameters are biased one cell toward +x/+y/+z.
+	editor._brush_diameter = 4
+	assert_vector(editor._brush_box(cell)[0]).is_equal(cell - Vector3i(1, 1, 1))
+	assert_vector(editor._brush_box(cell)[1]).is_equal(cell + Vector3i(2, 2, 2))
+
+
+## Paint anchors on the struck face (blocky/body) or the derived floor cell
+## (smooth); erase only accepts blocky cells — the same rules for the ghost
+## and the actions, via _target_cell.
+func test_target_cell_surfaces() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+
+	var blocky_hit := {
+		"hit": true, "surface": "blocky",
+		"position": Vector3i(4, 2, 7), "normal": Vector3i(0, 1, 0),
+	}
+	assert_vector(editor._target_cell(blocky_hit, false)).is_equal(Vector3i(4, 3, 7))
+	assert_vector(editor._target_cell(blocky_hit, true)).is_equal(Vector3i(4, 2, 7))
+
+	var smooth_hit := {
+		"hit": true, "surface": "smooth",
+		"position": Vector3i(1, 5, 2), "normal": Vector3i.ZERO,
+	}
+	assert_vector(editor._target_cell(smooth_hit, false)).is_equal(Vector3i(1, 5, 2))
+	assert_vector(editor._target_cell(smooth_hit, true)).is_equal(Vector3i.MIN)
+
+	var miss := {"hit": false, "surface": "", "position": Vector3i.ZERO, "normal": Vector3i.ZERO}
+	assert_vector(editor._target_cell(miss, false)).is_equal(Vector3i.MIN)
+
+
+## Ghost must preview exactly the footprint the paint/erase write covers —
+## sized and positioned from the same _brush_box() the voxel write uses. Odd
+## diameters center on the placement cell; even ones sit half a cell toward
+## +x/+y/+z. No map is loaded, so nothing touches data/maps/*/ sqlite.
+func test_ghost_previews_brush_footprint() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	var hit := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(4, 2, 7),
+		"normal": Vector3i(0, 1, 0),
+	}
+	# Placement cell = position + normal = (4, 3, 7).
+	editor._brush_diameter = 5
+	editor._update_ghost(hit)
+	assert_bool(editor._ghost.visible).is_true()
+	assert_vector(editor._ghost.scale).is_equal(Vector3(5, 5, 5))
+	assert_vector(editor._ghost.global_position).is_equal(Vector3(4.5, 3.5, 7.5))
+
+	editor._brush_diameter = 4
+	editor._update_ghost(hit)
+	assert_vector(editor._ghost.scale).is_equal(Vector3(4, 4, 4))
+	assert_vector(editor._ghost.global_position).is_equal(Vector3(5.0, 4.0, 8.0))
 
 
 func test_map_editor_block_editing_init() -> void:
@@ -186,7 +259,7 @@ func test_map_editor_block_editing_init() -> void:
 	
 	assert_object(editor._block_library).is_not_null()
 	assert_int(editor._selected_block_index).is_equal(6)
-	assert_float(editor._brush_radius).is_equal_approx(1.0, 0.001)
+	assert_int(editor._brush_diameter).is_equal(1)
 	assert_object(editor._ghost).is_not_null()
 	assert_bool(editor._ghost.visible).is_false()
 

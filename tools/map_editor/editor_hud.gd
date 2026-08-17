@@ -12,7 +12,7 @@ var _crosshair: Control
 
 var _block_info_panel: PanelContainer
 var _block_label: Label
-var _radius_label: Label
+var _brush_label: Label
 
 const MODE_NAMES: Array[String] = [
 	"NAVIGATE",
@@ -24,7 +24,7 @@ const MODE_NAMES: Array[String] = [
 
 const MODE_HOTKEYS: Array[String] = [
 	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [Esc] Release Mouse / Menu   [F1-F5] Modes",
-	"[LMB] Paint   [Shift+LMB] Erase   [[/]] Block   [B+Scroll] Radius   [Ctrl+S] Save   [F1-F5] Modes",
+	"[LMB] Paint   [Shift+LMB] Erase   [[/]] Block   [B+Scroll] Size   [Ctrl+S] Save   [F1-F5] Modes",
 	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [Ctrl+S] Save   [F1-F5] Modes",
 	"[LMB] Place   [Shift+LMB] Remove   [Tab] Cycle   [R] Rotate   [Ctrl+S] Save   [F1-F5] Modes",
 	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [F1-F5] Modes",
@@ -74,12 +74,12 @@ func _build_ui() -> void:
 	_block_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
 	vbox.add_child(_block_label)
 
-	_radius_label = Label.new()
-	_radius_label.name = "RadiusLabel"
-	_radius_label.text = "Brush Radius: 1.0"
-	_radius_label.add_theme_font_size_override("font_size", 13)
-	_radius_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
-	vbox.add_child(_radius_label)
+	_brush_label = Label.new()
+	_brush_label.name = "BrushLabel"
+	_brush_label.text = "Brush: 1x1x1"
+	_brush_label.add_theme_font_size_override("font_size", 13)
+	_brush_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	vbox.add_child(_brush_label)
 
 	root.add_child(_block_info_panel)
 
@@ -191,11 +191,11 @@ func _build_ui() -> void:
 	root.add_child(_crosshair)
 
 
-func set_block_info(block_name: String, radius: float) -> void:
+func set_block_info(block_name: String, diameter: int) -> void:
 	if _block_label != null:
 		_block_label.text = "Block: " + block_name
-	if _radius_label != null:
-		_radius_label.text = "Brush Radius: %.1f" % radius
+	if _brush_label != null:
+		_brush_label.text = "Brush: %dx%dx%d" % [diameter, diameter, diameter]
 
 
 func set_mode(mode: int) -> void:

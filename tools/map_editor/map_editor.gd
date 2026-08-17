@@ -17,6 +17,9 @@ const FLY_SPEED: float = 8.0
 const FLY_SPEED_FAST: float = 20.0
 const MOUSE_SENSITIVITY: float = 0.2
 
+## Largest brush edge length B+scroll can reach.
+const MAX_BRUSH_DIAMETER: int = 11
+
 enum Mode {
 	NAVIGATE,
 	BLOCK,
@@ -40,7 +43,7 @@ var _blocky_grid: BlockyGrid = null
 var _block_vt: VoxelTool = null
 var _block_library: BlockLibrary = null
 var _selected_block_index: int = 6 # Default 6 = wood
-var _brush_radius: float = 1.0
+var _brush_diameter: int = 1 # Brush edge length in blocks (B+scroll)
 var _ghost: MeshInstance3D = null
 var _ghost_mat: StandardMaterial3D = null
 
@@ -89,8 +92,8 @@ func _input(event: InputEvent) -> void:
 						_do_block_paint(hit)
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				if _mode == Mode.BLOCK and Input.is_key_pressed(KEY_B):
-					var dir := 1.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
-					_brush_radius = clampf(_brush_radius + dir * 1.0, 1.0, 5.0)
+					var dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
+					_brush_diameter = clampi(_brush_diameter + dir, 1, MAX_BRUSH_DIAMETER)
 					_update_hud_block_info()
 					get_viewport().set_input_as_handled()
 
@@ -467,56 +470,28 @@ func _build_ghost() -> void:
 	add_child(_ghost)
 
 
+## Previews exactly what _apply_block_brush will write at the crosshair cell:
+## a box ghost scaled to the brush diameter, green for paint, red for erase.
 func _update_ghost(hit: Dictionary) -> void:
-	if _ghost == null or _mode != Mode.BLOCK:
-		if _ghost != null:
-			_ghost.visible = false
+	if _ghost == null:
 		return
 
-	if not hit.get("hit", false):
+	var is_erase := Input.is_key_pressed(KEY_SHIFT)
+	var cell := _target_cell(hit, is_erase)
+	if not hit.get("hit", false) or cell == Vector3i.MIN:
 		_ghost.visible = false
 		return
 
 	_ghost.visible = true
-	var is_erase := Input.is_key_pressed(KEY_SHIFT)
-	var cell_pos := Vector3i.ZERO
-
-	var surface: String = hit.get("surface", "")
-	if is_erase:
-		if surface == "blocky":
-			cell_pos = hit.get("position", Vector3i.ZERO)
-		else:
-			_ghost.visible = false
-			return
-	else:
-		if surface == "blocky" or surface == "body":
-			cell_pos = hit.get("position", Vector3i.ZERO) + hit.get("normal", Vector3i.ZERO)
-		elif surface == "smooth":
-			cell_pos = hit.get("position", Vector3i.ZERO)
-		else:
-			_ghost.visible = false
-			return
-
+	var bounds := _brush_box(cell)
+	var box_center: Vector3 = (Vector3(bounds[0]) + Vector3(bounds[1])) * 0.5 + Vector3(0.5, 0.5, 0.5)
 	var terrain := _map_root.get_blocky_terrain() if _map_root != null else null
-	var cell_center: Vector3 = Vector3(cell_pos) + Vector3(0.5, 0.5, 0.5)
 	if terrain != null:
-		_ghost.global_position = terrain.to_global(cell_center)
+		_ghost.global_position = terrain.to_global(box_center)
 	else:
-		_ghost.global_position = cell_center
-
-	if not _ghost.mesh is BoxMesh:
-		var box := BoxMesh.new()
-		box.size = Vector3(1.0, 1.0, 1.0)
-		_ghost.mesh = box
-
-	var scale_factor := (_brush_radius * 2.0 - 1.0) if _brush_radius > 1.0 else 1.0
-	_ghost.scale = Vector3(scale_factor, scale_factor, scale_factor)
-
-	if _ghost_mat != null:
-		if is_erase:
-			_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4)
-		else:
-			_ghost_mat.albedo_color = Color(0.0, 1.0, 0.0, 0.4)
+		_ghost.global_position = box_center
+	_ghost.scale = Vector3(_brush_diameter, _brush_diameter, _brush_diameter)
+	_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
 
 
 func _raycast_from_camera() -> Dictionary:
@@ -531,33 +506,45 @@ func _raycast_from_camera() -> Dictionary:
 	return _blocky_grid.raycast_to_voxel(origin, dir, 100.0)
 
 
-func _do_block_paint(hit: Dictionary) -> void:
-	if _map_root == null or _block_vt == null:
-		return
-	if not hit.get("hit", false):
-		return
-
+## Cell a crosshair stroke would write, or Vector3i.MIN when the hit has no
+## valid target. Paint places on the struck face of blocky/body hits, or the
+## derived floor cell of smooth hits; erase only accepts blocky cells. Shared
+## by the actions and the ghost so both always agree on the anchor.
+func _target_cell(hit: Dictionary, erase: bool) -> Vector3i:
 	var surface: String = hit.get("surface", "")
-	var cell_pos := Vector3i.ZERO
+	var pos: Vector3i = hit.get("position", Vector3i.ZERO)
+	if erase:
+		return pos if surface == "blocky" else Vector3i.MIN
 	if surface == "blocky" or surface == "body":
-		cell_pos = hit.get("position", Vector3i.ZERO) + hit.get("normal", Vector3i.ZERO)
-	elif surface == "smooth":
-		cell_pos = hit.get("position", Vector3i.ZERO)
-	else:
-		return
+		return pos + hit.get("normal", Vector3i.ZERO)
+	if surface == "smooth":
+		return pos
+	return Vector3i.MIN
 
+
+## Brush footprint in cells for one stroke anchored on `cell`: returns
+## [begin, end] with end inclusive, matching `do_box` in this build. Diameter
+## is the full edge length in blocks; odd diameters center exactly on `cell`,
+## even diameters are biased one cell toward +x/+y/+z. Single definition
+## shared by the ghost preview and the voxel write so the preview can never
+## diverge from what lands in the world.
+func _brush_box(cell: Vector3i) -> Array[Vector3i]:
+	var back := (_brush_diameter - 1) / 2
+	var begin := cell - Vector3i(back, back, back)
+	var end := begin + Vector3i(_brush_diameter - 1, _brush_diameter - 1, _brush_diameter - 1)
+	return [begin, end]
+
+
+## Writes one paint/erase stroke's full brush footprint and persists it.
+func _apply_block_brush(cell: Vector3i, value: int) -> void:
 	const MAX_RETRIES := 5
 	const RETRY_DELAY := 0.1
-	_block_vt.value = _selected_block_index
-	var center: Vector3 = _map_root.get_blocky_terrain().to_global(Vector3(cell_pos) + Vector3(0.5, 0.5, 0.5))
+	_block_vt.value = value
+	var bounds := _brush_box(cell)
 
 	for attempt in MAX_RETRIES:
-		if _brush_radius <= 1.0:
-			_block_vt.set_voxel(cell_pos, _selected_block_index)
-		else:
-			var r := int(_brush_radius) - 1
-			_block_vt.do_box(cell_pos - Vector3i(r, r, r), cell_pos + Vector3i(r + 1, r + 1, r + 1))
-		if _block_vt.get_voxel(cell_pos) == _selected_block_index:
+		_block_vt.do_box(bounds[0], bounds[1])
+		if _block_vt.get_voxel(cell) == value:
 			_map_root.get_blocky_terrain().save_modified_blocks()
 			_dirty = true
 			if _hud != null and _map_def != null:
@@ -565,36 +552,25 @@ func _do_block_paint(hit: Dictionary) -> void:
 			return
 		await Engine.get_main_loop().create_timer(RETRY_DELAY).timeout
 
-	push_warning("MapEditor: write at %s did not land after %d retries" % [str(cell_pos), MAX_RETRIES])
+	push_warning("MapEditor: write at %s did not land after %d retries" % [str(cell), MAX_RETRIES])
+
+
+func _do_block_paint(hit: Dictionary) -> void:
+	if _map_root == null or _block_vt == null or not hit.get("hit", false):
+		return
+	var cell := _target_cell(hit, false)
+	if cell == Vector3i.MIN:
+		return
+	_apply_block_brush(cell, _selected_block_index)
 
 
 func _do_block_erase(hit: Dictionary) -> void:
-	if _map_root == null or _block_vt == null:
+	if _map_root == null or _block_vt == null or not hit.get("hit", false):
 		return
-	if not hit.get("hit", false) or hit.get("surface", "") != "blocky":
+	var cell := _target_cell(hit, true)
+	if cell == Vector3i.MIN:
 		return
-
-	var cell_pos: Vector3i = hit.get("position", Vector3i.ZERO)
-	const MAX_RETRIES := 5
-	const RETRY_DELAY := 0.1
-	_block_vt.value = 0
-	var center: Vector3 = _map_root.get_blocky_terrain().to_global(Vector3(cell_pos) + Vector3(0.5, 0.5, 0.5))
-
-	for attempt in MAX_RETRIES:
-		if _brush_radius <= 1.0:
-			_block_vt.set_voxel(cell_pos, 0)
-		else:
-			var r := int(_brush_radius) - 1
-			_block_vt.do_box(cell_pos - Vector3i(r, r, r), cell_pos + Vector3i(r + 1, r + 1, r + 1))
-		if _block_vt.get_voxel(cell_pos) == 0:
-			_map_root.get_blocky_terrain().save_modified_blocks()
-			_dirty = true
-			if _hud != null and _map_def != null:
-				_hud.set_map_info(_map_def.id, _dirty)
-			return
-		await Engine.get_main_loop().create_timer(RETRY_DELAY).timeout
-
-	push_warning("MapEditor: erase at %s did not land after %d retries" % [str(cell_pos), MAX_RETRIES])
+	_apply_block_brush(cell, 0)
 
 
 func _cycle_block(dir: int) -> void:
@@ -620,7 +596,7 @@ func _update_hud_block_info() -> void:
 	if _hud != null and _block_library != null:
 		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
 		var block_name := def.id if def != null else "Unknown"
-		_hud.set_block_info(block_name, _brush_radius)
+		_hud.set_block_info(block_name, _brush_diameter)
 
 
 func save_map() -> void:
