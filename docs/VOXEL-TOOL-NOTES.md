@@ -34,10 +34,15 @@
    collides, and coexists with a blocky terrain in one scene. Keep terrain
    nodes at the origin: a translated `VoxelTerrain` collides at the offset but
    renders no meshes. (See F7.)
+7. **Smooth terrain is editable + persistent at runtime** — `do_sphere`
+   carve/remove and add/set both move the collision surface, and a
+   `VoxelStreamSQLite` flush survives full terrain teardown/rebuild with saved
+   blocks overriding the generator. The mesher has **no material API** (one
+   fixed appearance; voxel values are pure SDF density). (See F8.)
 
 ---
 
-## Verified facts (F1–F7)
+## Verified facts (F1–F8)
 
 ### F1 — No in-editor paint tool ships with zylann.voxel
 `VoxelTerrainEditorPlugin` auto-registers but provides only previews + a monitor
@@ -136,6 +141,43 @@ automated via `--auto-quit`, see the scene's header for CLI flags):
 - Headless runs use the dummy rendering server, which rejects voxel mesh
   surfaces entirely — collision and raycasts still work headless, rendering
   does not. Judge rendering only from a windowed run.
+
+### F8 — Smooth terrain is EDITABLE + PERSISTENT at runtime; no material API (2026-08-17 spike)
+Validated by `testing/zylann/smooth_edit_spike.tscn` (windowed run, collision-
+measured column probes; `--auto-quit` automated). All verdicts GO — this is the
+green light for `smooth_grid.gd` (dual-voxel conversion Phase 2, docs/TODO.md):
+
+- **`do_sphere` edits work on smooth terrain.** `MODE_REMOVE` carves (surface
+  dropped exactly 2.0 for a r=2.5 sphere centered 0.5 above ground);
+  `MODE_SET` + `value = 1` adds solid ground (surface rose to the sphere top).
+- **Channel semantics (this build): channel 0 stores float SDF — solid ≤ 0,
+  air > 0** (probed values: deep −1.999, surface 0.000, air +1.999). `MODE_SET
+  value v` writes SDF `−v`, so **value 0 is still solid** — never "carve" with
+  `MODE_SET 0`; use `MODE_REMOVE`. `get_voxel` (int) returns the raw bit
+  pattern (3221216767 for −1.999) — meaningless; read `get_voxel_f`.
+- **The smooth analogue of F2 holds: `VoxelStreamSQLite` +
+  `save_modified_blocks()` persists carve AND add across a full terrain
+  teardown/rebuild** (same generator, same db). Saved blocks override the
+  generator; untouched columns regenerate identically.
+- **`VoxelMesherTransvoxel` has NO material API in this build** — zero
+  material-matching properties or methods (full property list in the spike
+  log), and terrain meshes are **not node children** (no `MeshInstance3D`
+  under the terrain; server-side). Voxel values are pure density — they cannot
+  carry material identity. Consequence (D2): terrain material defs carry
+  identity/hardness only; the smooth terrain has ONE fixed visual appearance
+  in v1. No per-material rendering to design around.
+- **Block-streaming signals (D4 heightfield-cache invalidation hooks), exact
+  signatures:** `block_loaded(position: Vector3i)`,
+  `block_unloaded(position: Vector3i)`,
+  `mesh_block_entered(position: Vector3i)`,
+  `mesh_block_exited(position: Vector3i)` — all single-arg, positions in
+  block-grid coordinates. A rebuild streamed 5832 `block_loaded` / 4096
+  `mesh_block_entered` emissions, so both fire generously during normal
+  streaming — hook `block_unloaded`/`block_loaded` pairs for eviction.
+- **`VoxelTool` surface in this build:** modes Add/Remove/Set (enum hint lists
+  them; `MODE_SET` parses statically); brushes `do_hemisphere`, `do_point`,
+  `do_sphere`, `do_box`, `do_path`, `do_mesh`; reads `get_voxel(_f)`,
+  `set_voxel(_f)`, per-voxel `set/get_voxel_metadata`.
 
 ---
 
