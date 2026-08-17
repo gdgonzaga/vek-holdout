@@ -5,33 +5,18 @@ extends GdUnitTestSuite
 ## duck-typed contract, hauling tool retention, and the Furniture state bag.
 
 const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
-const COLONIST_SCENE: PackedScene = preload("res://subsystems/colonists/colonist.tscn")
 
-# Swapped into Colony for haul tests so real map wiring isn't needed; restored
-# in after_test (mutating the real registry's container would leak state).
-var _real_registry: StorageRegistry
-var _test_registry: StorageRegistry
-var _container: Node3D
+const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+
+var _sandbox: ColonySandbox
 
 
 func before_test() -> void:
-	_real_registry = Colony.storage_registry
-	_test_registry = StorageRegistry.new()
-	auto_free(_test_registry)
-	_container = Node3D.new()
-	auto_free(_container)
-	_test_registry.on_map_wired(_container)
-	Colony.storage_registry = _test_registry
+	_sandbox = ColonySandbox.new(self)
 
 
 func after_test() -> void:
-	Colony.storage_registry = _real_registry
-
-
-func _make_colonist() -> Colonist:
-	var colonist: Colonist = COLONIST_SCENE.instantiate()
-	add_child(auto_free(colonist))
-	return colonist
+	_sandbox.restore()
 
 
 func _false_leaf() -> NotCondition:
@@ -51,22 +36,6 @@ func _make_def(labor_id: String, conditions: Array) -> JobDef:
 	return def
 
 
-## A crate Furniture (StorageInventory child, capacity set directly — the test
-## bypasses def storage params; _ready's param read is a no-op without a def)
-## registered in the test container. The container lives outside the tree, so
-## nothing's _ready runs — everything needed is set here explicitly.
-func _make_crate(planks: int) -> Furniture:
-	var crate := Furniture.new()
-	auto_free(crate)
-	var storage := StorageInventory.new()
-	storage.name = "StorageInventory"
-	crate.add_child(storage)
-	storage.capacity = 100.0
-	storage.add("plank", planks)
-	_container.add_child(crate)
-	return crate
-
-
 # ── Requirement gating ────────────────────────────────────────────────────────
 
 func test_meets_requirements_empty_conditions_pass_with_null_target() -> void:
@@ -82,7 +51,7 @@ func test_meets_requirements_failing_condition_fails() -> void:
 
 
 func test_try_assign_enforces_requirements() -> void:
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	var def := _make_def("construction", [_false_leaf()])
 	var job := Job.from_def(def)
 	assert_bool(job.try_assign(colonist)).is_false()
@@ -93,7 +62,7 @@ func test_try_assign_enforces_requirements() -> void:
 
 
 func test_get_best_job_for_skips_failing_requirements() -> void:
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	colonist.set_labor_priority("construction", 2) # beats hauling's default 1
 	var board := JobBoard.new()
 	auto_free(board)
@@ -107,7 +76,7 @@ func test_get_best_job_for_skips_failing_requirements() -> void:
 
 
 func test_get_best_job_for_returns_null_when_all_gated() -> void:
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	var board := JobBoard.new()
 	auto_free(board)
 	board.add_job(Job.from_def(_make_def("construction", [_false_leaf()])))
@@ -136,11 +105,11 @@ func test_hauling_fetches_for_any_material_sink() -> void:
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
-	var crate := _make_crate(5)
+	var crate := _sandbox.make_crate("plank", 5)
 	var job := Job.from_def(HAULING_DEF)
 	job.target_node = sink
 	job.location = Vector3.ZERO
-	var leg := HAULING_DEF.get_next_leg(_make_colonist(), job)
+	var leg := HAULING_DEF.get_next_leg(_sandbox.make_colonist(), job)
 	assert_int(leg.kind).is_equal(HaulingJobDef.FETCH)
 	assert_object(leg.target_node).is_same(crate)
 
@@ -151,7 +120,7 @@ func test_haul_job_survives_source_drought() -> void:
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
-	_make_crate(0) # drought: no crate stocks a needed material
+	_sandbox.make_crate("plank", 0) # drought: no crate stocks a needed material
 	var job := Job.from_def(HAULING_DEF)
 	job.target_node = sink
 	# Unclaimable while the drought lasts (selection skips it)…
@@ -166,10 +135,10 @@ func test_restock_makes_drought_haul_job_claimable_again() -> void:
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
-	var crate := _make_crate(0)
+	var crate := _sandbox.make_crate("plank", 0)
 	var job := Job.from_def(HAULING_DEF)
 	job.target_node = sink
-	_test_registry.inventory_of(crate).add("plank", 2)
+	_sandbox.test_registry.inventory_of(crate).add("plank", 2)
 	assert_bool(HAULING_DEF.is_available(job)).is_true()
 	assert_bool(HAULING_DEF.should_close(job)).is_false()
 
@@ -197,8 +166,8 @@ func test_default_def_should_close_mirrors_is_available() -> void:
 
 
 func test_board_keeps_drought_haul_job_through_prune_until_restock() -> void:
-	var colonist := _make_colonist()
-	var crate := _make_crate(0)
+	var colonist := _sandbox.make_colonist()
+	var crate := _sandbox.make_crate("plank", 0)
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
@@ -213,13 +182,13 @@ func test_board_keeps_drought_haul_job_through_prune_until_restock() -> void:
 	# …but the prune must not delete it — it waits on the board for restock.
 	assert_object(board.get_job(job.id)).is_not_null()
 	# A restocked crate flips it claimable; the next poll picks it up.
-	_test_registry.inventory_of(crate).add("plank", 5)
+	_sandbox.test_registry.inventory_of(crate).add("plank", 5)
 	assert_object(board.get_best_job_for(colonist)).is_same(job)
 
 
 func test_job_should_close_waits_for_last_assignee() -> void:
-	var colonist := _make_colonist()
-	_make_crate(5)
+	var colonist := _sandbox.make_colonist()
+	_sandbox.make_crate("plank", 5)
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
@@ -241,30 +210,31 @@ func test_producer_spawns_haul_job_with_zero_stock() -> void:
 	# without materials. workbench costs 15 planks (data/furniture/workbench.tres).
 	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
 	bp.target_def_id = "workbench"
-	_make_crate(0)
+	_sandbox.make_crate("plank", 0)
 	var anchor := Vector3i(1, 2, 3)
 	Colony._on_blueprint_placed("workbench", anchor, bp)
 	var spawned: Job = null
-	for j in Colony.job_board.get_jobs():
+	for j in _sandbox.test_board.get_jobs():
 		if j.anchor_cell == anchor:
 			spawned = j
 			break
 	assert_object(spawned).is_not_null()
 	assert_str(spawned.labor_id).is_equal("hauling")
 	assert_bool(spawned.should_close()).is_false() # drought-waiting, not dead
-	# Cleanup: _on_blueprint_removed drops jobs by anchor (the real board).
+	# Removal drops jobs by anchor — a later blueprint_removed can never strand
+	# one on the board.
 	Colony._on_blueprint_removed("workbench", anchor)
-	assert_object(Colony.job_board.get_job(spawned.id)).is_null()
+	assert_int(_sandbox.test_board.get_jobs().size()).is_equal(0)
 
 
 # ── Tool retention ────────────────────────────────────────────────────────────
 
 func test_on_end_dumps_materials_but_keeps_tools() -> void:
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	colonist.inventory.add("plank", 2)
 	colonist.inventory.add("axe", 1) # data/items/axe.tres: tags ["tool", "axe"]
-	var crate := _make_crate(0)
-	var crate_inv := _test_registry.inventory_of(crate)
+	var crate := _sandbox.make_crate("plank", 0)
+	var crate_inv := _sandbox.test_registry.inventory_of(crate)
 	HAULING_DEF.on_end(false, colonist, null, null, 0.0)
 	assert_int(crate_inv.get_item_count("plank")).is_equal(2)
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)

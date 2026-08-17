@@ -18,53 +18,22 @@ const TEND_JOB_DEF: JobDef = preload("res://data/jobs/tend.tres")
 const HARVEST_JOB_DEF: JobDef = preload("res://data/jobs/harvest.tres")
 const PRUNING_KIT_DEF: ItemDef = preload("res://data/items/pruning_kit.tres")
 
-const COLONIST_SCENE: PackedScene = preload("res://subsystems/colonists/colonist.tscn")
-const PLAYER_SCENE: PackedScene = preload("res://subsystems/player/player.tscn")
+const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
-var _real_registry: StorageRegistry
-var _real_board: JobBoard
-var _test_registry: StorageRegistry
-var _test_board: JobBoard
-var _container: Node3D
+var _sandbox: ColonySandbox
 var _furniture_layer: FurnitureLayer
 
 
 func before_test() -> void:
-	_real_registry = Colony.storage_registry
-	_real_board = Colony.job_board
-	_test_registry = StorageRegistry.new()
-	auto_free(_test_registry)
-	_test_board = JobBoard.new()
-	auto_free(_test_board)
-	_container = Node3D.new()
-	auto_free(_container)
-	add_child(_container)
-	_test_registry.on_map_wired(_container)
-	Colony.storage_registry = _test_registry
-	Colony.job_board = _test_board
-
+	GameLog.clear() # plant()/harvest log into the persistent autoload
+	_sandbox = ColonySandbox.new(self)
 	_furniture_layer = FurnitureLayer.new()
-	_furniture_layer.set_container(_container)
+	_furniture_layer.set_container(_sandbox.container)
 	CropLibrary.reload()
 
 
 func after_test() -> void:
-	Colony.storage_registry = _real_registry
-	Colony.job_board = _real_board
-
-
-func _make_colonist() -> Colonist:
-	var c: Colonist = COLONIST_SCENE.instantiate()
-	auto_free(c)
-	_container.add_child(c)
-	return c
-
-
-func _make_player() -> Player:
-	var p: Player = PLAYER_SCENE.instantiate()
-	auto_free(p)
-	_container.add_child(p)
-	return p
+	_sandbox.restore()
 
 
 func test_crop_definitions_and_yield_tiers() -> void:
@@ -123,7 +92,7 @@ func test_growable_lifecycle_plant_water_mature() -> void:
 	assert_bool(growable.needs_water()).is_true()
 
 	# 3. Water restores hydration
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	growable.water(colonist)
 	assert_float(growable.get_water_level()).is_equal_approx(100.0, 0.01)
 	assert_bool(growable.needs_water()).is_false()
@@ -153,7 +122,7 @@ func test_tending_milestones_and_decay() -> void:
 	assert_bool(growable.needs_tending()).is_true()
 
 	# Tend clears untended state
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	growable.tend(colonist)
 	assert_bool(growable.needs_tending()).is_false()
 
@@ -183,8 +152,23 @@ func test_early_harvest_dynamic_yields_and_neglect_penalty() -> void:
 	assert_int(full_yields.size()).is_equal(1)
 	assert_int(full_yields[0].count).is_equal(10)
 
+	# Neglect penalty (holdout_wheat: 6h grace, -25% yield per 6h past it, full
+	# tier 15). neglect_time is _process-owned, so it's set through the state
+	# bag exactly as the simulation loop would.
+	var wheat_trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, Vector3i(9, 0, 9), 0)
+	var wheat_growable := wheat_trough.get_node_or_null("Growable") as Growable
+	wheat_growable.plant("holdout_wheat")
+	wheat_growable.set_growth_progress(1.0)
+	assert_int(wheat_growable.get_harvest_yields()[0].count).is_equal(15) # tended baseline
+	# 12h untended = one full period past the grace: round(15 * 0.75) = 11
+	wheat_trough.state["growable"]["neglect_time"] = 12.0
+	assert_int(wheat_growable.get_harvest_yields()[0].count).is_equal(11)
+	# 30h = four periods: the penalty floors at zero — nothing left to harvest
+	wheat_trough.state["growable"]["neglect_time"] = 30.0
+	assert_int(wheat_growable.get_harvest_yields().size()).is_equal(0)
+
 	# Complete harvest via Harvestable
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	var completed := harvestable.complete(colonist)
 	assert_bool(completed).is_true()
 	assert_bool(colonist.inventory.has_item("cave_spud", 10)).is_true()
@@ -205,7 +189,7 @@ func test_gating_conditions_on_sow_and_tend_jobs() -> void:
 	growable.plant("bio_gel_orchid")
 	growable.set_is_tended(false)
 
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	# Unskilled colonist (farming lvl 1, no tool)
 	assert_int(colonist.skill_set.get_level("farming")).is_equal(1)
 
@@ -239,7 +223,7 @@ func test_colony_job_board_farming_dispatch() -> void:
 	assert_object(jobs[0].def).is_same(SOW_JOB_DEF)
 
 	# 2. SOW job completion
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	var sow_leg := SOW_JOB_DEF.get_next_leg(colonist, jobs[0])
 	assert_object(sow_leg).is_not_null()
 	SOW_JOB_DEF.complete(colonist, sow_leg, jobs[0])
@@ -269,8 +253,8 @@ func test_job_defs_and_growable_record_no_xp() -> void:
 	var anchor := Vector3i(20, 0, 20)
 	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)
 	var growable := trough.get_node_or_null("Growable") as Growable
-	var colonist := _make_colonist()
-	var player := _make_player()
+	var colonist := _sandbox.make_colonist()
+	var player := _sandbox.make_player()
 
 	# Sow def completion records nothing
 	growable.set_selected_crop("cave_spud")
@@ -278,7 +262,7 @@ func test_job_defs_and_growable_record_no_xp() -> void:
 	sow_job.target_node = trough
 	var sow_leg := SOW_JOB_DEF.get_next_leg(colonist, sow_job)
 	SOW_JOB_DEF.complete(colonist, sow_leg, sow_job)
-	assert_int(_skill_uses(colonist.skill_set, "farming")).is_equal(0)
+	assert_int(_sandbox.skill_uses(colonist.skill_set, "farming")).is_equal(0)
 
 	# Water def completion (-> growable.water) records nothing
 	growable.set_water_level(20.0)
@@ -287,7 +271,7 @@ func test_job_defs_and_growable_record_no_xp() -> void:
 	var water_leg := WATER_JOB_DEF.get_next_leg(colonist, water_job)
 	WATER_JOB_DEF.complete(colonist, water_leg, water_job)
 	assert_float(growable.get_water_level()).is_equal_approx(100.0, 0.01)
-	assert_int(_skill_uses(colonist.skill_set, "farming")).is_equal(0)
+	assert_int(_sandbox.skill_uses(colonist.skill_set, "farming")).is_equal(0)
 
 	# Tend def completion (-> growable.tend) records nothing
 	growable.set_is_tended(false)
@@ -296,7 +280,7 @@ func test_job_defs_and_growable_record_no_xp() -> void:
 	var tend_leg := TEND_JOB_DEF.get_next_leg(colonist, tend_job)
 	TEND_JOB_DEF.complete(colonist, tend_leg, tend_job)
 	assert_bool(growable.is_tended()).is_true()
-	assert_int(_skill_uses(colonist.skill_set, "farming")).is_equal(0)
+	assert_int(_sandbox.skill_uses(colonist.skill_set, "farming")).is_equal(0)
 
 	# Growable is XP-free for player actors too — FarmManualAction's gauge
 	# callback owns the player's farming XP now.
@@ -304,17 +288,13 @@ func test_job_defs_and_growable_record_no_xp() -> void:
 	growable.water(player)
 	growable.set_is_tended(false)
 	growable.tend(player)
-	assert_int(_skill_uses(player.skill_set, "farming")).is_equal(0)
-
-
-func _skill_uses(skill_set: SkillSet, skill_id: String) -> int:
-	return int(skill_set.skills.get(skill_id, {}).get("progress", 0))
+	assert_int(_sandbox.skill_uses(player.skill_set, "farming")).is_equal(0)
 
 
 func test_farming_work_times_authored_in_tres() -> void:
 	# work_time lives in the .tres now (rule 1), not script literals; the shared
 	# FarmingJobDef.begin must read it (L1 farming multiplier = 1.0 here).
-	var colonist := _make_colonist()
+	var colonist := _sandbox.make_colonist()
 	var job := Job.from_def(SOW_JOB_DEF)
 	assert_float(SOW_JOB_DEF.begin(colonist, null, job)).is_equal_approx(2.0, 0.01)
 	job = Job.from_def(WATER_JOB_DEF)
@@ -329,7 +309,7 @@ func test_player_farm_manual_action() -> void:
 	var growable := trough.get_node_or_null("Growable") as Growable
 
 	growable.set_selected_crop("cave_spud")
-	var player := _make_player()
+	var player := _sandbox.make_player()
 	var action := FarmManualAction.new()
 
 	# Player plants directly

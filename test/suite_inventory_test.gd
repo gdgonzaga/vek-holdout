@@ -2,11 +2,14 @@ extends GdUnitTestSuite
 
 ## Unit tests for the Inventory system (Inventory, add, remove, transfer_to).
 
+const Doubles = preload("res://test/helpers/doubles.gd")
+
 # ── Test doubles ────────────────────────────────────────────────────────────────
 
 ## Mock ItemDefs with known weights.
 var _wood: ItemDef
 var _stone: ItemDef
+
 
 func before_test() -> void:
 	_wood = ItemDef.new()
@@ -18,9 +21,9 @@ func before_test() -> void:
 	auto_free(_stone)
 
 
-## Helper: creates a TestInventory with the given capacity and mock defs wired up.
+## Helper: creates a MockInventory with the given capacity and mock defs wired up.
 func _make_inventory(capacity: float, defs: Dictionary) -> Inventory:
-	var inv := TestInventory.new()
+	var inv := Doubles.MockInventory.new()
 	inv.capacity = capacity
 	inv._defs = defs
 	auto_free(inv)
@@ -271,7 +274,7 @@ func test_storage_inventory_loads_capacity_from_def() -> void:
 	var furniture := Furniture.new()
 	auto_free(furniture)
 	furniture.def = def
-	var storage := TestStorageInventory.new()
+	var storage := Doubles.MockStorageInventory.new()
 	storage._defs = {"wood": _wood}
 	furniture.add_child(storage)
 	auto_free(storage)
@@ -284,7 +287,7 @@ func test_storage_inventory_no_params_leaves_capacity_default() -> void:
 	auto_free(furniture)
 	furniture.def = FurnitureDef.new()      # storage_params == null
 	auto_free(furniture.def)
-	var storage := TestStorageInventory.new()
+	var storage := Doubles.MockStorageInventory.new()
 	storage._defs = {"wood": _wood}
 	furniture.add_child(storage)
 	auto_free(storage)
@@ -293,7 +296,7 @@ func test_storage_inventory_no_params_leaves_capacity_default() -> void:
 
 ## No parent Furniture (orphan) — capacity stays at the default.
 func test_storage_inventory_no_parent_leaves_capacity_default() -> void:
-	var storage := TestStorageInventory.new()
+	var storage := Doubles.MockStorageInventory.new()
 	storage._defs = {"wood": _wood}
 	auto_free(storage)
 	storage._apply_storage_params()
@@ -304,7 +307,7 @@ func test_storage_inventory_no_parent_leaves_capacity_default() -> void:
 func test_transfer_between_inventory_and_storage() -> void:
 	var defs := {"wood": _wood}
 	var player := _make_inventory(50.0, defs)
-	var crate := TestStorageInventory.new()
+	var crate := Doubles.MockStorageInventory.new()
 	crate._defs = defs
 	crate.capacity = 8.0   # bypass _ready; set capacity directly
 	auto_free(crate)
@@ -319,23 +322,3 @@ func test_transfer_between_inventory_and_storage() -> void:
 	assert_int(unplaced2).is_equal(0)
 	assert_int(player.get_item_count("wood")).is_equal(10)
 	assert_int(crate.get_item_count("wood")).is_equal(0)
-
-
-# ── TestInventory subclass ─────────────────────────────────────────────────────
-
-## Inventory with mockable item definitions for testing.
-class TestInventory extends Inventory:
-	var _defs: Dictionary = {}
-
-	func _get_def(item_id: String) -> ItemDef:
-		return _defs.get(item_id)
-
-
-## StorageInventory with mockable item definitions for testing. Extends the
-## real StorageInventory so transfer_to/can_add run the production code path;
-## only _get_def is overridden to avoid needing .tres files in ItemDB.
-class TestStorageInventory extends StorageInventory:
-	var _defs: Dictionary = {}
-
-	func _get_def(item_id: String) -> ItemDef:
-		return _defs.get(item_id)

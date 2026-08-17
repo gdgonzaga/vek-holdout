@@ -2,6 +2,8 @@ extends GdUnitTestSuite
 
 ## Unit tests for the Condition system (Condition, AllOf, AnyOf, NotCondition).
 
+const Doubles = preload("res://test/helpers/doubles.gd")
+
 var _always_false: NotCondition
 
 func before_test() -> void:
@@ -150,7 +152,7 @@ func test_min_skill_fails_with_empty_skill_id() -> void:
 func _make_actor_with_inventory(defs: Dictionary, stacks: Dictionary) -> CarryingActor:
 	var actor := CarryingActor.new()
 	auto_free(actor)
-	var inv := MockInventory.new()
+	var inv := Doubles.MockInventory.new()
 	auto_free(inv)
 	inv.capacity = 100.0
 	inv._defs = defs
@@ -212,10 +214,3 @@ class SkilledActor extends Node:
 ## Actor with an Inventory-shaped property, as HasItemCondition resolves it.
 class CarryingActor extends Node:
 	var inventory: Inventory
-
-## Inventory with mockable item definitions (same pattern as suite_inventory_test).
-class MockInventory extends Inventory:
-	var _defs: Dictionary = {}
-
-	func _get_def(item_id: String) -> ItemDef:
-		return _defs.get(item_id)
