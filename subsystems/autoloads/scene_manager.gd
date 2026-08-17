@@ -157,26 +157,32 @@ func _remove_recursive(path: String) -> void:
 	DirAccess.remove_absolute(path)
 
 
-## If the map's VoxelTerrain uses a VoxelStreamSQLite backed by a res:// path,
-## copy the pristine database to user://maps/<map_id>/ and redirect the stream.
-## If the terrain has no stream, inject one pointing at user://maps/<map_id>/.
-## This keeps authored maps untouched while allowing runtime mutations.
+## Copy-on-load for BOTH voxel streams (dual-voxel Phase 4): each terrain's
+## sqlite db is copied from res:// into user://maps/<map_id>/ on first visit
+## and the stream repointed there, so runtime mutations never touch authored
+## data (SaveSystem INV-1). A missing res:// source is fine — the generator is
+## the baseline and the runtime db is created on first save. Terrains with no
+## baked stream (template-stamped maps) get one injected at the runtime path.
+## The blocky/smooth pairing comes from Map.persisted_streams so this can't
+## drift from SaveSystem's flush/snapshot.
 func _redirect_sqlite_stream(map: Node, map_id: String) -> void:
 	var m: Map = map as Map
 	if m == null:
 		return
-	var terrain := m.get_blocky_terrain()
-	if terrain == null:
-		return
-	# Ensure the runtime directory exists.
 	var runtime_dir := "user://maps/%s/" % map_id
-	var runtime_path := runtime_dir + "map.sqlite"
 	DirAccess.make_dir_recursive_absolute(runtime_dir.trim_suffix("/"))
+	for pair: Dictionary in m.persisted_streams():
+		_redirect_terrain_stream(pair["terrain"], runtime_dir + pair["db"])
 
+
+## Copy/attach one terrain's sqlite stream. Only copies res:// sources
+## (user:// is already a runtime copy) and only when the runtime copy doesn't
+## exist yet — an existing copy is the player's progress and must never be
+## overwritten by the authored original.
+func _redirect_terrain_stream(terrain: VoxelTerrain, runtime_path: String) -> void:
 	if terrain.stream is VoxelStreamSQLite:
 		var stream: VoxelStreamSQLite = terrain.stream
 		var src_path: String = stream.database_path
-		# Only copy res:// sources — user:// is already a runtime copy.
 		if src_path.begins_with("res://"):
 			if not FileAccess.file_exists(runtime_path) and FileAccess.file_exists(src_path):
 				var err := DirAccess.copy_absolute(src_path, runtime_path)

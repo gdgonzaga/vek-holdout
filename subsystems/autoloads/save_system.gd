@@ -38,6 +38,13 @@ var _active_slot: String = ""
 # set global_position / camera orientation.
 var _pending_player: Variant = null
 
+# True only inside load_game's swap window. The outgoing map's map_unloading
+# must NOT park then: load_game has already wiped user://maps and restored the
+# slot's dbs, so a park flush would write through stale sqlite connections to
+# unlinked files (sporadic "disk I/O error") and overwrite the slot-restored
+# _parked entry with the outgoing map's live state — the slot is the truth.
+var _loading := false
+
 
 func _ready() -> void:
 	EventBus.day_rolled_over.connect(_on_day_rolled_over)
@@ -88,6 +95,12 @@ func save_game() -> bool:
 	var current_id := SceneManager.get_current_scene_id()
 	if current_id != "":
 		_park_current_map(current_id)
+	# Zylann commits block saves in sqlite transactions whose only outward
+	# sign is a hot <db>-journal file; a raw copy raced against one yields a
+	# stale (empty) database — the slot then restores nothing. Wait for the
+	# journals to clear before snapshotting. Makes save_game a coroutine;
+	# both callers (pause menu, midnight autosave) are fire-and-forget.
+	await _await_stream_quiesce(2.0)
 
 	var state := {
 		"format_version": _FORMAT_VERSION,
@@ -148,7 +161,13 @@ func load_game(slot: String) -> bool:
 	_active_slot = slot
 	GameState.set_save_slot(slot)
 
-	# (3) INV-2: wipe scratch runtime maps, then restore from this slot.
+	# (3) INV-2: wipe scratch runtime maps, then restore from this slot. The
+	# outgoing map swaps out under _loading — see that flag for why its park
+	# is deliberately skipped. Quiesce first so pending block-save transactions
+	# finish before their files are unlinked (kills the stale-connection
+	# "disk I/O error" spam the Phase-4 smoke surfaced).
+	_loading = true
+	await _await_stream_quiesce(2.0)
 	SceneManager.wipe_map_cache()
 	_restore_maps_from_slot(sdir + "maps/")
 
@@ -158,6 +177,7 @@ func load_game(slot: String) -> bool:
 	# _restore_player runs.
 	var target_scene: String = String(meta.get("current_scene_id", "base"))
 	await SceneManager.swap_map(target_scene)
+	_loading = false
 	if _pending_player != null:
 		_restore_player(_pending_player)
 		_pending_player = null
@@ -259,10 +279,9 @@ func _park_current_map(map_id: String) -> void:
 	var map := SceneManager.get_current_map() as Map
 	if map == null:
 		return
-	# (1) persist block types to the runtime sqlite
-	var terrain := map.get_blocky_terrain()
-	if terrain != null:
-		terrain.save_modified_blocks()
+	# (1) persist block types to the runtime sqlite — both grids (the blocky
+	# terrain AND the smooth terrain's terrain.sqlite, dual-voxel Phase 4)
+	map.flush_voxel_streams()
 	# (2) capture in-memory metadata
 	var rec: Dictionary = {"voxel_hp": map.get_blocky_grid().serialize()}
 	var bc := map.find_child("BuildController") as BuildController
@@ -275,6 +294,10 @@ func _park_current_map(map_id: String) -> void:
 
 
 func _on_map_unloading(map_id: String) -> void:
+	# During load_game the slot owns the truth — see _loading. Every other
+	# unload (map swap, quit-to-menu) parks as usual.
+	if _loading:
+		return
 	_park_current_map(map_id)
 
 
@@ -306,9 +329,43 @@ func _restore_player(data: Variant) -> void:
 # Snapshot / restore runtime map files (INV-2 scratch management)
 # =============================================================================
 
-## Copy every user://maps/<id>/map.sqlite into <slot_maps_dir>/<id>/map.sqlite
-## so the slot owns a snapshot of each map the player has touched. Missing
-## source dirs are skipped silently (the map may never have been visited).
+## Wait until no sqlite rollback journal (<db>-journal) is hot anywhere under
+## user://maps/, then one frame more. VoxelStreamSQLite commits block saves in
+## transactions; the hot journal is the only reliable outward sign one is in
+## flight, and journal removal happens after the db pages are flushed — so
+## once it's gone, a plain file copy sees every committed block. Bounded so a
+## stuck stream can never hang save/load; the worst case is the pre-fix race.
+func _await_stream_quiesce(timeout_sec: float) -> void:
+	var waited := 0.0
+	while waited < timeout_sec and _has_hot_journal("user://maps/"):
+		await get_tree().create_timer(0.05).timeout
+		waited += 0.05
+	await get_tree().process_frame
+
+
+func _has_hot_journal(path: String) -> bool:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return false
+	dir.list_dir_begin()
+	var entry := dir.get_next()
+	while entry != "":
+		if dir.current_is_dir() and not entry.begins_with("."):
+			if _has_hot_journal(path.trim_suffix("/").path_join(entry)):
+				dir.list_dir_end()
+				return true
+		elif entry.ends_with("-journal"):
+			dir.list_dir_end()
+			return true
+		entry = dir.get_next()
+	dir.list_dir_end()
+	return false
+
+## Copy each map's persisted stream dbs (map.sqlite blocky, terrain.sqlite
+## smooth — Map.STREAM_DBS, dual-voxel Phase 4) into <slot_maps_dir>/<id>/ so
+## the slot owns a snapshot of each map the player has touched. Missing source
+## dirs are skipped silently (the map may never have been visited); a missing
+## db file too (a stream with no edits yet may have created none).
 func _snapshot_maps_to_slot(slot_maps_dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(slot_maps_dir.trim_suffix("/"))
 	var src := DirAccess.open("user://maps/")
@@ -318,20 +375,25 @@ func _snapshot_maps_to_slot(slot_maps_dir: String) -> void:
 	var name := src.get_next()
 	while name != "":
 		if src.current_is_dir() and not name.begins_with("."):
-			var src_file := "user://maps/%s/map.sqlite" % name
-			if FileAccess.file_exists(src_file):
-				var dst_dir := "%s%s/" % [slot_maps_dir, name]
-				DirAccess.make_dir_recursive_absolute(dst_dir.trim_suffix("/"))
-				var err := DirAccess.copy_absolute(src_file, _dst_file(dst_dir, "map.sqlite"))
+			var dst_dir := "%s%s/" % [slot_maps_dir, name]
+			var dst_ready := false
+			for db: String in Map.stream_dbs():
+				var src_file := "user://maps/%s/%s" % [name, db]
+				if not FileAccess.file_exists(src_file):
+					continue
+				if not dst_ready:
+					DirAccess.make_dir_recursive_absolute(dst_dir.trim_suffix("/"))
+					dst_ready = true
+				var err := DirAccess.copy_absolute(src_file, _dst_file(dst_dir, db))
 				if err != OK:
 					push_warning("SaveSystem: failed to snapshot '%s' (error %d)" % [src_file, err])
 		name = src.get_next()
 	src.list_dir_end()
 
 
-## Copy every <slot_maps_dir>/<id>/map.sqlite into user://maps/<id>/map.sqlite
-## so the runtime cache reflects the loaded slot. Warns (doesn't crash) on a
-## slot referencing a map id whose authored original no longer exists in res://.
+## Copy each slot db back into user://maps/<id>/ so the runtime cache reflects
+## the loaded slot. Warns (doesn't crash) on a slot referencing a map id whose
+## authored original no longer exists in res://.
 func _restore_maps_from_slot(slot_maps_dir: String) -> void:
 	var src := DirAccess.open(slot_maps_dir)
 	if src == null:
@@ -340,15 +402,17 @@ func _restore_maps_from_slot(slot_maps_dir: String) -> void:
 	var name := src.get_next()
 	while name != "":
 		if src.current_is_dir() and not name.begins_with("."):
-			var src_file := "%s%s/map.sqlite" % [slot_maps_dir, name]
-			if FileAccess.file_exists(src_file):
-				if not MapLibrary.has_def(name):
-					push_warning("SaveSystem: slot references unknown map id '%s' (removed since save?); skipping" % name)
-					name = src.get_next()
+			if not MapLibrary.has_def(name):
+				push_warning("SaveSystem: slot references unknown map id '%s' (removed since save?); skipping" % name)
+				name = src.get_next()
+				continue
+			var dst_dir := "user://maps/%s/" % name
+			for db: String in Map.stream_dbs():
+				var src_file := "%s%s/%s" % [slot_maps_dir, name, db]
+				if not FileAccess.file_exists(src_file):
 					continue
-				var dst_dir := "user://maps/%s/" % name
 				DirAccess.make_dir_recursive_absolute(dst_dir.trim_suffix("/"))
-				var err := DirAccess.copy_absolute(src_file, _dst_file(dst_dir, "map.sqlite"))
+				var err := DirAccess.copy_absolute(src_file, _dst_file(dst_dir, db))
 				if err != OK:
 					push_warning("SaveSystem: failed to restore '%s' (error %d)" % [src_file, err])
 		name = src.get_next()

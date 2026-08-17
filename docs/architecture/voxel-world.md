@@ -79,6 +79,8 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `get_blocky_grid() -> BlockyGrid` | Convenience proxy (most callers want the grid, not the world). |
 | `get_smooth_grid() -> SmoothGrid` | The natural-terrain grid, or null — callers null-check; terrain-less maps are the default. |
 | `get_blocky_terrain() -> VoxelTerrain` | Delegates to `blocky_grid.get_terrain()`. |
+| `get_smooth_terrain() -> VoxelTerrain` | The smooth `VoxelTerrain`, or null when the map has none (node absent, or a SmoothGrid that freed itself on null `terrain_gen`). |
+| `persisted_streams()` / `stream_dbs()` / `flush_voxel_streams()` | The two-stream persistence pairing (Phase 4): `{terrain, db}` pairs — blocky `map.sqlite` always, smooth `terrain.sqlite` when present. One source shared by SceneManager's copy-on-load redirect and SaveSystem's park flush / slot snapshot-restore, so the sites can't drift. `flush_voxel_streams` saves modified blocks on both grids (INV-3's voxel half). |
 | `ground_height_at(x: float, z: float) -> float` | Combined spawn query (D4/Phase 3): one downward ray masked `TerrainBlocky\|TerrainSmooth` — the first hit from above is the highest surface (hill or plate), so player/colonist spawn markers snap onto real ground regardless of authored Y. Furniture statics and bodies never answer. `NAN` when neither terrain reaches the column. Per-grid `height_at` stays layer-specific — this is a placement query, not the walkability source. |
 | `get_furniture_container() -> Node3D` | The furniture parent node. |
 | `get_colonist_container() -> Node3D` | The colonist parent node (where persistent colonists reparent on map swaps). |

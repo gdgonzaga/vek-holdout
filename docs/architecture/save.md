@@ -1,6 +1,6 @@
 # Subsystem: Save / Load
 
-The orchestrator that persists run state across sessions. SaveSystem is an autoload that calls each subsystem's `serialize()` / `deserialize()` methods — the contract established by `RunProgress` and broadened to every state-holding subsystem. Multi-slot; each slot is a self-contained directory holding a JSON state payload plus a per-map snapshot of every `VoxelStreamSQLite` the player has touched. Autosaves at midnight; manual save via the pause menu.
+The orchestrator that persists run state across sessions. SaveSystem is an autoload that calls each subsystem's `serialize()` / `deserialize()` methods — the contract established by `RunProgress` and broadened to every state-holding subsystem. Multi-slot; each slot is a self-contained directory holding a JSON state payload plus a per-map snapshot of every `VoxelStreamSQLite` the player has touched — **two per map since the dual-voxel conversion** (`map.sqlite` blocky, `terrain.sqlite` smooth; the smooth one exists only on maps with natural terrain). Autosaves at midnight; manual save via the pause menu.
 
 This subsystem owns the **conventions** that make multi-slot isolation safe. The serialize/deserialize building blocks live in their respective subsystems; SaveSystem never reaches into private state.
 
@@ -22,7 +22,9 @@ user://saves/
     ├── state.json                     # global + per-map parked state (the payload)
     └── maps/                          # per-map sqlite snapshots
         ├── base/map.sqlite            # copy of user://maps/base/map.sqlite at save time
-        └── poi_ruins/map.sqlite       # one subdir per map the player has touched
+        └── poi_ruins/                 # one subdir per map the player has touched
+            ├── map.sqlite             # blocky terrain db
+            └── terrain.sqlite         # smooth terrain db (maps with terrain_gen only)
 ```
 
 Rationale for one directory per slot (vs. a flat file or single shared state file): the sqlite snapshots are binary blobs that must travel with the JSON state — a save is meaningless without its terrain DBs. Co-locating them in a directory makes save/delete/copy atomic at the filesystem level.
@@ -79,7 +81,7 @@ The three structural rules that make multi-slot isolation safe. Violating any of
 
 ### INV-1: `res://` originals are permanently read-only
 
-Authored maps at `res://data/maps/<id>/map.sqlite` are **never written at runtime**. `SceneManager._redirect_sqlite_stream()` repoints each terrain's `VoxelStreamSQLite.database_path` from `res://` to `user://maps/<id>/map.sqlite` on map load — every subsequent flush (park, save, or otherwise) lands in the runtime copy. The authored file is touched exactly once, read-only, on the initial copy. This is structural (enforced by Godot in exported builds; convention in the editor), not behavioral.
+Authored map dbs at `res://data/maps/<id>/` (`map.sqlite`, `terrain.sqlite`) are **never written at runtime**. `SceneManager._redirect_sqlite_stream()` walks `Map.persisted_streams()` — blocky + (when present) smooth — and repoints each terrain's `VoxelStreamSQLite.database_path` from `res://` to `user://maps/<id>/<db>` on map load. Every subsequent flush (park, save, or otherwise) lands in the runtime copy; authored files are touched exactly once, read-only, on the initial copy. Maps that ship no authored db (generator-only baselines like `dev`) simply start with an empty runtime db created on first save.
 
 ### INV-2: The runtime cache is scratch space owned by whichever slot was loaded last
 
@@ -91,21 +93,21 @@ Authored maps at `res://data/maps/<id>/map.sqlite` are **never written at runtim
 | **Load slot X** (`load_game(X)`) | Wipe `user://maps/`; restore from slot X's `maps/` dir; **replace** `_parked` with slot X's `state.json["maps"]` (not merge). |
 | **Park** (`_park_current_map`, on `map_unloading`) | Flush current map's sqlite to `user://maps/<id>/`; capture metadata into `_parked[map_id]`. No wipe — this *is* the scratch. |
 
-### INV-3: Park flushes both layers atomically
+### INV-3: Park flushes both layers — and both grids — atomically
 
-A map's state is split across two storage layers with different lifetimes (see State model). Park must update **both**, in order, every time:
+A map's state is split across two storage layers with different lifetimes (see State model), and since the dual-voxel conversion the sqlite layer itself spans two streams. Park must update all of it, in order, every time:
 
 ```gdscript
 func _park_current_map(map_id: String) -> void:
-    # (1) persist block types to the runtime sqlite
-    var terrain := map.get_terrain()
-    if terrain != null:
-        terrain.save_modified_blocks()
+    # (1) persist block types to the runtime sqlite — BOTH grids
+    map.flush_voxel_streams()   # save_modified_blocks + stream flush, blocky + smooth
     # (2) capture in-memory metadata (HP, furniture, blueprints)
     _parked[map_id] = { ... }
 ```
 
-Skipping step 1 means block-type changes are lost on `queue_free` (Zylann doesn't auto-flush). Skipping step 2 means HP/furniture/blueprint changes are lost. Either way, the two halves of a map's state drift apart — furniture floating where a wall used to be, HP recorded for blocks that no longer exist.
+`Map.flush_voxel_streams()` is the single terrain↔db pairing (`Map.persisted_streams()`), so SaveSystem can never flush the blocky grid but miss the smooth one. Skipping step 1 means block-type changes are lost on `queue_free` (Zylann doesn't auto-flush). Skipping step 2 means HP/furniture/blueprint changes are lost. Either way, the halves of a map's state drift apart — furniture floating where a wall used to be, HP recorded for blocks that no longer exist.
+
+**Sqlite commit discipline.** Zylann commits block saves in sqlite transactions; `VoxelStreamSQLite.flush()` returning does **not** guarantee the commits are on disk. The only reliable outward sign of an in-flight transaction is a hot `<db>-journal` file next to the db, and its removal happens after the pages are flushed (F9, `docs/VOXEL-TOOL-NOTES.md`). Copying a db mid-transaction yields a stale copy — the slot would silently restore nothing. `save_game` therefore awaits `_await_stream_quiesce()` (polls `user://maps/` until no `-journal` remains, bounded at 2 s) between the park and the snapshot, which also makes it a coroutine. `load_game` quiesces the same way before `wipe_map_cache()` so pending writes can't be unlinked out from under live connections (the source of sporadic sqlite "disk I/O error" noise).
 
 ### What would break it
 
@@ -156,14 +158,15 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 **Trigger:** Pause Menu → Save button, OR `EventBus.day_rolled_over` (autosave at midnight).
 
-1. `_park_current_map(current_scene_id)` → fold the live map's state into `_parked` (INV-3: flush + capture).
-2. Build `state` dict from:
+1. `_park_current_map(current_scene_id)` → fold the live map's state into `_parked` (INV-3: flush both grids + capture).
+2. `await _await_stream_quiesce(2.0)` → wait out any in-flight sqlite transactions (hot `-journal` files) so the snapshot can't copy a stale db.
+3. Build `state` dict from:
    - `global`: each autoload's `serialize()` + `_serialize_player()`.
    - `maps`: `_parked.duplicate(true)`.
-3. Write `meta.json` + `state.json` to `user://saves/<slot>/`.
-4. `_snapshot_maps_to_slot()` → `DirAccess.copy_absolute` each `user://maps/<id>/map.sqlite` into `user://saves/<slot>/maps/<id>/map.sqlite`. (Copy failures `push_warning` but don't fail the save — `_snapshot_maps_to_slot`'s result is unchecked.)
+4. Write `meta.json` + `state.json` to `user://saves/<slot>/`.
+5. `_snapshot_maps_to_slot()` → `DirAccess.copy_absolute` each db in `Map.stream_dbs()` (`map.sqlite` + `terrain.sqlite`) from `user://maps/<id>/` into `user://saves/<slot>/maps/<id>/`. Missing files are skipped (a stream with no edits may have created none). Copy failures `push_warning` but don't fail the save — `_snapshot_maps_to_slot`'s result is unchecked.
 
-**End state:** Slot directory contains a consistent snapshot of all state. `save_game()` returns `false` only on no-active-slot or a `meta.json`/`state.json` write failure; partial writes are acceptable because the next save overwrites.
+**End state:** Slot directory contains a consistent snapshot of all state. `save_game()` returns `false` only on no-active-slot or a `meta.json`/`state.json` write failure; partial writes are acceptable because the next save overwrites. **`save_game()` is a coroutine** (the quiesce in step 2) — callers may fire-and-forget (pause menu, autosave) since nothing downstream needs its return value synchronously.
 
 > **Not yet done:** pruning slot subdirs for maps no longer in `_parked` (e.g. a map deleted between saves). Stale subdirs just accumulate today.
 
@@ -179,12 +182,13 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
    - (The per-layer `_is_restoring` flags are NOT touched here — each toggles inside its own `deserialize()` at step 9.)
 4. **`_parked = state["maps"].duplicate(true)`** (REPLACE, per INV-2).
 5. `_active_slot = slot`.
-6. `SceneManager.wipe_map_cache()` (INV-2 Load row).
-7. `_restore_maps_from_slot()` → copy slot's `maps/<id>/map.sqlite` into `user://maps/<id>/map.sqlite`. Warn (don't crash) on unknown map ids.
-8. **Do NOT emit `run_started`** — see New Game flow step 3.
-9. `await SceneManager.swap_map(meta.current_scene_id)` → the saved map loads; because its runtime sqlite already exists (step 7), `_redirect_sqlite_stream` skips the `res://` copy. `_wire_map` calls `SaveSystem.apply_parked_state_if_any(map_id, map)` — returns true, applies `_parked[map_id]` to the freshly-wired BlockyGrid/FurnitureLayer/BlueprintLayer, **skips authored furniture marker replay** (would otherwise double-spawn).
-10. `_restore_player(_pending_player)` → Player is now in the tree; `deserialize` sets position + camera + inventory.
-11. (No SaveSystem-level flag to clear — the per-layer `_is_restoring` flags already reset themselves at the end of their `deserialize()` in step 9.)
+6. Set `_loading = true` and `await _await_stream_quiesce(2.0)` — pending transactions finish before their files are unlinked. `_loading` also makes the outgoing map's `map_unloading` **skip parking**: the slot just restored is the truth, and a park would both overwrite `_parked[map_id]` with the outgoing (possibly newer) state and flush through stale connections to the just-replaced files.
+7. `SceneManager.wipe_map_cache()` (INV-2 Load row).
+8. `_restore_maps_from_slot()` → copy each db in `Map.stream_dbs()` from the slot's `maps/<id>/` into `user://maps/<id>/`. Warn (don't crash) on unknown map ids.
+9. **Do NOT emit `run_started`** — see New Game flow step 3.
+10. `await SceneManager.swap_map(meta.current_scene_id)` → the saved map loads; because its runtime sqlite already exists (step 8), `_redirect_sqlite_stream` skips the `res://` copy. `_wire_map` calls `SaveSystem.apply_parked_state_if_any(map_id, map)` — returns true, applies `_parked[map_id]` to the freshly-wired BlockyGrid/FurnitureLayer/BlueprintLayer, **skips authored furniture marker replay** (would otherwise double-spawn). `_loading` clears once the swap completes.
+11. `_restore_player(_pending_player)` → Player is now in the tree; `deserialize` sets position + camera + inventory.
+12. (No SaveSystem-level flag to clear — the per-layer `_is_restoring` flags already reset themselves at the end of their `deserialize()` in step 10.)
 
 **End state:** All global state restored, saved map loaded with its parked state applied (not authored replay), player at saved position. Other maps in `_parked` will apply on first visit.
 
@@ -227,6 +231,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 | `_parked` | `Dictionary` | `map_id -> {voxel_hp, furniture, blueprints}`. Scratch metadata for currently-loaded slot. Replaced (not merged) on load. |
 | `_active_slot` | `String` | UUID4 of the slot a save writes to. Empty if no slot active (shouldn't happen in-game — New Game always creates one). |
 | `_pending_player` | `Variant` | Staged player state during load; applied after `swap_map` reparents the player into the tree. |
+| `_loading` | `bool` | True only inside `load_game`'s swap window; suppresses the outgoing map's park (the restored slot is the truth — see INV-3's commit-discipline note). |
 
 > **No `_is_restoring` flag on SaveSystem.** Each deserializing layer (`FurnitureLayer`, `BlueprintLayer`) owns and toggles its own `_is_restoring` inside its `deserialize()`; SaveSystem only calls that `deserialize()` via `apply_parked_state_if_any`. See JSON conventions.
 
@@ -235,7 +240,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 | Function | Description |
 |---|---|
 | `create_save(display_name: String) -> String` | Allocates a new slot (UUID4), sets `_active_slot`, clears `_parked`, writes a stub `meta.json` **without** `saved_at` (the slot is unsaved until the first `save_game()`). Returns the slot id. Called on New Game. |
-| `save_game() -> bool` | Writes `_active_slot`: parks current map, builds state dict, writes `meta.json` + `state.json`, snapshots `user://maps/` into the slot. False if no active slot. |
+| `save_game() -> bool` | Writes `_active_slot`: parks current map, awaits sqlite quiesce, builds state dict, writes `meta.json` + `state.json`, snapshots `user://maps/` into the slot. **Coroutine** — callers may fire-and-forget. False if no active slot. |
 | `load_game(slot: String) -> bool` | Restores global autoloads, replaces `_parked`, wipes + restores `user://maps/`, `swap_map`s to the saved scene, restores player. False on missing slot or version mismatch. |
 | `has_save(slot: String) -> bool` | True if the slot directory exists. |
 | `list_saves() -> Array[Dictionary]` | One `{slot_id, display_name, current_day, saved_at, current_scene_id}` per slot, sorted by `saved_at` desc. Reads only `meta.json`; **skips slots without `saved_at`** (not-yet-saved stubs + crash leftovers). |
@@ -248,11 +253,12 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 | Function | Description |
 |---|---|
-| `_park_current_map(map_id: String) -> void` | INV-3 critical: flushes `terrain.save_modified_blocks()` then captures metadata into `_parked[map_id]`. Hooked from `map_unloading`. |
-| `_on_map_unloading(map_id: String) -> void` | Listener for `EventBus.map_unloading`; calls `_park_current_map`. |
+| `_park_current_map(map_id: String) -> void` | INV-3 critical: `map.flush_voxel_streams()` (both grids) then captures metadata into `_parked[map_id]`. Hooked from `map_unloading`. |
+| `_on_map_unloading(map_id: String) -> void` | Listener for `EventBus.map_unloading`; parks — unless `_loading` (load_game's swap skips the park by design). |
 | `_on_day_rolled_over(_new_day: int) -> void` | Listener for `EventBus.day_rolled_over`; calls `save_game` (autosave). |
-| `_snapshot_maps_to_slot(slot_maps_dir: String) -> void` | Copies every `user://maps/<id>/` subdir into `<slot_maps_dir>/<id>/`. |
-| `_restore_maps_from_slot(slot_maps_dir: String) -> void` | Copies every `<slot_maps_dir>/<id>/map.sqlite` into `user://maps/<id>/map.sqlite`. Warns on unknown map ids. |
+| `_await_stream_quiesce(timeout_sec: float) -> void` / `_has_hot_journal(path) -> bool` | Polls `user://maps/` until no sqlite `-journal` file remains (bounded), so snapshots and wipes never race an in-flight block-save transaction. |
+| `_snapshot_maps_to_slot(slot_maps_dir: String) -> void` | Copies every db in `Map.stream_dbs()` from each `user://maps/<id>/` into `<slot_maps_dir>/<id>/`; missing files skipped silently. |
+| `_restore_maps_from_slot(slot_maps_dir: String) -> void` | Copies each `Map.stream_dbs()` db from `<slot_maps_dir>/<id>/` back into `user://maps/<id>/`. Warns on unknown map ids. |
 | `_write_json(path, data) -> bool` / `_read_json(path) -> Dictionary` | FileAccess + JSON helpers; null/parse-fault tolerant. |
 | `_build_meta(state) -> Dictionary` | Composes the `meta.json` header from the just-written state. |
 | `_slot_dir(slot) -> String` | `_SAVES_DIR + slot + "/"`. |

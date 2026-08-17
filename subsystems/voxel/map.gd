@@ -34,6 +34,52 @@ func get_smooth_grid() -> SmoothGrid:
 func get_blocky_terrain() -> VoxelTerrain:
 	return blocky_grid.get_terrain()
 
+## The natural-terrain VoxelTerrain, or null when this map has no smooth
+## terrain. A SmoothGrid that reached _ready without terrain_gen queues itself
+## for deletion — the terrain_gen guard catches it even before the free lands.
+func get_smooth_terrain() -> VoxelTerrain:
+	var grid := get_smooth_grid()
+	if grid == null or not is_instance_valid(grid) or grid.terrain_gen == null:
+		return null
+	return grid.get_terrain()
+
+## Sqlite dbs that persist this map's voxels (dual-voxel Phase 4): blocky
+## always, terrain.sqlite only on maps with smooth terrain. `map.sqlite` keeps
+## its pre-conversion name — renaming would orphan every existing map and save.
+const BLOCKY_DB := "map.sqlite"
+const SMOOTH_DB := "terrain.sqlite"
+
+## The persisted db filenames, blocky first. A function rather than a const
+## because typed array literals are not constant expressions in GDScript.
+static func stream_dbs() -> Array[String]:
+	return [BLOCKY_DB, SMOOTH_DB]
+
+## The terrains that persist via sqlite streams, paired with their db filename.
+## One source of truth for SceneManager's runtime redirect and SaveSystem's
+## park flush / slot snapshot (Phase 4: one shared pairing, not per-site copies
+## that can drift on which grids exist).
+func persisted_streams() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var blocky := get_blocky_terrain()
+	if blocky != null:
+		out.append({"terrain": blocky, "db": BLOCKY_DB})
+	var smooth := get_smooth_terrain()
+	if smooth != null:
+		out.append({"terrain": smooth, "db": SMOOTH_DB})
+	return out
+
+## Flush each stream's edited blocks to its sqlite db — INV-3's voxel half for
+## BOTH grids (SaveSystem parks via this). VoxelStreamSQLite.flush() blocks
+## until the async save tasks land: without it, SaveSystem's slot snapshot can
+## copy a db mid-transaction (torn file — the reload then fails every
+## begin_transaction) and load_game's cache wipe races in-flight writes.
+func flush_voxel_streams() -> void:
+	for pair: Dictionary in persisted_streams():
+		var terrain: VoxelTerrain = pair["terrain"]
+		if terrain.stream is VoxelStreamSQLite:
+			terrain.save_modified_blocks()
+			(terrain.stream as VoxelStreamSQLite).flush()
+
 ## Ray origin height / length for the combined ground query: far above anything
 ## authorable, so one straight-down ray covers the whole column.
 const GROUND_RAY_FROM_Y := 512.0

@@ -149,8 +149,9 @@ override the def's fallback values.
 
 > **What happens on depart:** `ExpeditionManager.start_expedition()` →
 > `SceneManager.swap_map(map_id)` → the template scene loads, the pristine
-> `map.sqlite` is copied to `user://maps/<map_id>/map.sqlite` (first load only),
-> and the stream is redirected there. Subsequent loads reuse the runtime copy.
+> `map.sqlite` (and `terrain.sqlite`, if authored) is copied to
+> `user://maps/<map_id>/` (first load only), and the streams are redirected
+> there. Subsequent loads reuse the runtime copies.
 
 ---
 
@@ -162,12 +163,16 @@ For reference, here's what `SceneManager.swap_map(map_id)` does:
 2. Frees the current map (emits `map_unloading` first — SaveSystem parks the
    outgoing map's state).
 3. Instantiates the scene at `map_def.scene_path`.
-4. **Copy-on-load:** `_redirect_sqlite_stream()` —
+4. **Copy-on-load:** `_redirect_sqlite_stream()` — per stream in
+   `Map.persisted_streams()` (blocky `map.sqlite` + smooth `terrain.sqlite`
+   when the map has one):
    - If the terrain has a `VoxelStreamSQLite` pointing at `res://`, copies the
-     pristine database to `user://maps/<id>/map.sqlite` (only if the runtime copy
-     doesn't already exist) and redirects the stream there.
+     pristine database to `user://maps/<id>/<db>` (only if the runtime copy
+     doesn't already exist) and redirects the stream there. A missing authored
+     db is fine — the generator is the baseline and the runtime copy appears on
+     first save.
    - If the terrain has **no stream** (the bare-template case), injects a new
-     `VoxelStreamSQLite` pointing at `user://maps/<id>/map.sqlite`.
+     `VoxelStreamSQLite` pointing at the runtime path.
 5. Awaits one frame (for child `_ready` calls, esp. camera wiring).
 6. Wires subsystems via `MapWiring` (build controller, player, colonists) —
    then **parked-state branch:** if SaveSystem has parked state for this map
@@ -177,9 +182,10 @@ For reference, here's what `SceneManager.swap_map(map_id)` does:
    live `FurnitureLayer` and then cleared.
 7. Emits `map_loaded`.
 
-The `user://` copy means **runtime mutations (building, combat damage) never
-touch the authored `res://` database.** To reset a map to its authored state,
-delete `user://maps/<id>/map.sqlite`.
+The `user://` copy means **runtime mutations (building, combat damage, smooth
+carving) never touch the authored `res://` databases.** To reset a map to its
+authored state, delete `user://maps/<id>/` (both `map.sqlite` and
+`terrain.sqlite`).
 
 ---
 

@@ -179,6 +179,37 @@ green light for `smooth_grid.gd` (dual-voxel conversion Phase 2, docs/TODO.md):
   `do_sphere`, `do_box`, `do_path`, `do_mesh`; reads `get_voxel(_f)`,
   `set_voxel(_f)`, per-voxel `set/get_voxel_metadata`.
 
+### F9 — Sqlite save timing: hot journals, lazy dirs, live flushes (2026-08-17, dual-voxel Phase 4)
+Validated by the Phase-4 full-boot save/load smoke on the dev map plus
+`tmp/` probes (sqlite3 CLI block counts over time). Facts any code that
+copies, wipes, or repoints a `VoxelStreamSQLite` database needs:
+
+- **Block saves commit in sqlite transactions; `flush()` does NOT guarantee
+  they are on disk.** The only reliable outward sign of an in-flight
+  transaction is a hot `<db>-journal` file beside the database (journal mode
+  is `delete`), and sqlite removes it only after the db pages are flushed.
+  A raw `DirAccess.copy_absolute` raced against a commit yields a STALE copy
+  — byte-valid, schema-intact, missing the just-saved blocks (observed: slot
+  snapshot of a db holding 1 saved block came out with 0). Consequence:
+  SaveSystem quiesces (polls until no `-journal` remains anywhere under
+  `user://maps/`, bounded) between the park flush and the slot snapshot, and
+  again before `wipe_map_cache` unlinks files out from under live stream
+  connections (which otherwise emits sporadic sqlite `disk I/O error` /
+  `begin_transaction` failures).
+- **`VoxelStreamSQLite` never creates the database's parent directory.** A
+  missing dir means every block load fails ("Could not open database …
+  unable to open database file") and the terrain silently stays empty.
+  `SceneManager`'s redirect `make_dir_recursive`s the runtime dir before
+  pointing a stream at it — keep doing that.
+- **`save_modified_blocks()` works on a LIVE terrain** (no teardown needed,
+  headless included) as long as the edited blocks were actually streamed in
+  (F3: writes to never-loaded blocks are no-ops — a viewer must have visited
+  them). It returns void in this build (no error code). Repointing
+  `database_path` BEFORE the first block load/save is safe.
+- **`VoxelStreamSQLite.flush()` exists** (plus `set_save_generator_output`,
+  compression/key-cache options on the stream) but per the first bullet its
+  return is not a durability barrier — treat journal clearance as the real one.
+
 ---
 
 ## Raycast & hit-detection

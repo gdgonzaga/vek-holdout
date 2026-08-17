@@ -67,10 +67,17 @@ separated by collision layers. Feasibility is proven by the runtime spike
       `Map.ground_height_at` spawn snapping (player + colonist markers),
       `is_ground_supported` for smooth-hit placements; suite_
       hybrid_walkability_test pins both invariants.
-- [ ] **4 Two-stream persistence**: one shared helper over the two optional
+- [x] **4 Two-stream persistence**: one shared helper over the two optional
       streams, applied at the four single-`map.sqlite` sites (paint stamp,
       SceneManager redirect, SaveSystem park flush, slot snapshot/restore).
-      `map.sqlite` keeps its name.
+      `map.sqlite` keeps its name. Done — `Map.persisted_streams()` is the one
+      terrain<->db pairing; redirect/park/snapshot all consume it. The paint
+      stamp had shipped both dbs in Phase 2. Surfaced + fixed along the way:
+      sqlite saves commit in transactions (hot `-journal`) that raw copies can
+      race — `save_game`/`load_game` now quiesce first (F9), and load_game's
+      outgoing map no longer parks over the restored slot (`_loading`). Full
+      save/load round-trip verified on dev (carve + block + HP survive;
+      215/215 tests).
 - [ ] **5 Player-facing editing**: mining dig mode (yields via the harvesting
       pattern) + smooth placement mode (add-sphere, blob ghost) through the
       existing placement-strategy shape; HUD/UX respects `UiGate`.

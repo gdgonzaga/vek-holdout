@@ -4,7 +4,7 @@ The catalog, wiring, and per-map scenes for loadable maps. Hosts the `MapLibrary
 
 **Authoring vs. runtime split (the core invariant):**
 - Authored maps live under `res://data/maps/<id>/` as `map.tscn` (per-map scene with furniture markers) + `map.sqlite` (terrain DB) + `map_def.tres` (catalog entry). **These are never written at runtime** — `res://` is read-only at export.
-- The pristine `map_template.tscn` ships with **no streams baked in** and no furniture markers. The Voxel Paint plugin stamps a copy per map, injecting `VoxelStreamSQLite` resources for `map.sqlite` (blocky) and `terrain.sqlite` (smooth — harmless on maps whose `terrain_gen` is null, since the SmoothGrid then frees itself). `SceneManager` additionally copies the blocky sqlite to `user://` at runtime (copy-on-load) to preserve authored data from runtime mutations; the smooth stream's runtime redirect is conversion Phase 4. The paint tool binds the **blocky** terrain only — identified by its owning `BlockyGrid`, never by node name (two `VoxelTerrain` nodes share one name since the dual-voxel template).
+- The pristine `map_template.tscn` ships with **no streams baked in** and no furniture markers. The Voxel Paint plugin stamps a copy per map, injecting `VoxelStreamSQLite` resources for `map.sqlite` (blocky) and `terrain.sqlite` (smooth — harmless on maps whose `terrain_gen` is null, since the SmoothGrid then frees itself). `SceneManager` redirects **both** streams to `user://` copies at runtime (copy-on-load) so runtime mutations never touch authored data; SaveSystem's park/save/load persists both (see [Save / Load](save.md)). The paint tool binds the **blocky** terrain only — identified by its owning `BlockyGrid`, never by node name (two `VoxelTerrain` nodes share one name since the dual-voxel template).
 - Furniture isolation is automatic: each map's `.tscn` has its own `Furniture_*` markers under `SpawnPoints`. `SpawnHelpers.read_spawns()` scans the loaded scene's markers, so furniture placed in one map never bleeds into another.
 
 ## Files
@@ -19,7 +19,8 @@ The catalog, wiring, and per-map scenes for loadable maps. Hosts the `MapLibrary
 | `../voxel/map.tscn` | Scene | A `Map`-rooted scene with `VoxelGeneratorFlat` (no authored terrain DB). **Not referenced by any `MapDef`** — the base map actually loads `data/maps/base/map.tscn` (which has a `VoxelStreamSQLite`). Kept as a minimal/standalone scene; not the runtime base. |
 | `../data/maps/map_def.gd` | Data (script) | `MapDef` Resource class. See [Data Schemas](data-schemas.md). |
 | `../data/maps/<id>/map_def.tres` | Data | One `MapDef` per map. `id` **must equal the folder name** — `SceneManager` derives the runtime sqlite path from it. |
-| `../data/maps/<id>/map.sqlite` | Data | The authored terrain database (Zylann `VoxelStreamSQLite`). Created by the Voxel Paint "+ New Map" button. |
+| `../data/maps/<id>/map.sqlite` | Data | The authored blocky terrain database (Zylann `VoxelStreamSQLite`). Created by the Voxel Paint "+ New Map" button. |
+| `../data/maps/<id>/terrain.sqlite` | Data | The authored smooth-terrain database, stamped by the plugin but often absent — generator-only maps (like `dev`) ship no baseline db; the runtime copy appears on first save. |
 
 ## Signals
 
