@@ -1,0 +1,160 @@
+extends GdUnitTestSuite
+
+## SmoothGrid ownership + queries against a bare (generator-fed but
+## stream-less) world, mirroring suite_blocky_grid_test.gd's stand-in idiom:
+## layer assignment straight out of _ready, height/ray queries exercised with
+## StaticBody stand-ins on the right/wrong collision layers, and the
+## raycast_to_voxel `surface` contract (BlockyGrid side) pinned — the smooth-hit
+## shape (pre-derived placement cell, zero normal) is what BuildController's
+## _placement_cell branches on.
+
+## Grid + bare VoxelTerrain in the tree. The terrain child is parented BEFORE
+## the grid enters the tree so the grid's @onready terrain_path resolves.
+func _build_grid(with_gen: bool) -> SmoothGrid:
+	var root: Node3D = auto_free(Node3D.new())
+	add_child(root)
+	var grid: SmoothGrid = auto_free(SmoothGrid.new())
+	if with_gen:
+		var gen := TerrainGenDef.new()
+		gen.noise_seed = 7
+		grid.terrain_gen = gen
+	var terrain := VoxelTerrain.new()
+	terrain.name = "VoxelTerrain"
+	grid.add_child(terrain)
+	root.add_child(grid)
+	return grid
+
+
+## Axis-aligned box body on the given layer bit value, colliding with nothing.
+func _add_box(parent: Node3D, layer_value: int, center: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = layer_value
+	body.collision_mask = 0
+	parent.add_child(body)
+	var shape := CollisionShape3D.new()
+	body.add_child(shape)
+	var box := BoxShape3D.new()
+	box.size = Vector3(4, 1, 4)
+	shape.shape = box
+	body.position = center
+
+
+func _run_frames(count: int) -> void:
+	for _i in range(count):
+		await get_tree().physics_frame
+
+
+## No terrain_gen = "this map has no smooth terrain": the node frees itself so
+## Map.get_smooth_grid() consumers see nothing (docs/TODO.md D2 null rule).
+func test_frees_itself_without_terrain_gen() -> void:
+	var grid := _build_grid(false)
+	assert_int(grid.get_child_count()).is_equal(1)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_bool(is_instance_valid(grid)).is_false()
+
+
+## _ready assigns the smooth terrain's exclusive layer (3, value 4) and the F7
+## body mask — read back via get() because collision_layer on VoxelTerrain is a
+## GDExtension property.
+func test_terrain_owns_smooth_layer() -> void:
+	var grid := _build_grid(true)
+	var terrain := grid.get_terrain()
+	assert_int(int(terrain.get("collision_layer"))).is_equal(SmoothGrid.TERRAIN_LAYER_VALUE)
+	assert_int(int(terrain.get("collision_mask"))).is_equal(SmoothGrid.TERRAIN_BODY_MASK)
+
+
+## height_at answers only the TerrainSmooth layer: a layer-4 stand-in hits, a
+## blocky-layer (2) stand-in in another column is invisible to it.
+func test_height_at_hits_smooth_layer_only() -> void:
+	var grid := _build_grid(true)
+	_add_box(grid.get_parent(), 4, Vector3(0, 10, 0))
+	_add_box(grid.get_parent(), 2, Vector3(20, 30, 20))  # blocky stand-in — ignored
+	await _run_frames(2)
+	var normals: Array = []
+	var height := grid.height_at(0, 0, normals)
+	assert_float(height).is_equal_approx(10.5, 0.01)
+	assert_array(normals).has_size(1)
+	assert_that(normals[0]).is_equal(Vector3.UP)
+	assert_bool(is_nan(grid.height_at(20, 20))).is_true()
+
+
+## raycast_to_surface masks to TerrainSmooth and keeps float values: a sloped
+## stand-in (rotated box) must return its true normal, not a rounded one.
+func test_raycast_to_surface_returns_float_normal() -> void:
+	var grid := _build_grid(true)
+	var body := StaticBody3D.new()
+	body.collision_layer = 4
+	body.collision_mask = 0
+	grid.get_parent().add_child(body)
+	var shape := CollisionShape3D.new()
+	body.add_child(shape)
+	var box := BoxShape3D.new()
+	box.size = Vector3(4, 1, 4)
+	shape.shape = box
+	body.position = Vector3(0, 10, 0)
+	body.rotation_degrees = Vector3(0, 0, 30)
+	await _run_frames(2)
+	var hit := grid.raycast_to_surface(Vector3(0, 60, 0), Vector3.DOWN, 128.0)
+	assert_bool(hit["hit"]).is_true()
+	var n: Vector3 = hit["normal"]
+	# 30° tilt: |n.y| = cos(30°) — impossible for any axis-aligned int normal.
+	assert_float(absf(n.y)).is_equal_approx(0.866, 0.01)
+
+
+## The raycast_to_voxel surface contract, BlockyGrid side (StaticBody stand-ins
+## on each layer): blocky/body hits resolve as before and carry their tag; a
+## smooth hit returns the PRE-DERIVED placement cell with a zero normal (D3).
+func test_raycast_to_voxel_surface_tags() -> void:
+	var root: Node3D = auto_free(Node3D.new())
+	add_child(root)
+	var grid: BlockyGrid = auto_free(BlockyGrid.new())
+	var terrain := VoxelTerrain.new()
+	terrain.name = "VoxelTerrain"
+	grid.add_child(terrain)
+	root.add_child(grid)
+
+	# Three stand-ins on distinct layers, spread along X so one horizontal ray
+	# can't chain-hit them; query each with its own downward ray.
+	_add_box(root, 2, Vector3(0, 10, 0))    # blocky layer
+	_add_box(root, 1, Vector3(20, 10, 0))   # World static
+	_add_box(root, 4, Vector3(40, 10, 0))   # smooth layer
+	await _run_frames(2)
+
+	var hit_blocky := grid.raycast_to_voxel(Vector3(0, 60, 0), Vector3.DOWN, 128.0)
+	assert_bool(hit_blocky["hit"]).is_true()
+	assert_str(hit_blocky["surface"]).is_equal("blocky")
+	assert_that(hit_blocky["position"]).is_equal(Vector3i(0, 10, 0))
+	assert_that(hit_blocky["normal"]).is_equal(Vector3i(0, 1, 0))
+
+	var hit_body := grid.raycast_to_voxel(Vector3(20, 60, 0), Vector3.DOWN, 128.0)
+	assert_str(hit_body["surface"]).is_equal("body")
+	assert_that(hit_body["position"]).is_equal(Vector3i(20, 10, 0))
+
+	# Smooth stand-in top at y=10.5, normal UP: placement cell = floor(10.5+0.5)
+	# = 11 — the empty cell above the surface, already derived.
+	var hit_smooth := grid.raycast_to_voxel(Vector3(40, 60, 0), Vector3.DOWN, 128.0)
+	assert_str(hit_smooth["surface"]).is_equal("smooth")
+	assert_that(hit_smooth["position"]).is_equal(Vector3i(40, 11, 0))
+	assert_that(hit_smooth["normal"]).is_equal(Vector3i.ZERO)
+	var smooth_point: Vector3 = hit_smooth["smooth_point"]
+	assert_float(smooth_point.y).is_equal_approx(10.5, 0.01)
+
+
+## BuildController._placement_cell: blocky/body hits offset by the face normal;
+## smooth hits are taken as-is (pre-derived cell, D3).
+func test_placement_cell_branches_on_surface() -> void:
+	var ctrl: BuildController = auto_free(BuildController.new())
+	var blocky_cell := ctrl._placement_cell({
+		"position": Vector3i(3, 1, 2), "normal": Vector3i(0, 1, 0), "hit": true, "surface": "blocky",
+	})
+	assert_that(blocky_cell).is_equal(Vector3i(3, 2, 2))
+	var smooth_cell := ctrl._placement_cell({
+		"position": Vector3i(5, 11, 0), "normal": Vector3i.ZERO, "hit": true, "surface": "smooth",
+	})
+	assert_that(smooth_cell).is_equal(Vector3i(5, 11, 0))
+	# Legacy dicts without a surface tag (old callers/doubles) keep blocky math.
+	var legacy_cell := ctrl._placement_cell({
+		"position": Vector3i(0, 0, 0), "normal": Vector3i(0, 1, 0), "hit": true,
+	})
+	assert_that(legacy_cell).is_equal(Vector3i(0, 1, 0))

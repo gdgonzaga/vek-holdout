@@ -29,9 +29,12 @@ func remove_block_at(_pos: Vector3i) -> void:
 	pass
 
 ## Physics raycast resolved to a voxel index + face normal.
-## Returns { position: Vector3i, normal: Vector3i, hit: bool } (hit=false if no
-## intersection). See gotchas/voxel_tool_raycast.md for why this is NOT
-## VoxelTool.raycast.
+## Returns { position: Vector3i, normal: Vector3i, hit: bool, surface: String }
+## (hit=false if no intersection). `surface` classifies the collider: "blocky"
+## terrain, "smooth" terrain (position is then the pre-derived placement cell,
+## normal zero — see BlockyGrid.raycast_to_voxel for the full contract), or
+## "body" (World/Build interaction bodies). See gotchas/voxel_tool_raycast.md
+## for why this is NOT VoxelTool.raycast.
 func raycast_to_voxel(_origin: Vector3, _dir: Vector3, _max_dist: float) -> Dictionary:
 	return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false}
 

@@ -7,6 +7,9 @@ extends EditorScript
 ##   MapTemplate (Node3D, map.gd, database_path exported)
 ##     BlockyGrid (Node, blocky_grid.gd)
 ##       VoxelTerrain (generator, mesher with library)
+##     SmoothGrid (Node, smooth_grid.gd, default_material = ground.tres)
+##       VoxelTerrain (Transvoxel mesher; generator from MapDef.terrain_gen at
+##                     runtime, terrain.sqlite stamped per map)
 ##     ColonistContainer, EnemyContainer, FurnitureContainer, EnvironmentContainer
 ##     BuildController (instanced from build.tscn)
 ##     SpawnPoints → PlayerSpawn (Marker3D)
@@ -58,10 +61,32 @@ func _run() -> void:
 		push_warning("MapTemplate: could not load ", LIBRARY_PATH, " — editor rendering will be blank")
 	terrain.mesher = mesher
 
-	# No stream set here — map.gd _ready() creates it from database_path export.
+	# No stream set here — per-map streams are injected at stamp time by
+	# voxel_paint_plugin._stamp_map_scene.
 
 	grid.add_child(terrain)
 	terrain.owner = root
+
+	# -- SmoothGrid (optional natural terrain) --
+	# Every stamped scene carries it; a MapDef without terrain_gen makes the node
+	# free itself at _ready, so flat maps are unaffected (dual-voxel D1/D2).
+	# No generator here: SmoothGrid._ready builds VoxelGeneratorNoise2D from the
+	# injected TerrainGenDef — the editor viewport can't render Transvoxel
+	# terrain anyway (F5/F8), so there is nothing to preview.
+	var smooth := Node.new()
+	smooth.name = "SmoothGrid"
+	smooth.set_script(load("res://subsystems/voxel/smooth_grid.gd"))
+	var ground_mat: Resource = load("res://data/terrain/materials/ground.tres")
+	if ground_mat != null:
+		smooth.set("default_material", ground_mat)
+	root.add_child(smooth)
+	smooth.owner = root
+
+	var smooth_terrain := VoxelTerrain.new()
+	smooth_terrain.name = "VoxelTerrain"
+	smooth_terrain.mesher = VoxelMesherTransvoxel.new()
+	smooth.add_child(smooth_terrain)
+	smooth_terrain.owner = root
 
 	# -- DirectionalLight3D (sun) --
 	# Transform mirrors the light in the old hand-authored map scenes: a ~60°

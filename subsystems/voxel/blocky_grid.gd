@@ -21,7 +21,7 @@ signal block_destroyed(pos: Vector3i)
 ## Collision-layer plan (docs/architecture/voxel-world.md "Collision layers"):
 ## this terrain owns layer 2 (TerrainBlocky) so physics queries can address
 ## blocky ground separately from World furniture statics (layer 1) and from the
-## smooth terrain that will own layer 3 (dual-voxel conversion, docs/TODO.md).
+## smooth terrain that owns layer 3 (dual-voxel conversion, docs/TODO.md).
 ## Assigned in code, not the map template, so every map — including already
 ## stamped POIs — gets it at runtime.
 const TERRAIN_LAYER := 2
@@ -30,11 +30,14 @@ const TERRAIN_LAYER := 2
 ## silently stops (rays keep working — they test query-mask vs layer only).
 ## Player (layer 4) and Colonist (layer 6) are the terrain-standing bodies.
 const TERRAIN_BODY_MASK := 8 | 32
-## The build/deconstruct ray stops on World statics, this terrain, and Build
-## interaction bodies (furniture/blueprint BuildBody, layer 5) — nothing else.
-## The pre-remap ray was unmasked and could hit a colonist standing between
-## camera and target; that quirk is intentionally gone.
-const BUILD_RAY_MASK := 1 | TERRAIN_LAYER | 16
+## The build/deconstruct ray stops on World statics, this terrain, the smooth
+## terrain, and Build interaction bodies (furniture/blueprint BuildBody, layer
+## 5) — nothing else. The pre-remap ray was unmasked and could hit a colonist
+## standing between camera and target; that quirk is intentionally gone.
+## Smooth (layer 3, value 4) joined the mask when SmoothGrid landed: without it
+## nothing could be placed on natural ground.
+const SMOOTH_TERRAIN_LAYER_VALUE := 4
+const BUILD_RAY_MASK := 1 | TERRAIN_LAYER | SMOOTH_TERRAIN_LAYER_VALUE | 16
 
 ## Path/name of the VoxelTerrain node, relative to this BlockyGrid. The map
 ## template parents VoxelTerrain as a direct child of BlockyGrid.
@@ -93,6 +96,17 @@ func remove_block_at(pos: Vector3i) -> void:
 ## `exclude` (optional): Array[RID] of physics bodies to ignore. Used by the
 ## build raycast to skip the player's own capsule (the third-person camera ray
 ## would otherwise hit the player body before the terrain).
+##
+## Returns { position, normal, hit, surface }: `surface` classifies the collider
+## by collision layer — "blocky" (this terrain), "smooth" (SmoothGrid, layer 3),
+## or "body" (World statics / Build interaction boxes). Blocky/body hits resolve
+## as today (position = struck cell, normal = axis-aligned face) and consumers
+## derive the placement cell as position + normal. A smooth hit keeps nothing
+## integer: `position` IS the derived placement cell floor(point + normal * 0.5),
+## `normal` is Vector3i.ZERO, and the float hit rides along as
+## `smooth_point`/`smooth_normal` (smooth normals are non-axis-aligned, F7) for
+## slope-aware consumers. Deconstruct ignores smooth hits — natural ground is
+## removed by mining, not the build ray (D3).
 func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary:
 	# BlockyGrid is a plain Node (no get_world_3d); the VoxelTerrain child is a
 	# Node3D and owns the physics world its collision bodies live in.
@@ -105,11 +119,25 @@ func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: A
 		query.exclude = exclude
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
-		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false}
+		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false, "surface": ""}
+	var collider: Object = hit.get("collider")
+	var layer := int(collider.get("collision_layer")) if collider != null and "collision_layer" in collider else 0
+	if (layer & SMOOTH_TERRAIN_LAYER_VALUE) != 0:
+		var smooth_normal: Vector3 = hit.normal
+		var cell: Vector3 = (hit.position + smooth_normal * 0.5).floor()
+		return {
+			"position": Vector3i(int(cell.x), int(cell.y), int(cell.z)),
+			"normal": Vector3i.ZERO,
+			"hit": true,
+			"surface": "smooth",
+			"smooth_point": hit.position,
+			"smooth_normal": smooth_normal,
+		}
 	var p: Vector3 = (hit.position - hit.normal * 0.001).floor()
 	var voxel_pos := Vector3i(int(p.x), int(p.y), int(p.z))
 	var normal := Vector3i(int(round(hit.normal.x)), int(round(hit.normal.y)), int(round(hit.normal.z)))
-	return {"position": voxel_pos, "normal": normal, "hit": true}
+	var surface := "blocky" if (layer & TERRAIN_LAYER) != 0 else "body"
+	return {"position": voxel_pos, "normal": normal, "hit": true, "surface": surface}
 
 ## Ray origin height / length for height_at: far above anything authorable, so
 ## one straight-down ray covers the whole column.

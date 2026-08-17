@@ -60,6 +60,11 @@ func swap_map(scene_id: String) -> void:
 		_current_scene_id = ""
 
 	var map: Node = load(map_def.scene_path).instantiate()
+	# Smooth terrain is def-driven: inject the generator params BEFORE the tree
+	# so SmoothGrid._ready builds from them. Null terrain_gen leaves the node to
+	# free itself — "no smooth grid at all" (dual-voxel conversion, docs/TODO.md).
+	if map_def.terrain_gen != null and map.get_node_or_null("SmoothGrid") != null:
+		(map.get_node("SmoothGrid") as SmoothGrid).terrain_gen = map_def.terrain_gen
 	_map_root_parent.add_child(map)
 	_current_map = map
 	_current_scene_id = scene_id

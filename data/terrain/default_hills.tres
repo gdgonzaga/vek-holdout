@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TerrainGenDef" format=3 uid="uid://jax5mkwu6gww"]
+
+[ext_resource type="Script" path="res://data/terrain/terrain_gen_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "hills_default"
+display_name = "Rolling Hills"
+noise_seed = 20260817
+noise_frequency = 0.012
+height_start = -4.0
+height_range = 12.0
+max_walk_slope_deg = 45.0

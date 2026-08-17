@@ -382,21 +382,33 @@ func open_map_scene(scene_path: String) -> void:
 	_open_scene_and_bind(scene_path)
 
 
-## Instantiate the template, inject a per-map VoxelStreamSQLite, and save as a
-## new .tscn. Pure file op — does not touch the currently bound terrain.
+## Instantiate the template, inject per-map VoxelStreamSQLite resources, and
+## save as a new .tscn. Pure file op — does not touch the currently bound
+## terrain. Terrains are addressed by their owning grid's path, NOT by
+## find_child("VoxelTerrain") — the scene has two nodes of that name since the
+## dual-voxel template (BlockyGrid/VoxelTerrain + SmoothGrid/VoxelTerrain) and
+## a name search could bind either.
 func _stamp_map_scene(src_path: String, dst_path: String, db_path: String) -> void:
 	var packed: PackedScene = load(src_path)
 	if packed == null:
 		push_error("VoxelPaint: could not load template '%s'" % src_path)
 		return
 	var instance := packed.instantiate()
-	var terrain := instance.find_child("VoxelTerrain", true, false) as VoxelTerrain
+	var terrain := instance.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
 	if terrain != null:
 		var stream := VoxelStreamSQLite.new()
 		stream.database_path = db_path
 		terrain.stream = stream
 	else:
-		push_warning("VoxelPaint: stamped map has no VoxelTerrain")
+		push_warning("VoxelPaint: stamped map has no BlockyGrid/VoxelTerrain")
+	# Second stream slot: the smooth terrain's own db beside map.sqlite. Edits
+	# persist into it (F8); production save/load wiring is Phase 4. A missing
+	# SmoothGrid (older templates) is tolerated — smooth terrain is optional.
+	var smooth_terrain := instance.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
+	if smooth_terrain != null:
+		var smooth_stream := VoxelStreamSQLite.new()
+		smooth_stream.database_path = db_path.get_base_dir().path_join("terrain.sqlite")
+		smooth_terrain.stream = smooth_stream
 	var out := PackedScene.new()
 	out.pack(instance)
 	var err := ResourceSaver.save(out, dst_path)

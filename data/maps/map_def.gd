@@ -19,3 +19,9 @@ enum MapType { BASE, POI, BUILDING, TOWN }
 @export var enemy_spawns: Array[Dictionary] = []  # [{ "pos": Vector3, "count": int }]
 @export var unlock_condition: String = ""
 @export var difficulty: int = 1
+
+## Natural (smooth) terrain parameters; null = the map has no smooth terrain
+## and any SmoothGrid node in its scene frees itself at _ready (dual-voxel
+## conversion, docs/TODO.md D2). SceneManager injects this into the SmoothGrid
+## before the map enters the tree.
+@export var terrain_gen: TerrainGenDef = null

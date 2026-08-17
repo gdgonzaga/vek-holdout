@@ -123,8 +123,9 @@ func _physics_process(_delta: float) -> void:
 			_ghost.hide_()
 		return
 	# Placement cell = the struck voxel + the face normal (the adjacent empty cell
-	# where a new block/furniture anchor would go).
-	var cell: Vector3i = hit["position"] + hit["normal"]
+	# where a new block/furniture anchor would go). Smooth hits already carry the
+	# derived cell — slope normals aren't axis-aligned offsets (D3).
+	var cell: Vector3i = _placement_cell(hit)
 	if DEBUG_RAYCAST:
 		print("[DEBUG] hit pos=%s norm=%s cell=%s selected_id=%s" % [hit["position"], hit["normal"], cell, selected_id])
 	var ghost_pos: Vector3
@@ -215,7 +216,7 @@ func _try_commit() -> void:
 	var hit := grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
 	if not hit.get("hit", false):
 		return
-	var cell: Vector3i = hit["position"] + hit["normal"]
+	var cell: Vector3i = _placement_cell(hit)
 	# Per-kind VALIDITY only (block = air; furniture = free footprint), neither
 	# overlapping an existing blueprint. Commit itself is the strategy's job —
 	# instant or blueprint — so the controller hands off the same way for both.
@@ -255,6 +256,15 @@ func _try_remove() -> void:
 
 
 # --- kind helpers -------------------------------------------------------------
+
+## Placement cell from a raycast hit. Blocky/body hits resolve to the struck
+## cell + face normal; smooth hits come pre-derived (floor(point + normal*0.5))
+## with a zero normal, so they are taken as-is. Smooth-hit cells skip the
+## "supported?" question until Phase 3's support check lands (D3).
+func _placement_cell(hit: Dictionary) -> Vector3i:
+	if hit.get("surface", "") == "smooth":
+		return hit["position"]
+	return hit["position"] + hit["normal"]
 
 ## True if the selected id is a non-block (free-standing) buildable. Reads the
 ## catalog so the def shape (BlockDef vs not) drives routing everywhere.

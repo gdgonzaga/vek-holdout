@@ -55,12 +55,14 @@ func snap_transform(world_pos: Vector3) -> Vector3i:
 	return Vector3i(int(floor(world_pos.x)), int(floor(world_pos.y)), int(floor(world_pos.z)))
 
 
-## Physics raycast resolved to a voxel cell + face normal (delegates to BlockyGrid).
+## Physics raycast resolved to a voxel cell + face/classification (delegates to
+## BlockyGrid; see its raycast_to_voxel for the `surface` contract — "smooth"
+## hits carry a pre-derived placement cell and zero normal).
 ## `exclude` (optional): Array[RID] to ignore (e.g. the player body). Returns
-## { position: Vector3i, normal: Vector3i, hit: bool }.
+## { position: Vector3i, normal: Vector3i, hit: bool, surface: String }.
 func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary:
 	if _grid == null:
-		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false}
+		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false, "surface": ""}
 	return _grid.raycast_to_voxel(origin, dir, max_dist, exclude)
 
 
