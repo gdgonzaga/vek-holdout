@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://ddmx4fwxeu43w"]
 
-[ext_resource type="Script" uid="uid://d8bckbt7a7p1" path="res://ui/log_feed/log_history.gd" id="1_loghist"]
+[ext_resource type="Script" uid="uid://d8bckbt7a7p1" path="res://ui/log_history/log_history.gd" id="1_loghist"]
 
 [node name="LogHistory" type="Control" unique_id=1093077593]
 layout_mode = 3
