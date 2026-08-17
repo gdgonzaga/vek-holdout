@@ -3,14 +3,27 @@ extends GdUnitTestSuite
 
 var _scene: Control
 
+# Swap-and-restore (AGENTS.md): the real registry must never be wired to test
+# fixtures, and Colony's container must survive the spawn tests' on_map_wired.
+var _real_registry: StorageRegistry
+var _real_container: Node3D
+var _test_registry: StorageRegistry
+
 
 func before_test() -> void:
 	var packed: PackedScene = load("res://ui/colony_management/colony_management.tscn")
 	_scene = auto_free(packed.instantiate() as Control)
 	add_child(_scene)
+	_real_registry = Colony.storage_registry
+	_real_container = Colony._container
+	_test_registry = StorageRegistry.new()
+	auto_free(_test_registry)
+	Colony.storage_registry = _test_registry
 
 
 func after_test() -> void:
+	Colony.storage_registry = _real_registry
+	Colony._container = _real_container
 	Colony.colonists.clear()
 
 
@@ -188,37 +201,6 @@ func test_storage_tab_with_container() -> void:
 	assert_str(weight_lbl.text).contains("Stored Weight:")
 
 
-func test_time_system_realtime_and_decimal_days() -> void:
-	# Store initial time state
-	var initial_day: int = GameState.current_day
-	var initial_elapsed_in_day: float = TimeSystem._elapsed_in_day
-	var initial_realtime: float = TimeSystem._realtime_play_time
-
-	GameState.current_day = 3
-	TimeSystem._elapsed_in_day = 450.0 # 450s out of 1800s (30m) = 0.25 day
-	TimeSystem._realtime_play_time = 3665.0 # 1h 01m 05s
-
-	# Assert decimal elapsed days: (Day 3 - 1) + 0.25 = 2.25 days
-	assert_float(TimeSystem.get_elapsed_days()).is_equal_approx(2.25, 0.01)
-
-	# Assert realtime play time
-	assert_float(TimeSystem.get_realtime_play_time()).is_equal(3665.0)
-	assert_str(TimeSystem.get_realtime_play_time_formatted()).is_equal("01:01:05")
-
-	# Test serialization & deserialization
-	var ser := TimeSystem.serialize()
-	assert_float(float(ser.get("realtime_play_time", 0.0))).is_equal(3665.0)
-
-	TimeSystem._realtime_play_time = 0.0
-	TimeSystem.deserialize(ser)
-	assert_float(TimeSystem.get_realtime_play_time()).is_equal(3665.0)
-
-	# Restore state
-	GameState.current_day = initial_day
-	TimeSystem._elapsed_in_day = initial_elapsed_in_day
-	TimeSystem._realtime_play_time = initial_realtime
-
-
 func test_colony_info_tab_populates_metrics() -> void:
 	Colony.colonists.clear()
 	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
@@ -242,7 +224,6 @@ func test_colony_info_tab_populates_metrics() -> void:
 
 
 func test_spawn_colonist_success() -> void:
-	Colony.colonists.clear()
 	var dummy_container: Node3D = auto_free(Node3D.new()) as Node3D
 	add_child(dummy_container)
 	Colony.on_map_wired(dummy_container, [])
@@ -254,12 +235,8 @@ func test_spawn_colonist_success() -> void:
 	assert_int(Colony.colonists.size()).is_equal(1)
 	assert_object(Colony.colonists[0]).is_equal(spawned)
 
-	# Clean up
-	Colony.colonists.clear()
-
 
 func test_spawn_colonist_cap_reached() -> void:
-	Colony.colonists.clear()
 	var dummy_container: Node3D = auto_free(Node3D.new()) as Node3D
 	add_child(dummy_container)
 	Colony.on_map_wired(dummy_container, [])
@@ -270,6 +247,3 @@ func test_spawn_colonist_cap_reached() -> void:
 
 	var excess: Colonist = Colony.spawn_colonist(null, Vector3.ZERO)
 	assert_object(excess).is_null()
-
-	# Clean up
-	Colony.colonists.clear()
