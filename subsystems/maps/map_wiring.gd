@@ -98,8 +98,10 @@ static func wire_colonists(map: Map) -> Node3D:
 
 
 ## Build the per-cell is_walkable Callable from the map's voxel grid + build
-## layers. A cell is standable iff it is air, has a solid floor below, and is
-## not occupied by furniture or a blueprint (colonist stands ADJACENT to a
+## layers. A cell is standable iff it is air, has a solid floor below, has head
+## clearance above (the 1.6 m capsule spans two 1 m cells — without this check
+## colonists path into 1-high gaps and grind against the ceiling forever), and
+## is not occupied by furniture or a blueprint (colonist stands ADJACENT to a
 ## build target, never on its footprint).
 static func _compose_walkability(map: Map) -> Callable:
 	var grid: VoxelGrid = map.get_grid()
@@ -107,13 +109,20 @@ static func _compose_walkability(map: Map) -> Callable:
 	var fl: FurnitureLayer = ctrl.furniture_layer if ctrl != null else null
 	var bl: BlueprintLayer = ctrl.blueprint_layer if ctrl != null else null
 	const DOWN := Vector3i(0, -1, 0)
+	const UP := Vector3i(0, 1, 0)
 	return func(cell: Vector3i) -> bool:
 		if grid.get_block_at(cell) != "":             # solid (terrain/block)
 			return false
 		if grid.get_block_at(cell + DOWN) == "":      # no floor below
 			return false
+		if grid.get_block_at(cell + UP) != "":        # no head clearance
+			return false
 		if fl != null and fl.has_at(cell):
 			return false
 		if bl != null and bl.has_at(cell):
+			return false
+		if fl != null and fl.has_at(cell + UP):       # furniture overhead
+			return false
+		if bl != null and bl.has_at(cell + UP):       # blueprint overhead
 			return false
 		return true

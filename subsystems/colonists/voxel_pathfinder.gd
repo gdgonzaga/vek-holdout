@@ -11,16 +11,39 @@ class_name VoxelPathfinder
 ## sized for Colonist.set_path() (whose locomotion zeroes Y, so waypoint Y is
 ## informative, not load-bearing).
 ##
-## Neighbor model (MVP): 4-connected horizontal on the standing Y — correct for
-## flat terrain. Step-up/down + multi-level are deferred; the floor-based
-## predicate validates every cell, so widening neighbors later is localized.
+## Neighbor model: stepped — the 4 horizontal directions crossed with dy in
+## {+1, 0, -1..-_MAX_DROP}. +1 climbs one full block (the Colonist's
+## StepClimber component hops the face at the obstacle — colonists have no
+## manual jump); drops up to _MAX_DROP cells are walk-off-and-fall. Vertical
+## moves cost extra so flat detours (and future stair blocks, once a per-block
+## cost hook exists) win over jumping whenever comparable. Multi-cell drops
+## assume an unobstructed fall column (the predicate only validates the landing
+## cell); floating geometry in between can interrupt the fall — no recovery
+## exists for interrupted MOVE legs either way.
 
 const _DOWN := Vector3i(0, -1, 0)
+## Horizontal-only adjacency: used where "stand adjacent to a footprint" is
+## the question — ring/footprint expansion never changes Y.
 const _NEIGHBORS_4 := [
 	Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
 	Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 ]
-const _MAX_EXPLORED := 4000 # backstop against runaway searches
+## A* expansion offsets: 4 horizontal dirs x dy in {+1, 0, -1..-_MAX_DROP},
+## written literally because const initializers can't call functions.
+const _NEIGHBORS_STEPPED := [
+	Vector3i(1, 1, 0), Vector3i(-1, 1, 0), Vector3i(0, 1, 1), Vector3i(0, 1, -1),
+	Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1),
+	Vector3i(1, -1, 0), Vector3i(-1, -1, 0), Vector3i(0, -1, 1), Vector3i(0, -1, -1),
+	Vector3i(1, -2, 0), Vector3i(-1, -2, 0), Vector3i(0, -2, 1), Vector3i(0, -2, -1),
+	Vector3i(1, -3, 0), Vector3i(-1, -3, 0), Vector3i(0, -3, 1), Vector3i(0, -3, -1),
+]
+## Maximum fall (in cells) a path may route over.
+const _MAX_DROP := 3
+## Climbing costs 3x a flat step so colonists prefer flat detours / stairs.
+const _JUMP_UP_COST := 3.0
+## Falling costs 1.5 per cell — cheaper than climbing, pricier than flat.
+const _DROP_COST_PER_CELL := 1.5
+const _MAX_EXPLORED := 8000 # backstop against runaway searches (20 neighbors/expand)
 const _STAND_SCAN := 3 # +/- Y cells scanned by find_stand_cell
 const _CELL_HALF := Vector3(0.5, 0.5, 0.5)
 
@@ -72,11 +95,11 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
 		if explored > _MAX_EXPLORED:
 			push_warning("VoxelPathfinder: exceeded %d cells, giving up" % _MAX_EXPLORED)
 			return path
-		for off in _NEIGHBORS_4:
+		for off in _NEIGHBORS_STEPPED:
 			var nb: Vector3i = current + off
 			if closed.has(nb) or not _is_walkable.call(nb):
 				continue
-			var tentative: float = g_score[current] + 1.0
+			var tentative: float = g_score[current] + _move_cost(off)
 			if tentative < g_score.get(nb, INF):
 				g_score[nb] = tentative
 				came_from[nb] = current
@@ -85,8 +108,19 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
 	return path
 
 
-## Manhattan distance on the horizontal plane (Y is constant for 4-connected
-## MVP moves). Admissible for unit step costs.
+## Traversal cost of one stepped move: flat 1.0, climb _JUMP_UP_COST, drop
+## _DROP_COST_PER_CELL per cell fallen.
+func _move_cost(off: Vector3i) -> float:
+	if off.y > 0:
+		return _JUMP_UP_COST
+	if off.y < 0:
+		return _DROP_COST_PER_CELL * float(-off.y)
+	return 1.0
+
+
+## Manhattan distance on the horizontal plane. Vertical moves are ignored by
+## the heuristic but cost >= 1.0 each, so it stays admissible (never
+## overestimates) for the stepped neighbor model.
 func _heuristic(a: Vector3i, b: Vector3i) -> float:
 	return float(abs(a.x - b.x) + abs(a.z - b.z))
 
@@ -238,11 +272,11 @@ func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array
 		if explored > _MAX_EXPLORED:
 			push_warning("VoxelPathfinder: exceeded %d cells" % _MAX_EXPLORED)
 			return path
-		for off in _NEIGHBORS_4:
+		for off in _NEIGHBORS_STEPPED:
 			var nb: Vector3i = current + off
 			if closed.has(nb) or not _is_walkable.call(nb):
 				continue
-			var tentative: float = g_score[current] + 1.0
+			var tentative: float = g_score[current] + _move_cost(off)
 			if tentative < g_score.get(nb, INF):
 				g_score[nb] = tentative
 				came_from[nb] = current
