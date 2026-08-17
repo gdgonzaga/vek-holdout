@@ -11,7 +11,7 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 | File | Type | Responsibility |
 |---|---|---|
 | `colonist.gd` | Script | The colonist entity (`Colonist extends CharacterBody3D`). HP, labor priorities, raid stance, current Job, path-following locomotion (`set_path` / `has_arrived`), and a carry `CharacterInventory` (so it can stand in for `actor` in `Blueprint.deposit_from`). Holds `skill_set` / `stamina_component` / `pathfinder` / `inventory` child refs. Does NOT own job discovery (Job Board does). |
-| `colonist.tscn` | Scene | Capsule mesh + CollisionShape + `SkillSet` / `StaminaComponent` / `ColonistAI` / `ColonistCombat` (bare node, no script yet) / `VoxelPathfinder` children. (The carry `Inventory` is code-created in `_ready`, mirroring the Player's scene-placed one.) |
+| `colonist.tscn` | Scene | Capsule mesh + CollisionShape + `SkillSet` / `StaminaComponent` / `ColonistAI` / `ColonistCombat` (bare node, no script yet) / `VoxelPathfinder` / `StepClimber` (shared step/hop assist, `hop_height = 1.05` — see the [Player](player.md) class reference) children. (The carry `Inventory` is code-created in `_ready`, mirroring the Player's scene-placed one.) |
 | `colonist_ai.gd` | Script | The colonist job loop over a **leg sequence**: IDLE → poll [Job Board](jobs.md) (0.5s throttle) → `try_assign` → get leg 0 → path (A\*) → MOVE → on arrival run the leg's `begin`/`complete` → `_advance` to the next leg or `_end_job`. Owns the WORK tick for timed legs; delegates pathfinding to `VoxelPathfinder`. The [`JobDef`](jobs.md) contract (`get_next_leg`/`begin`/`complete`/`on_end`/`is_available`) supplies all behaviour — ColonistAI is intentionally "dumb" (walks, times, advances). |
 | `voxel_pathfinder.gd` | Script (component) | Voxel A\* with an **injected walkability predicate** — intentionally generic (knows nothing about voxels/furniture/blueprints). `find_path_to_adjacent` resolves a stand-adjacent cell so a colonist can reach a blocked footprint (a blueprint or a crate). See class reference. |
 | `skill_set.gd` | Script (component) | Per-colonist skill progression — seeded from `colonist_def.starting_skills`, XP on job success, work-speed multipliers. See [Skills](skills.md). |
@@ -62,7 +62,7 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 
 **Extends:** CharacterBody3D
 **Script:** `colonist.gd`
-**Description:** A colonist entity. Holds identity, labor priorities, raid stance, the current Job, and a carry `CharacterInventory`; runs gravity + path-following locomotion in `_physics_process`. Resolves its component child refs in `_ready` (including the code-created carry `Inventory`). Does NOT own job discovery — `ColonistAI` (a child node) drives the leg loop against the [Job Board](jobs.md).
+**Description:** A colonist entity. Holds identity, labor priorities, raid stance, the current Job, and a carry `CharacterInventory`; runs gravity + path-following locomotion in `_physics_process` (vertical negotiation — stepping onto lips, hopping 1 m blocks — lives in the shared `StepClimber` child; see [Player](player.md)). Resolves its component child refs in `_ready` (including the code-created carry `Inventory`). Does NOT own job discovery — `ColonistAI` (a child node) drives the leg loop against the [Job Board](jobs.md).
 **Used by:** Colony (roster), Combat (target, future), Colonist Management screen.
 **Lifecycle:** `_ready` assigns a uuid `colonist_id`, copies identity/labor/stance from the `ColonistDef`, resolves component child refs, creates + adds the carry `CharacterInventory`, and seeds HP.
 
@@ -123,14 +123,14 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 **Description:** Voxel A\* pathfinder with an **injected walkability predicate**. Intentionally generic — it knows nothing about voxels, furniture, or blueprints. The wiring layer (`MapWiring.wire_colonists`) composes a per-cell `is_walkable(Vector3i)` Callable from `VoxelGrid` solidity + `FurnitureLayer`/`BlueprintLayer` occupancy and injects it via `set_walkability`. Output is world-space `Vector3` waypoints sized for `Colonist.set_path` (whose locomotion zeroes Y).
 **Used by:** ColonistAI (path requests), Colonist (`pathfinder` child ref).
 
-**Neighbor model (MVP):** 4-connected horizontal on the standing Y — correct for flat terrain. Step-up/down + multi-level are deferred; the floor-based predicate validates every cell, so widening neighbors later is localized.
+**Neighbor model:** stepped — the 4 horizontal directions crossed with dy ∈ {+1, 0, −1…−3}. +1 climbs one full block (the `StepClimber` child physically hops the obstacle face — colonists have no manual jump); drops up to `_MAX_DROP = 3` cells are walk-off-and-fall. Vertical moves cost extra (`_JUMP_UP_COST = 3.0` to climb, `_DROP_COST_PER_CELL = 1.5` per cell fallen) so flat detours — and, once a per-block cost hook exists, future stair blocks — win over jumping whenever comparable. The predicate validates every expanded cell including head clearance, and `find_path_to_footprint_adjacent`'s candidate expansion stays strictly horizontal (stand-adjacent never changes Y). Multi-cell drops assume an unobstructed fall column — the predicate validates the landing, not the gap.
 
 **Functions:**
 
 | Function | Description |
 |---|---|
 | `set_walkability(predicate: Callable) → void` | Inject the per-cell walkability predicate (composed by the wiring layer). |
-| `find_path(start_cell, target_cell) → Array[Vector3i]` | Core A\* over cells (Dictionary-backed open/closed, linear min-f scan). Empty if no path / predicate unset / target not standable / start==target. `_MAX_EXPLORED = 4000` backstop. |
+| `find_path(start_cell, target_cell) → Array[Vector3i]` | Core A\* over cells (Dictionary-backed open/closed, linear min-f scan, stepped neighbors with per-move costs). Empty if no path / predicate unset / target not standable / start==target. `_MAX_EXPLORED = 8000` backstop. |
 | `find_stand_cell(world_pos) → Vector3i` | Resolve a standable cell near a world position (scan down then up ±3 Y). Handles the spawn-drop resting height. |
 | `find_stand_near_cell(center, max_radius = 4) → Vector3i` | Nearest walkable cell to `center` via a horizontal ring search (Chebyshev rings, min Euclidean within the first non-empty ring). For targets on a blocked footprint — the colonist stands adjacent, never on it. Returns `center` unchanged if already walkable or none found within radius. |
 | `find_path_world(start_world, target_world) → Array[Vector3]` | World→stand-cell→A\*→world. Use only when the target is standable terrain, NOT a blocked footprint. |

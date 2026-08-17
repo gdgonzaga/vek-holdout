@@ -10,6 +10,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `input_component.gd` | Script (Node) | Child node on the Player. Reads all raw player input and exposes it via signals (discrete actions: build toggle, interact, mouse recapture, ui cancel) and per-frame query methods (`get_movement_input()`, `wants_jump()`, `wants_sprint()`). Does NOT own mouse-motion (CameraRig handles that) or mouse-mode management (Player owns that as a game-state concern). |
 | `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). **Over-the-shoulder framing** via `Camera3D.h_offset`/`v_offset` (export `h_offset`/`v_offset`): the frustum shifts so the body sits screen-left/bottom while the aim direction stays along the spring-arm axis (no camera rotation). LMB/RMB reserved for item actions, not consumed here. |
 | `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Build Menu/Build Placement × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
+| `../core/step_climber.gd` | Script (component) | Shared stair-step / hop assist, added as a `StepClimber` child of both `player.tscn` and `colonist.tscn` (lives in core — the AGENTS ambiguous-ownership rule). Ticks after the body's `move_and_slide()` and walks the player over low lips/risers up to `step_height` (0.5); `hop_height` stays 0 on the player (the Space jump remains manual). See the class reference below. |
 | `../data/characters/player.tres` | Data | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See [Data Schemas](data-schemas.md). |
 
 ## Signals
@@ -80,6 +81,17 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 4. Speed scale at takeoff is frozen — releasing/pressing Shift mid-air does not change momentum scale.
 
 **End state:** Jump preserves horizontal momentum from takeoff; player can brake but not steer mid-air.
+
+## Flow Trace: Stepping Over Low Obstacles
+
+**Trigger:** A grounded player walks into a low vertical lip (a few-cm mesh edge, a stair riser) that plain `move_and_slide()` treats as a wall.
+
+1. `player.gd._handle_move_keys` runs `move_and_slide()`; the capsule stops against the lip (`is_on_wall()` true — contact normals steeper than `floor_max_angle` read as walls, and the engine default `floor_snap_length` only ever pulls *down*).
+2. The `StepClimber` child ticks next (children process after parents): it derives the push direction from the wall normal (`move_and_slide()` has already zeroed the horizontal velocity against the face by then) and probes a climb — lift the capsule to `step_height + clearance`, sweep forward past the lip, sweep down to a landing, then validate the landing normal against `floor_max_angle` (physics queries with the body's own capsule, body RID excluded).
+3. A landing within `step_height` teleports the body onto the step and `apply_floor_snap()` re-establishes floor state the same frame, so the mid-air momentum logic above never sees a spurious airborne tick. Obstacles up to `hop_height` would get a solved vertical impulse instead — but the Player leaves `hop_height` at 0 (colonists use the hop; see [Colonists](colonists.md)).
+4. The body root sets `floor_snap_length = 0.5` so walking *down* risers stays glued to the steps instead of micro-falling off each edge.
+
+**End state:** Lips and risers up to `step_height` (0.5) are walked over like stairs; taller obstacles still require the manual Space jump.
 
 ## Class Reference
 
@@ -180,3 +192,19 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `get_camera() -> Camera3D` | The active Camera3D (child of the spring arm). Returns null if the rig isn't ready yet (callers must wait for `_ready`). |
 | `get_yaw() -> float` / `get_pitch() -> float` | Current orbit yaw / pitch (radians). Save/load accessors for otherwise-private state. |
 | `set_orientation(yaw: float, pitch: float) -> void` | Restore the orbit (radians); pitch is clamped and applied immediately. Used by save/load. |
+
+### Class: StepClimber
+
+**Extends:** Node
+**Script:** `../core/step_climber.gd` (shared with [Colonists](colonists.md) — ambiguous ownership → core)
+**Description:** Stair-step / hop locomotion assist, added as a child node of both `player.tscn` and `colonist.tscn`. Children tick after their parent in `_physics_process`, so the component sees the body's post-`move_and_slide()` state and needs no hooks in either body's movement kernel. When a grounded body presses into an obstacle (`is_on_wall()` — which only turns true when the body actually moved into the wall that frame) it first tries to STEP onto it (lift probe → forward sweep → down sweep, teleport + `apply_floor_snap()`), and — when `hop_height > 0` — HOPS obstacles up to `hop_height` with a vertical impulse solved from the probed rise; the body's own gravity and horizontal steering carry it over. The pathfinder knows nothing of this component — walkability stays a pure graph question.
+**Used by:** Player, Colonist (scene child in both).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `step_height` | `float` | `[export default 0.5]` Tallest obstacle stepped onto (teleport + floor snap). |
+| `hop_height` | `float` | `[export default 0.0]` Tallest obstacle hopped (impulse). 0 disables hopping; `colonist.tscn` sets 1.05 — one voxel block. |
+| `hop_gravity` | `float` | `[export default 9.8]` Gravity used to solve the hop impulse (`sqrt(2·g·(rise + clearance))`). |
+| `hop_cooldown` | `float` | `[export default 0.25]` Minimum seconds between hop impulses — no pogo against unclimbable walls. |
