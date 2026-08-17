@@ -93,7 +93,7 @@ separated by collision layers. Feasibility is proven by the runtime spike
 Standing gotchas: F5 (editor viewport cannot render Transvoxel — no in-editor
 smooth authoring), F7 (terrains pinned at origin; layer and mask must move
 together; smooth normals are non-axis), `PackedScene.pack()` drops
-GDExtension properties (template text-patch pattern) — see
+GDExtension properties (template text-patch pattern, retired 2026-08-18 with the flat generator) — see
 `docs/VOXEL-TOOL-NOTES.md`.
 
 ---

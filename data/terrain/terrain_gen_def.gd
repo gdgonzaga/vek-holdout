@@ -16,6 +16,9 @@ class_name TerrainGenDef
 
 ## FastNoiseLite seed for the heightfield. Same seed + frequency = same hills,
 ## which is what makes sqlite-persisted edits reproducible across loads.
+## Frequency is also the slope budget: max slope ≈ height_range·π·frequency,
+## which must stay under max_walk_slope_deg's tangent or the noise itself
+## creates unwalkable hills (the 50 m default pairs range 50 with 0.005 → ~38°).
 @export var noise_seed: int = 0
 @export var noise_frequency: float = 0.012
 

@@ -62,7 +62,15 @@ This creates:
   with a `VoxelStreamSQLite` pointing at the new database already wired in
 - `res://data/maps/<map_id>/map.sqlite` (empty database)
 - `res://data/maps/<map_id>/map_def.tres` (a default `MapDef`: your chosen
-  `map_type`, `scene_path` → this folder's `map.tscn`)
+  `map_type`, `scene_path` → this folder's `map.tscn`, and `terrain_gen`
+  pre-filled with the default natural-terrain def)
+
+**Initial terrain is smooth.** The template's blocky terrain generates nothing
+(structures only); the ground you play on comes from the SmoothGrid driven by
+`terrain_gen` — pre-set to `data/terrain/default_ground.tres` (rolling natural
+terrain, 50 m deep). Point `terrain_gen` at another `TerrainGenDef` (e.g. the
+flatter `data/terrain/default_hills.tres`) or clear it (no natural terrain at
+all) in Step 3.
 
 The plugin then opens the new `map.tscn` in the editor and binds its terrain
 for painting. The FileSystem dock refreshes automatically.
@@ -73,19 +81,30 @@ for painting. The FileSystem dock refreshes automatically.
 
 ---
 
-## Step 2: Paint the terrain
+## Step 2: Paint the structures
 
-With Voxel Paint active and the database assigned:
+The blocky terrain is the **structures** layer (walls, scrap piles, platforms)
+— painted into `map.sqlite` exactly as before:
 
 1. Pick a **block type** from the dropdown (terrain, metal, reinforced, scrap,
    stone, wood).
 2. Set the **brush radius** (0.5–5.0).
 3. **LMB** to paint, **Shift+LMB** (or the Erase toggle) to erase.
 4. Edits flush to the database automatically via
-   `VoxelTerrain.save_modified_blocks()`.
+   `VoxelTerrain.save_modified_blocks()`. Persistence is immediate — edits
+   survive scene close/reopen and editor restarts.
 
-Paint your structures, terrain features, walls, etc. Persistence is immediate —
-edits survive scene close/reopen and editor restarts.
+> **A fresh map has no generated ground to paint against.** The smooth terrain
+> that will be the ground at runtime does **not render in the editor viewport**
+> (a Transvoxel mesher limitation — VOXEL-TOOL-NOTES F5), and the blocky
+> terrain now starts as air. To author against a visible plane, temporarily add
+> a `VoxelGeneratorFlat` (height 0, `voxel_type` 1) to `BlockyGrid/VoxelTerrain`,
+> paint your structures relative to it, then **remove the generator before
+> saving** — leaving it in would resurrect flat blocky ground at runtime and
+> bury the smooth terrain. Painted structures persist in `map.sqlite` either
+> way; just remember the runtime surface is the def's (`default_ground.tres`
+> rolls 50 m — if authored structures must meet the ground closely, use a def
+> whose range hugs the plane, like `default_hills.tres` at −4…+8).
 
 > **Hit detection in the editor** uses a `get_voxel()` ray-march (NOT a physics
 > raycast — `VoxelTerrain` emits no collision in the editor viewport). See
@@ -103,6 +122,7 @@ Open `res://data/maps/<map_id>/map_def.tres` in the inspector. Set:
 | `display_name` | Player-facing name (e.g. "Abandoned Factory"). |
 | `description` | One-liner for the world map UI. |
 | `scene_path` | The scene to load — already points at this map's own `data/maps/<id>/map.tscn`. Leave as-is unless you have a custom scene. |
+| `terrain_gen` | Natural-terrain generator def — the map's initial ground. Pre-filled with `data/terrain/default_ground.tres` (50 m deep rolling terrain); point it at another `TerrainGenDef` or clear it for a terrain-less map. |
 | `map_type` | `POI` (default), `BASE`, `BUILDING`, or `TOWN`. |
 | `difficulty` | 1–N; shown in the world map list. |
 | `player_spawn` | Fallback spawn position if the scene has no `PlayerSpawn` marker. |
@@ -212,3 +232,10 @@ authored state, delete `user://maps/<id>/` (both `map.sqlite` and
 **Wrong map loads / id mismatch.**
 - `MapDef.id` must equal the folder name. `SceneManager` derives the runtime
   path from `id`; a mismatch means the copied database lands in the wrong place.
+
+**A fresh map looks empty in the editor.**
+- Expected: the smooth terrain that will be the ground at runtime doesn't
+  render in the editor viewport (Transvoxel mesher limitation, VOXEL-TOOL-NOTES
+  F5), and the blocky terrain generates nothing (structures only). Add a
+  temporary `VoxelGeneratorFlat` as an authoring plane (Step 2) or just run the
+  game — the natural ground streams in around the player.

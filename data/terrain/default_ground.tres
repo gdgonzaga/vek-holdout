@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TerrainGenDef" format=3 uid="uid://bdeepgr0und50"]
+
+[ext_resource type="Script" path="res://data/terrain/terrain_gen_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "ground_default"
+display_name = "Rolling Ground (50 m deep)"
+noise_seed = 20260818
+noise_frequency = 0.005
+height_start = -50.0
+height_range = 50.0
+max_walk_slope_deg = 45.0

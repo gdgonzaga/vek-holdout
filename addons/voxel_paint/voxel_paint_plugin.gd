@@ -38,6 +38,12 @@ const FURNITURE_ROTATE_KEY := KEY_R
 const TEMPLATE_PATH := "res://subsystems/maps/map_template.tscn"
 const MAPS_DIR := "res://data/maps/"
 
+# Default TerrainGenDef stamped into every new map's map_def.tres: natural
+# smooth ground (50 m deep rolling terrain) is the initial terrain now that
+# the template's blocky layer generates nothing — blocky is structures-only.
+# Clear `terrain_gen` in a map_def.tres to opt a map out of natural terrain.
+const DEFAULT_TERRAIN_GEN := "res://data/terrain/default_ground.tres"
+
 # Modes
 enum PaintMode {
 	PAINT,
@@ -437,8 +443,11 @@ func _stamp_map_scene(src_path: String, dst_path: String, db_path: String) -> vo
 
 
 ## Writes map_def.tres pointing scene_path at the per-map .tscn. map_type defaults
-## to POI since most authored maps are expedition content; pass BASE for the home
-## colony so it doesn't appear as a discoverable POI.
+## to POI since most authored maps are expedition content; pass BASE for the
+## home colony so it doesn't appear as a discoverable POI. terrain_gen defaults
+## to DEFAULT_TERRAIN_GEN so new maps open on natural ground (the template's
+## blocky terrain generates nothing); a missing def degrades to a terrain-less
+## map rather than failing creation.
 func _create_map_def(map_name: String, folder_path: String, tscn_path: String, \
 		map_type: int = MapDef.MapType.POI) -> void:
 	var def := MapDef.new()
@@ -447,6 +456,12 @@ func _create_map_def(map_name: String, folder_path: String, tscn_path: String, \
 	def.description = "Authored via voxel paint."
 	def.map_type = map_type
 	def.scene_path = tscn_path
+	var terrain_gen: TerrainGenDef = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
+	if terrain_gen != null:
+		def.terrain_gen = terrain_gen
+	else:
+		push_warning("VoxelPaint: missing " + DEFAULT_TERRAIN_GEN \
+				+ " — new map starts without natural terrain")
 	var tres_path := folder_path + "map_def.tres"
 	var err := ResourceSaver.save(def, tres_path)
 	if err != OK:

@@ -4,20 +4,25 @@ extends EditorScript
 ## map scene that VoxelPaint writes into.
 ##
 ## Run via editor File → Run (Ctrl+Shift+X) with any scene open. Produces:
-##   MapTemplate (Node3D, map.gd, database_path exported)
+##   MapTemplate (Node3D, map.gd)
 ##     BlockyGrid (Node, blocky_grid.gd)
-##       VoxelTerrain (generator, mesher with library)
+##       VoxelTerrain (mesher with baked library, NO generator — structures only)
 ##     SmoothGrid (Node, smooth_grid.gd, default_material = ground.tres)
 ##       VoxelTerrain (Transvoxel mesher; generator from MapDef.terrain_gen at
-##                     runtime, terrain.sqlite stamped per map)
+##                     runtime — voxel_paint_plugin._create_map_def stamps the
+##                     default deep-ground def into new maps; terrain.sqlite
+##                     stamped per map)
 ##     ColonistContainer, EnemyContainer, FurnitureContainer, EnvironmentContainer
 ##     BuildController (instanced from build.tscn)
 ##     SpawnPoints → PlayerSpawn (Marker3D)
 ##
-## The baked mesher library (data/blocks/voxel_library.tres) is the decisive
-## ingredient for in-editor rendering (Fact 5).
-## The stream is wired by map.gd _ready() from the database_path export —
-## no manual VoxelStreamSQLite sub-resource needed in the .tscn.
+## The INITIAL TERRAIN is the smooth grid's: natural rolling ground, 50 m deep
+## by default (data/terrain/default_ground.tres). The blocky terrain generates
+## nothing — it exists for authored structures, which is why it keeps the
+## mesher + baked library (data/blocks/voxel_library.tres): that library is the
+## decisive ingredient for in-editor rendering of painted blocks (Fact 5).
+## No VoxelStreamSQLite is baked in — per-map streams are injected at stamp
+## time by voxel_paint_plugin._stamp_map_scene.
 
 const OUTPUT_PATH := "res://subsystems/maps/map_template.tscn"
 const LIBRARY_PATH := "res://data/blocks/voxel_library.tres"
@@ -29,6 +34,11 @@ func _run() -> void:
 	root.set_script(load("res://subsystems/voxel/map.gd"))
 
 	# -- BlockyGrid --
+	# Structures only (dual-voxel D1): NO generator — the blocky layer starts as
+	# air and holds exactly what gets painted into its per-map sqlite stream.
+	# Initial terrain is the smooth grid's business (MapDef.terrain_gen). The
+	# mesher + baked library stay: they are what renders painted blocks in the
+	# editor viewport (Fact 5).
 	var grid := Node.new()
 	grid.name = "BlockyGrid"
 	grid.set_script(load("res://subsystems/voxel/blocky_grid.gd"))
@@ -38,18 +48,6 @@ func _run() -> void:
 	# -- VoxelTerrain --
 	var terrain := VoxelTerrain.new()
 	terrain.name = "VoxelTerrain"
-
-	# Generator: flat ground (same as base map). voxel_type must be 1 (terrain's
-	# library index) — VoxelGeneratorFlat defaults to 0 (air), which renders
-	# nothing. See docs/VOXEL-TOOL-NOTES.md "Save the scene after setting voxel_type".
-	# NOTE: setting it in memory is not enough — PackedScene.pack() drops this
-	# GDExtension property on the programmatic save path (the editor's Ctrl+S path
-	# preserves it, which is why the discrepancy goes unnoticed). We re-assert it
-	# in the saved .tscn text below (_ensure_voxel_type) as the source of truth.
-	var gen := VoxelGeneratorFlat.new()
-	gen.channel = 0
-	gen.voxel_type = 1
-	terrain.generator = gen
 
 	# Mesher: blocky with baked library.
 	var mesher := VoxelMesherBlocky.new()
@@ -67,12 +65,14 @@ func _run() -> void:
 	grid.add_child(terrain)
 	terrain.owner = root
 
-	# -- SmoothGrid (optional natural terrain) --
+	# -- SmoothGrid (the initial terrain) --
 	# Every stamped scene carries it; a MapDef without terrain_gen makes the node
-	# free itself at _ready, so flat maps are unaffected (dual-voxel D1/D2).
-	# No generator here: SmoothGrid._ready builds VoxelGeneratorNoise2D from the
-	# injected TerrainGenDef — the editor viewport can't render Transvoxel
-	# terrain anyway (F5/F8), so there is nothing to preview.
+	# free itself at _ready, so terrain-less maps are unaffected (dual-voxel
+	# D1/D2). New maps get terrain_gen defaulted to the deep-ground def by
+	# voxel_paint_plugin._create_map_def; no generator is baked here because
+	# SmoothGrid._ready builds VoxelGeneratorNoise2D from the injected
+	# TerrainGenDef — the editor viewport can't render Transvoxel terrain anyway
+	# (F5/F8), so there is nothing to preview.
 	var smooth := Node.new()
 	smooth.name = "SmoothGrid"
 	smooth.set_script(load("res://subsystems/voxel/smooth_grid.gd"))
@@ -141,15 +141,6 @@ func _run() -> void:
 	result.pack(root)
 	var err := ResourceSaver.save(result, OUTPUT_PATH)
 	if err == OK:
-		# PackedScene.pack() drops VoxelGeneratorFlat.voxel_type on the programmatic
-		# save path (it survives the editor's Ctrl+S path but not this one), leaving
-		# the generator at its default 0 (air) — flat ground then generates as
-		# all-air, so the paint tool's voxel march never hits a solid cell and
-		# placement silently no-ops. Re-assert voxel_type = 1 in the saved text.
-		# This is the authoritative fix; the in-memory gen.voxel_type above is kept
-		# only for parity/inspection. See VOXEL-TOOL-NOTES.md "Save the scene after
-		# setting voxel_type".
-		_ensure_voxel_type(OUTPUT_PATH, TERRAIN_VOXEL_TYPE)
 		print("MapTemplate: saved to ", OUTPUT_PATH)
 		EditorInterface.get_resource_filesystem().scan()
 	else:
@@ -157,91 +148,3 @@ func _run() -> void:
 
 	root.queue_free()
 
-
-# Library index written into VoxelGeneratorFlat.voxel_type. Must be 1 (terrain)
-# so VoxelGeneratorFlat emits solid terrain instead of air (index 0).
-const TERRAIN_VOXEL_TYPE := 1
-
-
-## Patch every VoxelGeneratorFlat sub_resource in `path` so its voxel_type equals
-## `value`. Idempotent: sets it if missing, corrects it if wrong, leaves it if
-## already right. Operates on the .tscn text directly because pack()/save() drop
-## this GDExtension property on the programmatic save path. Aborts (push_error)
-## if no VoxelGeneratorFlat sub_resource is present — that would mean the terrain
-## node itself failed to serialize, a different and more severe problem.
-static func _ensure_voxel_type(path: String, value: int) -> void:
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		push_error("MapTemplate: could not re-open %s to patch voxel_type" % path)
-		return
-	var text := f.get_as_text()
-	f.close()
-
-	# Lines that start the VoxelGeneratorFlat sub_resource block, e.g.:
-	#   [sub_resource type="VoxelGeneratorFlat" id="..."]
-	var sub_re := RegEx.new()
-	sub_re.compile(r'^\[sub_resource type="VoxelGeneratorFlat"[^\]]*\]$')
-
-	# An existing voxel_type = <int> assignment line. .tscn sub_resource
-	# properties have no leading whitespace, so anchor to start-of-line.
-	var prop_re := RegEx.new()
-	prop_re.compile(r'^voxel_type = ')
-	var target_line := "voxel_type = %d" % value
-
-	var lines := text.split("\n")
-	var in_block := false
-	var saw_prop_in_block := false  # did the current block already have voxel_type?
-	var found_block := false
-	var changed := false
-	var out_lines: PackedStringArray = []
-	for i in lines.size():
-		var line: String = lines[i]
-		# A [section] header ends the current sub_resource block (if any) BEFORE we
-		# consider it as a new block. Order matters: if we matched sub_re first, a
-		# second VoxelGeneratorFlat header would re-enter the header branch while
-		# still inside the previous block, skipping its close-out injection.
-		if in_block and line.begins_with("["):
-			if not saw_prop_in_block:
-				out_lines.append(target_line)
-				changed = true
-			in_block = false
-		if sub_re.search(line) != null:
-			in_block = true
-			saw_prop_in_block = false
-			found_block = true
-			out_lines.append(line)
-			continue
-		if in_block:
-			if prop_re.search(line) != null:
-				saw_prop_in_block = true
-				if line != target_line:
-					out_lines.append(target_line)
-					changed = true
-				else:
-					out_lines.append(line)
-				continue
-			out_lines.append(line)
-			continue
-		out_lines.append(line)
-
-	# If the file ends while still inside the last block (no trailing section),
-	# close it out the same way as above.
-	if in_block and not saw_prop_in_block:
-		out_lines.append(target_line)
-		changed = true
-
-	if not found_block:
-		push_error("MapTemplate: no VoxelGeneratorFlat sub_resource in %s — "
-				% path + "terrain node may not have serialized; check the .tscn")
-		return
-
-	if not changed:
-		return  # already correct
-
-	var written := FileAccess.open(path, FileAccess.WRITE)
-	if written == null:
-		push_error("MapTemplate: could not write patched %s" % path)
-		return
-	written.store_string("\n".join(out_lines))
-	written.close()
-	print("MapTemplate: asserted voxel_type = %d in %s" % [value, path])

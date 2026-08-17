@@ -8,10 +8,6 @@
 [ext_resource type="Script" uid="uid://dlfyay1we36om" path="res://subsystems/voxel/smooth_grid.gd" id="6_smooth"]
 [ext_resource type="Resource" uid="uid://5s4y52q3vbc3" path="res://data/terrain/materials/ground.tres" id="7_ground"]
 
-[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_dr4yq"]
-channel = 0
-
-voxel_type = 1
 [sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_be0qe"]
 library = ExtResource("3_be0qe")
 
@@ -24,7 +20,6 @@ script = ExtResource("1_o3no4")
 script = ExtResource("2_dr4yq")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid" unique_id=925542311]
-generator = SubResource("VoxelGeneratorFlat_dr4yq")
 mesher = SubResource("VoxelMesherBlocky_be0qe")
 
 [node name="SmoothGrid" type="Node" parent="."]

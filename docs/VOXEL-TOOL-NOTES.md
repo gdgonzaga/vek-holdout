@@ -312,6 +312,10 @@ inspector but don't save the scene, the file still reads 0 at runtime — flat
 terrain generates as all-air and nothing renders. **Always save the scene after
 editing generator properties**, and verify the value appears in the `.tscn`.
 
+No longer baked into `map_template.tscn` (2026-08-18 — initial terrain is the
+smooth grid's), but the facts above still govern the temporary authoring-plane
+workflow described in the authoring section below.
+
 ---
 
 ## VoxelTool API notes
@@ -371,9 +375,15 @@ Verified Godot 4 `EditorPlugin` API (use these exact identifiers):
 | Spawn points, decorations, markers | Godot Scene dock (`Marker3D`, `MeshInstance3D`) | Scene nodes |
 | External props (optional) | MagicaVoxel `.vox` | PackedScene/ArrayMesh child of the map |
 
-**One paint tool covers everything in-editor.** A `VoxelGeneratorFlat` produces
-the base ground plane the brush paints onto; structures and organic shaping are
-both done with the paint plugin.
+**One paint tool covers everything in-editor.** Structures and organic shaping
+are both done with the paint plugin. Since 2026-08-18 the map template bakes
+**no** `VoxelGeneratorFlat` — the blocky terrain is structures-only and the
+initial ground at runtime is the smooth grid's (new maps default
+`MapDef.terrain_gen` to the 50 m deep `data/terrain/default_ground.tres`). To
+get a paintable ground plane while authoring, temporarily add a
+`VoxelGeneratorFlat` (height 0, `voxel_type` 1) to `BlockyGrid/VoxelTerrain`
+and **remove it before saving** — leaving it in would resurrect flat blocky
+ground at runtime.
 
 - **`VoxelGeneratorGraph` is demoted to runtime-only.** A render spike
   (2026-07-31) found a valid SDF graph + `VoxelMesherTransvoxel` produces **no
