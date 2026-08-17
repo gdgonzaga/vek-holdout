@@ -27,9 +27,10 @@ Authoring guide for creating new crops: `docs/HOWTO-author-crops.md`.
 | `data/crops/*.tres` | Data | Crop definitions (`cave_spud`, `holdout_wheat`, `bio_gel_orchid`). |
 | `data/capability_params/farm_plot_params.gd` | Script | Sub-resource on `FurnitureDef` defining allowed crops for the plot. |
 | `data/labors/farming.tres` | Data | Farming labor definition (`id = "farming"`). |
-| `data/jobs/sow_job_def.gd` / `sow.tres` | Script/Data | Sowing job for empty farm plots. |
-| `data/jobs/water_job_def.gd` / `water.tres` | Script/Data | Watering job for thirsty crops. |
-| `data/jobs/tend_job_def.gd` / `tend.tres` | Script/Data | Tending job for crops needing maintenance. |
+| `data/jobs/farming_job_def.gd` | Script (Resource) | Shared skeleton for the three plot labors: one WORK leg against the plot's `Growable`, skill-scaled `begin` over `work_time` (authored per `.tres`). Subclasses override `_needs(growable)` / `_apply(growable, actor)` — a future FertilizeJobDef drops in the same way. |
+| `data/jobs/sow_job_def.gd` / `sow.tres` | Script/Data | Sowing job for empty farm plots (`_needs`: EMPTY + crop selected; `_apply`: `plant`). Also gates on the crop's `plant_conditions`. |
+| `data/jobs/water_job_def.gd` / `water.tres` | Script/Data | Watering job for thirsty crops (`_needs`: `needs_water()`; `_apply`: `water`). |
+| `data/jobs/tend_job_def.gd` / `tend.tres` | Script/Data | Tending job for crops needing maintenance (`_needs`: `needs_tending()`; `_apply`: `tend`). Also gates on the crop's `tend_conditions`. |
 | `subsystems/farming/crop_library.gd` | Script | Static catalog loader for all crop definitions in `res://data/crops/`. |
 | `subsystems/farming/growable.gd` | Script | Node component managing growth simulation, hydration, tending, and visuals. |
 | `subsystems/harvesting/harvestable.gd` | Script | Extended to query `Growable` dynamic yields and reset plots on harvest. |

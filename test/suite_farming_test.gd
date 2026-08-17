@@ -311,6 +311,18 @@ func _skill_uses(skill_set: SkillSet, skill_id: String) -> int:
 	return int(skill_set.skills.get(skill_id, {}).get("progress", 0))
 
 
+func test_farming_work_times_authored_in_tres() -> void:
+	# work_time lives in the .tres now (rule 1), not script literals; the shared
+	# FarmingJobDef.begin must read it (L1 farming multiplier = 1.0 here).
+	var colonist := _make_colonist()
+	var job := Job.from_def(SOW_JOB_DEF)
+	assert_float(SOW_JOB_DEF.begin(colonist, null, job)).is_equal_approx(2.0, 0.01)
+	job = Job.from_def(WATER_JOB_DEF)
+	assert_float(WATER_JOB_DEF.begin(colonist, null, job)).is_equal_approx(2.0, 0.01)
+	job = Job.from_def(TEND_JOB_DEF)
+	assert_float(TEND_JOB_DEF.begin(colonist, null, job)).is_equal_approx(3.0, 0.01)
+
+
 func test_player_farm_manual_action() -> void:
 	var anchor := Vector3i(14, 0, 14)
 	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)

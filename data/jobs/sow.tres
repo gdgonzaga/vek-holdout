@@ -8,3 +8,4 @@ id = "sow"
 display_name = "Sow Crop"
 labor_id = "farming"
 max_assignees = 1
+work_time = 2.0
