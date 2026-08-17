@@ -1,10 +1,12 @@
-[gd_resource type="Resource" script_class="MapDef" format=3 uid="uid://bldudi34xmgjv"]
+[gd_resource type="Resource" script_class="MapDef" format=3 uid="uid://dwc623h3eqjqd"]
 
-[ext_resource type="Script" uid="uid://du7misylvvk7b" path="res://data/maps/map_def.gd" id="1_d667f"]
+[ext_resource type="Script" uid="uid://du7misylvvk7b" path="res://data/maps/map_def.gd" id="1_hadky"]
+[ext_resource type="Resource" uid="uid://bdeepgr0und50" path="res://data/terrain/default_ground.tres" id="2_2lq4g"]
 
 [resource]
-script = ExtResource("1_d667f")
+script = ExtResource("1_hadky")
 id = "base"
 display_name = "Base"
 description = "Authored via voxel paint."
 scene_path = "res://data/maps/base/map.tscn"
+terrain_gen = ExtResource("2_2lq4g")

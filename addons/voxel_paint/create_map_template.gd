@@ -147,4 +147,3 @@ func _run() -> void:
 		push_error("MapTemplate: failed to save (error %d)" % err)
 
 	root.queue_free()
-

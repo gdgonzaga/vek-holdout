@@ -1,50 +1,52 @@
 [gd_scene format=3 uid="uid://cx45elorjrayi"]
 
-[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_o3no4"]
-[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/blocky_grid.gd" id="2_dr4yq"]
-[ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_be0qe"]
-[ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_il18e"]
-[ext_resource type="Script" uid="uid://dhq4hyx8nxo8n" path="res://subsystems/build/build_controller.gd" id="5_o3no4"]
-[ext_resource type="Script" uid="uid://dlfyay1we36om" path="res://subsystems/voxel/smooth_grid.gd" id="6_smooth"]
-[ext_resource type="Resource" uid="uid://5s4y52q3vbc3" path="res://data/terrain/materials/ground.tres" id="7_ground"]
+[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_be0qe"]
+[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/blocky_grid.gd" id="2_il18e"]
+[ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_8csyp"]
+[ext_resource type="Script" uid="uid://dlfyay1we36om" path="res://subsystems/voxel/smooth_grid.gd" id="4_ay8kh"]
+[ext_resource type="Resource" uid="uid://5s4y52q3vbc3" path="res://data/terrain/materials/ground.tres" id="5_13d5u"]
+[ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="6_2hepk"]
 
-[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_be0qe"]
-library = ExtResource("3_be0qe")
+[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_q70a7"]
+channel = 0
 
-[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_smooth"]
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_ts5yv"]
+library = ExtResource("3_8csyp")
 
-[node name="MapTemplate" type="Node3D" unique_id=1931621002]
-script = ExtResource("1_o3no4")
+[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_uf7qo"]
 
-[node name="BlockyGrid" type="Node" parent="." unique_id=483989422]
-script = ExtResource("2_dr4yq")
+[node name="MapTemplate" type="Node3D" unique_id=542980227]
+script = ExtResource("1_be0qe")
 
-[node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid" unique_id=925542311]
-mesher = SubResource("VoxelMesherBlocky_be0qe")
+[node name="BlockyGrid" type="Node" parent="." unique_id=394510288]
+script = ExtResource("2_il18e")
 
-[node name="SmoothGrid" type="Node" parent="."]
-script = ExtResource("6_smooth")
-default_material = ExtResource("7_ground")
+[node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid" unique_id=1602835685]
+generator = SubResource("VoxelGeneratorFlat_q70a7")
+mesher = SubResource("VoxelMesherBlocky_ts5yv")
 
-[node name="VoxelTerrain" type="VoxelTerrain" parent="SmoothGrid"]
-mesher = SubResource("VoxelMesherTransvoxel_smooth")
+[node name="SmoothGrid" type="Node" parent="." unique_id=525696383]
+script = ExtResource("4_ay8kh")
+default_material = ExtResource("5_13d5u")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1816968915]
+[node name="VoxelTerrain" type="VoxelTerrain" parent="SmoothGrid" unique_id=1835350288]
+mesher = SubResource("VoxelMesherTransvoxel_uf7qo")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1706937167]
 transform = Transform3D(-0.8660254, 0, -0.50000006, -0.43301278, 0.49999997, 0.75, 0.25, 0.86602545, -0.43301266, 0, 0, 0)
 shadow_enabled = true
 
-[node name="ColonistContainer" type="Node3D" parent="." unique_id=1234585508]
+[node name="ColonistContainer" type="Node3D" parent="." unique_id=1202741384]
 
-[node name="EnemyContainer" type="Node3D" parent="." unique_id=1669932653]
+[node name="EnemyContainer" type="Node3D" parent="." unique_id=1867735913]
 
-[node name="FurnitureContainer" type="Node3D" parent="." unique_id=1558064455]
+[node name="FurnitureContainer" type="Node3D" parent="." unique_id=930507440]
 
-[node name="EnvironmentContainer" type="Node3D" parent="." unique_id=456346051]
+[node name="EnvironmentContainer" type="Node3D" parent="." unique_id=1874591561]
 
-[node name="BuildController" type="Node3D" parent="." unique_id=1033573714 instance=ExtResource("4_il18e")]
-script = ExtResource("5_o3no4")
+[node name="BuildController" parent="." unique_id=1033573714 instance=ExtResource("6_2hepk")]
 
-[node name="SpawnPoints" type="Node3D" parent="." unique_id=1437700444]
+[node name="SpawnPoints" type="Node3D" parent="." unique_id=76171077]
 
-[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=1064301555]
+[node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=2034402457]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)

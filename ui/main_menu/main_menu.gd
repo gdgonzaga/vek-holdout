@@ -4,6 +4,8 @@ extends PanelContainer
 ## opens the load_menu screen to pick a slot. Continue (most-recent slot) /
 ## Settings land here later (GDD §12).
 
+@export var new_game_map_name := "base"
+
 @onready var _new_game_btn: Button = %NewGame
 @onready var _load_game_btn: Button = %LoadGame
 
@@ -36,5 +38,5 @@ func _start_new_game() -> void:
 	for def in MapLibrary.get_maps_by_type(MapDef.MapType.POI):
 		ExpeditionManager.discover(def.id)
 	SceneManager.wipe_map_cache()
-	SceneManager.swap_map("base")
+	SceneManager.swap_map(new_game_map_name)
 	SceneManager.close_screen()

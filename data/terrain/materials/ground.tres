@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://5s4y52q3vbc3"]
 
-[ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Resource" uid="uid://cbbmspbau1te5" path="res://data/items/dirt_block.tres" id="3_dirt"]
 [ext_resource type="Texture2D" uid="uid://hwdw331xed34" path="res://assets/item_icons/dirt_block.png" id="4_icon"]
@@ -14,7 +14,5 @@ count = 2
 script = ExtResource("1_script")
 id = "ground"
 display_name = "Ground"
-hardness = 1
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_dirt_yield")])
-place_radius = 1.5
 icon = ExtResource("4_icon")
