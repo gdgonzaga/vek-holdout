@@ -236,7 +236,7 @@ func apply_parked_state_if_any(map_id: String, map: Map) -> bool:
 	if not _parked.has(map_id):
 		return false
 	var rec: Dictionary = _parked[map_id]
-	map.get_grid().deserialize(rec.get("voxel_hp", {}))
+	map.get_blocky_grid().deserialize(rec.get("voxel_hp", {}))
 	var bc := map.find_child("BuildController") as BuildController
 	if bc != null:
 		if bc.furniture_layer != null and rec.has("furniture"):
@@ -260,11 +260,11 @@ func _park_current_map(map_id: String) -> void:
 	if map == null:
 		return
 	# (1) persist block types to the runtime sqlite
-	var terrain := map.get_terrain()
+	var terrain := map.get_blocky_terrain()
 	if terrain != null:
 		terrain.save_modified_blocks()
 	# (2) capture in-memory metadata
-	var rec: Dictionary = {"voxel_hp": map.get_grid().serialize()}
+	var rec: Dictionary = {"voxel_hp": map.get_blocky_grid().serialize()}
 	var bc := map.find_child("BuildController") as BuildController
 	if bc != null:
 		if bc.furniture_layer != null:

@@ -50,7 +50,7 @@ func _ready() -> void:
 ## Scatter colored beacon rings around spawn so walking has visible reference
 ## points (terrain is otherwise one flat color to the horizon). These are plain
 ## MeshInstance3D markers, not voxel blocks — they're test scaffolding, not game
-## content, so they don't go through VoxelGrid or the block data.
+## content, so they don't go through BlockyGrid or the block data.
 func _spawn_landmarks(map: Node) -> void:
 	# A tall marker at spawn so the origin is unmistakable from anywhere.
 	_add_beacon(map, Vector3.ZERO, Color(1, 1, 1), _BEACON_HEIGHT * 1.5, _BEACON_SIZE * 1.2)

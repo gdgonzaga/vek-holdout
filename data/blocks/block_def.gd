@@ -1,7 +1,7 @@
 extends BuildableDef
 class_name BlockDef
 ## Voxel-grid buildable (GDD §7.2). A BuildableDef exposed to the blocky voxel
-## world — what BlockLibrary feeds into VoxelBlockyLibrary and VoxelGrid places.
+## world — what BlockLibrary feeds into VoxelBlockyLibrary and BlockyGrid places.
 ## Schema: docs/ARCHITECTURE.md "data/blocks/<type>.tres".
 ##
 ## Inherits id/display_name/hp/mesh/material_cost/unlocked_by_default from

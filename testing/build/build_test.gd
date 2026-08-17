@@ -2,7 +2,7 @@ extends Node
 ## Build subsystem ghost-preview test.
 ##
 ## Instances map.tscn + player.tscn + build.tscn, wires the BuildController's
-## grid adapter to the map's VoxelGrid and its camera to the player's rig.
+## grid adapter to the map's BlockyGrid and its camera to the player's rig.
 ##
 ## Controls: B opens the build menu (ghost appears after picking a buildable).
 ## B again from placement returns to the menu; B from the menu exits build mode.
@@ -35,11 +35,11 @@ func _ready() -> void:
 	var build: Node = preload("res://subsystems/build/build.tscn").instantiate()
 	map.add_child(build)
 
-	# Wire the adapter to the map's VoxelGrid and the controller's camera to the
+	# Wire the adapter to the map's BlockyGrid and the controller's camera to the
 	# player's rig. Deferred a frame so child _ready calls (rig camera build) have
 	# run before we ask for the camera.
 	await get_tree().process_frame
-	var grid: VoxelGrid = map.get_grid()
+	var grid: BlockyGrid = map.get_blocky_grid()
 	var adapter := VoxelGridAdapter.new()
 	adapter.set_grid(grid)
 	build.grid_adapter = adapter

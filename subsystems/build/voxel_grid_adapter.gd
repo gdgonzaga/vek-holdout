@@ -1,18 +1,18 @@
 class_name VoxelGridAdapter
 extends RefCounted
-## IBlockGrid implementation wrapping voxel/voxel_grid.gd (ARCH "Build", line 456).
+## IBlockGrid implementation wrapping voxel/blocky_grid.gd (ARCH "Build").
 ## Keeps BuildController voxel-agnostic: it talks to this adapter, never to
-## voxel_tool or VoxelGrid directly. Holds a VoxelGrid reference set at wiring
+## voxel_tool or BlockyGrid directly. Holds a BlockyGrid reference set at wiring
 ## time (map mounts the controller + hands it the grid).
 
-var _grid: VoxelGrid = null
+var _grid: BlockyGrid = null
 
 
-func set_grid(grid: VoxelGrid) -> void:
+func set_grid(grid: BlockyGrid) -> void:
 	_grid = grid
 
 
-func get_grid() -> VoxelGrid:
+func get_grid() -> BlockyGrid:
 	return _grid
 
 
@@ -23,14 +23,14 @@ func get_block_at(pos: Vector3i) -> String:
 	return _grid.get_block_at(pos)
 
 
-## Places block_id at pos (delegates to VoxelGrid; emits block_placed there).
+## Places block_id at pos (delegates to BlockyGrid; emits block_placed there).
 func set_block_at(pos: Vector3i, block_id: String) -> void:
 	if _grid == null:
 		return
 	_grid.set_block_at(pos, block_id)
 
 
-## Removes whatever is at pos (delegates to VoxelGrid; emits block_destroyed there).
+## Removes whatever is at pos (delegates to BlockyGrid; emits block_destroyed there).
 func remove_block_at(pos: Vector3i) -> void:
 	if _grid == null:
 		return
@@ -55,7 +55,7 @@ func snap_transform(world_pos: Vector3) -> Vector3i:
 	return Vector3i(int(floor(world_pos.x)), int(floor(world_pos.y)), int(floor(world_pos.z)))
 
 
-## Physics raycast resolved to a voxel cell + face normal (delegates to VoxelGrid).
+## Physics raycast resolved to a voxel cell + face normal (delegates to BlockyGrid).
 ## `exclude` (optional): Array[RID] to ignore (e.g. the player body). Returns
 ## { position: Vector3i, normal: Vector3i, hit: bool }.
 func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary:
@@ -65,7 +65,7 @@ func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: A
 
 
 ## Ground height at world column (x, z) on the blocky terrain (delegates to
-## VoxelGrid). NAN when no ground within range. `normal_out` optionally
+## BlockyGrid). NAN when no ground within range. `normal_out` optionally
 ## receives the surface normal on hit.
 func height_at(x: float, z: float, normal_out: Array = []) -> float:
 	if _grid == null:

@@ -25,7 +25,7 @@ static func wire_build(map: Map) -> FurnitureLayer:
 	var ctrl := map.find_child("BuildController") as BuildController
 	if ctrl == null:
 		return null
-	var grid: VoxelGrid = map.get_grid()
+	var grid: BlockyGrid = map.get_blocky_grid()
 	var adapter := VoxelGridAdapter.new()
 	adapter.set_grid(grid)
 	ctrl.grid_adapter = adapter
@@ -52,7 +52,7 @@ static func wire_build(map: Map) -> FurnitureLayer:
 ## it already parented.
 static func wire_player(map: Map, player: Player) -> void:
 	# VoxelViewer streams terrain + collision around the player. BuildController's
-	# physics raycast (VoxelGrid.raycast_to_voxel) only hits something once chunks
+	# physics raycast (BlockyGrid.raycast_to_voxel) only hits something once chunks
 	# exist there, so the viewer must precede any build interaction.
 	var viewer := player.get_node_or_null("VoxelViewer")
 	if viewer == null:
@@ -102,7 +102,7 @@ static func wire_colonists(map: Map) -> Node3D:
 ## seam — today it is blocky-only; the conversion's Phase 3 widens it with a
 ## smooth-terrain source (docs/TODO.md D4) without touching occupancy rules.
 static func _compose_walkability(map: Map) -> Callable:
-	var grid: VoxelGrid = map.get_grid()
+	var grid: BlockyGrid = map.get_blocky_grid()
 	var ctrl := map.find_child("BuildController") as BuildController
 	var fl: FurnitureLayer = ctrl.furniture_layer if ctrl != null else null
 	var bl: BlueprintLayer = ctrl.blueprint_layer if ctrl != null else null

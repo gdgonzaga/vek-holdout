@@ -5,7 +5,7 @@ extends EditorScript
 ##
 ## Run via editor File → Run (Ctrl+Shift+X) with any scene open. Produces:
 ##   MapTemplate (Node3D, map.gd, database_path exported)
-##     VoxelGrid (Node, voxel_grid.gd)
+##     BlockyGrid (Node, blocky_grid.gd)
 ##       VoxelTerrain (generator, mesher with library)
 ##     ColonistContainer, EnemyContainer, FurnitureContainer, EnvironmentContainer
 ##     BuildController (instanced from build.tscn)
@@ -25,10 +25,10 @@ func _run() -> void:
 	root.name = "MapTemplate"
 	root.set_script(load("res://subsystems/voxel/map.gd"))
 
-	# -- VoxelGrid --
+	# -- BlockyGrid --
 	var grid := Node.new()
-	grid.name = "VoxelGrid"
-	grid.set_script(load("res://subsystems/voxel/voxel_grid.gd"))
+	grid.name = "BlockyGrid"
+	grid.set_script(load("res://subsystems/voxel/blocky_grid.gd"))
 	root.add_child(grid)
 	grid.owner = root
 

@@ -1,8 +1,11 @@
-class_name VoxelGrid
+class_name BlockyGrid
 extends Node
-## The sole owner of voxel_tool access for build/placement queries.
-## Implements IBlockGrid (build/i_block_grid.gd). Voxel coupling lives here and
-## nowhere else — other subsystems go through IBlockGrid, never voxel_tool.
+## The sole owner of voxel_tool access for build/placement queries on the
+## structures terrain. Implements IBlockGrid (build/i_block_grid.gd). Voxel
+## coupling lives here and nowhere else — other subsystems go through
+## IBlockGrid, never voxel_tool. The dual-voxel conversion (docs/TODO.md)
+## mirrors this class as SmoothGrid for natural terrain: same vocabulary,
+## different mesher/generator.
 ##
 ## Block identity is a string block_id everywhere outside this class. Internally
 ## we store the integer voxel-tool library index; the BlockLibrary does the
@@ -33,8 +36,8 @@ const TERRAIN_BODY_MASK := 8 | 32
 ## camera and target; that quirk is intentionally gone.
 const BUILD_RAY_MASK := 1 | TERRAIN_LAYER | 16
 
-## Path/name of the VoxelTerrain node, relative to this VoxelGrid. The MapRoot
-## (map.tscn) parents VoxelTerrain as a direct child of VoxelGrid.
+## Path/name of the VoxelTerrain node, relative to this BlockyGrid. The map
+## template parents VoxelTerrain as a direct child of BlockyGrid.
 @export var terrain_path: NodePath = ^"VoxelTerrain"
 
 @onready var _terrain: VoxelTerrain = get_node(terrain_path)
@@ -51,7 +54,7 @@ func _ready() -> void:
 		_terrain.set("collision_layer", TERRAIN_LAYER)
 		_terrain.set("collision_mask", TERRAIN_BODY_MASK)
 	else:
-		push_warning("VoxelGrid: VoxelTerrain lacks collision_layer; terrain stays on the default layer")
+		push_warning("BlockyGrid: VoxelTerrain lacks collision_layer; terrain stays on the default layer")
 	_library = BlockLibrary.new()
 	# Wire the data-driven block library into the terrain's mesher. Kept in code
 	# (not the .tscn) because the VoxelBlockyLibrary is assembled from data/blocks/.
@@ -70,7 +73,7 @@ func get_block_at(pos: Vector3i) -> String:
 func set_block_at(pos: Vector3i, block_id: String) -> void:
 	var index := _library.get_index(block_id)
 	if index < 0:
-		push_error("VoxelGrid: unknown block_id '%s'" % block_id)
+		push_error("BlockyGrid: unknown block_id '%s'" % block_id)
 		return
 	_voxel_tool.set_voxel(pos, index)
 	var def := _library.get_def(block_id)
@@ -91,7 +94,7 @@ func remove_block_at(pos: Vector3i) -> void:
 ## build raycast to skip the player's own capsule (the third-person camera ray
 ## would otherwise hit the player body before the terrain).
 func raycast_to_voxel(origin: Vector3, dir: Vector3, max_dist: float, exclude: Array = []) -> Dictionary:
-	# VoxelGrid is a plain Node (no get_world_3d); the VoxelTerrain child is a
+	# BlockyGrid is a plain Node (no get_world_3d); the VoxelTerrain child is a
 	# Node3D and owns the physics world its collision bodies live in.
 	var space := _terrain.get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * max_dist)

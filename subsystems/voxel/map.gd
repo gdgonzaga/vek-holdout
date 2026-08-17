@@ -2,26 +2,27 @@ class_name Map
 extends Node3D
 ## The MapRoot (docs/ARCHITECTURE.md, Scene Tree Overview). Swapped by
 ## SceneManager on base <-> POI transitions. Owns:
-##   - VoxelGrid  (the IBlockGrid owner; sole voxel_tool access point)
-##     - VoxelTerrain (voxel_tool blocky terrain)
+##   - BlockyGrid (the IBlockGrid owner; sole voxel_tool access point for
+##     structures) - VoxelTerrain (voxel_tool blocky terrain)
 ##   - Player, ColonistContainer, EnemyContainer, FurnitureContainer,
 ##     BuildController (added by their own subsystems / SceneManager; map.gd
 ##     just provides the slots).
 ##
 ## map.gd holds no gameplay logic — it is a structural container. The voxel
-## map's behavior lives in VoxelGrid / BlockLibrary.
+## map's behavior lives in BlockyGrid / BlockLibrary (and, once a map opts in,
+## SmoothGrid for natural terrain — dual-voxel conversion, docs/TODO.md).
 
-@onready var voxel_grid: VoxelGrid = $VoxelGrid
+@onready var blocky_grid: BlockyGrid = $BlockyGrid
 @onready var colonist_container: Node3D = $ColonistContainer
 @onready var enemy_container: Node3D = $EnemyContainer
 @onready var furniture_container: Node3D = $FurnitureContainer
 
 ## Buildable-block convenience proxy (most callers want the grid, not the map).
-func get_grid() -> VoxelGrid:
-	return voxel_grid
+func get_blocky_grid() -> BlockyGrid:
+	return blocky_grid
 
-func get_terrain() -> VoxelTerrain:
-	return voxel_grid.get_terrain()
+func get_blocky_terrain() -> VoxelTerrain:
+	return blocky_grid.get_terrain()
 
 ## Parent Node3D for free-standing furniture placed at runtime (build subsystem).
 func get_furniture_container() -> Node3D:

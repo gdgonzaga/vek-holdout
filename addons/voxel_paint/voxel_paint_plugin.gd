@@ -202,7 +202,7 @@ func _teardown_paint_attachments() -> void:
 ## authoring helper to it.
 func _resolve_map_root_and_furniture() -> void:
 	_yaw = 0
-	# Walk up to the edited scene root — _terrain.get_parent() is VoxelGrid,
+	# Walk up to the edited scene root — _terrain.get_parent() is BlockyGrid,
 	# its parent is the Map node that owns SpawnPoints.
 	_map_root = EditorInterface.get_edited_scene_root()
 	if _map_root == null or not _map_root.has_node("SpawnPoints"):

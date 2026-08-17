@@ -153,7 +153,7 @@ func _redirect_sqlite_stream(map: Node, map_id: String) -> void:
 	var m: Map = map as Map
 	if m == null:
 		return
-	var terrain := m.get_terrain()
+	var terrain := m.get_blocky_terrain()
 	if terrain == null:
 		return
 	# Ensure the runtime directory exists.

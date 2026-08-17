@@ -1,16 +1,16 @@
 extends GdUnitTestSuite
 
-## VoxelGrid collision ownership + height_at against a bare (generator-less)
+## BlockyGrid collision ownership + height_at against a bare (generator-less)
 ## VoxelTerrain, so no block streaming is involved: the layer assignment is
 ## asserted straight out of _ready, and height_at is exercised with plain
 ## StaticBody stand-ins placed on the right/wrong collision layers.
 
 ## Grid + bare VoxelTerrain in the scene tree. The terrain child is parented
 ## BEFORE the grid enters the tree so the grid's @onready terrain_path resolves.
-func _build_grid() -> VoxelGrid:
+func _build_grid() -> BlockyGrid:
 	var root: Node3D = auto_free(Node3D.new())
 	add_child(root)
-	var grid: VoxelGrid = auto_free(VoxelGrid.new())
+	var grid: BlockyGrid = auto_free(BlockyGrid.new())
 	var terrain := VoxelTerrain.new()
 	terrain.name = "VoxelTerrain"
 	grid.add_child(terrain)
@@ -43,15 +43,15 @@ func _run_frames(count: int) -> void:
 func test_terrain_owns_blocky_layer() -> void:
 	var grid := _build_grid()
 	var terrain := grid.get_terrain()
-	assert_int(int(terrain.get("collision_layer"))).is_equal(VoxelGrid.TERRAIN_LAYER)
-	assert_int(int(terrain.get("collision_mask"))).is_equal(VoxelGrid.TERRAIN_BODY_MASK)
+	assert_int(int(terrain.get("collision_layer"))).is_equal(BlockyGrid.TERRAIN_LAYER)
+	assert_int(int(terrain.get("collision_mask"))).is_equal(BlockyGrid.TERRAIN_BODY_MASK)
 
 
 ## height_at answers the highest surface on the TerrainBlocky layer and reports
 ## its normal; World-layer statics on other columns are ignored by the mask.
 func test_height_at_hits_blocky_layer_only() -> void:
 	var grid := _build_grid()
-	_add_box(grid.get_parent(), VoxelGrid.TERRAIN_LAYER, Vector3(0, 10, 0))
+	_add_box(grid.get_parent(), BlockyGrid.TERRAIN_LAYER, Vector3(0, 10, 0))
 	_add_box(grid.get_parent(), 1, Vector3(20, 30, 20))  # World static — ignored
 	await _run_frames(2)
 	var normals: Array = []

@@ -1,6 +1,6 @@
 extends Node3D
 ## Integration test for the Voxel / Map subsystem.
-## Loads the real map.tscn, flies a camera through it, and exercises VoxelGrid:
+## Loads the real map.tscn, flies a camera through it, and exercises BlockyGrid:
 ##   - places one block of every buildable type (wood/scrap/stone/metal/reinforced)
 ##   - verifies get_block_at round-trips the block_id
 ##   - verifies raycast_to_voxel hits placed blocks
@@ -56,7 +56,7 @@ func _run_tests() -> void:
 	# Let terrain stream in before we read/write.
 	await get_tree().create_timer(0.5).timeout
 
-	var grid: VoxelGrid = _map.get_grid()
+	var grid: BlockyGrid = _map.get_blocky_grid()
 	_diagnostics.append("=== Voxel/Map subsystem test ===")
 
 	# 1) Place one of each buildable type in a row on top of the terrain (y=1).

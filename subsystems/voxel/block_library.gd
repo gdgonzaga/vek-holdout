@@ -6,7 +6,7 @@ class_name BlockLibrary
 ## Index convention: 0 is always air (VoxelBlockyModelEmpty). Each BlockDef then
 ## gets the next index in load order. Terrain is forced to index 1 so that
 ## VoxelGeneratorFlat (which emits voxel_type = 1) renders as terrain without the
-## VoxelGrid having to remap generator output.
+## BlockyGrid having to remap generator output.
 
 const _DIR := "res://data/blocks/"
 

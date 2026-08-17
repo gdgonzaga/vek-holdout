@@ -5,7 +5,7 @@ class_name VoxelPathfinder
 ##
 ## Intentionally generic: knows nothing about voxels/furniture/blueprints. A
 ## caller (MapWiring.wire_colonists) composes a per-cell is_walkable(Vector3i)
-## Callable from VoxelGrid solidity + FurnitureLayer/BlueprintLayer occupancy
+## Callable from BlockyGrid solidity + FurnitureLayer/BlueprintLayer occupancy
 ## and injects it via set_walkability(). find_path() runs A* over cells using
 ## that predicate for lazy neighbor expansion; output is world Vector3 waypoints
 ## sized for Colonist.set_path() (whose locomotion zeroes Y, so waypoint Y is

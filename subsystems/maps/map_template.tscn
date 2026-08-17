@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cx45elorjrayi"]
 
 [ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_o3no4"]
-[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/voxel_grid.gd" id="2_dr4yq"]
+[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/blocky_grid.gd" id="2_dr4yq"]
 [ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_be0qe"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_il18e"]
 [ext_resource type="Script" uid="uid://dhq4hyx8nxo8n" path="res://subsystems/build/build_controller.gd" id="5_o3no4"]
@@ -16,10 +16,10 @@ library = ExtResource("3_be0qe")
 [node name="MapTemplate" type="Node3D" unique_id=1931621002]
 script = ExtResource("1_o3no4")
 
-[node name="VoxelGrid" type="Node" parent="." unique_id=483989422]
+[node name="BlockyGrid" type="Node" parent="." unique_id=483989422]
 script = ExtResource("2_dr4yq")
 
-[node name="VoxelTerrain" type="VoxelTerrain" parent="VoxelGrid" unique_id=925542311]
+[node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid" unique_id=925542311]
 generator = SubResource("VoxelGeneratorFlat_dr4yq")
 mesher = SubResource("VoxelMesherBlocky_be0qe")
 

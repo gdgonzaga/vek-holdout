@@ -4,7 +4,7 @@ extends RefCounted
 ## buildable directly at the committed transform — no blueprint, no labor.
 ## Handles BOTH kinds now that BuildController routes every commit through the
 ## strategy: BlockDef -> VoxelGridAdapter.set_block_at; everything else ->
-## FurnitureLayer.spawn. Goes through these adapters (never the raw VoxelGrid)
+## FurnitureLayer.spawn. Goes through these adapters (never the raw BlockyGrid)
 ## so voxel coupling stays behind the IBlockGrid contract.
 ##
 ## commit() resolves the integer cell from the transform origin and dispatches by
