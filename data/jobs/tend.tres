@@ -1,11 +1,11 @@
-[gd_resource type="Resource" script_class="TendJobDef" format=3]
+[gd_resource type="Resource" script_class="TendJobDef" format=3 uid="uid://b6hp56v2ex6p4"]
 
-[ext_resource type="Script" path="res://data/jobs/tend_job_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_db4c3"]
+[ext_resource type="Script" uid="uid://b3dlhuv1d62vp" path="res://data/jobs/tend_job_def.gd" id="1_def"]
 
 [resource]
 script = ExtResource("1_def")
+work_time = 3.0
 id = "tend"
 display_name = "Tend Crop"
 labor_id = "farming"
-max_assignees = 1
-work_time = 3.0

@@ -1,11 +1,10 @@
-[gd_resource type="Resource" script_class="SowJobDef" format=3]
+[gd_resource type="Resource" script_class="SowJobDef" format=3 uid="uid://c30lw5qnbctde"]
 
-[ext_resource type="Script" path="res://data/jobs/sow_job_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://584tlx0uxlje" path="res://data/jobs/sow_job_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_rmmlr"]
 
 [resource]
 script = ExtResource("1_def")
 id = "sow"
 display_name = "Sow Crop"
 labor_id = "farming"
-max_assignees = 1
-work_time = 2.0

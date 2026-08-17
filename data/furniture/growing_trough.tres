@@ -1,21 +1,22 @@
-[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://bmrf2pbjipcej"]
 
-[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
-[ext_resource type="Script" path="res://data/capability_params/farm_plot_params.gd" id="2_params"]
-
-[sub_resource type="BoxMesh" id="BoxMesh_trough"]
-size = Vector3(1, 0.35, 1)
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_t0xvj"]
+[ext_resource type="Script" uid="uid://sau8xal5caaj" path="res://data/capability_params/farm_plot_params.gd" id="2_params"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_b6b11"]
 
 [sub_resource type="Resource" id="Resource_plot_params"]
 script = ExtResource("2_params")
 
+[sub_resource type="BoxMesh" id="BoxMesh_trough"]
+size = Vector3(1, 0.35, 1)
+
 [resource]
 resource_name = "Growing Trough"
 script = ExtResource("1_fdef")
+farm_plot_params = SubResource("Resource_plot_params")
 id = "growing_trough"
 display_name = "Growing Trough"
 hp = 100
-dimensions = Vector3i(1, 1, 1)
 mesh = SubResource("BoxMesh_trough")
-farm_plot_params = SubResource("Resource_plot_params")
 unlocked_by_default = true
