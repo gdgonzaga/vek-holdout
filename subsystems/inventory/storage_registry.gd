@@ -85,7 +85,7 @@ func get_all_crates() -> Array[Furniture]:
 
 func _crates() -> Array[Furniture]:
 	var out: Array[Furniture] = []
-	if _container == null:
+	if not is_instance_valid(_container):
 		return out
 	for c in _container.get_children():
 		if is_instance_valid(c) and c is Furniture and c.has_node("StorageInventory"):
