@@ -55,6 +55,13 @@ func swap_map(scene_id: String) -> void:
 
 	if _current_map != null:
 		EventBus.map_unloading.emit(_current_scene_id)
+		# Same player invariant as unload_current_map: the persistent Player
+		# was created once and must never be freed with a map — reparent it out
+		# before the outgoing map dies (_wire_map re-adds it to the new map).
+		if _player != null and is_instance_valid(_player):
+			_player.clear_interactable()
+		if _player != null and is_instance_valid(_player) and _player.get_parent() == _current_map:
+			_current_map.remove_child(_player)
 		_current_map.queue_free()
 		_current_map = null
 		_current_scene_id = ""
