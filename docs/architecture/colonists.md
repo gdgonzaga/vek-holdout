@@ -4,7 +4,7 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 
 > **Sprint scope (built):** colonists work jobs via `ColonistAI`'s inline three-state machine (IDLE → poll [Job Board](jobs.md) → MOVE → WORK). Two labors ship — Construction and Hauling — both driven by the [`JobDef`](jobs.md) leg-behaviour contract. See [Jobs](jobs.md) for the full job pipeline.
 >
-> **Deferred (GDD §6, not yet built):** the Stamina work-speed factor (the skill factor is live — timed legs scale via [Skills](skills.md); `StaminaComponent` is still a stub), `colonist_combat.gd` (§6.7), recruitment (§6.9), the `RaidStance` enum (§6.2), roster save/restore (so a colonist's carry inventory isn't persisted yet — skills now round-trip via `Colonist.serialize` for when it lands), and `colonist_ai_statemachine.gd` (an unreferenced orphan stub superseded by the inline state enum in `colonist_ai.gd`).
+> **Deferred (GDD §6, not yet built):** the Stamina work-speed factor (the skill factor is live — timed legs scale via [Skills](skills.md); `StaminaComponent` is still a stub), `colonist_combat.gd` (§6.7), recruitment (§6.9), the `RaidStance` enum (§6.2), roster save/restore (so a colonist's carry inventory isn't persisted yet — skills now round-trip via `Colonist.serialize` for when it lands).
 
 ## Files
 
