@@ -2,6 +2,8 @@
 
 Loot tables + container-roll logic for scavenge missions. GDD §17 "Loot tables" + "Key Item Table". Consumed by Expeditions (containers in POI scenes); output flows to Inventory on pickup. Cross-references: Expeditions subsystem (containers live in POI scenes), Inventory subsystem (pickup flow), SaveSystem (Key Item pool persists).
 
+> **Implementation status: planned, not yet built.** `subsystems/loot/` and `data/loot/` are both empty — there is no `loot_container.gd`, `loot_roller.gd`, `KeyItemPool`, or any `LootTable`/`LootEntry` class, and Colony carries no key-item state. The Inventory pickup path this subsystem feeds (`Player.inventory.add(item_id, count)`) does exist. Treat this page as the spec to implement against, not a description of current code.
+
 **Design notes:**
 - **LootTable + LootEntry** are data (`.tres` Resources); the **roller** is a script. Matches the data-driven convention.
 - **KeyItemPool lives on the Colony autoload** — run-state that must persist across scene swaps and saves (Key Items are once-per-playthrough). Same pattern as Memorial. See [Tech Debt & Unimplemented](tech-debt.md) on Colony bloat.

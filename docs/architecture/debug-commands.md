@@ -1,6 +1,8 @@
 # Debug Console — Command Reference
 
-Full list of registered commands. GDD §17 Debug Console + §17 Scavenge-specific hooks. All dev/playtest only.
+Full list of *planned* commands. GDD §17 Debug Console + §17 Scavenge-specific hooks. All dev/playtest only.
+
+> **Implementation status: planned, not yet built.** None of these commands exist — there is no console, command registry, or `Command` resource anywhere in the codebase (see [Debug Console](debug-console.md)). This is the intended command surface for the console when it lands, kept as the design reference.
 
 ## Resources
 

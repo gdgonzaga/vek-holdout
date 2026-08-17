@@ -2,6 +2,8 @@
 
 Dev/playtest console for rapid iteration. GDD §17 Debug Console + the scavenge-specific hooks in §17 Expeditions. **Dev-only — stripped from release builds** (see Tech Debt on the export-time exclusion approach).
 
+> **Implementation status: planned, not yet built.** The `debug/` directory is empty — there is no `debug_console.tscn`/`.gd`, no `commands.gd`, no `Command` resource, no console autoload in `project.godot`, and no `debug_console`/F1 input action. None of the commands in [Debug Commands](debug-commands.md) exist. Treat this page as the spec to implement against, not a description of current code. (For ad-hoc dev output today, use `print()` / `push_warning()` or `GameLog.debug(...)` — see [Game Log](game-log.md).)
+
 **Design notes:**
 - **Command registry pattern:** a `DebugConsole` autoload (or scene on a CanvasLayer) holds a registry of `command_name → callable`. Each command is a thin function that mutates state via the *public APIs* of other subsystems (Inventory.add, Colony.spawn_colonist, etc.) — never reaches into subsystem internals. This keeps the debug surface from rotting when subsystem internals change.
 - **`id` convention:** commands that take an entity id accept either a colonist_id or the literal string `"player"`. A small resolver (`DebugConsole._resolve_entity(id)`) returns the node; commands query the relevant component on it.

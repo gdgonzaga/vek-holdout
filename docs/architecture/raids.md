@@ -2,6 +2,8 @@
 
 Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsystem.
 
+> **Implementation status: planned, not yet built.** `subsystems/raids/` is empty and `data/raid_curve.tres` does not exist — there is no scheduler, threat model, or spawn manager, and Colony carries no threat state. The `raid_started` / `raid_ended` signals are declared on EventBus but never emitted (GameLog already subscribes, so the feed lines work the day an emitter lands), and `TimeSystem.day_rolled_over` (the intended scheduler tick) is live. Treat this page as the spec to implement against, not a description of current code.
+
 ## Files
 
 | File | Type | Responsibility |

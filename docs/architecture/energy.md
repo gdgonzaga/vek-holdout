@@ -2,24 +2,26 @@
 
 Two personal-energy pools on each character, both framed as depleting resources (100% fresh → 0% empty). Split from the original single "Fatigue" pool so burst costs (sprint/jump/melee/ranged) and daily grind (time + work) evolve independently. See GDD §17 Energy subsystem for the full mechanic spec.
 
-**Entity attachment matrix** (key architectural fact — component presence IS capability):
+> **Implementation status: planned, not yet built.** Almost nothing on this page exists: there is no `BreathComponent` anywhere, `data/energy_config.tres` and `data/characters/` don't exist, and `StaminaComponent` (`subsystems/colonists/stamina_component.gd`) is a 5-line stub with no pools, bands, or multipliers — it is attached to the Colonist scene only, and the Player scene carries neither component. The matrix below and the class references are the intended shape, not current code. What exists today: the Player sprints unconditionally on Shift (no Breath gating — see [Player](player.md) "Sprint and Breath" flow), and job work durations scale by skill only ([Skills](skills.md)); the Stamina factor is a documented seam waiting on this subsystem.
+
+**Entity attachment matrix** (key architectural fact — component presence IS capability; *target state*):
 
 | Entity | BreathComponent | StaminaComponent | MVP usage |
 |---|---|---|---|
-| Player | ✅ | ✅ | Sprint/jump/melee/ranged (Breath); daily collapse (Stamina) |
-| Colonist | ✅ | ✅ | Breath unused in MVP (future special actions); daily collapse (Stamina) |
-| Enemy (Brawler/Shooter) | ✅ | ❌ | Breath unused in MVP (future windup/heavy attacks); Stamina is a future addition |
+| Player | ❌ (planned) | ❌ (planned) | Sprint/jump/melee/ranged (Breath); daily collapse (Stamina) |
+| Colonist | ❌ (planned) | stub attached | Breath unused in MVP (future special actions); daily collapse (Stamina) |
+| Enemy (Brawler/Shooter) | ❌ (planned) | ❌ | Breath unused in MVP (future windup/heavy attacks); Stamina is a future addition |
 
-BreathComponent is attached to enemies now so future Breath-consuming features don't require architectural change.
+BreathComponent is planned to be attached to enemies from the start so future Breath-consuming features don't require architectural change.
 
 ## Files
 
 | File | Type | Responsibility |
 |---|---|---|
-| `../combat/breath_component.gd` | Script (component) | Breath pool (burst energy). Self-ticking in `_process`. Owns sprint drain + jump/melee/ranged costs + regen. Does NOT cause collapse (that's Stamina). |
-| `../colonists/stamina_component.gd` | Script (component) | Stamina pool (daily energy). Self-ticking in `_process`. Owns ambient drain + work multiplier + bands + collapse. Does NOT gate burst actions (that's Breath). Colocated with the Colonist entity this sprint (`subsystems/colonists/`). |
-| `../data/energy_config.tres` | Data | Global Stamina thresholds/floors + work multiplier. See [Data Schemas](data-schemas.md). |
-| character defs (in `../data/characters/`) | Data | Per-character Stamina drain rate + Breath costs. See [Data Schemas](data-schemas.md). |
+| `../combat/breath_component.gd` | Script (component) *(planned — does not exist yet)* | Breath pool (burst energy). Self-ticking in `_process`. Owns sprint drain + jump/melee/ranged costs + regen. Does NOT cause collapse (that's Stamina). |
+| `../colonists/stamina_component.gd` | Script (component) *(currently a 5-line stub)* | Intended: Stamina pool (daily energy), ambient drain + work multiplier + bands + collapse; does NOT gate burst actions (that's Breath). Lives in `subsystems/colonists/`, colocated with the Colonist entity. |
+| `../data/energy_config.tres` | Data *(planned — does not exist yet)* | Global Stamina thresholds/floors + work multiplier. See [Data Schemas](data-schemas.md). |
+| character defs (in `../data/characters/`) | Data *(planned — directory is empty)* | Per-character Stamina drain rate + Breath costs. See [Data Schemas](data-schemas.md). |
 
 *`stamina_component.gd` lives in `subsystems/colonists/` (colocated with the Colonist entity); `breath_component.gd` is still planned for the combat subsystem. See [Tech Debt & Unimplemented](tech-debt.md) on a possible future `core/components/` home.*
 
@@ -121,9 +123,9 @@ All same-scene (No EventBus) — Energy is per-entity, consumed locally by the o
 ### Class: StaminaComponent
 
 **Extends:** Node
-**Script:** `stamina_component.gd` (in `combat/`)
+**Script:** `stamina_component.gd` (in `subsystems/colonists/`; today a 5-line stub — everything below is the intended shape)
 **Description:** Long-term daily energy pool. Self-ticking. Ambient drain (×2 while working). Sleep-only recovery. Causes collapse at 0%. Applies work/movement penalties via bands.
-**Used by:** Player (movement floor + work multiplier), Colonists (work multiplier + collapse). HUD (Stamina bar + status icon). Colonist AI (collapse halt).
+**Intended users:** Player (movement floor + work multiplier), Colonists (work multiplier + collapse). HUD (Stamina bar + status icon). Colonist AI (collapse halt).
 
 **Properties:**
 

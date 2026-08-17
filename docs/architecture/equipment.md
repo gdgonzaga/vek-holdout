@@ -2,6 +2,8 @@
 
 Per-character equipped gear + named loadout templates that auto-equip on raid/expedition and auto-return to storage on return. GDD §17 Equipment + §12 Loadout Template editor.
 
+> **Implementation status: planned, not yet built.** `subsystems/equipment/` and `data/loadouts/` are empty, and `data/weapons/` + `data/armor/` don't exist — none of the classes below (`equipment.gd`, `loadout_manager.gd`, `discovered_gear.gd`) exist anywhere in the codebase. Everything on this page is design intent (the loadout data schema is tracked as planned in [Data Schemas](data-schemas.md)); treat it as the spec to implement against, not a description of current code.
+
 **Design notes:**
 - **`Equipment` is a component on each character** (8 slots: 6 armor + melee + ranged). Pairs with HealthComponent — HealthComponent's `max_durability` is the sum of equipped armor Durability values.
 - **`LoadoutTemplate` = slot → item_def_id mapping** (abstract, not concrete instances). Equipping resolves the template to concrete items pulled from storage at equip time. Handles "discovered gear" + "nearest unclaimed" rules cleanly.

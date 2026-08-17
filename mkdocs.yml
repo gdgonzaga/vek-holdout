@@ -34,26 +34,26 @@ nav:
     - Colonists: colonists.md
     - Jobs: jobs.md
     - Skills: skills.md
-    - Combat: combat.md
-    - "Equipment & Loadouts": equipment.md
-    - Energy: energy.md
-    - "Permadeath & Memorial": permadeath-memorial.md
-    - Raids: raids.md
     - Maps: maps.md
     - Expeditions: expeditions.md
-    - Loot: loot.md
     - Inventory: inventory.md
     - Crafting: crafting.md
     - Farming: farming.md
     - UI: ui.md
     - "Game Log": game-log.md
-    - "Debug Console": debug-console.md
   - Reference:
     - "Data Schemas": data-schemas.md
-    - "Debug Commands": debug-commands.md
   - Tracking:
     - "Tech Debt & Unimplemented": tech-debt.md
   - Planned:
+    - Combat: combat.md
+    - "Equipment & Loadouts": equipment.md
+    - Energy: energy.md
+    - "Permadeath & Memorial": permadeath-memorial.md
+    - Raids: raids.md
+    - Loot: loot.md
+    - "Debug Console": debug-console.md
+    - "Debug Commands": debug-commands.md
     - "Open world": open-world.md
     - "Job system extensions": job-extensions.md
   - About:

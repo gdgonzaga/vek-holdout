@@ -1,6 +1,6 @@
 # Subsystem: Permadeath & Memorial
 
-> **Stub** — minimal architecture to give the `colonist_died` signal a real listener (resolves the "fires into the void" correctness bug). Deeper permadeath mechanics (named-vs-unnamed resolution, "left behind on retreat" rule, incapacitated-state handling) are TODO; tracked in `GDD.gaps.md`.
+> **Implementation status: planned, not yet built.** Nothing on this page exists — there is no `memorial.gd`, no `memorial_entry.tscn`, no Day Summary or Game Over screen (both `ui/` dirs are empty), and the Game Over evaluator is not implemented. Today `colonist.gd` emits `EventBus.colonist_died` and the only listener is **GameLog** (a "has died" line): Colony does not remove the colonist from the roster on death, nothing appends a memorial entry, and `game_over` is declared on EventBus but never emitted. Deeper permadeath mechanics (named-vs-unnamed resolution, "left behind on retreat" rule, incapacitated-state handling) are also TODO. Treat this page as the spec to implement against, not a description of current code.
 
 Tracks deceased colonists as a memorial roster, consumed by the Day Summary "Fallen" section and the Game Over screen. Lives on the **Colony autoload** (roster state must persist across base↔POI scene swaps).
 
@@ -8,20 +8,20 @@ Tracks deceased colonists as a memorial roster, consumed by the Day Summary "Fal
 
 | File | Type | Responsibility |
 |---|---|---|
-| `memorial.gd` | Script (on Colony autoload) | Appends to the roster on `colonist_died`; exposes `get_roster()` for UI. Does NOT own death detection (subscribes to the signal). Does NOT own the Game Over evaluator (TODO — see D3 in review notes). |
-| `memorial_entry.tscn` | Scene | Reusable subscene: one deceased-colonist row (name, cause of death, day died). Instanced by Day Summary + Game Over. |
+| `memorial.gd` | Script (on Colony autoload) *(planned)* | Appends to the roster on `colonist_died`; exposes `get_roster()` for UI. Does NOT own death detection (subscribes to the signal). Does NOT own the Game Over evaluator (TODO — see D3 in review notes). |
+| `memorial_entry.tscn` | Scene *(planned)* | Reusable subscene: one deceased-colonist row (name, cause of death, day died). Instanced by Day Summary + Game Over. |
 
 ## Signals
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `colonist_died(colonist_id)` | `colonist.gd` (Combat) | **Memorial** (appends), Colony (roster removal), HUD | Yes | Colonist Death |
+| `colonist_died(colonist_id)` | `colonist.gd` | GameLog (only listener today); **Memorial**, Colony (roster removal), HUD *(planned)* | Yes | Colonist Death |
 
 (Memorial itself emits no signals — UI polls `get_roster()` when it opens.)
 
-## Flow Trace: Colonist death → memorial entry
+## Flow Trace: Colonist death → memorial entry *(planned)*
 
-**Trigger:** A colonist's HP hits 0 (Combat's damage resolution emits `entity_died` → `colonist.gd` emits `colonist_died` via EventBus).
+**Trigger:** A colonist's HP hits 0 (`colonist.gd` emits `colonist_died` via EventBus — live today).
 
 1. `colonist.gd` emits `colonist_died(colonist_id)` via EventBus.
 2. **Memorial** (on Colony) listens → appends `{colonist_id, display_name, cause, day_died}` to roster.

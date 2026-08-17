@@ -2,6 +2,8 @@
 
 Damage resolution (Durability-before-HP, GDD §6.11), weapons, enemy base + Brawler/Shooter archetypes.
 
+> **Implementation status: planned, not yet built.** Nothing on this page exists yet — `subsystems/combat/` is an empty directory, there is no `DamageResolver`, `HealthComponent`, `BreathComponent`, weapon or enemy script, and `data/characters/`, `data/weapons/`, and `data/armor/` are empty/uncreated. Treat this as the spec to implement against, not a description of current code. The pieces that *do* exist today: `colonist.gd` tracks HP directly (`take_damage(amount, source)` / `heal(amount)`, emitting `EventBus.colonist_died` at 0), the `player_died` signal is declared on EventBus (no emitter), and block-level durability-vs-HP already works in `VoxelGrid` (`get_hp_at` / `apply_damage` + `block_destroyed`) — the structural weak-point analysis in [Tech Debt](tech-debt.md) builds on that seam.
+
 ## Files
 
 | File | Type | Responsibility |
