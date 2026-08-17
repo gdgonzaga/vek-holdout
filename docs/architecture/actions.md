@@ -22,7 +22,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 | `subsystems/actions/not.gd` | Script (Resource) | Condition composite (`class_name NotCondition`) — inverts a single child `condition`. |
 | `../data/conditions/` | Script (Resource) | Leaf conditions — `CanCarryDispensedItems` (dispenser pickup capacity check), `MinSkillCondition` + `HasItemCondition` (actor gates, shared with `JobDef.conditions`). |
 | `../ui/interaction/interaction_ui.tscn` / `.gd` | Scene/Script | Pop-up `Control` (Label + button list). Built by `InteractionComponent`; one `Button` per `ActionOption`. See [UI](ui.md). |
-| `../data/actions/` | Data | `GameAction` subclasses + their `.tres`. Thirteen ship (print/build/instant_build/add_materials/give_item/open_storage/open_crafting/craft/harvest/toggle_harvest/farm_manual/inspect_crop/select_crop). See [Data Schemas](data-schemas.md). |
+| `../data/actions/` | Data | `GameAction` subclasses + their `.tres`. Thirteen interaction actions ship as `.tres` chains (print/build/instant_build/add_materials/give_item/open_storage/open_crafting/craft/harvest/toggle_harvest/farm_manual/inspect_crop/select_crop). `dig_action.gd` (`DigAction`, Phase-5 mining) is the one action NOT authored as an `.tres` chain: terrain isn't an interactable — its trigger is the build menu's Dig tool (an equipped-tool LMB later), so its entry point is `begin(actor, grid, center, tool)` instead of the `(actor, target)` node shape. See [Build](build.md). |
 | `../data/action_options/` | Data | `ActionOption` `.tres` resources — ten ship (one per shipped action family, e.g. `build_action_option`, `toggle_harvest_action_option`, `select_crop_action_option`). |
 
 ## Signals

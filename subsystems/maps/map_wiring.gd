@@ -73,6 +73,8 @@ static func wire_player(map: Map, player: Player) -> void:
 	if ctrl != null:
 		ctrl.set_camera(player.get_camera())
 		ctrl.add_exclude_body(player)
+		# The dig tool's timed action acts on the player (busy/yields/skill).
+		ctrl.set_player(player)
 
 
 ## Hand the map's ColonistContainer + authored ColonistSpawn* positions to Colony

@@ -111,8 +111,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 **Extends:** Node (autoload)
 **Script:** `build_library.gd`
-**Description:** Global, read-only catalog of every buildable. Loads all three `BuildableDef` subclass folders into one polymorphic `id → BuildableDef` map. Holds no run-state — "what's unlocked" is delegated to `RunProgress`.
-**Used by:** Build menu (lists available defs), `BuildController` (resolves `selected_id` → def for routing/ghost/commit), `InstantPlacementStrategy` (cost lookup, deferred).
+**Description:** Global, read-only catalog of every buildable. Loads all three `BuildableDef` subclass folders into one polymorphic `id → BuildableDef` map. Holds no run-state — "what's unlocked" is delegated to `RunProgress`. Also owns the build-tool sentinels: `DECONSTRUCT_ID` and the mining `DIG_ID` (with `DIG_TOOL`, the preloaded `DigToolParams` resource carrying the dig action's work time / carve radius).
+**Used by:** Build menu (lists available defs + tool entries), `BuildController` (resolves `selected_id` → def for routing/ghost/commit), `InstantPlacementStrategy` (cost lookup, deferred).
 **Lifecycle:** `_ready` loads the dirs, seeds `RunProgress` with `unlocked_by_default` defs, then connects `_seed_defaults` to `EventBus.run_started` (New Game: `RunProgress` was reset, defaults re-added from the in-memory catalog — no disk re-read).
 
 **Functions:**
@@ -124,6 +124,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `is_unlocked(id: String) -> bool` | Thin pass-through to `RunProgress.is_unlocked`. |
 | `get_unlocked() -> Array` | The defs currently available to the build menu. |
 | `unlock(id: String) -> void` | Pass-through to `RunProgress.unlock` (items/skills/quests call this; callers talk to the catalog, not run-state internals). |
+| `is_deconstruct(id: String) -> bool` | Static — true for the Deconstruct sentinel id. |
+| `is_dig_tool(id: String) -> bool` | Static — true for the Dig (mining) sentinel id. |
 
 ### Class: BuildController
 
@@ -133,6 +135,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 **Used by:** World (runtime wiring after player exists), EventBus (`build_placement_toggled`, `buildable_selected`).
 
 **Deconstruct tool:** the build menu appends a "Deconstruct" tool entry whose id is the `BuildLibrary.DECONSTRUCT_ID` sentinel (not a `BuildableDef`). When it is the selected id, `_unhandled_input` routes LMB to `_try_remove()` instead of `_try_commit()` (RMB still removes, so both buttons remove), and `_physics_process` drives a red ghost on the removal target — a red unit box (`GhostPreview.show_remove_at`) for blocks, or a red overlay of the targeted piece's own mesh (`GhostPreview.show_remove_mesh_at`, fed by `FurnitureLayer.get_furniture_at` for furniture or `BlueprintLayer.get_blueprint_at` for blueprints), mirroring the erase ghost in `addons/voxel_paint/`. `_on_buildable_selected` skips `_set_ghost_mesh()` for the sentinel (no def mesh to set).
+
+**Dig tool (mining, Phase 5):** a second sentinel entry, `BuildLibrary.DIG_ID`. Selecting it routes LMB to `_try_dig()`: the build ray must first hit natural terrain (`surface == "smooth"` — the blocky plate, furniture, and blueprints are not diggable ground; deconstruct likewise ignores smooth hits, D3), and `_physics_process` shows a green sphere ghost (`GhostPreview.show_sphere_at`) of exactly the carve volume — centered half a radius into the surface so the sphere bites a bowl instead of shaving a lens. The click starts a `DigAction` (see [Actions](actions.md)) on the wired `player` — a timed action whose gauge registers with UiGate (absorbing repeat clicks) and whose completion carves via `SmoothGrid.carve`, grants the material's `yields` to the player's inventory, and records a `mining` skill use. On terrain-less maps (no live SmoothGrid) the tool inertly shows no ghost.
 
 **Properties:**
 
@@ -144,8 +148,9 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | `blueprint_layer` | `BlueprintLayer` | Runtime-wired. Blueprint spawn/remove + completion registry (BlueprintPlacementStrategy path). |
 | `camera_path` | `NodePath` | `[export]` Path to the build camera; resolved in `_ready`, or via `set_camera()`. |
 | `exclude_bodies` | `Array[PhysicsBody3D]` | Bodies to skip in the cursor raycast (the player capsule). Add via `add_exclude_body()`. |
+| `player` | `Player` | Runtime-wired by `MapWiring.wire_player`. The dig tool's timed action busy-locks, pays yields to, and trains the player — the controller only aims it. |
 | `rotation_state` | `RotationState` | Current axis + 90° step. |
-| `selected_id` | `String` | The currently selected buildable id, or `BuildLibrary.DECONSTRUCT_ID` for the Deconstruct tool. Set by `EventBus.buildable_selected`; drives ghost mesh + commit routing (and LMB-remove when it's the deconstruct sentinel). |
+| `selected_id` | `String` | The currently selected buildable id, `BuildLibrary.DECONSTRUCT_ID`, or `BuildLibrary.DIG_ID`. Set by `EventBus.buildable_selected`; drives ghost mesh + commit routing (LMB-remove for the deconstruct sentinel, LMB-dig for the dig sentinel). |
 
 **Functions:**
 
@@ -153,6 +158,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 |---|---|
 | `set_active(active: bool) -> void` | Activates/deactivates the controller (called on `build_placement_toggled`); shows/hides the ghost. |
 | `set_camera(camera: Camera3D) -> void` | Runtime camera wiring (controller is a sibling of the player; can't use a relative path). |
+| `set_player(p: Player) -> void` | Runtime player wiring (same moment as the camera) — the dig tool's action target. |
 | `add_exclude_body(body: PhysicsBody3D) -> void` | Adds a body to the raycast exclusion list. |
 
 ### Class: VoxelGridAdapter
@@ -167,6 +173,8 @@ Build placement has no same-scene signals — the controller calls strategies/la
 | Function | Description |
 |---|---|
 | `set_grid(grid: BlockyGrid) -> void` | Wiring. |
+| `set_smooth_grid(smooth: SmoothGrid) -> void` | Wiring for the optional natural-terrain half (null on terrain-less maps); used by `is_ground_supported` and the dig tool. |
+| `get_smooth_grid() -> SmoothGrid` | The wired SmoothGrid or null — the dig tool resolves its target terrain through this. |
 | `get_block_at(pos: Vector3i) -> String` | Block id at cell, or `""` for air. |
 | `set_block_at(pos: Vector3i, block_id: String) -> void` | Delegates to `BlockyGrid`; emits `block_placed` there. |
 | `remove_block_at(pos: Vector3i) -> void` | Delegates to `BlockyGrid`; emits `block_destroyed` there. |

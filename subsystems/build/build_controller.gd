@@ -30,6 +30,10 @@ var grid_adapter: VoxelGridAdapter
 var strategy
 var furniture_layer: FurnitureLayer
 var blueprint_layer: BlueprintLayer
+# The persistent Player, wired by MapWiring.wire_player. The dig tool's timed
+# action busy-locks, pays yields to, and trains the PLAYER — this controller
+# only aims it.
+var player: Player = null
 @export var camera_path: NodePath = ^"" # set in scene or via set_camera()
 
 var rotation_state := RotationState.new()
@@ -66,12 +70,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	# InputComponent, so the UiGate check is on us (see docs ui.md).
 	if UiGate.is_input_blocked():
 		return
-	# LMB = place (routed to the strategy), RMB = remove.
+	# LMB = place (routed to the strategy), RMB = remove. The two tools reroute
+	# LMB: Deconstruct removes instantly, Dig starts a timed smooth-terrain carve.
 	# Wheel = rotate 90° step, R = cycle rotation axis (GDD §4 controls table).
-	# In Deconstruct, LMB also removes — the mode is removal-only.
 	if event.is_action_pressed("build_place"):
 		if BuildLibrary.is_deconstruct(selected_id):
 			_try_remove()
+		elif BuildLibrary.is_dig_tool(selected_id):
+			_try_dig()
 		else:
 			_try_commit()
 	elif event.is_action_pressed("build_remove"):
@@ -122,6 +128,9 @@ func _physics_process(_delta: float) -> void:
 		else:
 			_ghost.hide_()
 		return
+	if BuildLibrary.is_dig_tool(selected_id):
+		_update_dig_ghost(hit)
+		return
 	# Placement cell = the struck voxel + the face normal (the adjacent empty cell
 	# where a new block/furniture anchor would go). Smooth hits already carry the
 	# derived cell — slope normals aren't axis-aligned offsets (D3) — and their
@@ -166,6 +175,12 @@ func set_active(active: bool) -> void:
 ## a relative path). Called by the map/test after the player exists.
 func set_camera(camera: Camera3D) -> void:
 	_camera = camera
+
+
+## Runtime player wiring (same moment as the camera). The dig tool acts ON the
+## player (busy lock, yields, mining skill) — see _try_dig.
+func set_player(p: Player) -> void:
+	player = p
 
 
 ## Add a physics body to the raycast exclusion list (e.g. the player capsule).
@@ -216,10 +231,7 @@ func _try_commit() -> void:
 	if def == null:
 		return
 	# Recompute the target cell (mirrors _physics_process).
-	var center := get_viewport().get_visible_rect().size / 2.0
-	var origin := _camera.project_ray_origin(center)
-	var dir := _camera.project_ray_normal(center)
-	var hit := grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
+	var hit := _cursor_ray()
 	if not hit.get("hit", false):
 		return
 	var cell: Vector3i = _placement_cell(hit)
@@ -248,10 +260,7 @@ func _try_commit() -> void:
 func _try_remove() -> void:
 	if grid_adapter == null or _camera == null:
 		return
-	var center := get_viewport().get_visible_rect().size / 2.0
-	var origin := _camera.project_ray_origin(center)
-	var dir := _camera.project_ray_normal(center)
-	var hit := grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
+	var hit := _cursor_ray()
 	if not hit.get("hit", false):
 		return
 	# The physics ray hits the target's collision directly (furniture/blueprints
@@ -265,6 +274,59 @@ func _try_remove() -> void:
 		return
 	if blueprint_layer != null and blueprint_layer.remove_blueprint_at(struck):
 		return
+
+
+## LMB with the Dig tool: start the timed carve (DigAction) at the sphere the
+## ghost is showing. The gauge registers with UiGate while up, so this
+## controller's own is_input_blocked guard absorbs repeat clicks; the busy
+## check is belt-and-braces for future non-modal triggers (equipped-tool LMB).
+func _try_dig() -> void:
+	if grid_adapter == null or _camera == null or player == null:
+		return
+	if player.is_busy():
+		return
+	var smooth_grid := grid_adapter.get_smooth_grid()
+	if smooth_grid == null:
+		return
+	var surface := _smooth_surface_hit(_cursor_ray())
+	if surface.is_empty():
+		return
+	# Bite half a radius into the surface so the sphere carves a bowl instead
+	# of shaving a lens — the ghost shows exactly this center and radius.
+	var center: Vector3 = surface["point"] - surface["normal"] * (BuildLibrary.DIG_TOOL.carve_radius * 0.5)
+	var action := DigAction.new()
+	action.begin(player, smooth_grid, center, BuildLibrary.DIG_TOOL)
+
+
+## Dig tool ghost: a sphere of the carve radius over the aimed smooth surface,
+## hidden when the crosshair isn't on natural terrain. Always valid — any
+## smooth hit is diggable (hardness scales the duration, never blocks the dig).
+func _update_dig_ghost(hit: Dictionary) -> void:
+	var surface := _smooth_surface_hit(hit)
+	if surface.is_empty():
+		_ghost.hide_()
+		return
+	var center: Vector3 = surface["point"] - surface["normal"] * (BuildLibrary.DIG_TOOL.carve_radius * 0.5)
+	_ghost.show_sphere_at(center, BuildLibrary.DIG_TOOL.carve_radius, true)
+
+
+## Smooth-hit filter shared by the dig tool (and smooth placement later): the
+## build ray must FIRST hit natural terrain (surface == "smooth") — the blocky
+## plate, furniture, and blueprints are not diggable ground. Returns the float
+## hit point + normal, or an empty Dictionary.
+func _smooth_surface_hit(hit: Dictionary) -> Dictionary:
+	if not hit.get("hit", false) or hit.get("surface", "") != "smooth":
+		return {}
+	return {"point": hit["smooth_point"], "normal": hit["smooth_normal"]}
+
+
+## Screen-center build ray (the same query the ghost runs every physics frame).
+## Callers guard for _camera/grid_adapter being wired.
+func _cursor_ray() -> Dictionary:
+	var center := get_viewport().get_visible_rect().size / 2.0
+	var origin := _camera.project_ray_origin(center)
+	var dir := _camera.project_ray_normal(center)
+	return grid_adapter.raycast_to_voxel(origin, dir, _RAY_DISTANCE, _exclude_rids())
 
 
 # --- kind helpers -------------------------------------------------------------

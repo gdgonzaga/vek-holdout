@@ -8,8 +8,8 @@ Per-entity skill progression (L1–L5, use-based). Determines work-speed multipl
 
 | File | Type | Responsibility |
 |---|---|---|
-| `subsystems/colonists/skill_set.gd` | Script (component) | Holds the 7 skills' level + progress for one entity. Owns use-based leveling (increments progress on successful completions; levels up at cumulative-use thresholds). Exposes `get_multiplier(labor)`. Does NOT own global skill definitions or curves (those are data). |
-| `../data/skills/skills.tres` | Data | Global SkillDefList: the 7 skills (construction, crafting, mechanical, medical, combat, farming, tree_chopping) + use-curves + per-level multipliers + Labor mappings. See [Data Schemas](data-schemas.md). |
+| `subsystems/colonists/skill_set.gd` | Script (component) | Holds the skills' level + progress for one entity. Owns use-based leveling (increments progress on successful completions; levels up at cumulative-use thresholds). Exposes `get_multiplier(labor)`. Does NOT own global skill definitions or curves (those are data). |
+| `../data/skills/skills.tres` | Data | Global SkillDefList: the 8 skills (construction, crafting, mechanical, medical, combat, farming, tree_chopping, mining) + use-curves + per-level multipliers + Labor mappings. See [Data Schemas](data-schemas.md). |
 | `../data/skills/skill_def.gd` / `skill_def_list.gd` | Script (Resource) | The SkillDef / SkillDefList shapes authored by `skills.tres`. |
 
 *The component script lives in `subsystems/colonists/` — colocated with the Colonist entity it serves (the standalone `skills/` folder doesn't exist). It's consumed by Colonist + ColonistAI + job defs, not combat-specific; see [Tech Debt & Unimplemented](tech-debt.md) on a possible future `core/components/` home.*
@@ -28,7 +28,7 @@ All same-scene (No EventBus) — skills are per-entity, read locally. No listene
 **Trigger:** A colonist successfully completes a skilled Job — `ColonistAI._end_job(true)`.
 
 1. ColonistAI calls `skill_set.record_use_for_labor(job.labor_id)` — the single XP entry point.
-2. `SkillSet` maps the Labor to its governing skill via `skills.tres` (construction, crafting, mechanics, and farming are mapped; labors with no skill — hauling, harvesting today — grant nothing and return false; `tree_chopping` has no labor).
+2. `SkillSet` maps the Labor to its governing skill via `skills.tres` (construction, crafting, mechanics, farming, and mining are mapped; labors with no skill — hauling, harvesting today — grant nothing and return false; `tree_chopping` has no labor).
 3. `SkillSet` increments the skill's cumulative use count.
 4. Emits `skill_progressed(skill_id, progress)` (for the future Skills-tab UI).
 5. If uses cross the next level's `use_curve` threshold: increment level, emit `skill_leveled_up(skill_id, new_level)`.
@@ -51,9 +51,9 @@ All same-scene (No EventBus) — skills are per-entity, read locally. No listene
 
 **Extends:** Node
 **Script:** `subsystems/colonists/skill_set.gd` (child of the Colonist scene)
-**Description:** Per-entity skill progression. Holds level + cumulative use-count for each of the 7 skills. Use-based leveling on successful job completions. Exposes the work-speed multiplier per Labor.
-**Used by:** Colonist (`_ready` seeds from `colonist_def.starting_skills`; `serialize` round-trips), ColonistAI (`record_use_for_labor` on job success), the construction/crafting/harvest/farming JobDefs (`get_multiplier` in `begin`), `MinSkillCondition` (`meets_requirement`).
-**Lifecycle:** `_ready` builds the labor→skill map from the shared `skills.tres`. `Colonist._ready` (parent, runs after children) then calls `seed(colonist_def.starting_skills)` — unknown ids (the default def's `mining`) are ignored so state always matches the catalog.
+**Description:** Per-entity skill progression. Holds level + cumulative use-count for each of the 8 catalog skills. Use-based leveling on successful job completions. Exposes the work-speed multiplier per Labor.
+**Used by:** Colonist (`_ready` seeds from `colonist_def.starting_skills`; `serialize` round-trips), ColonistAI (`record_use_for_labor` on job success), the construction/crafting/harvest/farming JobDefs (`get_multiplier` in `begin`), `DigAction` (player mining: multiplier + `record_use_for_labor("mining")`), `MinSkillCondition` (`meets_requirement`).
+**Lifecycle:** `_ready` builds the labor→skill map from the shared `skills.tres`. `Colonist._ready` (parent, runs after children) then calls `seed(colonist_def.starting_skills)` — unknown ids are ignored so state always matches the catalog. (The default def's `mining` entry, formerly a dropped leftover, became live when mining entered the catalog — it seeds L1/0, the neutral baseline.)
 
 **Properties:**
 

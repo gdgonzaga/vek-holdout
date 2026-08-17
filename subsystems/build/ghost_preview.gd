@@ -15,6 +15,9 @@ var _material: StandardMaterial3D
 # The unit-box mesh authored in build.tscn. Captured so show_remove_at() can
 # restore it after _set_ghost_mesh() swapped in a def's mesh for placement.
 var _default_mesh: Mesh
+# Unit sphere (radius 1) for spherical smooth-terrain edits (dig carve, smooth
+# material placement) — built in code, same as the material.
+var _sphere_mesh: SphereMesh
 
 
 func _ready() -> void:
@@ -25,6 +28,11 @@ func _ready() -> void:
 	_material.albedo_color = _COLOR_VALID
 	material_override = _material
 	_default_mesh = mesh
+	_sphere_mesh = SphereMesh.new()
+	_sphere_mesh.radius = 1.0
+	_sphere_mesh.height = 2.0
+	_sphere_mesh.radial_segments = 24
+	_sphere_mesh.rings = 12
 	hide()
 
 
@@ -33,6 +41,7 @@ func _ready() -> void:
 ## the footprint center (FurnitureLayer.world_origin(...)).
 func show_at(world_pos: Vector3, valid: bool) -> void:
 	global_position = world_pos
+	scale = Vector3.ONE
 	set_valid(valid)
 	show()
 
@@ -46,6 +55,7 @@ func show_at(world_pos: Vector3, valid: bool) -> void:
 func show_remove_at(world_pos: Vector3) -> void:
 	mesh = _default_mesh
 	global_position = world_pos + Vector3(0.5, 0.5, 0.5)
+	scale = Vector3.ONE
 	rotation_degrees.y = 0.0
 	set_valid(false)
 	show()
@@ -58,8 +68,22 @@ func show_remove_at(world_pos: Vector3) -> void:
 func show_remove_mesh_at(world_pos: Vector3, mesh: Mesh, yaw_degrees: float) -> void:
 	self.mesh = mesh
 	global_position = world_pos
+	scale = Vector3.ONE
 	rotation_degrees.y = yaw_degrees
 	set_valid(false)
+	show()
+
+
+## Blob preview for spherical smooth-terrain edits (the dig carve volume, a
+## smooth-material placement): a sphere scaled to `radius`, CENTERED on
+## world_pos — unlike the box paths' corner convention, a sphere has no cell
+## corner to sit on. What the preview shows is exactly what the edit changes.
+func show_sphere_at(world_pos: Vector3, radius: float, valid: bool) -> void:
+	mesh = _sphere_mesh
+	global_position = world_pos
+	scale = Vector3.ONE * maxf(radius, 0.001)
+	rotation_degrees.y = 0.0
+	set_valid(valid)
 	show()
 
 

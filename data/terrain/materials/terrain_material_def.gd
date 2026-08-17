@@ -14,3 +14,10 @@ class_name TerrainMaterialDef
 
 ## Relative dig-effort multiplier (1 = baseline dirt). Higher = more swings.
 @export var hardness: int = 1
+
+## What one completed dig of this material drops into the digger's inventory
+## (the HarvestParams.yields shape). v1 ceiling: the smooth terrain has no
+## per-position material channel (F8), so every dig reports the map's default
+## material and yields its drops — authoring per-material yields is ready for
+## the day real material representation lands.
+@export var yields: Array[ItemAmount] = []

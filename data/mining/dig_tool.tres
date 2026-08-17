@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="DigToolParams" format=3]
+
+[ext_resource type="Script" path="res://data/mining/dig_tool_params.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+work_time = 2.0
+carve_radius = 1.5

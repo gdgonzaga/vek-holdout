@@ -1,7 +1,7 @@
 extends Node
 class_name SkillSet
 ## Per-entity skill progression (GDD §6.3, ARCH "Subsystem: Skills"). Holds
-## level + use-progress for each of the 6 MVP skills for one entity (a Colonist
+## level + use-progress for each catalog skill for one entity (a Colonist
 ## or the Player — its SkillSet is code-created in Player._ready, unseeded).
 ## Use-based leveling: record_use on successful
 ## completions, level-ups when cumulative uses cross the skill's use_curve.
@@ -28,8 +28,9 @@ var skill_defs: SkillDefList = preload("res://data/skills/skills.tres")
 var skills: Dictionary = {}
 
 # labor_id (String) -> skill_id (String), built from skill_defs in _ready. One
-# skill per skilled labor (construction/crafting/mechanics today); labors with
-# no governing skill (hauling) are absent and read as multiplier 1.0.
+# skill per skilled labor (construction/crafting/mechanics/mining/harvesting-
+# adjacent today); labors with no governing skill (hauling) are absent and read
+# as multiplier 1.0.
 var _labor_to_skill: Dictionary = {}
 
 
@@ -40,10 +41,11 @@ func _ready() -> void:
 
 
 ## Seed state from a ColonistDef.starting_skills dict ({skill_id: {xp, level}}).
-## Unknown skill_ids (e.g. "mining" — a design leftover, not one of the 6) are
-## ignored so state always matches the catalog. Runs after _ready in the
-## Colonist scene (children ready first), so the labor map exists; ordering
-## doesn't otherwise matter.
+## Unknown skill_ids (e.g. "tree_chopping" — a design leftover) are ignored so
+## state always matches the catalog. Runs after _ready in the Colonist scene
+## (children ready first), so the labor map exists; ordering doesn't otherwise
+## matter. (The default def's "mining" entry became live when mining entered
+## the catalog — it seeds L1/0, the neutral baseline.)
 func seed(starting_skills: Dictionary) -> void:
 	for skill_id in starting_skills:
 		if _def_for(skill_id) == null:

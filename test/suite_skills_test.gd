@@ -57,8 +57,10 @@ func test_seed_clamps_out_of_range_levels() -> void:
 
 
 func test_seed_ignores_skills_not_in_the_catalog() -> void:
-	_skill_set.seed({"mining": {"xp": 99, "level": 4}})
-	assert_bool(_skill_set.skills.has("mining")).is_false()
+	# "tree_chopping" IS in the catalog (a leftover entry without a labor) —
+	# this must be an id nothing declares.
+	_skill_set.seed({"unknown_skill": {"xp": 99, "level": 4}})
+	assert_bool(_skill_set.skills.has("unknown_skill")).is_false()
 
 
 func test_unseeded_skill_reads_as_level_one() -> void:
@@ -75,8 +77,8 @@ func test_record_use_increments_progress_and_emits() -> void:
 
 
 func test_record_use_ignores_unknown_skill() -> void:
-	_skill_set.record_use("mining")
-	assert_bool(_skill_set.skills.has("mining")).is_false()
+	_skill_set.record_use("unknown_skill")
+	assert_bool(_skill_set.skills.has("unknown_skill")).is_false()
 	assert_int(_progress_events.size()).is_equal(0)
 
 
@@ -147,7 +149,9 @@ func test_record_use_for_labor_noop_for_unskilled_labor() -> void:
 # ── Save round-trip ───────────────────────────────────────────────────────────
 
 func test_serialize_round_trip_preserves_state() -> void:
-	_skill_set.seed({"construction": {"xp": 0, "level": 2}, "mining": {"xp": 1, "level": 1}})
+	# "unknown_skill" is not in the catalog, so seeding drops it — state only
+	# round-trips what the catalog declares.
+	_skill_set.seed({"construction": {"xp": 0, "level": 2}, "unknown_skill": {"xp": 1, "level": 1}})
 	_skill_set.record_use("construction")
 	var restored := SkillSet.new()
 	auto_free(restored)
@@ -155,5 +159,5 @@ func test_serialize_round_trip_preserves_state() -> void:
 	restored.deserialize(_skill_set.serialize())
 	assert_int(restored.get_level("construction")).is_equal(2)
 	assert_int(restored.skills["construction"]["progress"]).is_equal(1)
-	assert_bool(restored.skills.has("mining")).is_false()
+	assert_bool(restored.skills.has("unknown_skill")).is_false()
 	assert_float(restored.get_multiplier("construction")).is_equal(1.2)

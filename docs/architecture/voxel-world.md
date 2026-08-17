@@ -28,7 +28,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `smooth_grid.gd` | Script | The natural-terrain half — BlockyGrid's mirror, different mesher/generator. `carve`/`add_material` sphere primitives (F8 semantics), cached `height_at` with D4 invalidation, `raycast_to_surface` masked to TerrainSmooth. Opt-in: a `MapDef` without `terrain_gen` makes the node free itself at `_ready` (SceneManager injects the def pre-tree). |
 | `block_library.gd` | Script (Resource) | Owns the `VoxelBlockyLibrary` the blocky mesher renders with; maps string block_id ↔ integer library index, and id → `BlockDef`. Enforces the index convention (0 = air, terrain = 1) and bakes the library from `data/blocks/`. |
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, terrain). See [Data Schemas](data-schemas.md). |
-| `../data/terrain/` | Data | `TerrainGenDef` (generator params + walk slope gate) and `materials/TerrainMaterialDef` (identity + hardness — no visual refs, see F8). See [Data Schemas](data-schemas.md). |
+| `../data/terrain/` | Data | `TerrainGenDef` (generator params + walk slope gate) and `materials/TerrainMaterialDef` (identity + hardness + dig `yields` — no visual refs, see F8). `data/mining/dig_tool.tres` carries the dig action's stats. See [Data Schemas](data-schemas.md). |
 
 **Walkability seam (D4):** `MapWiring.hybrid_ground_probe` composes the smooth grid's `height_at` with the blocky probe — a cell is standable when the smooth surface passes through it on a walkable slope (`TerrainGenDef.max_walk_slope_deg`, ≤ 45° so the ±1 step model holds), or when the plain blocky rules hold anywhere the smooth terrain doesn't reach. It also **cancels blocky cells buried inside hills** (a plate-top column reads air-above-solid to the blocky grid, but a colonist routed there would grind into the hillside) — the one deviation from "smooth only adds cells", and it applies only to buried cells. `MapWiring.smooth_stand_hint` derives column stand cells (`floor(h)`) for the pathfinder's resolvers. See [Maps](maps.md) `wire_colonists` and [Colonists](colonists.md) VoxelPathfinder.
 
@@ -38,8 +38,8 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 |---|---|---|---|---|
 | `block_placed(pos: Vector3i, block_id: String)` | `blocky_grid.gd` | Build (ghost validation), colonists (pathfinding re-bake) | No (same scene) | Place Blueprint |
 | `block_destroyed(pos: Vector3i)` | `blocky_grid.gd` | colonists (pathfinding), raids (breach detection) | No | Enemy Attack Block |
-| `material_placed(pos: Vector3, material_id: String)` | `smooth_grid.gd` | (Phase 5: mining yields) | No | — |
-| `material_carved(pos: Vector3)` | `smooth_grid.gd` | (Phase 5: dig completion) | No | — |
+| `material_placed(pos: Vector3, material_id: String)` | `smooth_grid.gd` | (none yet — smooth placement lands next) | No | — |
+| `material_carved(pos: Vector3)` | `smooth_grid.gd` | (none yet — DigAction calls `carve` directly; the signal is the future sound/particles hook) | No | — |
 
 ## Flow Trace: Player targets ground (raycast)
 
@@ -132,7 +132,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 
 **Extends:** Node
 **Script:** `smooth_grid.gd`
-**Description:** The natural-terrain half of the dual-voxel world — BlockyGrid's mirror (same vocabulary, different mesher/generator; D1 in `docs/TODO.md`). Owns a `VoxelTerrain` + `VoxelMesherTransvoxel` + `VoxelGeneratorNoise2D` built from the injected `TerrainGenDef`, the sphere-edit primitives (carve for Phase-5 mining, add_material for smooth placement), and the cached heightfield walkability composes with the blocky probe (see the Walkability seam note above). Edit semantics follow F8 (VOXEL-TOOL-NOTES): channel 0 is float SDF (solid ≤ 0); `MODE_SET value v` writes SDF `−v`, so **value 0 is still solid** — carving is `MODE_REMOVE`, never `MODE_SET 0`. No HP in v1: mining carves on action completion.
+**Description:** The natural-terrain half of the dual-voxel world — BlockyGrid's mirror (same vocabulary, different mesher/generator; D1 in `docs/TODO.md`). Owns a `VoxelTerrain` + `VoxelMesherTransvoxel` + `VoxelGeneratorNoise2D` built from the injected `TerrainGenDef`, the sphere-edit primitives (`carve` is the mining dig action's edit, called by `DigAction` on completion; `add_material` for smooth placement), and the cached heightfield walkability composes with the blocky probe (see the Walkability seam note above). Edit semantics follow F8 (VOXEL-TOOL-NOTES): channel 0 is float SDF (solid ≤ 0); `MODE_SET value v` writes SDF `−v`, so **value 0 is still solid** — carving is `MODE_REMOVE`, never `MODE_SET 0`. No HP in v1: mining carves on action completion.
 **Used by:** SceneManager (injects `terrain_gen`), MapWiring (`hybrid_ground_probe` + `smooth_stand_hint` via `height_at`; `is_ground_supported` in Build), Phase-5 mining/smooth-placement.
 **Lifecycle:** Opt-in by data. SceneManager injects `MapDef.terrain_gen` before the map enters the tree; `_ready()` with a null def `queue_free()`s the node ("no smooth grid at all" — terrain-less maps play exactly as before). With a def: assigns layer 3 + body mask, builds generator + Transvoxel mesher, fetches the VoxelTool, and hooks `block_loaded`/`block_unloaded` for cache invalidation.
 

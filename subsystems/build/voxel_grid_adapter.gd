@@ -20,6 +20,13 @@ func set_smooth_grid(smooth: SmoothGrid) -> void:
 	_smooth = smooth
 
 
+## The live SmoothGrid (or null on terrain-less maps). The dig tool resolves
+## its target terrain through this — smooth edits are the one place build code
+## intentionally reaches past the blocky contract.
+func get_smooth_grid() -> SmoothGrid:
+	return _smooth
+
+
 func get_grid() -> BlockyGrid:
 	return _grid
 

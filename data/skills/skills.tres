@@ -42,6 +42,12 @@ script = ExtResource("2_def")
 skill_id = "tree_chopping"
 metadata/_custom_type_script = "uid://b50r4p51ruala"
 
+[sub_resource type="Resource" id="Resource_mining"]
+script = ExtResource("2_def")
+skill_id = "mining"
+display_name = "Mining"
+labor = "mining"
+
 [resource]
 script = ExtResource("1_list")
-skills = Array[ExtResource("2_def")]([SubResource("Resource_construction"), SubResource("Resource_crafting"), SubResource("Resource_mechanics"), SubResource("Resource_medical"), SubResource("Resource_combat"), SubResource("Resource_farming"), SubResource("Resource_i4gsa")])
+skills = Array[ExtResource("2_def")]([SubResource("Resource_construction"), SubResource("Resource_crafting"), SubResource("Resource_mechanics"), SubResource("Resource_medical"), SubResource("Resource_combat"), SubResource("Resource_farming"), SubResource("Resource_i4gsa"), SubResource("Resource_mining")])

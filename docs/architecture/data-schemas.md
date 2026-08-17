@@ -47,7 +47,7 @@ The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef ex
 
 ## `data/labors/<id>.tres` (Resource: `labor_def.gd`) — `LaborDef`
 
-The canonical declaration of which labor ids exist. `LaborDef extends Resource`. Labors are referenced elsewhere by their String `id` — a `Colonist`'s `labor_priorities` Dict and a `Job`'s `labor_id` — so these resources are the single source of truth for labor identity + display metadata. Seven instances ship today: `construction`, `crafting`, `hauling`, `harvesting`, `farming`, `mechanics`, `smelting` (Repair/Cooking post-MVP; mechanics/smelting have no job defs yet). They are inert data for now — there is no registry autoload; future skill gates / UI load them by path.
+The canonical declaration of which labor ids exist. `LaborDef extends Resource`. Labors are referenced elsewhere by their String `id` — a `Colonist`'s `labor_priorities` Dict and a `Job`'s `labor_id` — so these resources are the single source of truth for labor identity + display metadata. Eight instances ship today: `construction`, `crafting`, `hauling`, `harvesting`, `farming`, `mechanics`, `mining` (consumed by the player's dig action; no colonist mining job yet), `smelting` (Repair/Cooking post-MVP; mechanics/smelting have no job defs yet). They are inert data for now — there is no registry autoload; the colony-management labors tab scans them for the priority matrix; future skill gates / UI load them by path.
 
 | Field | Type | Description |
 |---|---|---|
@@ -117,7 +117,11 @@ Dual-voxel natural-terrain generator params (conversion D2/D4). A `MapDef.terrai
 
 ## `data/terrain/materials/<id>.tres` (Resource: `terrain_material_def.gd`) — `TerrainMaterialDef`
 
-Identity/stats for a natural material. F8 verdict: `VoxelMesherTransvoxel` has **no material API** in this build — voxel values are pure SDF density, so there is deliberately **no mesh/material reference** here (the terrain has one fixed visual appearance). Fields: `id`, `display_name`, `hardness` (relative dig-effort multiplier for the Phase-5 mining action).
+Identity/stats for a natural material. F8 verdict: `VoxelMesherTransvoxel` has **no material API** in this build — voxel values are pure SDF density, so there is deliberately **no mesh/material reference** here (the terrain has one fixed visual appearance). Fields: `id`, `display_name`, `hardness` (relative dig-effort multiplier for the mining dig action), and `yields: Array[ItemAmount]` (what one completed dig drops into the digger's inventory — v1 caveat: every dig reports the map's `default_material`, so yields are effectively per-map until real material representation lands).
+
+## `data/mining/dig_tool.tres` (Resource: `dig_tool_params.gd`) — `DigToolParams`
+
+Stats for the mining dig action (Phase 5). Fields: `work_time` (seconds before hardness/skill scaling — `DigAction` multiplies by the target material's hardness, divides by the actor's mining skill multiplier) and `carve_radius` (the carved sphere's radius; also the ghost sphere's — the preview shows exactly what the carve removes; fixed size in v1, owner decision). Preloaded as `BuildLibrary.DIG_TOOL` and handed to `DigAction.begin(...)` by whatever triggers the dig — a future equipped tool item references (or overrides) the same bundle so the build-menu tool and an LMB tool-equip path share one code path.
 
 ## `data/buildables/<id>.tres` (Resource: `buildable_def.gd`)
 
@@ -283,11 +287,11 @@ The Key Item pool. Each Key Item drops at most once per playthrough (enforced by
 
 ## `data/skills/skills.tres` (Resource: `skill_def_list.gd`)
 
-Global skill definitions: the 7 shipped skills, their Labor mappings, use-curves, and per-level work-speed multipliers. Loaded once (preloaded by `SkillSet`) and shared by all `SkillSet` components. See [Skills](skills.md).
+Global skill definitions: the 8 shipped skills, their Labor mappings, use-curves, and per-level work-speed multipliers. Loaded once (preloaded by `SkillSet`) and shared by all `SkillSet` components. See [Skills](skills.md).
 
 | Field | Type | Description |
 |---|---|---|
-| `skills` | `Array[SkillDef]` | The 7 skills. See below. |
+| `skills` | `Array[SkillDef]` | The 8 skills. See below. |
 
 **SkillDef** (`skill_def.gd extends Resource`) — one skill:
 

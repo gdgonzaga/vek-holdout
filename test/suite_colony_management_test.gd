@@ -112,10 +112,11 @@ func test_labors_tab_populates_matrix() -> void:
 	assert_bool(no_col.visible).is_false()
 	assert_bool(grid.visible).is_true()
 
-	# 7 labors (construction, crafting, farming, harvesting, hauling, mechanics, smelting) + 1 colonist column = 8 columns
-	assert_int(grid.columns).is_equal(8)
-	# 8 header cells + 8 row cells (1 name + 7 labor cells) = 16 children
-	assert_int(grid.get_child_count()).is_equal(16)
+	# 8 labors (construction, crafting, farming, harvesting, hauling, mechanics,
+	# mining, smelting) + 1 colonist column = 9 columns
+	assert_int(grid.columns).is_equal(9)
+	# 9 header cells + 9 row cells (1 name + 8 labor cells) = 18 children
+	assert_int(grid.get_child_count()).is_equal(18)
 
 
 func test_labor_cell_left_right_click_and_clamping() -> void:

@@ -21,10 +21,25 @@ const _DIR_FURNITURE := "res://data/furniture/"
 ## placement. get_def() returns null for it, so existing lookups fail safe.
 const DECONSTRUCT_ID := "__deconstruct__"
 
+## Sentinel id for the Dig tool entry (mining, docs/TODO.md Phase 5). Same
+## pattern: not a BuildableDef — selecting it routes LMB to a timed
+## smooth-terrain carve (DigAction) instead of placement.
+const DIG_ID := "__dig__"
+
+## The dig action's stats (work time, carve radius). A data resource (hard rule
+## 1) so a future equipped tool item can reference or override the same bundle —
+## DigAction reads whatever resource its trigger hands it.
+const DIG_TOOL: DigToolParams = preload("res://data/mining/dig_tool.tres")
+
 
 ## True for the Deconstruct tool id. Static so callers don't need an instance.
 static func is_deconstruct(id: String) -> bool:
 	return id == DECONSTRUCT_ID
+
+
+## True for the Dig tool id. Static so callers don't need an instance.
+static func is_dig_tool(id: String) -> bool:
+	return id == DIG_ID
 
 var _defs_by_id: Dictionary = {}   # id (String) -> BuildableDef
 
