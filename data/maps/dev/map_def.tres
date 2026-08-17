@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="MapDef" format=3 uid="uid://9cjlpobpei9d"]
+
+[ext_resource type="Script" uid="uid://du7misylvvk7b" path="res://data/maps/map_def.gd" id="1_d"]
+[ext_resource type="Resource" uid="uid://jax5mkwu6gww" path="res://data/terrain/default_hills.tres" id="2_tg"]
+
+[resource]
+script = ExtResource("1_d")
+id = "dev"
+display_name = "Dev - Smooth Hills"
+description = "Dual-voxel reference map: noise hills over the blocky plate (docs/TODO.md Phase 2)."
+scene_path = "res://data/maps/dev/map.tscn"
+map_type = 1
+player_spawn = Vector3(0, 12, 0)
+terrain_gen = ExtResource("2_tg")
