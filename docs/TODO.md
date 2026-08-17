@@ -5,7 +5,76 @@ Consolidates ARCHITECTURE.md's "Unimplemented Subsystems", "Known Tech Debt",
 and missing data schemas, plus implementation decisions and gaps surfaced during
 build-out. Reference ARCH for spec detail; this file tracks *what's left*.
 
-Last updated: 2026-07-28
+Last updated: 2026-08-17
+
+---
+
+## Dual-voxel conversion — smooth terrain + blocky structures (2026-08-17)
+
+Natural ground becomes a smooth zylann terrain (`VoxelMesherTransvoxel`,
+diggable + placeable — a full gameplay surface); player structures stay on the
+blocky terrain (`VoxelMesherBlocky`). Two `VoxelTerrain` nodes per map,
+separated by collision layers. Feasibility is proven by the runtime spike
+(`testing/zylann/smooth_terrain_spike.tscn`, verdict F7 in
+`docs/VOXEL-TOOL-NOTES.md`). Condensed from the working plan in `tmp/`
+(gitignored); this section is the in-repo plan of record.
+
+### Decisions locked (2026-08-17) — do not re-litigate without explicit reason
+
+- **D1 Mirrored grids.** `voxel_grid.gd` evolves into `blocky_grid.gd`; a
+  sibling `smooth_grid.gd` mirrors its public surface (`get_block_at` ↔
+  `get_material_at`, `set/remove_block_at` ↔ `add_material/carve`, `height_at`
+  both, mirrored signals). Both are the only touchers of `voxel_tool` (hard
+  rule 2). Blocky keeps per-block HP; smooth has none in v1.
+- **D2 Smooth terrain is editable.** Mining digs (sphere carve via
+  `VoxelTool.do_sphere`); players place smooth materials (dirt/rock). Edits
+  persist via a second sqlite stream (`terrain.sqlite` beside `map.sqlite`) —
+  stream-saved blocks override the generator.
+- **D3 Collision layers.** 1 World (furniture statics, unchanged), 2
+  TerrainBlocky, 3 TerrainSmooth (reserved until Phase 2), 4 Player, 5 Build,
+  6 Colonist. Body + spring-arm masks 7; the build/deconstruct ray mask is
+  1|2|16 now and 1|2|4|16 once smooth exists. Multi-terrain hit
+  disambiguation is a `surface` tag on the ray result — never terrain-only
+  masking (deconstruct depends on hitting furniture/blueprint BuildBody boxes).
+- **D4 Hybrid walkability.** Today's blocky column predicate OR smooth-column
+  stand cells from a cached heightfield (slope gate ≤ 45°); the A* step model
+  is unchanged. All smooth writes evict cached columns synchronously; both
+  invariants (no-regression, edits-keep-pathing-honest) get gdUnit suites.
+- **D5 `VoxelTerrain` first.** Plain terrain node for the conversion;
+  `VoxelLodTerrain` is a Phase 6 perf trial isolated to the smooth grid.
+
+### Phases
+
+- [ ] **1 Foundations** (single-terrain world, no gameplay-visible change):
+      atomic collision-layer remap + explicit masks everywhere; `height_at`
+      ground query on the blocky grid (via `IBlockGrid`); injectable
+      ground-probe seam in `MapWiring._compose_walkability`.
+- [ ] **2 Mirrored grids + editable smooth terrain**: `blocky_grid.gd` rename
+      (consumers updated, no behavior change); extended spike proving carve/add
+      + sqlite-override semantics + material representation + block-loaded
+      signal names (record as F8); `data/terrain/` schema + `map_def.terrain_gen`
+      (null → no smooth grid at all); `smooth_grid.gd`; map template gains the
+      smooth node + second stream slot; paint tool binds the blocky terrain
+      only; dev map with generator hills overlapping the blocky plate.
+- [ ] **3 Gameplay reads on smooth ground**: walkability smooth source wired
+      into the seam; pathfinder stand-cell fallbacks; combined
+      TerrainBlocky|TerrainSmooth spawn ground query; build support on slopes;
+      D4 invariant regression suites.
+- [ ] **4 Two-stream persistence**: one shared helper over the two optional
+      streams, applied at the four single-`map.sqlite` sites (paint stamp,
+      SceneManager redirect, SaveSystem park flush, slot snapshot/restore).
+      `map.sqlite` keeps its name.
+- [ ] **5 Player-facing editing**: mining dig mode (yields via the harvesting
+      pattern) + smooth placement mode (add-sphere, blob ghost) through the
+      existing placement-strategy shape; HUD/UX respects `UiGate`.
+- [ ] **6 Perf & docs**: `VoxelLodTerrain` trial, viewer/collision tuning,
+      height-cache soak, HOWTO + arch sweep.
+
+Standing gotchas: F5 (editor viewport cannot render Transvoxel — no in-editor
+smooth authoring), F7 (terrains pinned at origin; layer and mask must move
+together; smooth normals are non-axis), `PackedScene.pack()` drops
+GDExtension properties (template text-patch pattern) — see
+`docs/VOXEL-TOOL-NOTES.md`.
 
 ---
 
