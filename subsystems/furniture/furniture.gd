@@ -37,6 +37,17 @@ var state: Dictionary = {}
 func get_footprint_cells() -> Array[Vector3i]:
 	if def == null:
 		return []
+	# Non-FurnitureDef buildables (blocks) occupy a single cell and use the
+	# voxel-corner convention — the node sits AT the cell corner (a block
+	# blueprint is positioned at Vector3(anchor)), not at a footprint center,
+	# so the center-based math below would land one cell off. Runs for
+	# blueprints too (Blueprint extends Furniture and its def is the TARGET's
+	# def) — that's how colonist job pathing reaches here with a BlockDef.
+	if not def is FurnitureDef:
+		return [Vector3i(
+			int(round(global_position.x)),
+			int(round(global_position.y)),
+			int(round(global_position.z)))]
 	var yaw := int(round(rotation_degrees.y / 90.0)) % 4
 	var w: int = def.dimensions.x
 	var d: int = def.dimensions.z

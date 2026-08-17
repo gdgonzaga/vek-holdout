@@ -217,7 +217,7 @@ Build placement has no same-scene signals — the controller calls strategies/la
 
 | Function | Description |
 |---|---|
-| `get_footprint_cells() -> Array[Vector3i]` | All voxel cells this furniture occupies (from `global_position` + `def.dimensions`, yaw-swapped). Used by `ColonistAI._path_for_leg`'s footprint-adjacent pathing. |
+| `get_footprint_cells() -> Array[Vector3i]` | All voxel cells this furniture occupies (from `global_position` + `def.dimensions`, yaw-swapped). Non-FurnitureDef defs (blocks — a Blueprint's def is the target's) get a single cell at the node's rounded position (voxel-corner convention). Used by `ColonistAI._path_for_leg`'s footprint-adjacent pathing. |
 | `serialize() -> Dictionary` / `deserialize(data)` | SaveSystem contract — `def_id`, the `state` bag, plus the `StorageInventory` child's stacks when present (storage = null otherwise). |
 
 > **Deferred:** per-instance HP/damage (GDD §7.7), Functional Rooms counting fields (§7.8), and storage/door/bed component slots (§7.10–§7.11) are not on this class yet — added as the owning subsystems land. Crafting (§7.9) ships as the CraftingStation child component. Placement bookkeeping (anchor → node maps, cell ownership) stays in `FurnitureLayer`.
