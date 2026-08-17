@@ -191,8 +191,10 @@ func plant(crop_id: String) -> bool:
 	return true
 
 
-## Water the crop. Restores water level to max and clears water job.
-func water(actor: Node = null) -> void:
+## Water the crop. Restores water level to max and clears water job. XP-free:
+## colonist watering trains via ColonistAI._end_job, player watering via
+## FarmManualAction's gauge callback — the component never records (skills.md).
+func water(_actor: Node = null) -> void:
 	var def := get_crop_def()
 	var max_w := def.max_water if def != null else 100.0
 	set_water_level(max_w)
@@ -201,19 +203,12 @@ func water(actor: Node = null) -> void:
 		st["water_job_active"] = false
 		_save_state(st)
 		EventBus.plot_needs_water.emit(self, anchor_cell(), false)
-
-	if actor != null:
-		var colonist := actor as Colonist
-		if colonist != null and colonist.skill_set != null:
-			colonist.skill_set.record_use_for_labor("farming")
-		var player := actor as Player
-		if player != null and player.skill_set != null:
-			player.skill_set.record_use_for_labor("farming")
 	_update_info_text()
 
 
 ## Tend the crop. Clears tending requirement and updates timers/milestones.
-func tend(actor: Node = null) -> void:
+## XP-free for the same reason as water().
+func tend(_actor: Node = null) -> void:
 	var def := get_crop_def()
 	var st := _state()
 	st["is_tended"] = true
@@ -226,14 +221,6 @@ func tend(actor: Node = null) -> void:
 		st["tend_job_active"] = false
 		EventBus.plot_needs_tending.emit(self, anchor_cell(), false)
 	_save_state(st)
-
-	if actor != null:
-		var colonist := actor as Colonist
-		if colonist != null and colonist.skill_set != null:
-			colonist.skill_set.record_use_for_labor("farming")
-		var player := actor as Player
-		if player != null and player.skill_set != null:
-			player.skill_set.record_use_for_labor("farming")
 	_update_info_text()
 
 

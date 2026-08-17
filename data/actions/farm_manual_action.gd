@@ -55,6 +55,8 @@ func execute(actor: Node, target: Node) -> void:
 		_start_progress(actor, target, "Tending %s" % crop_name, duration, func() -> void:
 			if is_instance_valid(growable):
 				growable.tend(actor)
+				if player != null and player.skill_set != null:
+					player.skill_set.record_use_for_labor("farming")
 		)
 		return
 
@@ -63,6 +65,8 @@ func execute(actor: Node, target: Node) -> void:
 		_start_progress(actor, target, "Watering %s" % crop_name, duration, func() -> void:
 			if is_instance_valid(growable):
 				growable.water(actor)
+				if player != null and player.skill_set != null:
+					player.skill_set.record_use_for_labor("farming")
 		)
 		return
 

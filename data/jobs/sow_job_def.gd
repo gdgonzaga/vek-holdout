@@ -38,16 +38,13 @@ func begin(actor: Node, _leg: JobLeg, _job: Job) -> float:
 	return duration
 
 
-func complete(actor: Node, leg: JobLeg, _job: Job) -> void:
+func complete(_actor: Node, leg: JobLeg, _job: Job) -> void:
 	var growable := _growable_from(leg.target_node)
 	if growable == null or not is_instance_valid(growable):
 		return
 	var crop_id := growable.get_selected_crop_id()
 	if crop_id != "":
 		growable.plant(crop_id)
-		var colonist := actor as Colonist
-		if colonist != null and colonist.skill_set != null:
-			colonist.skill_set.record_use_for_labor(labor_id)
 
 
 func is_available(job: Job) -> bool:

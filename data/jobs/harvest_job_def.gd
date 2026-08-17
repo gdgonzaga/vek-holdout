@@ -6,7 +6,8 @@ class_name HarvestJobDef
 ##
 ## Expressed as a single-leg job: get_next_leg returns the node leg once (the
 ## colonist walks to a stand-adjacent cell), begin reports the skill-scaled
-## duration, complete applies the harvest work and awards skill XP.
+## duration, complete applies the harvest work. Skill XP is ColonistAI._end_job's
+## alone — the def never records (skills.md: single XP entry point).
 ##
 ## Single-colonist (max_assignees=1, the JobDef default). A job is available
 ## while its target node is valid AND is_marked_for_harvest is true.
@@ -52,11 +53,7 @@ func complete(actor: Node, leg: JobLeg, _job: Job) -> void:
 	var harvestable := _harvestable_from(leg.target_node)
 	if harvestable == null or not is_instance_valid(harvestable):
 		return
-	var completed := harvestable.complete(actor)
-	if completed:
-		var colonist := actor as Colonist
-		if colonist != null and colonist.skill_set != null:
-			colonist.skill_set.record_use_for_labor(labor_id)
+	harvestable.complete(actor)
 
 
 func on_end(success: bool, _actor: Node, leg: JobLeg, _job: Job, elapsed: float) -> void:

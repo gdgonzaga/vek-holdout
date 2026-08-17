@@ -262,6 +262,55 @@ func test_colony_job_board_farming_dispatch() -> void:
 	assert_float(growable.get_water_level()).is_equal_approx(100.0, 0.01)
 
 
+func test_job_defs_and_growable_record_no_xp() -> void:
+	# Single-XP-site regression (ARCH Skills): colonist XP is ColonistAI._end_job's
+	# alone, player XP is the GameActions'. Defs and Growable must never record —
+	# they used to double-record every farming labor.
+	var anchor := Vector3i(20, 0, 20)
+	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)
+	var growable := trough.get_node_or_null("Growable") as Growable
+	var colonist := _make_colonist()
+	var player := _make_player()
+
+	# Sow def completion records nothing
+	growable.set_selected_crop("cave_spud")
+	var sow_job := Job.from_def(SOW_JOB_DEF)
+	sow_job.target_node = trough
+	var sow_leg := SOW_JOB_DEF.get_next_leg(colonist, sow_job)
+	SOW_JOB_DEF.complete(colonist, sow_leg, sow_job)
+	assert_int(_skill_uses(colonist.skill_set, "farming")).is_equal(0)
+
+	# Water def completion (-> growable.water) records nothing
+	growable.set_water_level(20.0)
+	var water_job := Job.from_def(WATER_JOB_DEF)
+	water_job.target_node = trough
+	var water_leg := WATER_JOB_DEF.get_next_leg(colonist, water_job)
+	WATER_JOB_DEF.complete(colonist, water_leg, water_job)
+	assert_float(growable.get_water_level()).is_equal_approx(100.0, 0.01)
+	assert_int(_skill_uses(colonist.skill_set, "farming")).is_equal(0)
+
+	# Tend def completion (-> growable.tend) records nothing
+	growable.set_is_tended(false)
+	var tend_job := Job.from_def(TEND_JOB_DEF)
+	tend_job.target_node = trough
+	var tend_leg := TEND_JOB_DEF.get_next_leg(colonist, tend_job)
+	TEND_JOB_DEF.complete(colonist, tend_leg, tend_job)
+	assert_bool(growable.is_tended()).is_true()
+	assert_int(_skill_uses(colonist.skill_set, "farming")).is_equal(0)
+
+	# Growable is XP-free for player actors too — FarmManualAction's gauge
+	# callback owns the player's farming XP now.
+	growable.set_water_level(20.0)
+	growable.water(player)
+	growable.set_is_tended(false)
+	growable.tend(player)
+	assert_int(_skill_uses(player.skill_set, "farming")).is_equal(0)
+
+
+func _skill_uses(skill_set: SkillSet, skill_id: String) -> int:
+	return int(skill_set.skills.get(skill_id, {}).get("progress", 0))
+
+
 func test_player_farm_manual_action() -> void:
 	var anchor := Vector3i(14, 0, 14)
 	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)

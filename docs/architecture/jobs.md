@@ -120,7 +120,7 @@ The harvest subsystem provides dual-mode gathering: colonists work marked nodes 
      - Dispenses `HarvestParams.yields` into `colonist.inventory` (carry inventory).
      - Posts a "Harvested <label>" entry to `GameLog`.
      - Removes the furniture node from `FurnitureLayer` via `FurnitureLayer.remove_at(anchor)` (which emits `EventBus.furniture_removed`).
-     - Grants harvesting skill XP via `colonist.skill_set.record_use_for_labor("harvesting")`.
+   - Harvesting skill XP lands right after, in `ColonistAI._end_job` — the single XP entry point ([Skills](skills.md)); the def itself never records.
    - `get_next_leg` now returns `null` (the node is freed), ending the job cleanly.
 4. **Dual-Mode: Direct Player Harvesting (LMB)**:
    - In Normal mode, pressing LMB (`InputComponent.primary_action_pressed`) on a targeted interactable running `HarvestAction.execute(player, target)` starts the `ActionProgress` HUD gauge.

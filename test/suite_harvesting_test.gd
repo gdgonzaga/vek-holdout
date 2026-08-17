@@ -127,7 +127,14 @@ func test_harvest_job_lifecycle_and_completion() -> void:
 	job_def.complete(colonist, leg, job)
 	var yield_def := TREE_DEF.harvest_params.yields[0]
 	assert_bool(colonist.inventory.has_item(yield_def.item_def.id, yield_def.count)).is_true()
+	# Single-XP-site regression: the def never records — ColonistAI._end_job is
+	# the sole site (ARCH Skills). Def-side recording double-counted harvests.
+	assert_int(_skill_uses(colonist.skill_set, "harvesting")).is_equal(0)
 	assert_int(colonist.skill_set.get_level("harvesting")).is_greater_equal(1)
+
+
+func _skill_uses(skill_set: SkillSet, skill_id: String) -> int:
+	return int(skill_set.skills.get(skill_id, {}).get("progress", 0))
 
 
 func test_partial_progress_reduces_begin_duration() -> void:

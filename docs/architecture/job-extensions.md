@@ -117,7 +117,7 @@ Dual-mode harvesting:
 - `get_next_leg`: returns a WORK leg targeting the marked node (null if un-marked or node gone).
 - `is_available`: node valid AND `is_marked_for_harvest` is true.
 - `begin`: duration = `work_time / skill_multiplier - work_done`.
-- `complete`: applies work → yields to colonist inventory → node removed via `FurnitureLayer.remove_at`; records harvesting skill XP.
+- `complete`: applies work → yields to colonist inventory → node removed via `FurnitureLayer.remove_at`; skill XP lands in `ColonistAI._end_job` (the single XP site — the def never records).
 - `on_end`: persists elapsed work on abort.
 
 **Voxel node harvesting** (follow-up, after Demolition): `BlockDef` gains `drops: Array[ItemAmount]`; a `MiningJobDef` targets a cell — `job.anchor_cell` is the cell's identity (dedupe/cancel by anchor, exactly like blueprints) and `leg.location` the walk target; `complete` drives `VoxelGrid.apply_damage` per swing until `block_destroyed` → drops. The pathfinder is already cell-native (`find_stand_near_cell`; `ColonistAI._path_for_leg` falls back to `find_path_to_adjacent` for non-furniture legs), so no `JobLeg` change is required — an optional `target_cell: Vector3i` is identity sugar. [Tech Debt](tech-debt.md)'s "Demolition (as a Job)" needs the same cell-targeted leg shape and is the smaller proving ground — build it first. Resource veins additionally need worldgen (flat generator today) — a separate effort.
