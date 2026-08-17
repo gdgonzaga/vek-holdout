@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://cc4nhj4oth8vo" path="res://subsystems/player/camera_rig.gd" id="2_wfstl"]
 [ext_resource type="Script" uid="uid://dkc21ixx51cg2" path="res://subsystems/player/input_component.gd" id="3_input"]
 [ext_resource type="Script" uid="uid://dpyvcpfh0aifs" path="res://subsystems/inventory/character_inventory.gd" id="4_inv"]
+[ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="5_step"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
@@ -15,6 +16,7 @@ height = 1.6
 
 [node name="Player" type="CharacterBody3D" unique_id=348076264]
 collision_layer = 2
+floor_snap_length = 0.5
 script = ExtResource("1_i0iyb")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=339738198]
@@ -33,3 +35,6 @@ script = ExtResource("3_input")
 
 [node name="Inventory" type="Node" parent="." unique_id=956078962]
 script = ExtResource("4_inv")
+
+[node name="StepClimber" type="Node" parent="." unique_id=428107364]
+script = ExtResource("5_step")

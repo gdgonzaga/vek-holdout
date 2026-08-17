@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://dwpkc3cfbrgik" path="res://subsystems/colonists/stamina_component.gd" id="3_he54h"]
 [ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_he54h"]
 [ext_resource type="Script" uid="uid://dbsyrm1856fnh" path="res://subsystems/colonists/colonist_ai.gd" id="5_ai"]
+[ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3
@@ -16,6 +17,7 @@ height = 1.6
 
 [node name="Colonist" type="CharacterBody3D" unique_id=229374039]
 collision_layer = 8
+floor_snap_length = 0.5
 script = ExtResource("1_34td1")
 
 [node name="Mesh" type="MeshInstance3D" parent="." unique_id=1576556896]
@@ -39,3 +41,7 @@ script = ExtResource("5_ai")
 
 [node name="VoxelPathfinder" type="Node" parent="." unique_id=667240532]
 script = ExtResource("4_he54h")
+
+[node name="StepClimber" type="Node" parent="." unique_id=715293840]
+script = ExtResource("6_step")
+hop_height = 1.05
