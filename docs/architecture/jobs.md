@@ -1,12 +1,13 @@
 # Subsystem: Jobs
 
-The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→act pattern, the `JobBoard` registry, and four shipped labors (Construction, Hauling, Crafting, Harvesting). Producers (currently [Colony](colonists.md) from blueprint + crafting-order events) create `Job` instances; consumers (`ColonistAI`) poll the board, assign, and execute legs. GDD §6.
+The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→act pattern, the `JobBoard` registry, and five shipped labors (Construction, Hauling, Crafting, Harvesting, Farming). Producers (currently [Colony](colonists.md) from blueprint, crafting-order, harvest-mark, and farm-plot events) create `Job` instances; consumers (`ColonistAI`) poll the board, assign, and execute legs. GDD §6.
 
-> **Sprint scope (built):** colonists work **multi-leg jobs**. A `JobDef` produces a stream of `JobLeg`s (walk-to → act); `ColonistAI` walks each leg and runs the def's `begin`/`complete` on arrival. Four labors ship:
+> **Sprint scope (built):** colonists work **multi-leg jobs**. A `JobDef` produces a stream of `JobLeg`s (walk-to → act); `ColonistAI` walks each leg and runs the def's `begin`/`complete` on arrival. Seven job defs across five labors ship:
 > - **Construction** — a blueprint with no unmet `material_cost` (costless or pre-satisfied) → a one-leg job: walk to a stand-adjacent cell, WORK over `build_time`, `Blueprint.complete` materializes it.
 > - **Hauling** — any blueprint with an unmet `material_cost` → up to `max_assignees` haulers divvy a run through the sink's shared deposit counter: each loops FETCH (crate → carry inventory) → DELIVER (`deposit_from` on the [MaterialSink](#jobs-furniture) — blueprints and crafting stations today) until `has_complete_materials()`. The DELIVER that crosses the threshold emits the sink's materials-ready signal (`blueprint_materials_ready` / `crafting_materials_ready`) → `Colony` spawns the follow-on job.
 > - **Crafting** — a queued recipe at a [CraftingStation](crafting.md) → hauling feeds the order's inputs (the station is a MaterialSink) → on the crossing `Colony` spawns a one-leg craft job: WORK over `recipe.base_time ÷ skill multiplier`, then outputs to the crafter's carry (overflow to the nearest crate) and the order clears.
 - **Harvesting** — a placed or spawned harvestable resource node (e.g. tree) with `HarvestParams` → marked via player interaction (`ToggleHarvestAction`) → `Colony` spawns a one-leg harvest job: WORK over `work_time ÷ skill multiplier`, then `Harvestable.complete` resolves yields to colonist carry inventory and removes the node.
+> - **Farming** — a farm plot's `Growable` flips one of the `plot_needs_*` signals → `Colony` spawns a one-leg **Sow** / **Water** / **Tend** job (all `FarmingJobDef` subclasses; labor `farming`): walk to the plot, WORK over the def's `work_time ÷ skill multiplier`, apply (`plant` / `water` / `tend` on the Growable). Harvesting a mature crop reuses the generic **Harvest** job. See [Farming](farming.md).
 >
 > **Multi-assign:** a `Job` may hold several colonists at once (`try_assign`/`unassign`); **one colonist finishing ≠ job done** — the job leaves the board only when `should_close()` (no assignees left AND the def's `should_close` says dead). `JobBoard.get_best_job_for` prunes `should_close()` jobs on each poll.
 >
@@ -16,7 +17,7 @@ The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→ac
 >
 > **Known gaps:** a job `fail`-removed at 3 aborts won't respawn on restock (the producer only fires on placement); save-load doesn't recreate jobs for restored blueprints (see [Colonists](colonists.md)); there is no idle fallback activity yet (no wander, no rest — Stamina is a stub), so a colonist with no claimable work stands still.
 
-**Labors (GDD §6.4):** a *Labor* is a category of work, declared as a `LaborDef` resource under `data/labors/` (see [Data Schemas](data-schemas.md)) and referenced everywhere by its String `id`. Six ship today — `construction`, `crafting`, `hauling`, `harvesting`, `mechanics`, `smelting` (Repair/Farming/Cooking post-MVP). The labor id is the join key of the subsystem: a `Job` carries one `labor_id` (what kind of work it is), and a [Colonist](colonists.md)'s `labor_priorities` Dict (`{labor_id: 0–5 weight}`) decides which jobs that colonist will accept — `JobBoard.get_best_job_for` skips any job whose labor has weight 0 for that colonist.
+**Labors (GDD §6.4):** a *Labor* is a category of work, declared as a `LaborDef` resource under `data/labors/` (see [Data Schemas](data-schemas.md)) and referenced everywhere by its String `id`. Seven ship today — `construction`, `crafting`, `hauling`, `harvesting`, `farming`, `mechanics`, `smelting` (Repair/Cooking post-MVP; mechanics/smelting have no job defs yet). The labor id is the join key of the subsystem: a `Job` carries one `labor_id` (what kind of work it is), and a [Colonist](colonists.md)'s `labor_priorities` Dict (`{labor_id: 0–5 weight}`) decides which jobs that colonist will accept — `JobBoard.get_best_job_for` skips any job whose labor has weight 0 for that colonist.
 
 ## Files
 
@@ -27,19 +28,22 @@ The colony's job system — `JobDef` behaviour templates, the `JobLeg` walk→ac
 | `data/jobs/construction_job_def.gd` | Script (Resource) | Construction labor: single-leg timed build — `Blueprint.complete` on finish, persists `work_done` on abort; `begin` divides `build_time` by the skill multiplier. |
 | `data/jobs/hauling_job_def.gd` | Script (Resource) | Hauling labor: multi-leg FETCH/DELIVER loop — deposit materials from crates into any MaterialSink via colonist carry inventory; tool-tagged items survive the surplus dump. |
 | `data/jobs/crafting_job_def.gd` | Script (Resource) | Crafting labor: single-leg timed craft at a [CraftingStation](crafting.md) — skill-scaled `begin`, outputs + order-clear on `complete`, recipe conditions ANDed into `meets_requirements`. |
-| `data/jobs/harvest_job_def.gd` | Script (Resource) | Harvesting labor: single-leg timed harvest of marked resource nodes — `Harvestable.complete` on finish, persists `work_done` on abort; `begin` divides `work_time` by the skill multiplier. |
+| `data/jobs/harvest_job_def.gd` | Script (Resource) | Harvesting labor: single-leg timed harvest of marked resource nodes — `Harvestable.complete` on finish, persists `work_done` on abort; `begin` divides the effective work time by the skill multiplier. Also covers mature farm crops (a plot's `Growable` overrides the work time). |
+| `data/jobs/farming_job_def.gd` | Script (Resource) | Base for the farm-plot labors: one WORK leg against the plot's `Growable`, `_needs`/`_apply` virtuals per subclass, skill-scaled `begin`. A future `FertilizeJobDef` drops in by overriding the virtuals. |
+| `data/jobs/sow_job_def.gd` / `water_job_def.gd` / `tend_job_def.gd` | Script (Resource) | Farming labor: Sow (plant the selected crop; ANDs the crop's `plant_conditions` into `meets_requirements`), Water (a thirsty crop), Tend (weeds/prunes; ANDs `tend_conditions`). |
+| `../farming/growable.gd` | Script (Node component) | The farm-plot crop lifecycle component; flips the `plot_needs_*` signals that drive job spawn/despawn. See [Farming](farming.md). |
 | `subsystems/harvesting/harvestable.gd` | Script (Node component) | Capability component attached by FurnitureLayer to furniture declaring `harvest_params`: tracks `is_marked_for_harvest` and `work_done`, and resolves harvest completion. |
 | `data/capability_params/harvest_params.gd` | Script (Resource) | Capability sub-resource on `FurnitureDef` defining `yields: Array[ItemAmount]`, `work_time: float`, and `respawn_time: float`. |
 | `data/actions/harvest_action.gd` | Script (GameAction) | Player direct LMB harvesting action with timed `ActionProgress` HUD gauge and skill XP scaling. |
 | `data/actions/toggle_harvest_action.gd` | Script (GameAction) | E interaction menu action to toggle `is_marked_for_harvest` on a targeted node. |
-| `construction.tres` / `hauling.tres` / `crafting.tres` / `harvest.tres` | Data | `JobDef` resources (labor_id, max_assignees, conditions). See [Data Schemas](data-schemas.md). |
+| `construction.tres` / `hauling.tres` / `crafting.tres` / `harvest.tres` / `sow.tres` / `water.tres` / `tend.tres` | Data | `JobDef` resources (labor_id, max_assignees, conditions). See [Data Schemas](data-schemas.md). |
 | `../furniture/material_sink.gd` | Script (static helper) | The duck-typed MaterialSink contract (4 methods) + `is_material_sink(node)` check. Blueprints and CraftingStation implement it. |
 | `../data/conditions/` | Data + scripts | Leaf conditions reusable on JobDefs (`MinSkillCondition`, `HasItemCondition`) and ActionOptions. See [Actions](actions.md). |
 | `colonists/job.gd` | Script (RefCounted) | Per-placement job instance — pure data + multi-assign bookkeeping (`try_assign`/`unassign`/`is_available`/`should_close`, `_assigned_colonists`). Leg behaviour lives on the `JobDef`. |
 | `colonists/job_board.gd` | Script (on Colony) | Job registry + selection: `add_job` / `get_best_job_for` / `remove_job` / `fail`. Selection filters `Job.is_available()` + `meets_requirements` and prunes dead jobs each poll. Assignment lives on the `Job`, not here. |
-| `../autoloads/colony.gd` | Autoload | **Producer role:** creates construction/haul `Job`s from `EventBus.blueprint_placed`; chains hauling→construction on `blueprint_materials_ready`; chains crafting order→haul on `crafting_order_queued` and haul→craft on `crafting_materials_ready`. Owns `JobBoard` + `StorageRegistry`. See [Colonists](colonists.md). |
+| `../autoloads/colony.gd` | Autoload | **Producer role:** creates construction/haul `Job`s from `EventBus.blueprint_placed`; chains hauling→construction on `blueprint_materials_ready`; chains crafting order→haul on `crafting_order_queued` and haul→craft on `crafting_materials_ready`; spawns/cancels harvest jobs on `harvest_mark_toggled`; spawns/cancels sow/water/tend jobs on the `plot_needs_*` signals. Owns `JobBoard` + `StorageRegistry`. See [Colonists](colonists.md). |
 | `../inventory/storage_registry.gd` | Script (on Colony) | Live index of storage crates: `find_source` / `has_source_for` / `nearest_crate`. Used by hauling to locate source/destination crates. See [Inventory](inventory.md). |
-| `../data/labors/` | Data | `LaborDef` resources — the canonical labor ids (Construction, Crafting, Hauling, Mechanics, Smelting). See [Data Schemas](data-schemas.md). |
+| `../data/labors/` | Data | `LaborDef` resources — the canonical labor ids (Construction, Crafting, Hauling, Harvesting, Farming, Mechanics, Smelting). See [Data Schemas](data-schemas.md). |
 
 ## Signals
 
@@ -79,7 +83,7 @@ The spatial counterpart to the lifecycle flow. A job is a sequence of legs; the 
    - **`find_stand_cell(start_world)`** — a vertical scan (±`_STAND_SCAN = 3`) settles the colonist's *own* standing cell (spawn-drop height, minor floor ambiguity).
    - **`target_base = Vector3i(floor(target_world.{x,y,z}))`** — the leg target's footprint-center cell. **Blocked** by the predicate.
    - **`find_stand_near_cell(target_base, max_radius = 4)`** — horizontal Chebyshev ring search; the predicate rejects footprint/furniture/terrain cells, the **first non-empty ring** returns its min-Euclidean cell → nearest walkable cell **adjacent**. Returns `target_base` unchanged if nothing walkable is in range (A\* then fails clean).
-   - **`find_path(start_cell, target_cell)`** — A\*: 4-connected neighbors, Manhattan heuristic, lazy neighbor expansion gated cell-by-cell by the predicate; Dictionary-backed open/closed, linear min-f scan; `_MAX_EXPLORED = 4000` backstop.
+   - **`find_path(start_cell, target_cell)`** — A\*: 4-connected neighbors, Manhattan heuristic, lazy neighbor expansion gated cell-by-cell by the predicate; Dictionary-backed open/closed, linear min-f scan; `_MAX_EXPLORED = 8000` backstop.
    - **`to_world_waypoints(cells)`** — each cell → `Vector3(cell) + (0.5, 0.5, 0.5)` (XZ-centered; Y informative only).
 2. If the path is **empty** (no reachable adjacent cell): the AI `unassign`s, clears `current_job`, stays IDLE — the 0.5s throttle bounds the retry.
 3. Otherwise `Colonist.set_path(waypoints)` (`_path.assign(...)`, reset `_path_index`), AI state → MOVE.
@@ -189,7 +193,7 @@ Approved architecture (2026-08-15) for four new labors — Crafting at stations,
 - **Tool retention** — `HaulingJobDef.on_end`'s surplus dump skips tool-tagged items (`ItemDef.tags`, `Inventory.has_item_tag`), so a carried tool survives haul runs.
 - **Skill multipliers** — [Skills](skills.md) is live: `SkillSet` per colonist (seeded from `ColonistDef.starting_skills`), XP on job success via `ColonistAI`, and `begin()` durations divided by `skill_set.get_multiplier(labor_id)` (construction today; stamina still deferred).
 
-Still open with the features themselves: crafting stations (the `crafting_materials_ready` signal is declared on EventBus, no emitter yet), harvesting/farming job defs, patrol + the labor-assignment UI.
+Crafting stations, harvesting, and farming all landed (documented above and in [Crafting](crafting.md) / [Farming](farming.md)). Still open from the extensions plan: patrol, and the labor-assignment UI (the in-game priority editor — `labor_priorities` are authored data today).
 
 ## Class Reference
 
@@ -358,10 +362,29 @@ Still open with the features themselves: crafting stations (the `crafting_materi
 |---|---|
 | `get_next_leg(actor, job) → JobLeg` | Returns the node leg while `is_marked_for_harvest` is true; null otherwise (unmarking or completion cleanly ends the job). |
 | `begin(actor, leg, job) → float` | `maxf(0.0, (harvestable.effective_work_time() / skill_multiplier) - harvestable.work_done())`. Returns remaining work in seconds. Crop knowledge stays on `Harvestable` — the def only scales and subtracts. |
-| `complete(actor, leg, job) → void` | Calls `harvestable.complete(actor)` and records harvesting skill XP. |
+| `complete(actor, leg, job) → void` | Calls `harvestable.complete(actor)` — yields, log line, node removal. Skill XP is NOT recorded here; it lands in `ColonistAI._end_job` ([Skills](skills.md)). |
 | `on_end(success, actor, leg, job, elapsed) → void` | On abort, persists `harvestable.set_work_done(work_done + elapsed)`. |
 | `is_available(job) → bool` | Target valid AND `harvestable.is_marked_for_harvest()`. |
 | `should_close(job) → bool` | Target gone or `!is_marked_for_harvest()`. |
+
+### Class: FarmingJobDef (+ Sow/Water/Tend)
+
+**Extends:** JobDef (labor `farming`; `sow.tres` / `water.tres` / `tend.tres`)
+**Scripts:** `data/jobs/farming_job_def.gd`, `sow_job_def.gd`, `water_job_def.gd`, `tend_job_def.gd`
+**Description:** The farm-plot labors — each a **one-leg job** against the plot's `Growable` (the `target_node`, or its `"Growable"` child on farm-plot furniture). The base owns the shared shape (single WORK leg, skill-scaled `begin` over the authored `work_time`, availability = "a valid Growable that needs it"); subclasses differ only in the `_needs` predicate and the `_apply` completion call. A future FertilizeJobDef drops in by overriding those two virtuals.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `_needs(growable) → bool` *(virtual)* | Whether the plot currently needs this labor — drives the leg, claimability, and lifetime. Sow: `EMPTY` state with a selected crop; Water: thirsty; Tend: needs maintenance. Base default false. |
+| `_apply(growable, actor) → void` *(virtual)* | The labor's effect on completion — Sow: `plant(selected_crop_id)`; Water: `water(actor)`; Tend: `tend(actor)`. Base default no-op. |
+| `get_next_leg(actor, job) → JobLeg` | The plot leg while `_needs` holds; null otherwise (need cleared → clean end). |
+| `begin(actor, leg, job) → float` | `work_time / skill_set.get_multiplier(labor_id)` (bare `work_time` for a non-Colonist actor). |
+| `complete(actor, leg, job) → void` | Resolves the Growable and calls `_apply`. |
+| `is_available(job) → bool` | Growable valid AND `_needs` true. |
+| `should_close(job) → bool` | `not is_available` — the job dies as soon as the need is cleared. |
+| `meets_requirements(actor, job) → bool` | *(Sow/Tend)* Base conditions AND the crop's `plant_conditions` / `tend_conditions` — a colonist missing a skill/tool gate can't claim. |
 
 ### Class: Harvestable
 

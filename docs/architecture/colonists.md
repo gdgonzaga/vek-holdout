@@ -2,7 +2,7 @@
 
 Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6. The job system (Job Board, JobDefs, hauling, construction) is documented separately in [Jobs](jobs.md).
 
-> **Sprint scope (built):** colonists work jobs via `ColonistAI`'s inline three-state machine (IDLE → poll [Job Board](jobs.md) → MOVE → WORK). Two labors ship — Construction and Hauling — both driven by the [`JobDef`](jobs.md) leg-behaviour contract. See [Jobs](jobs.md) for the full job pipeline.
+> **Sprint scope (built):** colonists work jobs via `ColonistAI`'s inline three-state machine (IDLE → poll [Job Board](jobs.md) → MOVE → WORK). Seven job defs ship — Construction, Hauling, Crafting, Harvest, Sow, Water, Tend — all driven by the [`JobDef`](jobs.md) leg-behaviour contract. See [Jobs](jobs.md) for the full job pipeline.
 >
 > **Deferred (GDD §6, not yet built):** the Stamina work-speed factor (the skill factor is live — timed legs scale via [Skills](skills.md); `StaminaComponent` is still a stub), `colonist_combat.gd` (§6.7), recruitment (§6.9), the `RaidStance` enum (§6.2), roster save/restore (so a colonist's carry inventory isn't persisted yet — skills now round-trip via `Colonist.serialize` for when it lands).
 
@@ -16,13 +16,13 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 | `voxel_pathfinder.gd` | Script (component) | Voxel A\* with an **injected walkability predicate** — intentionally generic (knows nothing about voxels/furniture/blueprints). `find_path_to_adjacent` resolves a stand-adjacent cell so a colonist can reach a blocked footprint (a blueprint or a crate). See class reference. |
 | `skill_set.gd` | Script (component) | Per-colonist skill progression — seeded from `colonist_def.starting_skills`, XP on job success, work-speed multipliers. See [Skills](skills.md). |
 | `stamina_component.gd` | Script (component) | Still a stub — see [Energy](energy.md). |
-| `../autoloads/colony.gd` | Autoload | Roster + [Job Board](jobs.md) + StorageRegistry. Produces construction/haul Jobs from `EventBus.blueprint_placed`; chains hauling→construction on `blueprint_materials_ready`. Cross-scene (colonists persist base↔POI). |
+| `../autoloads/colony.gd` | Autoload | Roster + [Job Board](jobs.md) + StorageRegistry. Produces construction/haul Jobs from `EventBus.blueprint_placed`; chains hauling→construction on `blueprint_materials_ready`; craft jobs from the crafting signals; harvest/sow/water/tend jobs from the harvest-mark and farm-plot signals. Cross-scene (colonists persist base↔POI). |
 
 ## Signals
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `colonist_died(colonist_id)` | `colonist.gd` | Colony, HUD, Memorial | Yes | Colonist Death |
+| `colonist_died(colonist_id)` | `colonist.gd` | GameLog | Yes | Colonist Death |
 
 *(Job-related signals — `blueprint_materials_ready`, `job_failed`, `job_logged` — are documented in [Jobs](jobs.md).)*
 
@@ -32,9 +32,9 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 
 **Extends:** Node (autoload)
 **Script:** `autoloads/colony.gd`
-**Description:** The colony roster, [Job Board](jobs.md), and StorageRegistry. Cross-scene because colonists persist during expeditions. Owns colonist lifecycle (spawn/reparent into the current map's `ColonistContainer`) and produces construction/haul Jobs from blueprint placement, chaining hauling→construction on `blueprint_materials_ready`.
+**Description:** The colony roster, [Job Board](jobs.md), and StorageRegistry. Cross-scene because colonists persist during expeditions. Owns colonist lifecycle (spawn/reparent into the current map's `ColonistContainer`) and produces Jobs for every labor: construction/haul from blueprint placement (chaining hauling→construction on `blueprint_materials_ready`), craft from the crafting signals, harvest from harvest marks, and sow/water/tend from the farm-plot signals.
 **Used by:** HUD (roster UI), Colony Management screen, Combat (damage targets), Raids (stance execution).
-**Lifecycle:** `_ready` creates the [JobBoard](jobs.md) + `StorageRegistry` child Nodes and connects `EventBus.blueprint_placed` → `_on_blueprint_placed`, `blueprint_removed` → `_on_blueprint_removed`, `blueprint_materials_ready` → `_on_blueprint_materials_ready`. `on_map_wired` is called by `MapWiring.wire_colonists` on every map load (which also points `storage_registry` at the map's furniture container).
+**Lifecycle:** `_ready` creates the [JobBoard](jobs.md) + `StorageRegistry` child Nodes and connects the EventBus producers: `blueprint_placed` / `blueprint_removed` / `blueprint_materials_ready`, `crafting_order_queued` / `crafting_materials_ready`, `harvest_mark_toggled`, `plot_needs_sowing` / `plot_needs_water` / `plot_needs_tending`, and `furniture_removed` (job cleanup). `on_map_wired` is called by `MapWiring.wire_colonists` on every map load (which also points `storage_registry` at the map's furniture container).
 
 **Properties:**
 
@@ -59,6 +59,12 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 | `_spawn_job(def, title, anchor, location, target) → void` | Shared producer plumbing every `_spawn_*` routes through: dedupe by anchor + def, `Job.from_def`, bind the placement, `add_job`. Def identity works because the def consts are preloaded singletons (required for the farming defs, which share `labor_id "farming"`). |
 | `_remove_jobs_at(anchor, def = null) → void` | Drop jobs at an anchor — every def's when `def` is null (blueprint removal), else only that def's. |
 | `_on_blueprint_removed(target_def_id, anchor) → void` | Removes any Job targeting that anchor (fires on cancel and completion). Idempotent. |
+| `_on_crafting_order_queued(station, anchor) → void` | A recipe was queued at a station with unmet inputs → haul job feeding the station. See [Jobs](jobs.md). |
+| `_on_crafting_materials_ready(station, anchor) → void` | Station inputs crossed complete → `_spawn_craft_job`. |
+| `_spawn_craft_job(station, anchor) → void` | Build + add a crafting Job targeting the station (deduped via `_spawn_job`). |
+| `_on_harvest_mark_toggled(furniture, anchor, is_marked) → void` | Harvest mark set → `_spawn_harvest_job`; cleared → `_remove_jobs_at(anchor, HARVEST_DEF)`. |
+| `_on_furniture_removed(def_id, anchor) → void` | Furniture freed → `_remove_jobs_at(anchor)` so colonists don't path into freed nodes. |
+| `_on_plot_needs_sowing` / `_on_plot_needs_water` / `_on_plot_needs_tending` | Farm-plot needs flipped on → spawn the matching sow/water/tend job; off → remove it (via `_spawn_sow_job` / `_spawn_water_job` / `_spawn_tend_job`, deduped through `_spawn_job`). |
 
 ### Class: Colonist
 

@@ -1,8 +1,8 @@
 # Job System Extensions
 
-Architecture plan for four new colonist job types — **Crafting at furniture, Harvesting, Farming, Patrol** — over the [Jobs](jobs.md) core. Companion to [Jobs](jobs.md) (the built system), [Crafting](crafting.md) (the crafting design intent), and [Skills](skills.md) (the skill spec). GDD §6.
+Architecture plan for four colonist job features — **Crafting at furniture, Harvesting, Farming, Patrol** — over the [Jobs](jobs.md) core. Companion to [Jobs](jobs.md), [Crafting](crafting.md), and [Farming](farming.md) (the built systems) and [Skills](skills.md) (the skill spec). GDD §6.
 
-> **Status: the Core Changes are built (2026-08-15, with tests); the Crafting Feature is built (2026-08-15, `test/suite_crafting_test.gd`). Harvesting, Farming, and Patrol are still planned.** Built behavior is documented on [Jobs](jobs.md), [Skills](skills.md), and [Crafting](crafting.md); this page keeps the plan + the design rules the features must follow. Sequencing at the bottom.
+> **Status: the Core Changes are built (2026-08-15, with tests); the Crafting Feature is built (2026-08-15, `test/suite_crafting_test.gd`); the Harvesting Feature is built (2026-08-16, `test/suite_harvesting_test.gd`); the Farming Feature is built (`test/suite_farming_test.gd`). Only Patrol is still planned.** Built behavior is documented on [Jobs](jobs.md), [Skills](skills.md), [Crafting](crafting.md), and [Farming](farming.md); this page keeps the plan + the design rules the features must follow. Sequencing at the bottom.
 
 ## Verdict
 
@@ -40,7 +40,7 @@ Reuses the `Condition` resource family (`AllOf`/`AnyOf`/`Not` + leaves) from [Ac
 
 Files: `subsystems/colonists/skill_set.gd`, `data/skills/skills.tres`.
 
-[Skills](skills.md) specifies the API, signals, and flow traces — this is implementation-to-spec, not design: `record_use(skill_id)`, `get_level(skill_id)`, `get_multiplier(labor_id) -> float`, `meets_requirement(skill_id, min_level) -> bool`, signals `skill_progressed`/`skill_leveled_up`. Seeded from `ColonistDef.starting_skills` (ships `mining` + `farming` at L1; `mining` isn't one of the 6 skills and is ignored by the seed).
+[Skills](skills.md) specifies the API, signals, and flow traces — this is implementation-to-spec, not design: `record_use(skill_id)`, `get_level(skill_id)`, `get_multiplier(labor_id) -> float`, `meets_requirement(skill_id, min_level) -> bool`, signals `skill_progressed`/`skill_leveled_up`. Seeded from `ColonistDef.starting_skills` (ships `mining` + `farming` at L1; `mining` isn't one of the 7 skills and is ignored by the seed).
 
 - **Work speed**: defs divide `begin()`'s duration by `actor.skill_set.get_multiplier(job.labor_id)` — the documented `base_rate` seam (Jobs' deferred list). `StaminaComponent` stays stubbed.
 - **XP**: `ColonistAI` calls `record_use` on `_end_job(true)`, only for labors mapped to a skill in `skills.tres` (unmapped labors grant nothing; hauling maps to none initially).
@@ -122,29 +122,29 @@ Dual-mode harvesting:
 
 **Voxel node harvesting** (follow-up, after Demolition): `BlockDef` gains `drops: Array[ItemAmount]`; a `MiningJobDef` targets a cell — `job.anchor_cell` is the cell's identity (dedupe/cancel by anchor, exactly like blueprints) and `leg.location` the walk target; `complete` drives `VoxelGrid.apply_damage` per swing until `block_destroyed` → drops. The pathfinder is already cell-native (`find_stand_near_cell`; `ColonistAI._path_for_leg` falls back to `find_path_to_adjacent` for non-furniture legs), so no `JobLeg` change is required — an optional `target_cell: Vector3i` is identity sugar. [Tech Debt](tech-debt.md)'s "Demolition (as a Job)" needs the same cell-targeted leg shape and is the smaller proving ground — build it first. Resource veins additionally need worldgen (flat generator today) — a separate effort.
 
-### Farming — plant → water → harvest loop
+### Farming — sow → water → tend → harvest loop — ✅ built
 
-Files: `FarmPlotParams` capability sub-resource, `subsystems/farming/growable.gd` (component), `data/jobs/` plant/water/harvest defs + `data/labors/farming.tres` (new labor), `subsystems/autoloads/colony.gd` routing. Depends on core changes 1, 2, 6.
+Files: `FarmPlotParams` capability sub-resource, `subsystems/farming/growable.gd` + `crop_library.gd` (components), `data/jobs/farming_job_def.gd` + `sow_job_def.gd` / `water_job_def.gd` / `tend_job_def.gd` + their `.tres`, `data/labors/farming.tres` (new labor), `data/crops/*.tres` (CropDefs), `subsystems/autoloads/colony.gd` routing. Built on core changes 1, 2, 6. Built form documented on [Farming](farming.md).
 
-`FarmPlotParams`: `seed_item`, `growth_time`, `water_interval`, `fertilizer_effect`, `yields`.
+`FarmPlotParams` (as built): `allowed_crops: Array[String]` (empty = any crop). Crop lifecycle data lives on `CropDef` (`data/crops/`), not the plot.
 
-`Growable` (child component) is the one thing the architecture lacks — furniture that changes state *without* a colonist: stage `{EMPTY, PLANTED, GROWING, READY}`, growth + water clocks driven by `TimeSystem` (exists with zero gameplay consumers today), state persisted via core change 6. Emits on EventBus:
+`Growable` (child component) is the furniture that changes state *without* a colonist: crop states `{EMPTY, SPROUT, GROWING, MATURE, WITHERED}`, growth/water/tend clocks driven per-tick, crop selection (`set_selected_crop`), planting/watering/tending, neglect-driven yield penalties, state persisted via core change 6. Emits on EventBus (as built):
 
-| Signal (planned) | When |
+| Signal (as built) | When |
 |---|---|
-| `plot_needs_planting(anchor)` | Stage ENTERED-empty (placed, or after harvest) |
-| `plot_needs_water(anchor)` | Water clock elapses while GROWING (drought slows growth) |
-| `plot_ready_to_harvest(anchor)` | Growth completes |
+| `plot_needs_sowing(growable, anchor, crop_id, needed)` | Plot EMPTY with a crop selected (or selection cleared) |
+| `plot_needs_water(growable, anchor, needed)` | Water clock elapses while growing (drought stalls growth + accrues neglect) |
+| `plot_needs_tending(growable, anchor, needed)` | Tend clock elapses |
 
-Colony routes each to a job (dedupe by anchor + def):
+Colony routes each to a job (dedupe by anchor + def — the preloaded def consts are singletons, which is what makes dedupe work for the three farming defs that share `labor_id "farming"`):
 
-| JobDef (planned) | Legs |
+| JobDef (as built) | Legs |
 |---|---|
-| `PlantJobDef` | FETCH seed (inline — rule 4) → WORK plant (stage → GROWING) |
-| `WaterJobDef` | FETCH_TOOL watering can → WORK water (resets the water clock) |
-| `FarmHarvestJobDef` | FETCH_TOOL sickle → WORK harvest (yields → inventory; stage → EMPTY → re-emits needs_planting) |
+| `SowJobDef` (`sow.tres`) | WORK plant — `plant(selected_crop_id)`; ANDs the crop's `plant_conditions` into `meets_requirements` |
+| `WaterJobDef` (`water.tres`) | WORK water — `water(actor)` |
+| `TendJobDef` (`tend.tres`) | WORK tend — `tend(actor)`; ANDs `tend_conditions` |
 
-All `MinSkill`-gated (`farming` ships as a starting skill), durations skill-multiplied. **Fertilizer v1** = a player `ActionOption` on the plot (boost yield or cut growth time); a colonist `FertilizeJobDef` is deferred until the loop proves out.
+All three are `FarmingJobDef` subclasses (one WORK leg, skill-scaled `begin`, `_needs`/`_apply` virtuals — a future `FertilizeJobDef` drops in by overriding them). Harvesting a mature crop reuses the generic `HarvestJobDef` — a plot's `Growable` overrides the effective work time via `Harvestable.effective_work_time()`. Seeds/watering-can/sickle FETCH legs from the original sketch were not needed v1 — no seed item or tools are consumed; durations are skill-multiplied (`farming` maps to the `farming` skill). **Fertilizer v1** = a player `ActionOption` on the plot (boost yield or cut growth time); a colonist `FertilizeJobDef` is deferred until the loop proves out.
 
 ### Patrol v1 — labor checkbox + random waypoints
 
@@ -159,7 +159,7 @@ Zero core changes. Files: `data/labors/patrol.tres` (new labor), patrol-flag fur
 
 **Known semantics:** no preemption — a patrolling colonist never re-polls the board while patrol stays its top enabled labor; the checkboxes are the control surface. `labor_priorities` already round-trips `Colonist.serialize` (colonist save/restore itself is still deferred — see [Colonists](colonists.md)).
 
-**Labor assignment UI** (needed by every new labor — they default to priority 0, since `ColonistDef.default_labor_priorities` ships only `construction`/`crafting`/`hauling`): a minimal scene — rows = colonist display names, columns = labors (construction, crafting, hauling, harvesting, farming, patrol), checkboxes bound to `Colonist.set_labor_priority()` (exists, unused). Opened by a hotkey or HUD button.
+**Labor assignment UI** (needed by every new labor — they default to priority 0, since `ColonistDef.default_labor_priorities` ships only `construction`/`crafting`/`hauling`/`harvesting`): a minimal scene — rows = colonist display names, columns = labors (construction, crafting, hauling, harvesting, farming, patrol), checkboxes bound to `Colonist.set_labor_priority()` (exists, unused). Opened by a hotkey or HUD button.
 
 ### Patrol v2 — schedules + ordered routes (deferred)
 
@@ -172,8 +172,8 @@ Zero core changes. Files: `data/labors/patrol.tres` (new labor), patrol-flag fur
 
 1. ~~Core changes 1–4 (gating, `SkillSet`, conditions, tags + tool retention); 5 lands with crafting, 6 with farming.~~ **Done — all six core changes shipped ahead of the features.**
 2. ~~**Crafting** — proves the MaterialSink chain + skill gates.~~ **Done — shipped 2026-08-15 (`suite_crafting_test.gd`), workbench + planks/axe seed recipes.**
-3. **Labor UI + patrol v1** — cheapest feature; exercises the UI every later labor needs.
-4. **Harvesting** — proves FETCH_TOOL.
-5. **Farming** — the growth loop.
+3. **Labor UI + patrol v1** — cheapest remaining feature; exercises the UI every later labor needs.
+4. ~~**Harvesting** — proves FETCH_TOOL.~~ **Done — shipped 2026-08-16 (`suite_harvesting_test.gd`); v1 shipped without FETCH_TOOL (no tools required).**
+5. ~~**Farming** — the growth loop.~~ **Done — `suite_farming_test.gd`; Sow/Water/Tend over `FarmingJobDef`, no tools or seed items in v1.**
 
 After the roadmap: Demolition → voxel mining; patrol schedules v2; ~~`JobBoard.fail` wiring~~ (done — wired on ColonistAI abort paths); preemption.

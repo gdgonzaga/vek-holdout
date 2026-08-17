@@ -89,7 +89,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 **Extends:** Node
 **Script:** `storage_registry.gd` (a child of the `Colony` autoload)
 **Description:** Live index of the colony's storage crates, so hauling jobs can find "nearest crate that has the materials this blueprint still needs" without each call site re-scanning. No registration: `find_source` / `has_source_for` / `nearest_crate` scan the current map's `FurnitureContainer` children each call (filtering for `Furniture` nodes with a `"StorageInventory"` child). Crates are few and queries run at most once per haul FETCH leg, so the live scan is cheap and always correct — freed crates are simply absent from the container's child list (no stale refs, no unregister hook on `FurnitureLayer`).
-**Used by:** `Colony._on_blueprint_placed` (decide haul-vs-construct via `has_source_for`), `HaulingJobDef` (FETCH source via `find_source`; surplus return via `nearest_crate`; `is_available` gate via `has_source_for`; crate-inventory resolution via `inventory_of`).
+**Used by:** `HaulingJobDef` (FETCH source via `find_source`; surplus return via `nearest_crate`; `is_available` gate via `has_source_for`; crate-inventory resolution via `inventory_of`). (The producer's haul-vs-construct decision in `Colony._on_blueprint_placed` no longer consults stock — any unmet `material_cost` hauls, regardless of current crate contents; see [Jobs](jobs.md).)
 **Lifecycle:** `Colony._ready` creates it; `MapWiring.wire_colonists` calls `on_map_wired(furniture_container)` on every map load so base↔POI swaps rebind it to the new map's crates.
 
 **Functions:**

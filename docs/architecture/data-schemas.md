@@ -18,8 +18,8 @@ One `MapDef` per loadable map. Scanned from `data/maps/*/map_def.tres` by `MapLi
 | `id` | `String` | Map id; **must match the folder name** (`data/maps/<id>/`). Drives the runtime sqlite path. |
 | `display_name` | `String` | Player-facing name (world map list). |
 | `description` | `String` | One-liner shown under the name in the world map. |
-| `scene_path` | `String` | The `Map` scene to instantiate. POIs → per-map `res://data/maps/<id>/map.tscn`; base → `res://subsystems/voxel/map.tscn`. |
-| `map_type` | `MapType` enum | `BASE` / `POI` / `BUILDING` / `TOWN`. `POI` maps are auto-discovered at boot and listed in the world map. |
+| `scene_path` | `String` | The `Map` scene to instantiate. POIs → per-map `res://data/maps/<id>/map.tscn`; base → `res://data/maps/base/map.tscn`. |
+| `map_type` | `MapType` enum | `BASE` / `POI` / `BUILDING` / `TOWN`. `POI` maps are auto-discovered by the New Game flow (main menu) and listed in the world map. |
 | `player_spawn` | `Vector3` | Fallback player spawn (default `(0, 5, 0)`). Overridden by a `SpawnPoints/PlayerSpawn` Marker3D if present. |
 | `enemy_spawns` | `Array[Dictionary]` | `[{ "pos": Vector3, "count": int }]`. Overridden by `SpawnPoints/EnemySpawn_*` markers. |
 | `unlock_condition` | `String` | *(Unused — reserved for gated discovery.)* |
@@ -35,17 +35,19 @@ The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef ex
 
 | Field | Type | Description |
 |---|---|---|
+| `display_name` | `String` | `[export default "Colonist"]` UI label. |
 | `max_hp` | `int` | `[export default 100]` |
+| `default_raid_stance` | `int` | `[export default 0]` Stored as int (`RaidStance` enum deferred). |
 | `base_move_speed` | `float` | `[export default 3.5]` |
 | `sprint_multiplier` | `float` | `[export default 1.5]` |
 | `stamina_drain_rate` | `float` | `[export default 1.0]` |
 | `breath_costs` | `Dictionary` | `[export]` Per-action Breath costs keyed by name (default `{"sprint": 1.0, "jump": 1.0}`). |
 | `starting_skills` | `Dictionary` | `[export]` Starting skill xp/level per labor (default mining + farming at L1). |
-| `default_labor_priorities` | `Dictionary` | `[export]` Default labor-priority weights per labor. |
+| `default_labor_priorities` | `Dictionary` | `[export]` Default labor-priority weights per labor (ships `construction`/`crafting`/`hauling`/`harvesting` at 1). |
 
 ## `data/labors/<id>.tres` (Resource: `labor_def.gd`) — `LaborDef`
 
-The canonical declaration of which labor ids exist. `LaborDef extends Resource`. Labors are referenced elsewhere by their String `id` — a `Colonist`'s `labor_priorities` Dict and a `Job`'s `labor_id` — so these resources are the single source of truth for labor identity + display metadata. Five instances ship today: `construction`, `crafting`, `hauling`, `mechanics`, `smelting` (Repair/Farming/Cooking post-MVP). They are inert data for now — there is no registry autoload; future skill gates / UI load them by path.
+The canonical declaration of which labor ids exist. `LaborDef extends Resource`. Labors are referenced elsewhere by their String `id` — a `Colonist`'s `labor_priorities` Dict and a `Job`'s `labor_id` — so these resources are the single source of truth for labor identity + display metadata. Seven instances ship today: `construction`, `crafting`, `hauling`, `harvesting`, `farming`, `mechanics`, `smelting` (Repair/Cooking post-MVP; mechanics/smelting have no job defs yet). They are inert data for now — there is no registry autoload; future skill gates / UI load them by path.
 
 | Field | Type | Description |
 |---|---|---|
@@ -71,6 +73,8 @@ Reusable template for one kind of colonist work — one subclass per Labor, auth
 - `complete(actor: Node, leg: JobLeg, job: Job) -> void` — apply this leg's effect when its duration elapses. Base default no-op.
 - `on_end(success: bool, actor: Node, leg: JobLeg, job: Job, elapsed: float) -> void` — cleanup when a colonist leaves the job (finish or abort). Base default no-op.
 - `is_available(job: Job) -> bool` — labor-specific acceptability gate (combined with the slot count on `Job.is_available`). Base default `true`.
+- `should_close(job: Job) -> bool` — whether the job is dead (leave the board), independent of claimability so a temporarily-unclaimable job can stay registered. Base default `not is_available`.
+- `job_complete(job: Job) -> bool` — whether a null `get_next_leg` is a clean finish (success/XP) versus a stall. Base default `true`.
 - `meets_requirements(actor: Node, job: Job) -> bool` — every `conditions` entry `is_met(actor, job.target_node)`, fresh each call. Base default `true` (empty conditions).
 
 **`JobLeg`** (`data/jobs/job_leg.gd`, `RefCounted`) — one leg of a job's walk→act sequence; pure routing data. `location: Vector3` (walk-target), `target_node: Node` (the per-leg node — crate/blueprint; weak, freed-detectable), `kind: int` (opaque, def-owned discriminator, e.g. `HaulingJobDef.FETCH`/`DELIVER`).
@@ -121,15 +125,16 @@ Base `BuildableDef` — player-placed objects not on the voxel grid (e.g. `pole`
 | `texture` | `Texture2D` | Albedo texture. `BlockLibrary` builds a `StandardMaterial3D` from this (no separate material `.tres` per type); the furniture authoring path does the same inline. |
 | `texture_variation` | `bool` | `[export default false]` Block-only: opts into a per-block UV/brightness randomization shader so repeating textures don't tile visibly (handled in `BlockLibrary`). |
 | `material_cost` | `Array[ItemAmount]` | Materials consumed to build (each entry = an `ItemDef` + count; see `ItemAmount`). Enforced by the blueprint deposit flow (`BlueprintPlacementStrategy`); the `InstantPlacementStrategy` debug fallback still defers it. |
+| `build_time` | `float` | `[export default 0.0]` Seconds of WORK for a construction Job / player `BuildAction` (divided by the builder's skill multiplier). |
 | `unlocked_by_default` | `bool` | Available without earning an unlock this run; seeded by `BuildLibrary`. |
 
 _(No cost-helper methods — `material_cost` is read directly as an `Array[ItemAmount]`.)_
 
 ## `data/furniture/<id>.tres` (Resource: `furniture_def.gd`)
 
-`FurnitureDef` `extends BuildableDef` — free-standing buildables (Workbench, Forge, Clinic Bed, Workshop, etc.). Inherits all `BuildableDef` fields. Partial (C1) — see [Actions & Interaction](actions.md) and [Build](build.md).
+`FurnitureDef` `extends BuildableDef` — free-standing buildables (Workbench, Growing Trough, Storage Crate, Clinic Bed, etc.). Inherits all `BuildableDef` fields. Partial (C1) — see [Actions & Interaction](actions.md) and [Build](build.md). Eight defs ship today (workbench, instant_workbench, storage_crate, growing_trough, shelf1, tree1, wood_block_dispenser, test_block_furniture_with_interaction).
 
-> **Workshop** (`workshop.tres`) — `dimensions = Vector3i(2, 1, 1)`, `unlocked_by_default = true`, empty `material_cost`, `build_time = 10.0`. It reuses the Workbench mesh as a cosmetic placeholder and exists as the colonist sprint's build-job proof target: placing its blueprint is what produces the construction Job a colonist walks to (see [Colonists](colonists.md)).
+> **Workbench** (`workbench.tres`) — `dimensions = Vector3i(2, 1, 1)`, `unlocked_by_default = true`, `build_time = 10.0`, a plank `material_cost`, plus `crafting_params` (board + axe recipes). It is the colonist sprint's build-job proof target: placing its blueprint is what produces the construction Job a colonist walks to (see [Colonists](colonists.md)).
 
 | Field | Type | Description |
 |---|---|---|
@@ -140,6 +145,7 @@ _(No cost-helper methods — `material_cost` is read directly as an `Array[ItemA
 | `storage_params` | `StorageParams` | `[export, nullable]` Capability sub-resource consumed by `StorageInventory` (its `capacity`, default 100.0). Schema in `data/capability_params/`. |
 | `crafting_params` | `CraftingParams` | `[export, nullable]` Capability sub-resource: the station's `recipes: Array[RecipeDef]`. Non-null → FurnitureLayer attaches a `CraftingStation` child. Schema in `data/capability_params/`; recipes in `data/recipes/`. |
 | `harvest_params` | `HarvestParams` | `[export, nullable]` Capability sub-resource: the node's `yields`, `work_time`, and `respawn_time`. Non-null → FurnitureLayer attaches a `Harvestable` child component. Schema in `data/capability_params/`. |
+| `farm_plot_params` | `FarmPlotParams` | `[export, nullable]` Capability sub-resource: the plot's `allowed_crops`. Non-null → FurnitureLayer attaches a `Growable` child component (the farm-plot lifecycle). Schema at the bottom of this page; see [Farming](farming.md). |
 
 > **FurnitureDef capability parameters** *(built: `crafting_params`, `storage_params`, `harvest_params`; `test_params` is not yet read by any GameAction)*
 >
@@ -166,7 +172,7 @@ Capability sub-resource for harvestable furniture (trees, resources).
 
 ## `data/actions/<id>.tres` (Resource: `game_action.gd`)
 
-One `.tres` per concrete `GameAction` — "what happens" when the player picks the option. Subclasses override `execute(actor, target)`. Concrete subclasses: `PrintAction` (smoke test), `BuildAction`, `AddMaterialsAction`, `GiveItemAction`, `OpenStorageAction` (each in `data/actions/`). See [Actions & Interaction](actions.md).
+One `.tres` per concrete `GameAction` — "what happens" when the player picks the option. Subclasses override `execute(actor, target)`. Thirteen concrete subclasses ship (each in `data/actions/`): `PrintAction` (smoke test), `BuildAction`, `InstantBuildAction`, `AddMaterialsAction`, `GiveItemAction`, `OpenStorageAction`, `OpenCraftingAction`, `CraftAction`, `HarvestAction`, `ToggleHarvestAction`, `FarmManualAction`, `InspectCropAction`, `SelectCropAction`. See [Actions & Interaction](actions.md).
 
 | Field | Type | Description |
 |---|---|---|
@@ -176,7 +182,7 @@ One `.tres` per concrete `GameAction` — "what happens" when the player picks t
 
 ## Condition resources (Resource: `condition.gd`)
 
-`Condition` `extends Resource` — gates an `ActionOption`. One `.tres` per condition instance. Composites (`AnyOf`/`AllOf`/`NotCondition`) live in `subsystems/actions/`; leaf conditions live in `data/conditions/` (e.g. `CanCarryDispensedItems`). See [Actions & Interaction](actions.md).
+`Condition` `extends Resource` — gates an `ActionOption`. One `.tres` per condition instance. Composites (`AnyOf`/`AllOf`/`NotCondition`) live in `subsystems/actions/`; leaf conditions live in `data/conditions/` (`MinSkillCondition`, `HasItemCondition`, `CanCarryDispensedItems`, plus the authored `true.tres`/`false.tres`). See [Actions & Interaction](actions.md).
 
 | Class | File | Fields | Semantics |
 |---|---|---|---|
@@ -184,10 +190,12 @@ One `.tres` per concrete `GameAction` — "what happens" when the player picks t
 | `AnyOf` | `subsystems/actions/any_of.gd` | `conditions: Array[Condition]` | true if **any** child `is_met`. |
 | `AllOf` | `subsystems/actions/all_of.gd` | `conditions: Array[Condition]` | true only if **all** children `is_met` (redundant inside an option, which already ANDs). |
 | `NotCondition` | `subsystems/actions/not.gd` | `condition: Condition` | Inverts a single child. |
+| `MinSkillCondition` | `data/conditions/min_skill_condition.gd` | `skill_id: String`, `min_level: int` | Actor's skill level gate (`actor.skill_set.meets_requirement`). |
+| `HasItemCondition` | `data/conditions/has_item_condition.gd` | `item_id` XOR `item_tag`, `count: int` | Actor carries N of an item (by id or tag). |
 
 ## `data/action_options/<id>.tres` (Resource: `action_option.gd`)
 
-One `.tres` per `ActionOption` — one row in the interaction menu. Binds a `GameAction` to its gating `Condition`s. Five exist: `build_action_option`, `add_materials_action_option`, `give_item_action_option`, `open_storage_action_option`, `test_action_option`. See [Actions & Interaction](actions.md); authoring walkthrough: `docs/HOWTO-author-interactions.md`.
+One `.tres` per `ActionOption` — one row in the interaction menu. Binds a `GameAction` to its gating `Condition`s. Ten ship today: `build_action_option`, `instant_build_action_option`, `add_materials_action_option`, `give_item_action_option`, `open_storage_action_option`, `open_crafting_action_option`, `toggle_harvest_action_option`, `inspect_crop_action_option`, `select_crop_action_option`, `test_action_option`. See [Actions & Interaction](actions.md); authoring walkthrough: `docs/HOWTO-author-interactions.md`.
 
 | Field | Type | Description |
 |---|---|---|
@@ -267,19 +275,19 @@ The Key Item pool. Each Key Item drops at most once per playthrough (enforced by
 
 ## `data/skills/skills.tres` (Resource: `skill_def_list.gd`)
 
-Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, and per-level work-speed multipliers. Loaded once (preloaded by `SkillSet`) and shared by all `SkillSet` components. See [Skills](skills.md).
+Global skill definitions: the 7 shipped skills, their Labor mappings, use-curves, and per-level work-speed multipliers. Loaded once (preloaded by `SkillSet`) and shared by all `SkillSet` components. See [Skills](skills.md).
 
 | Field | Type | Description |
 |---|---|---|
-| `skills` | `Array[SkillDef]` | The 6 skills. See below. |
+| `skills` | `Array[SkillDef]` | The 7 skills. See below. |
 
 **SkillDef** (`skill_def.gd extends Resource`) — one skill:
 
 | Field | Type | Description |
 |---|---|---|
-| `skill_id` | `String` | `"medical"`, `"mechanical"`, `"construction"`, `"crafting"`, `"combat"`, `"farming"`. |
-| `display_name` | `String` | UI label. |
-| `labor` | `String` | The LaborDef.id this skill governs. Shipped mappings: `construction`/`crafting`/`mechanical` → their same-named Labors; medical/combat/farming ship `""` (action-based or waiting on their Labor — farming's arrives with the farming jobs). A Labor with no governing skill (hauling) reads multiplier 1.0. |
+| `skill_id` | `String` | `"medical"`, `"mechanical"`, `"construction"`, `"crafting"`, `"combat"`, `"farming"`, `"tree_chopping"`. |
+| `display_name` | `String` | UI label (medical/combat/tree_chopping ship without one). |
+| `labor` | `String` | The LaborDef.id this skill governs. Shipped mappings: `construction`/`crafting`/`mechanical`/`farming` → their same-named Labors; medical/combat/tree_chopping ship `""` (action-based). A Labor with no governing skill (hauling, harvesting) reads multiplier 1.0. |
 | `multipliers` | `Array[float]` | Work-speed multiplier per level, index 0–4 = L1–L5. Default `[1.0, 1.2, 1.4, 1.7, 2.0]`. |
 | `use_curve` | `Array[int]` | Cumulative successful uses required to reach each level, index 0–3 = L2–L5. Default `[20, 50, 100, 200]`. |
 
@@ -287,7 +295,7 @@ Global skill definitions: the 6 MVP skills, their Labor mappings, use-curves, an
 
 ## `data/recipes/<id>.tres` (Resource: `recipe_def.gd`)
 
-> **Status: built — `RecipeDef` + `CraftingParams`** (Crafting subsystem, GDD §7.9; see [Crafting](crafting.md)). Shipped recipes: `planks.tres` (1 wood_block → 4 plank), `axe.tres` (2 plank + 1 stone_block → 1 axe), both gated L1 Crafting. The Forge's smelting recipes land with the Forge furniture + smelting skill.
+> **Status: built — `RecipeDef` + `CraftingParams`** (Crafting subsystem, GDD §7.9; see [Crafting](crafting.md)). Shipped recipes: `planks.tres` (1 wood_block → 4 plank) and `axe.tres` (2 plank + 1 stone_block → 1 axe) in `data/recipes/`, plus `wooden_board.tres` (3 plank → 1 wooden_board) in `data/crafting/` — all gated L1 Crafting. The workbench offers wooden_board + axe (planks is not referenced by any station yet). The Forge's smelting recipes land with the Forge furniture + smelting skill.
 
 One `RecipeDef` resource per recipe, referenced from the station furniture def's `crafting_params` sub-resource (`CraftingParams.recipes: Array[RecipeDef]`, `data/capability_params/crafting_params.gd`) — not a per-station RecipeList (superseded: the station *is* the furniture def, so no `station_id` matching is needed).
 

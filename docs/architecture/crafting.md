@@ -2,7 +2,7 @@
 
 Recipe-driven conversion of materials into items at crafting stations (GDD §7.9). The station is a **furniture component** (`CraftingStation`, the `StorageInventory` pattern — not a `Furniture` subclass), its order is a **MaterialSink** hauling can feed like a blueprint's, and crafting itself is **dual-mode**: a colonist craft Job or the player personally at the bench — one order, two possible workers, the same pattern blueprints already use (player `BuildAction` vs `ConstructionJobDef`).
 
-> **Status: built (2026-08-15, `test/suite_crafting_test.gd`).** Workbench ships with seed recipes (`planks`: 1 wood block → 4 planks; `axe`: 2 planks + 1 stone block → 1 axe; plus the editor-authored `wooden_board`: 3 planks → 1). Forge + smelting deferred (no forge FurnitureDef, no smelting skill in the catalog) — the shared component/def make it data-only work later.
+> **Status: built (2026-08-15, `test/suite_crafting_test.gd`).** Workbench ships with `wooden_board` (3 planks → 1, authored in `data/crafting/`) and `axe` (2 planks + 1 stone block → 1, `data/recipes/axe.tres`) in its `CraftingParams.recipes`. `planks` (1 wood block → 4) is authored in `data/recipes/planks.tres` but referenced by no station yet. Forge + smelting deferred (no forge FurnitureDef, no smelting skill in the catalog) — the shared component/def make it data-only work later.
 
 **Design notes:**
 - **One unified `Recipe` shape** for all craftable output (`RecipeDef`: furniture, armor, weapons, ammo, smelting). Same fields regardless of output type.
@@ -84,6 +84,7 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 | `complete_order()` | `-> void` | Post-craft resolution: maintain requeue (via `queue_recipe`, so the haul producer refires) or clear; releases the claim. |
 | `cancel_order()` | `-> void` | Refund ledger to the nearest crate + clear; jobs self-clean. |
 | `work_done()` / `set_work_done(v)` | `-> float` | Player gauge resume state (persists in the state bag). |
+| `is_paused()` / `set_paused(value)` | `-> bool/void` | Station pause flag (state bag under `crafting_paused`) — a paused station's craft jobs go unclaimable (`CraftingJobDef._workable` checks it); persists across save/load. |
 | `needed_item_ids` / `remaining_need` / `deposit_from` / `has_complete_materials` | MaterialSink | The haul contract, read from the order's inputs (crossing emits only for colony orders). |
 
 ### Class: CraftingJobDef

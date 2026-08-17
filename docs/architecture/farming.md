@@ -97,21 +97,21 @@ sequenceDiagram
     Note over Player,Plot: 1. Crop Selection
     Player->>Plot: Press E -> "Select Crop"
     Plot->>UI: Open CropPicker (Filtered by FarmPlotParams)
-    Player->>UI: Selects "Sweet Maize"
-    UI->>Plot: set_selected_crop_id("sweet_maize")
-    Plot->>Bus: plot_needs_sowing(self, anchor, "sweet_maize", true)
-    Bus->>Board: Register SowJobDef (Priority 4, Gates: plant_conditions)
+    Player->>UI: Selects "Cave Spud"
+    UI->>Plot: set_selected_crop("cave_spud")
+    Plot->>Bus: plot_needs_sowing(self, anchor, "cave_spud", true)
+    Bus->>Board: Register SowJobDef (Gates: plant_conditions)
 
     alt Player Plants Directly (LMB)
         Player->>Plot: Hold LMB (FarmManualAction)
-        Plot->>Plot: plant_crop("sweet_maize")
+        Plot->>Plot: plant("cave_spud")
         Plot->>Bus: plot_needs_sowing(..., false)
         Bus->>Board: Cancel SowJobDef
     else Colonist Auto-Sows via JobBoard
         Colonist->>Board: Poll available jobs
         Board->>Colonist: Assign SowJobDef (Evaluates skill/equipment)
         Colonist->>Plot: Pathfind to Plot & Perform Work
-        Colonist->>Plot: plant_crop("sweet_maize")
+        Colonist->>Plot: plant("cave_spud")
         Plot->>Bus: plot_needs_sowing(..., false)
         Bus->>Board: Complete SowJobDef
     end
@@ -137,7 +137,7 @@ sequenceDiagram
 
     opt water_level <= thirsty_threshold (e.g. 30%)
         Plot->>Bus: plot_needs_water(self, anchor, true)
-        Bus->>Board: Register WaterJobDef (Priority 3)
+        Bus->>Board: Register WaterJobDef
     end
 
     opt water_level == 0.0%
@@ -147,11 +147,11 @@ sequenceDiagram
     alt Colonist Waters Plot
         Colonist->>Board: Claim WaterJobDef
         Colonist->>Plot: Walk to Plot & Water
-        Colonist->>Plot: water_crop()
+        Colonist->>Plot: water(actor)
     else Player Waters Plot
         actor Player
         Player->>Plot: Hold LMB (FarmManualAction)
-        Player->>Plot: water_crop()
+        Player->>Plot: water(actor)
     end
 
     Plot->>Plot: water_level = 100.0%
@@ -174,17 +174,17 @@ sequenceDiagram
     Note over Plot: Milestone reached (e.g. 50%) OR Decay Timer expired
     Plot->>Plot: is_tended = false, growth_mult = untended_growth_mult (0.0)
     Plot->>Bus: plot_needs_tending(self, anchor, true)
-    Bus->>Board: Register TendJobDef (Priority 2, Gates: tend_conditions)
+    Bus->>Board: Register TendJobDef (Gates: tend_conditions)
 
     loop While Untended
         Plot->>Plot: neglect_time += hours_delta
     end
 
     Colonist->>Board: Poll jobs
-    Board->>Board: Validate Colonist satisfies tend_conditions (Farming Skill + Tool)
+    Board->>Board: Validate Colonist satisfies tend_conditions
     Board->>Colonist: Assign TendJobDef
     Colonist->>Plot: Walk to Plot & Tend
-    Colonist->>Plot: tend_crop()
+    Colonist->>Plot: tend(actor)
 
     Plot->>Plot: is_tended = true, reset timer / advance milestone index
     Plot->>Plot: growth_mult = 1.0 (Resume normal growth)
@@ -209,7 +209,7 @@ sequenceDiagram
         Plot->>Plot: State = MATURE, growth_progress = 1.0
         Plot->>Harv: set_marked(true)
         Harv->>Bus: harvest_mark_toggled(furniture, anchor, true)
-        Bus->>Board: Register HarvestJobDef (Priority 1)
+        Bus->>Board: Register HarvestJobDef
     else Early Harvest Triggered (Player LMB / E-menu)
         actor Player
         Player->>Harv: Mark Harvest / Hold LMB
@@ -219,7 +219,7 @@ sequenceDiagram
     Colonist->>Harv: Perform harvest work (base_harvest_time)
     Harv->>Plot: Query get_harvest_yields()
 
-    Note over Plot: Calculates highest satisfied CropYieldTier<br/>Applies penalty: yield * (1.0 - (neglect_time / neglect_hours) * penalty)
+    Note over Plot: Calculates highest satisfied CropYieldTier<br/>Applies penalty after a grace period:<br/>periods = (neglect − neglect_hours) / neglect_hours<br/>yield × max(0, 1 − periods × neglect_yield_penalty)
     Plot-->>Harv: Return Array[ItemAmount]
     Harv->>Colonist: Spawn / Transfer Harvest Items to Inventory
     Harv->>Plot: on_harvested()

@@ -65,7 +65,7 @@ Scavenge mission (Timed Extraction), world map, POI scene. GDD §17 Expeditions.
 **Extends:** Node (autoload)
 **Script:** `expedition_manager.gd`
 **Description:** Tracks discovered POIs and the on/off-expedition flag. The thin orchestration layer between the world map UI and `SceneManager`: depart/return emit the EventBus signals and call `swap_map`. Holds no crew/loot/threat state yet (planned).
-**Used by:** `main.gd` (boot discovery loop), `world_map.gd` (depart/return + list source).
+**Used by:** `main_menu.gd` (New-Game discovery loop — relocated from the old `main.gd` boot path), `world_map.gd` (depart/return + list source).
 **Lifecycle:** `_ready` connects `run_started` (resets discovery + flag on New Game).
 
 **Properties:**
