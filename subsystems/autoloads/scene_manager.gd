@@ -224,6 +224,13 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 			if old_parent != null:
 				old_parent.remove_child(_player)
 			m.add_child(_player)
+		# Authored Y is a hint: snap XZ-preserving onto the highest terrain
+		# surface (hill or plate) so the player never spawns inside a hill or
+		# high in the air (dual-voxel Phase 3). Save loads overwrite this
+		# afterwards via _restore_player, so restored positions are untouched.
+		var ground_y: float = m.ground_height_at(spawn_pos.x, spawn_pos.z)
+		if not is_nan(ground_y):
+			spawn_pos.y = ground_y + 0.1
 		_player.global_position = spawn_pos
 		MapWiring.wire_player(m, _player)
 	# Colonist spawn/reparent into the map's ColonistContainer (Phase 2). No-op for

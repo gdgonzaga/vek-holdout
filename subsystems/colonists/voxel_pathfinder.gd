@@ -49,10 +49,23 @@ const _CELL_HALF := Vector3(0.5, 0.5, 0.5)
 
 var _is_walkable: Callable
 
+## Optional column stand-cell hint source, `(x: float, z: float) -> Vector3i`
+## (composed by the wiring layer from the smooth heightfield, D4). Lets the
+## stand-cell resolvers derive a column's true stand Y instead of assuming flat
+## ground. Vector3i.MAX from the hint = "no answer for this column" -> the
+## flat same-Y assumption applies, so hint-less maps behave exactly as before.
+var _stand_cell_hint: Callable
+
 
 ## Inject the per-cell walkability predicate (composed by the wiring layer).
 func set_walkability(predicate: Callable) -> void:
 	_is_walkable = predicate
+
+
+## Inject the column stand-cell hint source (MapWiring.smooth_stand_hint).
+## Optional; without it the finder keeps its flat-terrain assumptions.
+func set_stand_cell_hint(hint: Callable) -> void:
+	_stand_cell_hint = hint
 
 
 ## Core A* over cells. Returns cell waypoints start->target (empty if no path,
@@ -135,9 +148,11 @@ func _reconstruct(came_from: Dictionary, end: Vector3i) -> Array[Vector3i]:
 
 
 ## Resolve a standable cell near a world position (scan down then up within
-## +/-_STAND_SCAN). Handles the spawn-drop resting height + minor floor-height
-## ambiguity. Falls back to the floored cell (find_path then fails clean) if
-## none standable in the window or the predicate isn't set.
+## +/-_STAND_SCAN, then the column hint). Handles the spawn-drop resting
+## height + minor floor-height ambiguity; the hint covers terrain whose stand
+## Y is farther than the scan window from the query Y (a plate-height job
+## location on a tall hill column). Falls back to the floored cell
+## (find_path then fails clean) if nothing standable resolves.
 func find_stand_cell(world_pos: Vector3) -> Vector3i:
 	var base := Vector3i(int(floor(world_pos.x)), int(floor(world_pos.y)), int(floor(world_pos.z)))
 	if not _is_walkable.is_valid():
@@ -150,7 +165,21 @@ func find_stand_cell(world_pos: Vector3) -> Vector3i:
 		var c := base + Vector3i(0, dy, 0)
 		if _is_walkable.call(c):
 			return c
+	var hinted := _column_stand_cell(base)
+	if hinted != base and _is_walkable.call(hinted):
+		return hinted
 	return base
+
+
+## Stand-cell candidate for the column of `pos`: the hint's derived stand cell
+## when a hint source is injected and answers for this column, else `pos`
+## itself (the flat-terrain same-Y assumption — also the no-hint behavior).
+func _column_stand_cell(pos: Vector3i) -> Vector3i:
+	if _stand_cell_hint.is_valid():
+		var hinted: Vector3i = _stand_cell_hint.call(float(pos.x), float(pos.z))
+		if hinted != Vector3i.MAX:
+			return hinted
+	return pos
 
 
 ## Convert cell waypoints to world-space centers (XZ-centered; Y at cell center
@@ -170,15 +199,17 @@ func find_path_world(start_world: Vector3, target_world: Vector3) -> Array[Vecto
 	return to_world_waypoints(cells)
 
 
-## Nearest walkable cell to `center` via a horizontal ring search on the same Y.
-## Use when `center` may sit on a blocked footprint (a blueprint's footprint
+## Nearest walkable cell to `center` via a horizontal ring search. Use when
+## `center` may sit on a blocked footprint (a blueprint's footprint
 ## center): the colonist must stand ADJACENT to a build target, never on it, so
 ## the path target is the nearest free neighbour, not the center itself. Returns
 ## `center` unchanged if it is already walkable or if no walkable cell is found
 ## within max_radius (find_path then fails clean -> empty path). Rings expand
 ## outward, returning the nearest walkable cell of the first non-empty ring, so
-## the result is the globally-nearest standable neighbour (same-Y, flat-terrain
-## MVP assumption carried from the 4-connected neighbor model).
+## the result is the globally-nearest standable neighbour. Each ring position
+## resolves its column's stand cell via the hint when one is injected (smooth
+## hills stand +/-1 Y per step, D4) and stays same-Y otherwise — the original
+## flat-terrain assumption, now only the fallback.
 func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 	if not _is_walkable.is_valid():
 		return center
@@ -191,12 +222,13 @@ func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 			for dz in range(-r, r + 1):
 				if max(absi(dx), absi(dz)) != r: # only the ring at Chebyshev distance r
 					continue
-				var c := center + Vector3i(dx, 0, dz)
-				if _is_walkable.call(c):
-					var d := float(dx * dx + dz * dz)
-					if d < best_d:
-						best_d = d
-						best = c
+				var c := _column_stand_cell(center + Vector3i(dx, 0, dz))
+				if not _is_walkable.call(c):
+					continue
+				var d := float(dx * dx + dz * dz)
+				if d < best_d:
+					best_d = d
+					best = c
 		if best_d < INF:
 			return best
 	return center

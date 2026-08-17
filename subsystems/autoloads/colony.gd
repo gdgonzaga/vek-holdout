@@ -53,6 +53,15 @@ var _container: Node3D = null
 ## Cached walkability predicate from the active map (used for runtime-spawned colonists).
 var _walkability_predicate: Callable = Callable()
 
+## Cached column stand-cell hint from the active map (smooth heightfield; see
+## VoxelPathfinder.set_stand_cell_hint). Invalid on smooth-less maps.
+var _stand_cell_hint: Callable = Callable()
+
+## Cached combined ground query from the active map, `(x, z) -> float` (NAN
+## when no terrain reaches the column). Marker spawns snap onto the highest
+## surface (hill or plate) instead of trusting authored Y.
+var _ground_query: Callable = Callable()
+
 
 func _ready() -> void:
 	job_board = JobBoard.new()
@@ -98,6 +107,19 @@ func set_walkability_predicate(predicate: Callable) -> void:
 			c.pathfinder.set_walkability(predicate)
 
 
+## Store the active map's stand-cell hint and inject it into all current colonists.
+func set_stand_cell_hint(hint: Callable) -> void:
+	_stand_cell_hint = hint
+	for c in colonists:
+		if is_instance_valid(c) and c.pathfinder != null:
+			c.pathfinder.set_stand_cell_hint(hint)
+
+
+## Store the active map's combined ground query (Map.ground_height_at).
+func set_ground_query(query: Callable) -> void:
+	_ground_query = query
+
+
 ## Instantiate, position, register, and wire a new colonist.
 ## Returns the new Colonist instance, or null if the roster is full or no map is wired.
 func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZERO) -> Colonist:
@@ -114,9 +136,18 @@ func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZER
 
 	# Add to tree BEFORE setting global_position — it only resolves in-tree.
 	_container.add_child(c)
+	# Marker/def Y is a hint, not truth: where hills overlap the blocky plate,
+	# the highest surface can sit metres above (or below) the authored Y. Snap
+	# XZ-preserving onto the combined ground query's surface + epsilon.
+	if _ground_query.is_valid():
+		var ground_y: float = _ground_query.call(pos.x, pos.z)
+		if not is_nan(ground_y):
+			pos.y = ground_y + 0.1
 	c.global_position = pos
 	if _walkability_predicate.is_valid() and c.pathfinder != null:
 		c.pathfinder.set_walkability(_walkability_predicate)
+	if _stand_cell_hint.is_valid() and c.pathfinder != null:
+		c.pathfinder.set_stand_cell_hint(_stand_cell_hint)
 
 	colonists.append(c)
 	return c
@@ -132,6 +163,8 @@ func add_colonist(c: Colonist) -> void:
 		_container.add_child(c)
 		if _walkability_predicate.is_valid() and c.pathfinder != null:
 			c.pathfinder.set_walkability(_walkability_predicate)
+		if _stand_cell_hint.is_valid() and c.pathfinder != null:
+			c.pathfinder.set_stand_cell_hint(_stand_cell_hint)
 
 
 ## Drop a colonist by id (death or departure). Frees the node.

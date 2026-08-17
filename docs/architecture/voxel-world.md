@@ -30,6 +30,8 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, terrain). See [Data Schemas](data-schemas.md). |
 | `../data/terrain/` | Data | `TerrainGenDef` (generator params + walk slope gate) and `materials/TerrainMaterialDef` (identity + hardness — no visual refs, see F8). See [Data Schemas](data-schemas.md). |
 
+**Walkability seam (D4):** `MapWiring.hybrid_ground_probe` composes the smooth grid's `height_at` with the blocky probe — a cell is standable when the smooth surface passes through it on a walkable slope (`TerrainGenDef.max_walk_slope_deg`, ≤ 45° so the ±1 step model holds), or when the plain blocky rules hold anywhere the smooth terrain doesn't reach. It also **cancels blocky cells buried inside hills** (a plate-top column reads air-above-solid to the blocky grid, but a colonist routed there would grind into the hillside) — the one deviation from "smooth only adds cells", and it applies only to buried cells. `MapWiring.smooth_stand_hint` derives column stand cells (`floor(h)`) for the pathfinder's resolvers. See [Maps](maps.md) `wire_colonists` and [Colonists](colonists.md) VoxelPathfinder.
+
 ## Signals
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
@@ -77,6 +79,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `get_blocky_grid() -> BlockyGrid` | Convenience proxy (most callers want the grid, not the world). |
 | `get_smooth_grid() -> SmoothGrid` | The natural-terrain grid, or null — callers null-check; terrain-less maps are the default. |
 | `get_blocky_terrain() -> VoxelTerrain` | Delegates to `blocky_grid.get_terrain()`. |
+| `ground_height_at(x: float, z: float) -> float` | Combined spawn query (D4/Phase 3): one downward ray masked `TerrainBlocky\|TerrainSmooth` — the first hit from above is the highest surface (hill or plate), so player/colonist spawn markers snap onto real ground regardless of authored Y. Furniture statics and bodies never answer. `NAN` when neither terrain reaches the column. Per-grid `height_at` stays layer-specific — this is a placement query, not the walkability source. |
 | `get_furniture_container() -> Node3D` | The furniture parent node. |
 | `get_colonist_container() -> Node3D` | The colonist parent node (where persistent colonists reparent on map swaps). |
 
@@ -127,8 +130,8 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 
 **Extends:** Node
 **Script:** `smooth_grid.gd`
-**Description:** The natural-terrain half of the dual-voxel world — BlockyGrid's mirror (same vocabulary, different mesher/generator; D1 in `docs/TODO.md`). Owns a `VoxelTerrain` + `VoxelMesherTransvoxel` + `VoxelGeneratorNoise2D` built from the injected `TerrainGenDef`, the sphere-edit primitives (carve for Phase-5 mining, add_material for smooth placement), and the cached heightfield Phase-3 walkability composes with the blocky probe. Edit semantics follow F8 (VOXEL-TOOL-NOTES): channel 0 is float SDF (solid ≤ 0); `MODE_SET value v` writes SDF `−v`, so **value 0 is still solid** — carving is `MODE_REMOVE`, never `MODE_SET 0`. No HP in v1: mining carves on action completion.
-**Used by:** SceneManager (injects `terrain_gen`), Phase-3 walkability (`height_at`), Phase-5 mining/smooth-placement.
+**Description:** The natural-terrain half of the dual-voxel world — BlockyGrid's mirror (same vocabulary, different mesher/generator; D1 in `docs/TODO.md`). Owns a `VoxelTerrain` + `VoxelMesherTransvoxel` + `VoxelGeneratorNoise2D` built from the injected `TerrainGenDef`, the sphere-edit primitives (carve for Phase-5 mining, add_material for smooth placement), and the cached heightfield walkability composes with the blocky probe (see the Walkability seam note above). Edit semantics follow F8 (VOXEL-TOOL-NOTES): channel 0 is float SDF (solid ≤ 0); `MODE_SET value v` writes SDF `−v`, so **value 0 is still solid** — carving is `MODE_REMOVE`, never `MODE_SET 0`. No HP in v1: mining carves on action completion.
+**Used by:** SceneManager (injects `terrain_gen`), MapWiring (`hybrid_ground_probe` + `smooth_stand_hint` via `height_at`; `is_ground_supported` in Build), Phase-5 mining/smooth-placement.
 **Lifecycle:** Opt-in by data. SceneManager injects `MapDef.terrain_gen` before the map enters the tree; `_ready()` with a null def `queue_free()`s the node ("no smooth grid at all" — terrain-less maps play exactly as before). With a def: assigns layer 3 + body mask, builds generator + Transvoxel mesher, fetches the VoxelTool, and hooks `block_loaded`/`block_unloaded` for cache invalidation.
 
 **Properties:**

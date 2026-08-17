@@ -28,6 +28,9 @@ static func wire_build(map: Map) -> FurnitureLayer:
 	var grid: BlockyGrid = map.get_blocky_grid()
 	var adapter := VoxelGridAdapter.new()
 	adapter.set_grid(grid)
+	# Smooth half for ground-support queries on smooth placements (D3); null
+	# adapter-side on terrain-less maps, so build validity is unchanged there.
+	adapter.set_smooth_grid(_live_smooth_grid(map))
 	ctrl.grid_adapter = adapter
 	var fl := FurnitureLayer.new()
 	fl.set_container(map.get_furniture_container())
@@ -94,19 +97,39 @@ static func wire_colonists(map: Map) -> Node3D:
 	# per map load so base<->POI swaps pick up the new map's layers.
 	var predicate := _compose_walkability(map)
 	Colony.set_walkability_predicate(predicate)
+	# Stand-cell hint + combined ground query follow the same per-map lifecycle.
+	# Explicit reset on smooth-less maps: a stale hint would keep calling the
+	# previous map's (freed) SmoothGrid after a base<->POI swap.
+	var smooth := _live_smooth_grid(map)
+	Colony.set_stand_cell_hint(smooth_stand_hint(smooth) if smooth != null else Callable())
+	Colony.set_ground_query(Callable(map, "ground_height_at"))
 	return container
+
+
+## The map's smooth grid when it is actually live (exists, not freeing itself,
+## and carries a generator); null on terrain-less maps — the default.
+static func _live_smooth_grid(map: Map) -> SmoothGrid:
+	var smooth := map.get_smooth_grid()
+	if smooth != null and is_instance_valid(smooth) and smooth.terrain_gen != null:
+		return smooth
+	return null
 
 
 ## Build the per-cell is_walkable Callable for a map: an injectable ground
 ## probe ANDed with furniture/blueprint occupancy. The probe is the dual-voxel
-## seam — today it is blocky-only; the conversion's Phase 3 widens it with a
-## smooth-terrain source (docs/TODO.md D4) without touching occupancy rules.
+## seam — blocky-only on terrain-less maps, the hybrid probe (docs/TODO.md D4)
+## wherever the smooth grid is live.
 static func _compose_walkability(map: Map) -> Callable:
 	var grid: BlockyGrid = map.get_blocky_grid()
 	var ctrl := map.find_child("BuildController") as BuildController
 	var fl: FurnitureLayer = ctrl.furniture_layer if ctrl != null else null
 	var bl: BlueprintLayer = ctrl.blueprint_layer if ctrl != null else null
-	return compose_walkability(blocky_ground_probe(Callable(grid, "get_block_at")), fl, bl)
+	var smooth := _live_smooth_grid(map)
+	var probe := blocky_ground_probe(Callable(grid, "get_block_at"))
+	if smooth != null:
+		probe = hybrid_ground_probe(Callable(grid, "get_block_at"),
+				Callable(smooth, "height_at"), smooth.terrain_gen.max_walk_slope_deg)
+	return compose_walkability(probe, fl, bl)
 
 
 ## Blocky-only ground probe: a cell is standable iff it is air, has a solid
@@ -125,6 +148,71 @@ static func blocky_ground_probe(get_block_at: Callable) -> Callable:
 		if get_block_at.call(cell + UP) != "":        # no head clearance
 			return false
 		return true
+
+
+## Dual-voxel ground probe (docs/TODO.md D4): a cell is standable when the
+## smooth surface passes through it on a walkable slope (stand ON the hill),
+## or — anywhere the smooth terrain doesn't reach the cell — when the plain
+## blocky rules hold. `smooth_height_at` is SmoothGrid.height_at (cached
+## column heights, NAN where the terrain doesn't reach); `max_slope_deg` comes
+## from TerrainGenDef so per-map tuning is data-driven.
+##
+## Besides adding hill-top cells, the smooth source CANCELS blocky cells
+## buried inside terrain: on maps where hills overlap the blocky plate, the
+## plate-top column still reads as air-above-solid to the blocky rules, but a
+## colonist routed there would grind into the hillside. This is the one place
+## the hybrid probe may answer differently from a smooth-less map — D4
+## Invariant 1 ("smooth only adds standable cells") holds verbatim for every
+## structure standing clear of the surface; buried cells are terrain, not
+## structures.
+##
+## D4 slope bound <= 45deg keeps derived stand cells within +/-1 per horizontal
+## step, so the pathfinder's step model (climb +1, drop <= 3) needs no change.
+static func hybrid_ground_probe(get_block_at: Callable, smooth_height_at: Callable, max_slope_deg: float) -> Callable:
+	const DOWN := Vector3i(0, -1, 0)
+	const UP := Vector3i(0, 1, 0)
+	var min_normal_y := cos(deg_to_rad(clampf(max_slope_deg, 0.0, 89.0)))
+	return func(cell: Vector3i) -> bool:
+		var normals: Array = []
+		# Probe at the column center so the cached height answers for this
+		# exact column, never the boundary between two.
+		var h: float = smooth_height_at.call(float(cell.x) + 0.5, float(cell.z) + 0.5, normals)
+		if not is_nan(h):
+			if h >= float(cell.y + 1):
+				# Buried inside the hill — no grid's opinion makes this standable.
+				return false
+			if h >= float(cell.y):
+				# Smooth surface within this cell: stand on it. Blocky must not
+				# occupy the stand cell (air) nor the head cell above (the 1.6 m
+				# capsule spans two cells — same clearance as the blocky probe).
+				if get_block_at.call(cell) != "":
+					return false
+				if get_block_at.call(cell + UP) != "":
+					return false
+				var n: Vector3 = normals[0] if normals.size() > 0 else Vector3.UP
+				return n.y >= min_normal_y
+		# No smooth surface in or above this cell (or no smooth terrain here at
+		# all): plain blocky rules, identical to a smooth-less map.
+		if get_block_at.call(cell) != "":             # solid (terrain/block)
+			return false
+		if get_block_at.call(cell + DOWN) == "":      # no floor below
+			return false
+		if get_block_at.call(cell + UP) != "":        # no head clearance
+			return false
+		return true
+
+
+## Column stand-cell hint for the pathfinder (D4): resolves a column's stand Y
+## from the smooth heightfield exactly as the hybrid probe derives it, so
+## find_stand_cell / find_stand_near_cell agree with walkability instead of
+## assuming flat ground. Vector3i.MAX where the smooth terrain doesn't reach —
+## the finder then falls back to its flat assumption for that column.
+static func smooth_stand_hint(smooth: SmoothGrid) -> Callable:
+	return func(x: float, z: float) -> Vector3i:
+		var h: float = smooth.height_at(x + 0.5, z + 0.5)
+		if is_nan(h):
+			return Vector3i.MAX
+		return Vector3i(int(floor(x)), int(floor(h)), int(floor(z)))
 
 
 ## Compose the full is_walkable predicate: ground probe AND not occupied by

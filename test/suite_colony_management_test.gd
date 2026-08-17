@@ -236,6 +236,24 @@ func test_spawn_colonist_success() -> void:
 	assert_object(Colony.colonists[0]).is_equal(spawned)
 
 
+## Marker Y is a hint: with a ground query wired (dual-voxel Phase 3), the
+## spawn snaps XZ-preserving onto surface + epsilon; NAN keeps authored Y.
+## Swap-and-restore — the query is autoload state.
+func test_spawn_colonist_snaps_to_ground_query() -> void:
+	var dummy_container: Node3D = auto_free(Node3D.new())
+	add_child(dummy_container)
+	Colony.on_map_wired(dummy_container, [])
+	Colony.set_ground_query(func(_x: float, _z: float) -> float: return 5.0)
+	var spawned: Colonist = Colony.spawn_colonist(null, Vector3(10, 0, 5))
+	assert_object(spawned).is_not_null()
+	assert_vector(spawned.global_position).is_equal(Vector3(10, 5.1, 5))
+	Colony.set_ground_query(func(_x: float, _z: float) -> float: return NAN)
+	var kept: Colonist = Colony.spawn_colonist(null, Vector3(0, 3, 0))
+	assert_object(kept).is_not_null()
+	assert_vector(kept.global_position).is_equal(Vector3(0, 3, 0))
+	Colony.set_ground_query(Callable())
+
+
 func test_spawn_colonist_cap_reached() -> void:
 	var dummy_container: Node3D = auto_free(Node3D.new()) as Node3D
 	add_child(dummy_container)

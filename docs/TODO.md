@@ -58,10 +58,15 @@ separated by collision layers. Feasibility is proven by the runtime spike
       only; dev map with generator hills overlapping the blocky plate. Done —
       F8 recorded (carve/add + sqlite override + no material API + signal
       names); dev map smoke: 421 smooth-first / 20 blocky-first columns.
-- [ ] **3 Gameplay reads on smooth ground**: walkability smooth source wired
+- [x] **3 Gameplay reads on smooth ground**: walkability smooth source wired
       into the seam; pathfinder stand-cell fallbacks; combined
       TerrainBlocky|TerrainSmooth spawn ground query; build support on slopes;
-      D4 invariant regression suites.
+      D4 invariant regression suites. Done — `hybrid_ground_probe` (adds
+      slope-gated stand cells + cancels blocky cells buried inside hills —
+      the one D4 deviation, buried cells only), pathfinder stand-cell hint,
+      `Map.ground_height_at` spawn snapping (player + colonist markers),
+      `is_ground_supported` for smooth-hit placements; suite_
+      hybrid_walkability_test pins both invariants.
 - [ ] **4 Two-stream persistence**: one shared helper over the two optional
       streams, applied at the four single-`map.sqlite` sites (paint stamp,
       SceneManager redirect, SaveSystem park flush, slot snapshot/restore).

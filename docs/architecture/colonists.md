@@ -44,6 +44,8 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 | `job_board` | `JobBoard` | The [Job Board](jobs.md) (a child Node). |
 | `storage_registry` | `StorageRegistry` | The storage-crate index (a child Node). See [Inventory](inventory.md). |
 | `_walkability_predicate` | `Callable` | Cached walkability predicate from the active map (used for runtime-spawned colonists). |
+| `_stand_cell_hint` | `Callable` | Cached column stand-cell hint from the active map (smooth heightfield; see `VoxelPathfinder.set_stand_cell_hint`). Invalid on smooth-less maps. |
+| `_ground_query` | `Callable` | Cached combined ground query from the active map (`Map.ground_height_at`, `(x, z) → float`). Marker spawns snap onto the highest terrain surface instead of trusting authored Y. |
 
 **Functions:**
 
@@ -51,7 +53,9 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 |---|---|
 | `on_map_wired(container, spawn_positions) → void` | Empty roster → spawn one colonist per `ColonistSpawn` marker via `spawn_colonist`; non-empty → reparent existing nodes into the new map. |
 | `set_walkability_predicate(predicate: Callable) → void` | Stores the active map's walkability predicate and injects it into all current roster colonists. |
-| `spawn_colonist(colonist_def = null, pos = Vector3.ZERO) → Colonist` | Instantiate, position, register, and wire a new colonist. Returns the new `Colonist` instance, or `null` if the roster is full or no map is wired. |
+| `set_stand_cell_hint(hint: Callable) → void` | Stores the active map's stand-cell hint and injects it into all current roster colonists. |
+| `set_ground_query(query: Callable) → void` | Stores the active map's combined ground query (used by `spawn_colonist`'s surface snap). |
+| `spawn_colonist(colonist_def = null, pos = Vector3.ZERO) → Colonist` | Instantiate, position, register, and wire a new colonist. The authored Y is a hint: when a ground query is wired and the column has terrain, the spawn snaps XZ-preserving onto surface + 0.1 (hills overlapping the blocky plate make authored Y unreliable). Returns the new `Colonist` instance, or `null` if the roster is full or no map is wired. |
 | `add_colonist` / `remove_colonist` | Recruit / drop a colonist (post-MVP / death). |
 | `_on_blueprint_placed(target_def_id, anchor, blueprint) → void` | Decide haul-vs-construct (any unmet material_cost → haul, regardless of stock — the job drought-waits until crates can satisfy it; else construction), bind + add the Job. See [Jobs](jobs.md). |
 | `_on_blueprint_materials_ready(target_def_id, anchor, blueprint) → void` | Materials crossed complete (player or hauler deposit) → `_spawn_construction_job`. |
@@ -128,7 +132,7 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 
 **Extends:** Node
 **Script:** `voxel_pathfinder.gd`
-**Description:** Voxel A\* pathfinder with an **injected walkability predicate**. Intentionally generic — it knows nothing about voxels, furniture, or blueprints. The wiring layer (`MapWiring.wire_colonists`) composes a per-cell `is_walkable(Vector3i)` Callable from `BlockyGrid` solidity + `FurnitureLayer`/`BlueprintLayer` occupancy and injects it via `set_walkability`. Output is world-space `Vector3` waypoints sized for `Colonist.set_path` (whose locomotion zeroes Y).
+**Description:** Voxel A\* pathfinder with an **injected walkability predicate**. Intentionally generic — it knows nothing about voxels, furniture, or blueprints. The wiring layer (`MapWiring.wire_colonists`) composes a per-cell `is_walkable(Vector3i)` Callable from `BlockyGrid` solidity + the smooth heightfield (`hybrid_ground_probe`, D4) + `FurnitureLayer`/`BlueprintLayer` occupancy and injects it via `set_walkability`; it may also inject a **column stand-cell hint** (`set_stand_cell_hint`, from `MapWiring.smooth_stand_hint`) so the stand-cell resolvers can derive a column's true stand Y on smooth hills instead of assuming flat ground — the hint answering `Vector3i.MAX` falls back to the flat assumption. Output is world-space `Vector3` waypoints sized for `Colonist.set_path` (whose locomotion zeroes Y).
 **Used by:** ColonistAI (path requests), Colonist (`pathfinder` child ref).
 
 **Neighbor model:** stepped — the 4 horizontal directions crossed with dy ∈ {+1, 0, −1…−3}. +1 climbs one full block (the `StepClimber` child physically hops the obstacle face — colonists have no manual jump); drops up to `_MAX_DROP = 3` cells are walk-off-and-fall. Vertical moves cost extra (`_JUMP_UP_COST = 3.0` to climb, `_DROP_COST_PER_CELL = 1.5` per cell fallen) so flat detours — and, once a per-block cost hook exists, future stair blocks — win over jumping whenever comparable. The predicate validates every expanded cell including head clearance, and `find_path_to_footprint_adjacent`'s candidate expansion stays strictly horizontal (stand-adjacent never changes Y). Multi-cell drops assume an unobstructed fall column — the predicate validates the landing, not the gap.
@@ -138,9 +142,10 @@ Colonist entities, roster (in Colony autoload), labor AI, raid stances. GDD §6.
 | Function | Description |
 |---|---|
 | `set_walkability(predicate: Callable) → void` | Inject the per-cell walkability predicate (composed by the wiring layer). |
+| `set_stand_cell_hint(hint: Callable) → void` | Inject the optional column stand-cell hint source (`(x, z) → Vector3i`); without it the finder keeps its flat-terrain assumptions. |
 | `find_path(start_cell, target_cell) → Array[Vector3i]` | Core A\* over cells (Dictionary-backed open/closed, linear min-f scan, stepped neighbors with per-move costs). Empty if no path / predicate unset / target not standable / start==target. `_MAX_EXPLORED = 8000` backstop. |
-| `find_stand_cell(world_pos) → Vector3i` | Resolve a standable cell near a world position (scan down then up ±3 Y). Handles the spawn-drop resting height. |
-| `find_stand_near_cell(center, max_radius = 4) → Vector3i` | Nearest walkable cell to `center` via a horizontal ring search (Chebyshev rings, min Euclidean within the first non-empty ring). For targets on a blocked footprint — the colonist stands adjacent, never on it. Returns `center` unchanged if already walkable or none found within radius. |
+| `find_stand_cell(world_pos) → Vector3i` | Resolve a standable cell near a world position (scan down then up ±3 Y, then the column hint — a plate-height query Y over a tall hill column is outside the scan window). Handles the spawn-drop resting height. |
+| `find_stand_near_cell(center, max_radius = 4) → Vector3i` | Nearest walkable cell to `center` via a horizontal ring search (Chebyshev rings, min Euclidean within the first non-empty ring). Each ring position resolves its column's stand cell via the hint when injected (hills stand ±1 Y per step, D4), same-Y otherwise. For targets on a blocked footprint — the colonist stands adjacent, never on it. Returns `center` unchanged if already walkable or none found within radius. |
 | `find_path_world(start_world, target_world) → Array[Vector3]` | World→stand-cell→A\*→world. Use only when the target is standable terrain, NOT a blocked footprint. |
 | `find_path_to_adjacent(start_world, target_world, max_radius = 4) → Array[Vector3]` | Like `find_path_world`, but resolves the TARGET via `find_stand_near_cell` so the colonist reaches a point on a blocked footprint (a blueprint or crate). Entry point for `ColonistAI` legs. |
 | `to_world_waypoints(cells) → Array[Vector3]` | Cell waypoints → world-space centers. |

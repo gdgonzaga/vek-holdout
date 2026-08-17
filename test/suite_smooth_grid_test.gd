@@ -158,3 +158,74 @@ func test_placement_cell_branches_on_surface() -> void:
 		"position": Vector3i(0, 0, 0), "normal": Vector3i(0, 1, 0), "hit": true,
 	})
 	assert_that(legacy_cell).is_equal(Vector3i(0, 1, 0))
+
+
+## MapWiring.smooth_stand_hint over a real SmoothGrid: the hint derives stand
+## cells from the same heightfield walkability reads, and answers MAX where
+## the terrain doesn't reach (the finder's flat-assumption fallback).
+func test_smooth_stand_hint_over_real_grid() -> void:
+	var grid := _build_grid(true)
+	_add_box(grid.get_parent(), 4, Vector3(0, 10, 0))
+	await _run_frames(2)
+	var hint := MapWiring.smooth_stand_hint(grid)
+	# Box top at 10.5 -> stand cell floor(10.5) = 10; column keyed by floor(x).
+	assert_that(hint.call(0.0, 0.0)).is_equal(Vector3i(0, 10, 0))
+	assert_that(hint.call(50.0, 50.0)).is_equal(Vector3i.MAX)
+
+
+## Map.ground_height_at (dual-voxel Phase 3 spawns): one downward ray over
+## both terrain layers — the highest surface wins, non-terrain layers (World
+## furniture statics, bodies) never answer.
+func test_map_ground_height_takes_highest_terrain() -> void:
+	var map: Map = auto_free(Map.new())
+	var grid: BlockyGrid = auto_free(BlockyGrid.new())
+	grid.name = "BlockyGrid"
+	var terrain := VoxelTerrain.new()
+	terrain.name = "VoxelTerrain"
+	grid.add_child(terrain)
+	map.add_child(grid)
+	for child_name in ["ColonistContainer", "EnemyContainer", "FurnitureContainer"]:
+		var slot := Node3D.new()
+		slot.name = child_name
+		map.add_child(slot)
+	add_child(map)
+
+	# Same column: blocky surface at 10.5, smooth hill top at 20.5, a World
+	# static even higher that must be invisible to the terrain-only mask.
+	_add_box(map, 2, Vector3(0, 10, 0))
+	_add_box(map, 4, Vector3(0, 20, 0))
+	_add_box(map, 1, Vector3(0, 30, 0))
+	await _run_frames(2)
+	assert_float(map.ground_height_at(0, 0)).is_equal_approx(20.5, 0.01)
+	# Blocky wins where no smooth hill covers the column.
+	_add_box(map, 2, Vector3(60, 10, 0))
+	await _run_frames(2)
+	assert_float(map.ground_height_at(60, 0)).is_equal_approx(10.5, 0.01)
+	assert_bool(is_nan(map.ground_height_at(-60, 0))).is_true()
+
+
+## VoxelGridAdapter.is_ground_supported over a real SmoothGrid (blocky half is
+## bare terrain = air everywhere): support within one cell of the surface,
+## none above it, none where the terrain doesn't reach.
+func test_adapter_is_ground_supported_on_smooth() -> void:
+	var grid := _build_grid(true)
+	_add_box(grid.get_parent(), 4, Vector3(0, 10, 0))
+	await _run_frames(2)
+	# In-tree blocky half (air everywhere — no generator, no stream) so the
+	# adapter's blocky branch reads a real, live grid.
+	var blocky: BlockyGrid = auto_free(BlockyGrid.new())
+	var blocky_terrain := VoxelTerrain.new()
+	blocky_terrain.name = "VoxelTerrain"
+	blocky.add_child(blocky_terrain)
+	grid.get_parent().add_child(blocky)
+	var adapter := VoxelGridAdapter.new()
+	adapter.set_grid(blocky)
+	adapter.set_smooth_grid(grid)
+	# Box top at 10.5: the smooth-hit placement cell floor(10.5 + 0.5) = 11 and
+	# the cell the surface passes through stay within the one-cell window.
+	assert_bool(adapter.is_ground_supported(Vector3i(0, 11, 0))).is_true()
+	assert_bool(adapter.is_ground_supported(Vector3i(0, 10, 0))).is_true()
+	# Two cells above the surface: floating — rejected.
+	assert_bool(adapter.is_ground_supported(Vector3i(0, 13, 0))).is_false()
+	# Column the smooth terrain doesn't reach, no blocky voxel below: rejected.
+	assert_bool(adapter.is_ground_supported(Vector3i(50, 11, 0))).is_false()
