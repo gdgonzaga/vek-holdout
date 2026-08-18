@@ -6,7 +6,8 @@ extends GdUnitTestSuite
 ## StaticBody stand-ins on the right/wrong collision layers, and the
 ## raycast_to_voxel `surface` contract (BlockyGrid side) pinned — the smooth-hit
 ## shape (pre-derived placement cell, zero normal) is what BuildController's
-## _placement_cell branches on.
+## _placement_cell branches on. Also pins the generator-mode branch: noise defs
+## (every existing map) vs heightmap defs (external-tool authoring).
 
 ## Grid + bare VoxelTerrain in the tree. The terrain child is parented BEFORE
 ## the grid enters the tree so the grid's @onready terrain_path resolves.
@@ -229,3 +230,70 @@ func test_adapter_is_ground_supported_on_smooth() -> void:
 	assert_bool(adapter.is_ground_supported(Vector3i(0, 13, 0))).is_false()
 	# Column the smooth terrain doesn't reach, no blocky voxel below: rejected.
 	assert_bool(adapter.is_ground_supported(Vector3i(50, 11, 0))).is_false()
+
+
+## Grid whose def drives generation from a heightmap: a synthetic L8 image
+## wrapped in an ImageTexture — the same shape the map editor embeds.
+func _build_heightmap_grid() -> SmoothGrid:
+	var root: Node3D = auto_free(Node3D.new())
+	add_child(root)
+	var grid: SmoothGrid = auto_free(SmoothGrid.new())
+	var gen := TerrainGenDef.new()
+	# Non-default span so the generator wiring is observable, not coincidental.
+	gen.height_start = -6.0
+	gen.height_range = 20.0
+	var img := Image.create(16, 16, false, Image.FORMAT_L8)
+	img.fill(Color(0.5, 0.5, 0.5))
+	gen.heightmap = ImageTexture.create_from_image(img)
+	grid.terrain_gen = gen
+	var terrain := VoxelTerrain.new()
+	terrain.name = "VoxelTerrain"
+	grid.add_child(terrain)
+	root.add_child(grid)
+	return grid
+
+
+## Heightmap-driven defs build a VoxelGeneratorImage wired from the def's span
+## and pixels. Property names were probed in this addon build
+## (tmp/heightmap_gen_probe.gd) — a mismatch must fail here loudly, not degrade
+## the terrain silently.
+func test_heightmap_def_builds_image_generator() -> void:
+	var grid := _build_heightmap_grid()
+	var generator = grid.get_terrain().get("generator")
+	assert_bool(generator is VoxelGeneratorImage).is_true()
+	assert_float(float(generator.get("height_start"))).is_equal_approx(-6.0, 0.001)
+	assert_float(float(generator.get("height_range"))).is_equal_approx(20.0, 0.001)
+	var image: Image = generator.get("image")
+	assert_that(image).is_not_null()
+	assert_that(image.get_size()).is_equal(Vector2i(16, 16))
+
+
+## Noise regression: a def without a heightmap keeps the Noise2D pipeline every
+## existing map was authored against.
+func test_noise_def_still_builds_noise_generator() -> void:
+	var grid := _build_grid(true)
+	var generator = grid.get_terrain().get("generator")
+	assert_bool(generator is VoxelGeneratorNoise2D).is_true()
+
+
+## _prepare_heightmap_image: whatever the source texture's format, the generator
+## receives uncompressed L8 (white stays fully bright through the conversion).
+func test_prepare_heightmap_image_normalizes_to_l8() -> void:
+	var rgb := Image.create(2, 2, false, Image.FORMAT_RGB8)
+	rgb.fill(Color.WHITE)
+	var prepared: Image = SmoothGrid._prepare_heightmap_image(ImageTexture.create_from_image(rgb))
+	assert_that(prepared).is_not_null()
+	assert_int(prepared.get_format()).is_equal(Image.FORMAT_L8)
+	assert_float(prepared.get_pixel(0, 0).r).is_equal_approx(1.0, 0.01)
+
+
+## _prepare_heightmap_image: L8 sources pass through intact; null stays null so
+## the caller falls back to the noise path.
+func test_prepare_heightmap_image_null_and_passthrough() -> void:
+	assert_that(SmoothGrid._prepare_heightmap_image(null)).is_null()
+	var l8 := Image.create(2, 2, false, Image.FORMAT_L8)
+	l8.fill(Color(0.25, 0.25, 0.25))
+	var prepared: Image = SmoothGrid._prepare_heightmap_image(ImageTexture.create_from_image(l8))
+	assert_that(prepared).is_not_null()
+	assert_int(prepared.get_format()).is_equal(Image.FORMAT_L8)
+	assert_float(prepared.get_pixel(0, 0).r).is_equal_approx(0.25, 0.01)

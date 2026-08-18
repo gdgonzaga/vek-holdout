@@ -2,8 +2,9 @@ class_name SmoothGrid
 extends Node
 ## The natural-terrain half of the dual-voxel world (docs/TODO.md D1/D2), the
 ## mirror of BlockyGrid: same vocabulary, different mesher/generator. Owns a
-## VoxelTerrain + VoxelMesherTransvoxel + VoxelGeneratorNoise2D built from a
-## TerrainGenDef, plus the sphere-edit primitives the conversion needs (carve
+## VoxelTerrain + VoxelMesherTransvoxel + a generator built from a
+## TerrainGenDef (VoxelGeneratorNoise2D, or VoxelGeneratorImage when the def
+## carries a heightmap), plus the sphere-edit primitives the conversion needs (carve
 ## for Phase 5 mining, add_material for smooth placement) and the cached
 ## height_at that Phase 3's walkability composes with the blocky probe.
 ##
@@ -74,20 +75,8 @@ func _ready() -> void:
 	else:
 		push_warning("SmoothGrid: VoxelTerrain lacks collision_layer; smooth terrain stays on the default layer")
 
-	var noise := FastNoiseLite.new()
-	noise.seed = terrain_gen.noise_seed
-	noise.frequency = terrain_gen.noise_frequency
-	var generator := VoxelGeneratorNoise2D.new()
-	# Guarded sets — verified names (base spike + F8), kept defensive anyway so a
-	# future addon bump degrades to defaults instead of crashing map load.
-	if "noise" in generator:
-		generator.set("noise", noise)
-	if "height_start" in generator:
-		generator.set("height_start", terrain_gen.height_start)
-	if "height_range" in generator:
-		generator.set("height_range", terrain_gen.height_range)
 	if "generator" in _terrain:
-		_terrain.set("generator", generator)
+		_terrain.set("generator", _build_generator(terrain_gen))
 	if "mesher" in _terrain:
 		_terrain.set("mesher", VoxelMesherTransvoxel.new())
 
@@ -101,6 +90,65 @@ func _ready() -> void:
 		_terrain.block_loaded.connect(_clear_height_cache)
 	if _terrain.has_signal("block_unloaded"):
 		_terrain.block_unloaded.connect(_clear_height_cache)
+
+# --- generator construction ---------------------------------------------------
+
+## Generator for the def's terrain: heightmap-driven when the def carries a
+## readable image, noise otherwise. Both paths write the same span fields, so a
+## def can switch modes without touching height_start/height_range.
+func _build_generator(def: TerrainGenDef) -> Resource:
+	var heightmap := _prepare_heightmap_image(def.heightmap)
+	if heightmap != null:
+		return _build_heightmap_generator(def, heightmap)
+	return _build_noise_generator(def)
+
+## Noise path — the original TerrainGenDef pipeline (seed + frequency).
+func _build_noise_generator(def: TerrainGenDef) -> Resource:
+	var noise := FastNoiseLite.new()
+	noise.seed = def.noise_seed
+	noise.frequency = def.noise_frequency
+	var generator := VoxelGeneratorNoise2D.new()
+	# Guarded sets — verified names (base spike + F8), kept defensive anyway so a
+	# future addon bump degrades to defaults instead of crashing map load.
+	if "noise" in generator:
+		generator.set("noise", noise)
+	if "height_start" in generator:
+		generator.set("height_start", def.height_start)
+	if "height_range" in generator:
+		generator.set("height_range", def.height_range)
+	return generator
+
+## Heightmap path — external-tool authoring. Property names probed in this
+## addon build (tmp/heightmap_gen_probe.gd): image, height_start, height_range.
+func _build_heightmap_generator(def: TerrainGenDef, heightmap: Image) -> Resource:
+	var generator := VoxelGeneratorImage.new()
+	# Same guarded-set contract as the noise builder.
+	if "image" in generator:
+		generator.set("image", heightmap)
+	if "height_start" in generator:
+		generator.set("height_start", def.height_start)
+	if "height_range" in generator:
+		generator.set("height_range", def.height_range)
+	return generator
+
+## Heightmap pixels as the generator wants them: uncompressed L8 so the value
+## read is the authored grayscale regardless of source texture format. Static
+## so a future blocky-grid image generator in this subsystem can promote it to
+## a shared helper by moving, not rewriting. Null tex / unreadable pixels ->
+## null (the caller falls back to noise; the error is reported here).
+static func _prepare_heightmap_image(tex: Texture2D) -> Image:
+	if tex == null:
+		return null
+	var image := tex.get_image()
+	if image == null:
+		push_error("SmoothGrid: terrain_gen.heightmap has no readable pixels — falling back to noise")
+		return null
+	if image.is_compressed():
+		if image.decompress() != OK:
+			push_error("SmoothGrid: terrain_gen.heightmap is compressed and cannot decompress — falling back to noise")
+			return null
+	image.convert(Image.FORMAT_L8)
+	return image
 
 # --- read / edit surface (D1 mirror of BlockyGrid's block API) -----------------
 

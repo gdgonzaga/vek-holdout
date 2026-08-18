@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="TerrainGenDef" format=3]
+
+[ext_resource type="Script" path="res://data/terrain/terrain_gen_def.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://bcf4hty0uxja5" path="res://data/terrain/heightmap_valley.png" id="2_heightmap"]
+
+[resource]
+script = ExtResource("1_script")
+id = "heightmap_valley"
+display_name = "Heightmap Valley"
+noise_seed = 0
+noise_frequency = 0.012
+heightmap = ExtResource("2_heightmap")
+height_start = -6.0
+height_range = 16.0
+max_walk_slope_deg = 45.0
