@@ -9,10 +9,12 @@ extends CanvasLayer
 ## Owned by MapEditor. Built procedurally in code.
 
 signal furniture_selected(index: int)
+signal save_requested()
 
 var _mode_badge: PanelContainer
 var _mode_label: Label
 var _map_info_label: Label
+var _save_button: Button
 var _hotkey_label: Label
 var _crosshair: Control
 
@@ -320,25 +322,40 @@ func _build_ui() -> void:
 	var info_panel := PanelContainer.new()
 	info_panel.name = "MapInfoPanel"
 	info_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	info_panel.offset_left = -260.0
+	info_panel.offset_left = -280.0
 	info_panel.offset_top = 16.0
 	info_panel.offset_right = -16.0
-	info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var info_style := StyleBoxFlat.new()
 	info_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
 	info_style.border_color = Color(0.2, 0.25, 0.35, 0.8)
 	info_style.set_border_width_all(1)
 	info_style.set_corner_radius_all(4)
-	info_style.set_content_margin_all(8)
+	info_style.set_content_margin_all(6)
 	info_panel.add_theme_stylebox_override("panel", info_style)
+
+	var info_hbox := HBoxContainer.new()
+	info_hbox.name = "MapInfoHBox"
+	info_hbox.add_theme_constant_override("separation", 8)
+	info_panel.add_child(info_hbox)
+
+	_save_button = Button.new()
+	_save_button.name = "SaveButton"
+	_save_button.text = "Save"
+	_save_button.tooltip_text = "Save map (Ctrl+S)"
+	_save_button.add_theme_font_size_override("font_size", 12)
+	_save_button.pressed.connect(_on_save_pressed)
+	info_hbox.add_child(_save_button)
 
 	_map_info_label = Label.new()
 	_map_info_label.name = "MapInfoLabel"
 	_map_info_label.text = "Map: none"
+	_map_info_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_map_info_label.add_theme_font_size_override("font_size", 13)
 	_map_info_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
-	info_panel.add_child(_map_info_label)
+	info_hbox.add_child(_map_info_label)
+
 	root.add_child(info_panel)
 
 	# --- Hotkey Strip (Bottom Center) ---
@@ -549,6 +566,11 @@ func set_mode(mode: int) -> void:
 				badge_style.border_color = Color(0.7, 0.3, 0.8, 0.9)
 			4: # SPAWN
 				badge_style.border_color = Color(0.9, 0.3, 0.3, 0.9)
+
+
+
+func _on_save_pressed() -> void:
+	save_requested.emit()
 
 
 func set_map_info(map_id: String, dirty: bool) -> void:

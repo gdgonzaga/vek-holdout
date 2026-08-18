@@ -640,3 +640,82 @@ func test_map_editor_save_scene_packs_markers() -> void:
 				break
 	assert_bool(found_furn).is_true()
 	inst.free()
+
+
+func test_map_editor_escape_shows_confirmation_when_mouse_free() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	# First ESC when captured releases mouse
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	var esc_event := InputEventKey.new()
+	esc_event.pressed = true
+	esc_event.keycode = KEY_ESCAPE
+
+	editor._input(esc_event)
+	assert_int(Input.mouse_mode).is_equal(Input.MOUSE_MODE_VISIBLE)
+	assert_bool(editor._exit_dialog.visible).is_false()
+	assert_object(editor._map_root).is_not_null()
+
+	# Second ESC when mouse free shows confirmation prompt
+	editor._input(esc_event)
+	assert_bool(editor._exit_dialog.visible).is_true()
+	assert_object(editor._map_root).is_not_null()
+
+
+func test_map_editor_exit_confirmation_cancel_keeps_map_loaded() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	editor._request_exit()
+	assert_bool(editor._exit_dialog.visible).is_true()
+
+	editor._exit_dialog.hide()
+	assert_object(editor._map_root).is_not_null()
+
+
+func test_map_editor_exit_confirmation_confirm_unloads_map() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	editor._request_exit()
+	assert_bool(editor._exit_dialog.visible).is_true()
+
+	editor._exit_dialog.confirmed.emit()
+	assert_object(editor._map_root).is_null()
+	assert_bool(editor._launcher.visible).is_true()
+
+
+func test_editor_hud_save_button_emits_signal() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	assert_object(hud._save_button).is_not_null()
+	assert_str(hud._save_button.text).is_equal("Save")
+
+	var emitted := [false]
+	hud.save_requested.connect(func() -> void:
+		emitted[0] = true
+	)
+
+	hud._save_button.pressed.emit()
+	assert_bool(emitted[0]).is_true()
+
+
+func test_map_editor_save_button_triggers_save_map() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	editor._dirty = true
+	editor._hud.set_map_info("base", true)
+	assert_str(editor._hud._map_info_label.text).contains("*")
+
+	editor._hud._save_button.pressed.emit()
+	assert_bool(editor._dirty).is_false()
+	assert_bool(editor._hud._map_info_label.text.contains("*")).is_false()

@@ -41,6 +41,7 @@ var _camera: Camera3D = null
 var _viewer: VoxelViewer = null
 var _hud: EditorHUD = null
 var _launcher: EditorLauncher = null
+var _exit_dialog: ConfirmationDialog = null
 var _dirty: bool = false
 
 var _blocky_grid: BlockyGrid = null
@@ -82,6 +83,7 @@ func _ready() -> void:
 	add_child(_hud)
 	_hud.setup(self)
 	_hud.furniture_selected.connect(_on_hud_furniture_selected)
+	_hud.save_requested.connect(save_map)
 	_hud.set_mode(_mode)
 	_hud.hide()
 
@@ -94,10 +96,16 @@ func _ready() -> void:
 	_launcher.setup(_scan_maps())
 	_launcher.show_launcher()
 
+	_setup_exit_dialog()
+
 
 func _input(event: InputEvent) -> void:
 	# If launcher is open, ignore camera/edit input
 	if _launcher != null and _launcher.visible:
+		return
+
+	# If exit confirmation dialog is open, ignore camera/edit input
+	if _exit_dialog != null and _exit_dialog.visible:
 		return
 
 	# If search input in HUD is focused, handle Esc/Enter/Tab and let typing pass through
@@ -118,6 +126,9 @@ func _input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.pressed:
 			if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
+				var hovered := get_viewport().gui_get_hovered_control()
+				if hovered != null:
+					return
 				if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 					Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 				elif _mode == Mode.BLOCK and mb.button_index == MOUSE_BUTTON_LEFT:
@@ -161,7 +172,7 @@ func _input(event: InputEvent) -> void:
 				if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 					Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 				else:
-					unload_map()
+					_request_exit()
 			elif k.keycode == KEY_F1:
 				_set_mode(Mode.NAVIGATE)
 			elif k.keycode == KEY_F2:
@@ -352,6 +363,9 @@ func create_new_map(map_name: String, map_type: int = MapDef.MapType.POI) -> Str
 
 
 func unload_map() -> void:
+	if _exit_dialog != null and _exit_dialog.visible:
+		_exit_dialog.hide()
+
 	if _dirty:
 		push_warning("MapEditor: unloading with unsaved changes")
 
@@ -380,6 +394,27 @@ func unload_map() -> void:
 		_launcher.show_launcher()
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+
+func _setup_exit_dialog() -> void:
+	_exit_dialog = ConfirmationDialog.new()
+	_exit_dialog.name = "ExitConfirmationDialog"
+	_exit_dialog.title = "Exit Map Editor"
+	_exit_dialog.dialog_text = "Are you sure you want to exit the map editor?\nAny unsaved changes will be lost."
+	_exit_dialog.ok_button_text = "Exit"
+	_exit_dialog.cancel_button_text = "Cancel"
+	_exit_dialog.confirmed.connect(_on_exit_confirmed)
+	add_child(_exit_dialog)
+
+
+func _request_exit() -> void:
+	if _exit_dialog != null:
+		_exit_dialog.popup_centered()
+
+
+func _on_exit_confirmed() -> void:
+	unload_map()
 
 
 func _scan_maps() -> Array[MapDef]:
