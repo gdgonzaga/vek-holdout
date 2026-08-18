@@ -52,6 +52,53 @@ func remove_block_at(pos: Vector3i) -> void:
 	_grid.remove_block_at(pos)
 
 
+## Returns the raw 16-bit packed voxel integer at pos.
+func get_raw_voxel(pos: Vector3i) -> int:
+	if _grid == null:
+		return 0
+	if _grid.has_method("get_raw_voxel"):
+		return _grid.get_raw_voxel(pos)
+	var vt := _grid.get_voxel_tool()
+	if vt != null:
+		return vt.get_voxel(pos)
+	return 0
+
+
+## Sets the raw 16-bit packed voxel integer at pos.
+func set_raw_voxel(pos: Vector3i, raw_val: int) -> void:
+	if _grid == null:
+		return
+	if _grid.has_method("set_raw_voxel"):
+		_grid.set_raw_voxel(pos, raw_val)
+		return
+	var vt := _grid.get_voxel_tool()
+	if vt != null:
+		vt.set_voxel(pos, raw_val)
+
+
+## Returns the 11-bit block type ID at pos (decoded from raw voxel).
+func get_block_type(pos: Vector3i) -> int:
+	var raw := get_raw_voxel(pos)
+	return VoxelBlockEncoder.decode_type(raw)
+
+
+## Returns the 5-bit rotation index (0..23) at pos (decoded from raw voxel).
+func get_block_rotation(pos: Vector3i) -> int:
+	var raw := get_raw_voxel(pos)
+	return VoxelBlockEncoder.decode_rotation(raw)
+
+
+## Returns the 3D Basis corresponding to the block rotation at pos.
+func get_block_basis(pos: Vector3i) -> Basis:
+	return VoxelBlockEncoder.rot_index_to_basis(get_block_rotation(pos))
+
+
+## Sets the block at pos with type_id (11-bit) and rot_index (5-bit rotation, 0..23).
+func set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void:
+	var raw := VoxelBlockEncoder.encode(type_id, rot_index)
+	set_raw_voxel(pos, raw)
+
+
 ## True if a block can be placed at cell: currently means the cell is air (not
 ## terrain and not already a buildable block). TODO: ownership/footprint checks
 ## once multi-cell blocks exist.

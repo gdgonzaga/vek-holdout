@@ -2,41 +2,25 @@ class_name BlockyGrid
 extends Node
 ## The sole owner of voxel_tool access for build/placement queries on the
 ## structures terrain. Implements IBlockGrid (build/i_block_grid.gd). Voxel
-## coupling lives here and nowhere else — other subsystems go through
+## terrain layers and collision bodies live here. BuildController talks to
 ## IBlockGrid, never voxel_tool. The dual-voxel conversion (docs/TODO.md)
-## mirrors this class as SmoothGrid for natural terrain: same vocabulary,
-## different mesher/generator.
+## retains this class for structure blocks; smooth natural terrain uses
+## SmoothGrid.
 ##
-## Block identity is a string block_id everywhere outside this class. Internally
-## we store the integer voxel-tool library index; the BlockLibrary does the
-## id<->index translation. Per-position HP is tracked so combat/raids can damage
-## blocks below their BlockDef.hp before destroying them (see DamageResolver /
-## raid breach flows).
-##
-## Lifecycle: _ready() fetches the VoxelTool from the VoxelTerrain child node.
+## All voxel read/write operations use 16-bit packed voxel integers (VoxelBlockEncoder):
+## 11 bits for Block Type ID (0..2047) and 5 bits for 3D Orthogonal Rotation Index (0..23).
 
 signal block_placed(pos: Vector3i, block_id: String)
 signal block_destroyed(pos: Vector3i)
 
-## Collision-layer plan (docs/architecture/voxel-world.md "Collision layers"):
-## this terrain owns layer 2 (TerrainBlocky) so physics queries can address
-## blocky ground separately from World furniture statics (layer 1) and from the
-## smooth terrain that owns layer 3 (dual-voxel conversion, docs/TODO.md).
-## Assigned in code, not the map template, so every map — including already
-## stamped POIs — gets it at runtime.
+## Terrain collision layer (2) + mask (player body 8 + colonist body 32).
 const TERRAIN_LAYER := 2
-## F7 (docs/VOXEL-TOOL-NOTES.md): giving a terrain a custom layer REQUIRES a
-## mask that includes the body layers standing on it, or body interaction
-## silently stops (rays keep working — they test query-mask vs layer only).
-## Player (layer 4) and Colonist (layer 6) are the terrain-standing bodies.
 const TERRAIN_BODY_MASK := 8 | 32
-## The build/deconstruct ray stops on World statics, this terrain, the smooth
-## terrain, and Build interaction bodies (furniture/blueprint BuildBody, layer
-## 5) — nothing else. The pre-remap ray was unmasked and could hit a colonist
-## standing between camera and target; that quirk is intentionally gone.
-## Smooth (layer 3, value 4) joined the mask when SmoothGrid landed: without it
-## nothing could be placed on natural ground.
+
+## Collision layer 3 for smooth natural terrain (used in dual-voxel raycasts).
 const SMOOTH_TERRAIN_LAYER_VALUE := 4
+
+## Physics raycast mask for placement cursor: World statics (1) + terrain (2) + smooth terrain (4) + body (16).
 const BUILD_RAY_MASK := 1 | TERRAIN_LAYER | SMOOTH_TERRAIN_LAYER_VALUE | 16
 
 ## Path/name of the VoxelTerrain node, relative to this BlockyGrid. The map
@@ -70,15 +54,15 @@ func _ready() -> void:
 # --- IBlockGrid ---------------------------------------------------------------
 
 func get_block_at(pos: Vector3i) -> String:
-	var index := _voxel_tool.get_voxel(pos)
-	return _library.get_id(index)
+	var type_id := get_block_type(pos)
+	return _library.get_id(type_id)
 
 func set_block_at(pos: Vector3i, block_id: String) -> void:
 	var index := _library.get_index(block_id)
 	if index < 0:
 		push_error("BlockyGrid: unknown block_id '%s'" % block_id)
 		return
-	_voxel_tool.set_voxel(pos, index)
+	set_block(pos, index, 0)
 	var def := _library.get_def(block_id)
 	_hp_by_pos[pos] = def.hp if def != null else 0
 	block_placed.emit(pos, block_id)
@@ -87,6 +71,31 @@ func remove_block_at(pos: Vector3i) -> void:
 	_voxel_tool.set_voxel(pos, 0)
 	_hp_by_pos.erase(pos)
 	block_destroyed.emit(pos)
+
+func get_raw_voxel(pos: Vector3i) -> int:
+	if _voxel_tool == null:
+		return 0
+	return _voxel_tool.get_voxel(pos)
+
+func set_raw_voxel(pos: Vector3i, raw_val: int) -> void:
+	if _voxel_tool == null:
+		return
+	_voxel_tool.set_voxel(pos, raw_val)
+
+func get_block_type(pos: Vector3i) -> int:
+	var raw := get_raw_voxel(pos)
+	return VoxelBlockEncoder.decode_type(raw)
+
+func get_block_rotation(pos: Vector3i) -> int:
+	var raw := get_raw_voxel(pos)
+	return VoxelBlockEncoder.decode_rotation(raw)
+
+func get_block_basis(pos: Vector3i) -> Basis:
+	return VoxelBlockEncoder.rot_index_to_basis(get_block_rotation(pos))
+
+func set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void:
+	var raw := VoxelBlockEncoder.encode(type_id, rot_index)
+	set_raw_voxel(pos, raw)
 
 ## Godot physics raycast, NOT VoxelTool.raycast (see gotchas/voxel_tool_raycast.md:
 ## VoxelTool.raycast returns null even on valid hits). We raycast against the
