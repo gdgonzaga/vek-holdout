@@ -142,7 +142,11 @@ func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZER
 	if _ground_query.is_valid():
 		var ground_y: float = _ground_query.call(pos.x, pos.z)
 		if not is_nan(ground_y):
-			pos.y = ground_y + 0.1
+			pos.y = ground_y + 1.0
+		else:
+			pos.y += 1.0
+	else:
+		pos.y += 1.0
 	c.global_position = pos
 	if _walkability_predicate.is_valid() and c.pathfinder != null:
 		c.pathfinder.set_walkability(_walkability_predicate)

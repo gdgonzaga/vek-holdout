@@ -243,7 +243,9 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 		# afterwards via _restore_player, so restored positions are untouched.
 		var ground_y: float = m.ground_height_at(spawn_pos.x, spawn_pos.z)
 		if not is_nan(ground_y):
-			spawn_pos.y = ground_y + 0.1
+			spawn_pos.y = ground_y + 1.0
+		else:
+			spawn_pos.y += 1.0
 		_player.global_position = spawn_pos
 		MapWiring.wire_player(m, _player)
 	# Colonist spawn/reparent into the map's ColonistContainer (Phase 2). No-op for

@@ -92,9 +92,6 @@ static func wire_colonists(map: Map) -> Node3D:
 	if container == null:
 		return null
 	var spawns := SpawnHelpers.read_spawns(map)
-	# Spawn/reparent first — add_child runs each colonist's _ready, which caches
-	# its pathfinder field, before we inject below.
-	Colony.on_map_wired(container, spawns.get("colonists", []))
 	# Point the storage registry at this map's furniture container so hauling
 	# jobs can live-scan its crates. Same wiring moment as colonists — per map
 	# load, so base<->POI swaps rebind to the new map's crates.
@@ -110,6 +107,10 @@ static func wire_colonists(map: Map) -> Node3D:
 	var smooth := _live_smooth_grid(map)
 	Colony.set_stand_cell_hint(smooth_stand_hint(smooth) if smooth != null else Callable())
 	Colony.set_ground_query(Callable(map, "ground_height_at"))
+
+	# Spawn/reparent colonists AFTER ground query and predicates are wired so
+	# initial spawn height queries resolve correctly.
+	Colony.on_map_wired(container, spawns.get("colonists", []))
 	return container
 
 

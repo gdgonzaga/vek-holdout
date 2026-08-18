@@ -232,7 +232,7 @@ func test_spawn_colonist_success() -> void:
 	var spawned: Colonist = Colony.spawn_colonist(null, Vector3(10, 0, 5))
 	assert_object(spawned).is_not_null()
 	assert_object(spawned.get_parent()).is_equal(dummy_container)
-	assert_vector(spawned.global_position).is_equal(Vector3(10, 0, 5))
+	assert_vector(spawned.global_position).is_equal(Vector3(10, 1, 5))
 	assert_int(Colony.colonists.size()).is_equal(1)
 	assert_object(Colony.colonists[0]).is_equal(spawned)
 
@@ -247,11 +247,11 @@ func test_spawn_colonist_snaps_to_ground_query() -> void:
 	Colony.set_ground_query(func(_x: float, _z: float) -> float: return 5.0)
 	var spawned: Colonist = Colony.spawn_colonist(null, Vector3(10, 0, 5))
 	assert_object(spawned).is_not_null()
-	assert_vector(spawned.global_position).is_equal(Vector3(10, 5.1, 5))
+	assert_vector(spawned.global_position).is_equal(Vector3(10, 6.0, 5))
 	Colony.set_ground_query(func(_x: float, _z: float) -> float: return NAN)
 	var kept: Colonist = Colony.spawn_colonist(null, Vector3(0, 3, 0))
 	assert_object(kept).is_not_null()
-	assert_vector(kept.global_position).is_equal(Vector3(0, 3, 0))
+	assert_vector(kept.global_position).is_equal(Vector3(0, 4.0, 0))
 	Colony.set_ground_query(Callable())
 
 
