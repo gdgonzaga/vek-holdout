@@ -3,6 +3,7 @@
 The voxel world: blocky structures + smooth natural terrain (the dual-voxel conversion, `docs/TODO.md`). Wraps Zylann's `voxel_tool` plugin. All voxel coupling lives here — other subsystems (Build) interact via the `IBlockGrid` interface, never `voxel_tool` directly.
 
 > **Voxel-tool gotchas & verified facts** (editor hit-detection, the 40-frame settle, library/stream behavior, the smooth-edit spike F8) live in `docs/VOXEL-TOOL-NOTES.md`.
+> **Block authoring guide** (Blender 3D mesh scale, origin alignment, 3-axis rotation, shaders, and Map Editor verification) lives in `docs/HOWTO-author-blocks.md`.
 
 ## Collision layers
 
