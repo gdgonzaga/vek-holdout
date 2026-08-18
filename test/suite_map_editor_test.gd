@@ -1038,3 +1038,106 @@ func test_map_editor_block_tab_key_cycling() -> void:
 	editor._input(tab_event)
 
 	assert_int(editor._selected_block_index).is_not_equal(initial_idx)
+
+
+func test_editor_hud_overlay_mouse_filters() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	assert_int(hud._crosshair.mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int((hud._crosshair.get_node("HLine") as Control).mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int((hud._crosshair.get_node("VLine") as Control).mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int((hud._crosshair.get_node("CoordLabel") as Control).mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int(hud._mode_badge.mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int(hud._mode_label.mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int(hud._terrain_info_panel.mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int((hud._terrain_info_panel.get_node("TerrainInfoVBox") as Control).mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int(hud._spawn_info_panel.mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+	assert_int((hud._spawn_info_panel.get_node("SpawnInfoVBox") as Control).mouse_filter).is_equal(Control.MOUSE_FILTER_IGNORE)
+
+
+func test_map_editor_mouse_lmb_input_recaptures_when_visible() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	assert_int(Input.mouse_mode).is_equal(Input.MOUSE_MODE_VISIBLE)
+
+	var lmb := InputEventMouseButton.new()
+	lmb.pressed = true
+	lmb.button_index = MOUSE_BUTTON_LEFT
+	editor._input(lmb)
+
+	assert_int(Input.mouse_mode).is_equal(Input.MOUSE_MODE_CAPTURED)
+
+
+func test_map_editor_lmb_terrain_input_dispatches_sculpt() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+	editor._set_mode(MapEditorClass.Mode.TERRAIN)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+	var hit := {
+		"hit": true,
+		"point": Vector3(10.0, 0.0, 10.0),
+		"normal": Vector3.UP,
+	}
+	editor._do_terrain_add(hit)
+	assert_int(editor._undo_stack.size()).is_equal(1)
+	assert_str(editor._undo_stack[-1].get("type", "")).is_equal("terrain")
+	assert_bool(editor._undo_stack[-1].get("was_add", false)).is_true()
+
+	editor._do_terrain_carve(hit)
+	assert_int(editor._undo_stack.size()).is_equal(2)
+	assert_bool(editor._undo_stack[-1].get("was_add", true)).is_false()
+
+
+func test_map_editor_lmb_furniture_input_dispatches_place_and_remove() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+	editor._set_mode(MapEditorClass.Mode.FURNITURE)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+	var hit := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(12, 0, 12),
+		"normal": Vector3i(0, 1, 0),
+	}
+
+	editor._do_furniture_place(hit)
+	assert_bool(editor._dirty).is_true()
+
+	editor._do_furniture_remove(hit)
+	assert_bool(editor._dirty).is_true()
+
+
+func test_map_editor_lmb_spawn_input_dispatches_spawns() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+	editor._set_mode(MapEditorClass.Mode.SPAWN)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+	var hit_player := {
+		"hit": true,
+		"surface": "smooth",
+		"smooth_point": Vector3(20.0, 1.0, 20.0),
+		"position": Vector3i(20, 1, 20),
+		"normal": Vector3i.ZERO,
+	}
+	editor._do_spawn_place("player", hit_player)
+	assert_vector(editor._map_def.player_spawn).is_equal(Vector3(20.0, 1.0, 20.0))
+
+	var hit_col := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(8, 0, 8),
+		"normal": Vector3i(0, 1, 0),
+	}
+	editor._do_spawn_place("colonist", hit_col)
+	var colonists: Array = editor._spawn_markers.get("colonists", [])
+	assert_bool(colonists.size() > 0).is_true()

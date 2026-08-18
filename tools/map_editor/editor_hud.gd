@@ -134,6 +134,7 @@ func _build_ui() -> void:
 
 	var terrain_vbox := VBoxContainer.new()
 	terrain_vbox.name = "TerrainInfoVBox"
+	terrain_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_terrain_info_panel.add_child(terrain_vbox)
 
 	_terrain_material_label = Label.new()
@@ -141,6 +142,7 @@ func _build_ui() -> void:
 	_terrain_material_label.text = "Material: Ground"
 	_terrain_material_label.add_theme_font_size_override("font_size", 13)
 	_terrain_material_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	_terrain_material_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	terrain_vbox.add_child(_terrain_material_label)
 
 	_terrain_radius_label = Label.new()
@@ -148,6 +150,7 @@ func _build_ui() -> void:
 	_terrain_radius_label.text = "Radius: 2.0 m"
 	_terrain_radius_label.add_theme_font_size_override("font_size", 13)
 	_terrain_radius_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	_terrain_radius_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	terrain_vbox.add_child(_terrain_radius_label)
 
 	_terrain_warning_label = Label.new()
@@ -155,6 +158,7 @@ func _build_ui() -> void:
 	_terrain_warning_label.text = "Smooth terrain unavailable\n(terrain.sqlite missing)"
 	_terrain_warning_label.add_theme_font_size_override("font_size", 11)
 	_terrain_warning_label.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+	_terrain_warning_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_terrain_warning_label.visible = false
 	terrain_vbox.add_child(_terrain_warning_label)
 
@@ -226,6 +230,7 @@ func _build_ui() -> void:
 
 	var spawn_vbox := VBoxContainer.new()
 	spawn_vbox.name = "SpawnInfoVBox"
+	spawn_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_spawn_info_panel.add_child(spawn_vbox)
 
 	_spawn_hint_label = Label.new()
@@ -233,6 +238,7 @@ func _build_ui() -> void:
 	_spawn_hint_label.text = "LMB: Player Spawn\nShift+LMB: Colonist Spawn"
 	_spawn_hint_label.add_theme_font_size_override("font_size", 13)
 	_spawn_hint_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	_spawn_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	spawn_vbox.add_child(_spawn_hint_label)
 
 	root.add_child(_spawn_info_panel)
@@ -261,6 +267,7 @@ func _build_ui() -> void:
 	_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_mode_label.add_theme_font_size_override("font_size", 16)
 	_mode_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	_mode_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mode_badge.add_child(_mode_label)
 	root.add_child(_mode_badge)
 
@@ -425,6 +432,7 @@ func _build_ui() -> void:
 	_hotkey_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hotkey_label.add_theme_font_size_override("font_size", 13)
 	_hotkey_label.add_theme_color_override("font_color", Color(0.8, 0.85, 0.9))
+	_hotkey_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hotkey_panel.add_child(_hotkey_label)
 	root.add_child(hotkey_panel)
 
@@ -442,6 +450,7 @@ func _build_ui() -> void:
 	h_line.offset_right = 6
 	h_line.offset_top = -1
 	h_line.offset_bottom = 1
+	h_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_crosshair.add_child(h_line)
 
 	var v_line := ColorRect.new()
@@ -451,6 +460,7 @@ func _build_ui() -> void:
 	v_line.offset_right = 1
 	v_line.offset_top = -6
 	v_line.offset_bottom = 6
+	v_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_crosshair.add_child(v_line)
 
 	_coord_label = Label.new()
@@ -462,6 +472,7 @@ func _build_ui() -> void:
 	_coord_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_coord_label.add_theme_font_size_override("font_size", 11)
 	_coord_label.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0, 0.75))
+	_coord_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_coord_label.text = ""
 	_crosshair.add_child(_coord_label)
 

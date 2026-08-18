@@ -198,35 +198,41 @@ func _input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.pressed:
 			if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
-				var hovered := get_viewport().gui_get_hovered_control()
-				if hovered != null:
-					return
 				if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+					var hovered := get_viewport().gui_get_hovered_control()
+					if hovered != null:
+						return
 					Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-				elif _mode == Mode.BLOCK and mb.button_index == MOUSE_BUTTON_LEFT:
-					var hit := _raycast_from_camera()
-					if mb.shift_pressed:
-						_do_block_erase(hit)
-					else:
-						_do_block_paint(hit)
-				elif _mode == Mode.TERRAIN and mb.button_index == MOUSE_BUTTON_LEFT:
-					var hit := _raycast_terrain()
-					if mb.shift_pressed:
-						_do_terrain_carve(hit)
-					else:
-						_do_terrain_add(hit)
-				elif _mode == Mode.FURNITURE and mb.button_index == MOUSE_BUTTON_LEFT:
-					var hit := _raycast_from_camera()
-					if mb.shift_pressed:
-						_do_furniture_remove(hit)
-					else:
-						_do_furniture_place(hit)
-				elif _mode == Mode.SPAWN and mb.button_index == MOUSE_BUTTON_LEFT:
-					var hit := _raycast_from_camera()
-					if mb.shift_pressed:
-						_do_spawn_place("colonist", hit)
-					else:
-						_do_spawn_place("player", hit)
+					get_viewport().set_input_as_handled()
+				elif mb.button_index == MOUSE_BUTTON_LEFT:
+					if _mode == Mode.BLOCK:
+						var hit := _raycast_from_camera()
+						if mb.shift_pressed:
+							_do_block_erase(hit)
+						else:
+							_do_block_paint(hit)
+						get_viewport().set_input_as_handled()
+					elif _mode == Mode.TERRAIN:
+						var hit := _raycast_terrain()
+						if mb.shift_pressed:
+							_do_terrain_carve(hit)
+						else:
+							_do_terrain_add(hit)
+						get_viewport().set_input_as_handled()
+					elif _mode == Mode.FURNITURE:
+						var hit := _raycast_from_camera()
+						if mb.shift_pressed:
+							_do_furniture_remove(hit)
+						else:
+							_do_furniture_place(hit)
+						get_viewport().set_input_as_handled()
+					elif _mode == Mode.SPAWN:
+						var hit := _raycast_from_camera()
+						if mb.shift_pressed:
+							_do_spawn_place("colonist", hit)
+						else:
+							_do_spawn_place("player", hit)
+						get_viewport().set_input_as_handled()
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				if Input.is_key_pressed(KEY_B):
 					var dir := 1.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
