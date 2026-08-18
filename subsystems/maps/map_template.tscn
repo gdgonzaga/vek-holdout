@@ -7,9 +7,6 @@
 [ext_resource type="Resource" uid="uid://5s4y52q3vbc3" path="res://data/terrain/materials/ground.tres" id="5_13d5u"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="6_2hepk"]
 
-[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_q70a7"]
-channel = 0
-
 [sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_ts5yv"]
 library = ExtResource("3_8csyp")
 
@@ -22,7 +19,6 @@ script = ExtResource("1_be0qe")
 script = ExtResource("2_il18e")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid" unique_id=1602835685]
-generator = SubResource("VoxelGeneratorFlat_q70a7")
 mesher = SubResource("VoxelMesherBlocky_ts5yv")
 
 [node name="SmoothGrid" type="Node" parent="." unique_id=525696383]
