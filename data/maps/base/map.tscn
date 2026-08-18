@@ -1,61 +1,155 @@
-[gd_scene format=3 uid="uid://b4erqe10uuqqh"]
+[gd_scene format=3]
 
-[ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_vqmwu"]
-[ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/blocky_grid.gd" id="2_8a6na"]
-[ext_resource type="VoxelBlockyLibrary" uid="uid://da8bhey7irku4" path="res://data/blocks/voxel_library.tres" id="3_vb1k7"]
-[ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="4_i4gsa"]
-[ext_resource type="Script" uid="uid://dlfyay1we36om" path="res://subsystems/voxel/smooth_grid.gd" id="4_vb1k7"]
-[ext_resource type="Texture2D" uid="uid://cvn2otun3im08" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="5_8a6na"]
-[ext_resource type="Resource" uid="uid://5s4y52q3vbc3" path="res://data/terrain/materials/ground.tres" id="5_i4gsa"]
-[ext_resource type="ArrayMesh" uid="uid://c1ibess520i8c" path="res://assets/animpic-mega-survival-construction/shelf1/SM_Food_Shelf_01.SM_Food_Shelf_01.mesh" id="6_vb1k7"]
-[ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="7_vb1k7"]
-[ext_resource type="ArrayMesh" uid="uid://dgupn3yvmgwje" path="res://assets/animpic-mega-survival-construction/tree1/SM_Tree_01.SM_Tree_01.mesh" id="8_i4gsa"]
+[ext_resource type="Script" path="res://subsystems/voxel/map.gd" id="1_i4gsa"]
+[ext_resource type="Script" path="res://subsystems/voxel/blocky_grid.gd" id="2_am8c4"]
+[ext_resource type="Shader" path="res://assets/blocks/block_shader.gdshader" id="3_densp"]
+[ext_resource type="Script" path="res://subsystems/voxel/smooth_grid.gd" id="4_7k21i"]
+[ext_resource type="Texture2D" path="res://assets/ground.png" id="4_sqpcl"]
+[ext_resource type="Resource" path="res://data/terrain/forest_valley.tres" id="5_tefn5"]
+[ext_resource type="ArrayMesh" path="res://assets/blocks/dirt.obj" id="5_w3k5u"]
+[ext_resource type="Resource" path="res://data/terrain/materials/ground.tres" id="6_01xbi"]
+[ext_resource type="Texture2D" path="res://assets/wood.png" id="6_t3ntp"]
+[ext_resource type="PackedScene" path="res://subsystems/build/build.tscn" id="7_cmktg"]
+[ext_resource type="Script" path="res://subsystems/build/build_controller.gd" id="8_mo1iq"]
+[ext_resource type="Texture2D" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="12_8rxvu"]
+[ext_resource type="ArrayMesh" path="res://assets/animpic-mega-survival-construction/workbench/SM_Workbench_01.SM_Workbench_01.mesh" id="13_m6t8w"]
+[ext_resource type="ArrayMesh" path="res://assets/animpic-mega-survival-construction/shelf1/SM_Food_Shelf_01.SM_Food_Shelf_01.mesh" id="14_fy38l"]
+[ext_resource type="Texture2D" path="res://tmp/Polygon-Mega Survival Construction/Textures/TerrainTextures/Sand.png" id="15_owhcu"]
+[ext_resource type="ArrayMesh" path="res://tmp/Polygon-Mega Survival Construction/Models/Other/extracted/SM_Box_01.SM_Box_01.mesh" id="16_07wms"]
+[ext_resource type="ArrayMesh" path="res://assets/pole/pole.obj" id="17_g0o0i"]
+[ext_resource type="ArrayMesh" path="res://assets/animpic-mega-survival-construction/tree1/SM_Tree_01.SM_Tree_01.mesh" id="18_g44bc"]
 
-[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_vb1k7"]
+[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_seqw4"]
 database_path = "res://data/maps/base/map.sqlite"
 
 [sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_q70a7"]
 channel = 0
 height = -50.0
 
-[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_ts5yv"]
-library = ExtResource("3_vb1k7")
+[sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_n3fjy"]
 
-[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_i4gsa"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_smsdr"]
+render_priority = 0
+shader = ExtResource("3_densp")
+shader_parameter/albedo_tex = ExtResource("4_sqpcl")
+shader_parameter/uv_offset_strength = null
+shader_parameter/color_variation = null
+shader_parameter/rotation_strength = null
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_an63r"]
+mesh = ExtResource("5_w3k5u")
+material_override_0 = SubResource("ShaderMaterial_smsdr")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_vl7xo"]
+mesh = ExtResource("5_w3k5u")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_lugf4"]
+mesh = ExtResource("5_w3k5u")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_vj4ix"]
+mesh = ExtResource("5_w3k5u")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_n8mao"]
+mesh = ExtResource("5_w3k5u")
+collision_enabled_0 = true
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_n8o0s"]
+albedo_texture = ExtResource("6_t3ntp")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fr6x3"]
+mesh = ExtResource("5_w3k5u")
+material_override_0 = SubResource("StandardMaterial3D_n8o0s")
+collision_enabled_0 = true
+
+[sub_resource type="VoxelBlockyLibrary" id="VoxelBlockyLibrary_3fed3"]
+models = Array[VoxelBlockyModel]([SubResource("VoxelBlockyModelEmpty_n3fjy"), SubResource("VoxelBlockyModelMesh_an63r"), SubResource("VoxelBlockyModelMesh_vl7xo"), SubResource("VoxelBlockyModelMesh_lugf4"), SubResource("VoxelBlockyModelMesh_vj4ix"), SubResource("VoxelBlockyModelMesh_n8mao"), SubResource("VoxelBlockyModelMesh_fr6x3")])
+
+[sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_ts5yv"]
+library = SubResource("VoxelBlockyLibrary_3fed3")
+
+[sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_duck2"]
 database_path = "res://data/maps/base/terrain.sqlite"
 
-[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_uf7qo"]
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_65qr3"]
+seed = 1057
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_am8c4"]
-albedo_texture = ExtResource("5_8a6na")
+[sub_resource type="VoxelGeneratorNoise2D" id="VoxelGeneratorNoise2D_35q5j"]
+noise = SubResource("FastNoiseLite_65qr3")
+height_start = -6.0
+height_range = 16.0
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pn4ft"]
-albedo_texture = ExtResource("5_8a6na")
+[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_0dmdu"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7k21i"]
-albedo_texture = ExtResource("5_8a6na")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_nb0lr"]
+albedo_texture = ExtResource("12_8rxvu")
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tefn5"]
-albedo_texture = ExtResource("5_8a6na")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ofg04"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ru62x"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pfo3u"]
+albedo_texture = ExtResource("15_owhcu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_myvcy"]
+albedo_texture = ExtResource("15_owhcu")
+
+[sub_resource type="BoxMesh" id="BoxMesh_trough"]
+size = Vector3(1, 0.35, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5rxjt"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_chekn"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_71jgj"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l5d2n"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_c0is1"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_g1245"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kywnt"]
+albedo_texture = ExtResource("12_8rxvu")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bewv8"]
+albedo_texture = ExtResource("12_8rxvu")
 
 [node name="MapTemplate" type="Node3D" unique_id=542980227]
-script = ExtResource("1_vqmwu")
+script = ExtResource("1_i4gsa")
 
 [node name="BlockyGrid" type="Node" parent="." unique_id=394510288]
-script = ExtResource("2_8a6na")
+script = ExtResource("2_am8c4")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid" unique_id=1602835685]
-stream = SubResource("VoxelStreamSQLite_vb1k7")
+collision_layer = 2
+collision_mask = 40
+stream = SubResource("VoxelStreamSQLite_seqw4")
 generator = SubResource("VoxelGeneratorFlat_q70a7")
 mesher = SubResource("VoxelMesherBlocky_ts5yv")
 
 [node name="SmoothGrid" type="Node" parent="." unique_id=525696383]
-script = ExtResource("4_vb1k7")
-default_material = ExtResource("5_i4gsa")
+script = ExtResource("4_7k21i")
+terrain_gen = ExtResource("5_tefn5")
+default_material = ExtResource("6_01xbi")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="SmoothGrid" unique_id=1835350288]
-stream = SubResource("VoxelStreamSQLite_i4gsa")
-mesher = SubResource("VoxelMesherTransvoxel_uf7qo")
+collision_layer = 4
+collision_mask = 40
+stream = SubResource("VoxelStreamSQLite_duck2")
+generator = SubResource("VoxelGeneratorNoise2D_35q5j")
+mesher = SubResource("VoxelMesherTransvoxel_0dmdu")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1706937167]
 transform = Transform3D(-0.8660254, 0, -0.50000006, -0.43301278, 0.49999997, 0.75, 0.25, 0.86602545, -0.43301266, 0, 0, 0)
@@ -69,63 +163,192 @@ shadow_enabled = true
 
 [node name="EnvironmentContainer" type="Node3D" parent="." unique_id=1874591561]
 
-[node name="BuildController" parent="." unique_id=1033573714 instance=ExtResource("4_i4gsa")]
+[node name="BuildController" type="Node3D" parent="." unique_id=1033573714 instance=ExtResource("7_cmktg")]
+script = ExtResource("8_mo1iq")
 
 [node name="SpawnPoints" type="Node3D" parent="." unique_id=76171077]
 
 [node name="PlayerSpawn" type="Marker3D" parent="SpawnPoints" unique_id=2034402457]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 2.1788635, 6)
 
-[node name="Furniture_wood_block_dispenser_0" type="Marker3D" parent="SpawnPoints" unique_id=764769112]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 3)
-metadata/def_id = "wood_block_dispenser"
+[node name="Furniture_workbench_0" type="Marker3D" parent="SpawnPoints" unique_id=487229152]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 3, -0.5)
+metadata/def_id = "workbench"
 metadata/yaw_quarters = 0
-metadata/anchor = Vector3i(-2, 0, 2)
+metadata/anchor = Vector3i(-2, 3, -1)
 
-[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_wood_block_dispenser_0" unique_id=1702339957]
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_workbench_0" unique_id=1373662019]
+material_override = SubResource("StandardMaterial3D_nb0lr")
 cast_shadow = 0
-mesh = ExtResource("7_vb1k7")
+mesh = ExtResource("13_m6t8w")
 
-[node name="Furniture_shelf1_1" type="Marker3D" parent="SpawnPoints" unique_id=847211508]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.5, 0, 2)
+[node name="Furniture_shelf1_1" type="Marker3D" parent="SpawnPoints" unique_id=693198046]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 3, -0.5)
+metadata/def_id = "shelf1"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(1, 3, -1)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_shelf1_1" unique_id=281386747]
+material_override = SubResource("StandardMaterial3D_ofg04")
+cast_shadow = 0
+mesh = ExtResource("14_fy38l")
+
+[node name="Furniture_shelf1_2" type="Marker3D" parent="SpawnPoints" unique_id=1937622457]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -1.5, 3, 1)
 metadata/def_id = "shelf1"
 metadata/yaw_quarters = 1
-metadata/anchor = Vector3i(-4, 0, 1)
+metadata/anchor = Vector3i(-2, 3, 0)
 
-[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_shelf1_1" unique_id=2015551980]
-material_override = SubResource("StandardMaterial3D_am8c4")
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_shelf1_2" unique_id=781244480]
+material_override = SubResource("StandardMaterial3D_ru62x")
 cast_shadow = 0
-mesh = ExtResource("6_vb1k7")
+mesh = ExtResource("14_fy38l")
 
-[node name="Furniture_shelf1_2" type="Marker3D" parent="SpawnPoints" unique_id=2072801650]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.5, 0, 5)
-metadata/def_id = "shelf1"
-metadata/yaw_quarters = 1
-metadata/anchor = Vector3i(-4, 0, 4)
+[node name="Furniture_storage_crate_3" type="Marker3D" parent="SpawnPoints" unique_id=853497156]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 3, -0.5)
+metadata/def_id = "storage_crate"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(0, 3, -1)
 
-[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_shelf1_2" unique_id=921160892]
-material_override = SubResource("StandardMaterial3D_pn4ft")
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_storage_crate_3" unique_id=901023783]
+material_override = SubResource("StandardMaterial3D_pfo3u")
 cast_shadow = 0
-mesh = ExtResource("6_vb1k7")
+mesh = ExtResource("16_07wms")
 
-[node name="Furniture_tree1_3" type="Marker3D" parent="SpawnPoints" unique_id=686458049]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2.5, 0, -4.5)
+[node name="Furniture_storage_crate_4" type="Marker3D" parent="SpawnPoints" unique_id=1207456633]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 3, 1.5)
+metadata/def_id = "storage_crate"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(2, 3, 1)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_storage_crate_4" unique_id=1172375815]
+material_override = SubResource("StandardMaterial3D_myvcy")
+cast_shadow = 0
+mesh = ExtResource("16_07wms")
+
+[node name="Furniture_wood_block_dispenser_5" type="Marker3D" parent="SpawnPoints" unique_id=1148147767]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 6, 2, 6)
+metadata/def_id = "wood_block_dispenser"
+metadata/yaw_quarters = 2
+metadata/anchor = Vector3i(5, 2, 5)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_wood_block_dispenser_5" unique_id=97240418]
+cast_shadow = 0
+mesh = ExtResource("17_g0o0i")
+
+[node name="Furniture_growing_trough_6" type="Marker3D" parent="SpawnPoints" unique_id=1951757525]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 2, 3.5)
+metadata/def_id = "growing_trough"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(-9, 2, 3)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_growing_trough_6" unique_id=476559635]
+cast_shadow = 0
+mesh = SubResource("BoxMesh_trough")
+
+[node name="Furniture_growing_trough_7" type="Marker3D" parent="SpawnPoints" unique_id=1186342741]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 2, 5.5)
+metadata/def_id = "growing_trough"
+metadata/yaw_quarters = 0
+metadata/anchor = Vector3i(-9, 2, 5)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_growing_trough_7" unique_id=1521519572]
+cast_shadow = 0
+mesh = SubResource("BoxMesh_trough")
+
+[node name="Furniture_tree1_8" type="Marker3D" parent="SpawnPoints" unique_id=599254192]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -15.5, 0, -9.5)
 metadata/def_id = "tree1"
 metadata/yaw_quarters = 1
-metadata/anchor = Vector3i(-3, 0, -5)
+metadata/anchor = Vector3i(-16, 0, -10)
 
-[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_3" unique_id=295459463]
-material_override = SubResource("StandardMaterial3D_7k21i")
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_8" unique_id=732266512]
+material_override = SubResource("StandardMaterial3D_5rxjt")
 cast_shadow = 0
-mesh = ExtResource("8_i4gsa")
+mesh = ExtResource("18_g44bc")
 
-[node name="Furniture_tree1_4" type="Marker3D" parent="SpawnPoints" unique_id=407557614]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 1.5, 0, -5.5)
+[node name="Furniture_tree1_9" type="Marker3D" parent="SpawnPoints" unique_id=1266178743]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -9.5, 2, -17.5)
 metadata/def_id = "tree1"
 metadata/yaw_quarters = 1
-metadata/anchor = Vector3i(1, 0, -6)
+metadata/anchor = Vector3i(-10, 2, -18)
 
-[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_4" unique_id=603611845]
-material_override = SubResource("StandardMaterial3D_tefn5")
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_9" unique_id=1442820746]
+material_override = SubResource("StandardMaterial3D_chekn")
 cast_shadow = 0
-mesh = ExtResource("8_i4gsa")
+mesh = ExtResource("18_g44bc")
+
+[node name="Furniture_tree1_10" type="Marker3D" parent="SpawnPoints" unique_id=102021715]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 2.5, 3, -19.5)
+metadata/def_id = "tree1"
+metadata/yaw_quarters = 1
+metadata/anchor = Vector3i(2, 3, -20)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_10" unique_id=272132681]
+material_override = SubResource("StandardMaterial3D_71jgj")
+cast_shadow = 0
+mesh = ExtResource("18_g44bc")
+
+[node name="Furniture_tree1_11" type="Marker3D" parent="SpawnPoints" unique_id=972244764]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 13.5, 4, -12.5)
+metadata/def_id = "tree1"
+metadata/yaw_quarters = 1
+metadata/anchor = Vector3i(13, 4, -13)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_11" unique_id=1381503455]
+material_override = SubResource("StandardMaterial3D_l5d2n")
+cast_shadow = 0
+mesh = ExtResource("18_g44bc")
+
+[node name="Furniture_tree1_12" type="Marker3D" parent="SpawnPoints" unique_id=544125451]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 18.5, 3, 1.5)
+metadata/def_id = "tree1"
+metadata/yaw_quarters = 1
+metadata/anchor = Vector3i(18, 3, 1)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_12" unique_id=1635650055]
+material_override = SubResource("StandardMaterial3D_c0is1")
+cast_shadow = 0
+mesh = ExtResource("18_g44bc")
+
+[node name="Furniture_tree1_13" type="Marker3D" parent="SpawnPoints" unique_id=98266895]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 14.5, 4, 12.5)
+metadata/def_id = "tree1"
+metadata/yaw_quarters = 1
+metadata/anchor = Vector3i(14, 4, 12)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_13" unique_id=1636612843]
+material_override = SubResource("StandardMaterial3D_g1245")
+cast_shadow = 0
+mesh = ExtResource("18_g44bc")
+
+[node name="Furniture_tree1_14" type="Marker3D" parent="SpawnPoints" unique_id=773302196]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -13.5, 2, 7.5)
+metadata/def_id = "tree1"
+metadata/yaw_quarters = 1
+metadata/anchor = Vector3i(-14, 2, 7)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_14" unique_id=949718069]
+material_override = SubResource("StandardMaterial3D_kywnt")
+cast_shadow = 0
+mesh = ExtResource("18_g44bc")
+
+[node name="Furniture_tree1_15" type="Marker3D" parent="SpawnPoints" unique_id=195701689]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -6.5, 0, 14.5)
+metadata/def_id = "tree1"
+metadata/yaw_quarters = 1
+metadata/anchor = Vector3i(-7, 0, 14)
+
+[node name="PreviewMesh" type="MeshInstance3D" parent="SpawnPoints/Furniture_tree1_15" unique_id=510729571]
+material_override = SubResource("StandardMaterial3D_bewv8")
+cast_shadow = 0
+mesh = ExtResource("18_g44bc")
+
+[node name="ColonistSpawn_1" type="Marker3D" parent="SpawnPoints" unique_id=1009810519]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 2.061554, 5)
+
+[node name="ColonistSpawn_2" type="Marker3D" parent="SpawnPoints" unique_id=1046301207]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 2.1235352, 5)
+
+[node name="ColonistSpawn_3" type="Marker3D" parent="SpawnPoints" unique_id=1876070122]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 2.0153809, 8)

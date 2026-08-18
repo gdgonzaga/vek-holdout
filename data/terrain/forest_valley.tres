@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TerrainGenDef" format=3]
+
+[ext_resource type="Script" path="res://data/terrain/terrain_gen_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = "forest_valley"
+display_name = "Forest Valley"
+noise_seed = 1057
+noise_frequency = 0.01
+height_start = -6.0
+height_range = 16.0
+max_walk_slope_deg = 45.0

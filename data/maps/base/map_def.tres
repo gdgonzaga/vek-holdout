@@ -1,12 +1,13 @@
-[gd_resource type="Resource" script_class="MapDef" format=3 uid="uid://dwc623h3eqjqd"]
+[gd_resource type="Resource" script_class="MapDef" format=3]
 
-[ext_resource type="Script" uid="uid://du7misylvvk7b" path="res://data/maps/map_def.gd" id="1_hadky"]
-[ext_resource type="Resource" uid="uid://bdeepgr0und50" path="res://data/terrain/default_ground.tres" id="2_2lq4g"]
+[ext_resource type="Script" path="res://data/maps/map_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://data/terrain/forest_valley.tres" id="2_terrain"]
 
 [resource]
-script = ExtResource("1_hadky")
+script = ExtResource("1_def")
 id = "base"
-display_name = "Base"
-description = "Authored via voxel paint."
+display_name = "Forest Valley Homestead"
+description = "A sheltered hollow ringed by wooded hills — the colony's first foothold."
 scene_path = "res://data/maps/base/map.tscn"
-terrain_gen = ExtResource("2_2lq4g")
+player_spawn = Vector3(1.5, 2.1788635, 6)
+terrain_gen = ExtResource("2_terrain")

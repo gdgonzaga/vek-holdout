@@ -17,7 +17,7 @@ Vek Holdout — Godot 4.7 (Forward Plus, Jolt) voxel colony-survival game. GDScr
 - `data/` — all game content as text `.tres`, schema scripts co-located.
 - `assets/` — art only (provenance in `docs/art.md`). `addons/` — zylann.voxel, gdUnit4, voxel_paint.
 - `test/` — gdUnit4 suites. `testing/` — manual playtest scenes (editor-run). `tests/` and `debug/` are vestigial placeholders — don't write in either.
-- Generated/gitignored, never hand-edit or commit: `reports/`, `site/`, `tmp/`, `.zcode/`, `.godot/`, and `data/maps/<id>/map.tscn` (stamped by the voxel_paint plugin).
+- Generated/gitignored, never hand-edit or commit: `reports/`, `site/`, `tmp/`, `.zcode/`, `.godot/`. Authored map files (`data/maps/<id>/map.tscn`, `map_def.tres`, `map.sqlite`, `terrain.sqlite`) ARE committed content — regenerate them with the map editor or voxel_paint plugin instead of editing by hand.
 
 ## Hard rules
 
