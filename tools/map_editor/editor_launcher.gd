@@ -6,6 +6,11 @@ extends CanvasLayer
 
 signal map_selected(map_id: String)
 
+## Emitted when the user presses the delete button next to a map in the
+## existing-maps list. MapEditor shows a confirmation dialog before removing
+## the map directory.
+signal map_delete_requested(map_id: String)
+
 ## Create-request payload — a Dictionary (not a class) so a future blocky-image
 ## authoring key extends it without another signature change. Keys:
 ## `map_id: String`, `map_type: int`, `terrain_mode: int` (TerrainMode),
@@ -261,6 +266,14 @@ func setup(maps: Array[MapDef]) -> void:
 		btn.pressed.connect(func(): _on_map_selected(def.id))
 		row.add_child(btn)
 
+		var del_btn := Button.new()
+		del_btn.text = "✕"
+		del_btn.tooltip_text = "Delete this map"
+		del_btn.custom_minimum_size = Vector2(36, 0)
+		del_btn.add_theme_color_override("font_color", Color(0.9, 0.35, 0.35))
+		del_btn.pressed.connect(func(): _on_map_delete_requested(def.id))
+		row.add_child(del_btn)
+
 		_maps_container.add_child(row)
 
 
@@ -283,6 +296,10 @@ func setup_noise_defs(entries: Array[Dictionary], default_path: String) -> void:
 
 func _on_map_selected(map_id: String) -> void:
 	map_selected.emit(map_id)
+
+
+func _on_map_delete_requested(map_id: String) -> void:
+	map_delete_requested.emit(map_id)
 
 
 func _on_terrain_mode_selected(index: int) -> void:

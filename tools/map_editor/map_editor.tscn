@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://cxmapeditor001"]
+[gd_scene format=3 uid="uid://cpvos2d1o4vlg"]
 
-[ext_resource type="Script" path="res://tools/map_editor/map_editor.gd" id="1_editor"]
+[ext_resource type="Script" uid="uid://d0xg8uljbwpmj" path="res://tools/map_editor/map_editor.gd" id="1_editor"]
 
-[node name="MapEditor" type="Node3D"]
+[node name="MapEditor" type="Node3D" unique_id=1568844679]
 script = ExtResource("1_editor")

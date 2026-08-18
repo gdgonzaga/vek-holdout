@@ -1366,3 +1366,96 @@ func test_map_editor_terrain_drawer_edits_apply_and_reload() -> void:
 	assert_str(editor._hud._terrain_mode_label.text).contains("None")
 
 	await _dispose_test_editor(editor)
+
+
+# --- Map deletion (launcher button + confirmation dialog) -------------------
+
+
+## Each map row in the launcher gets a ✕ delete button that emits
+## map_delete_requested with the correct map id.
+func test_editor_launcher_delete_button_emits_signal() -> void:
+	var map_def := MapDef.new()
+	map_def.id = "test_del_button"
+	map_def.display_name = "Test Del Button"
+	map_def.map_type = MapDef.MapType.POI
+
+	var launcher: EditorLauncher = auto_free(EditorLauncherClass.new())
+	add_child(launcher)
+	var received: Array[String] = []
+	launcher.map_delete_requested.connect(func(id: String) -> void:
+		received.append(id)
+	)
+	launcher.setup([map_def])
+
+	var container: VBoxContainer = launcher._maps_container
+	var row: HBoxContainer = container.get_child(0) as HBoxContainer
+	assert_object(row).is_not_null()
+
+	var del_btn: Button = null
+	for child in row.get_children():
+		if child is Button and child.text == "✕":
+			del_btn = child as Button
+			break
+	assert_object(del_btn).is_not_null()
+	assert_str(del_btn.tooltip_text).is_equal("Delete this map")
+
+	del_btn.pressed.emit()
+	assert_array(received).contains_exactly(["test_del_button"])
+
+
+## _delete_map removes the map directory and all its files from disk.
+func test_map_editor_delete_map_removes_directory() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
+
+	var dir_path := "res://data/maps/%s/" % TEST_HEIGHTMAP_MAP
+	assert_bool(DirAccess.dir_exists_absolute(dir_path)).is_true()
+
+	var ok := editor._delete_map(TEST_HEIGHTMAP_MAP)
+	assert_bool(ok).is_true()
+	assert_bool(DirAccess.dir_exists_absolute(dir_path)).is_false()
+
+
+## Canceling the delete confirmation dialog leaves the map on disk.
+func test_map_editor_delete_confirmation_cancel_keeps_map() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
+
+	editor._request_delete_map(TEST_HEIGHTMAP_MAP)
+	assert_str(editor._pending_delete_map_id).is_equal(TEST_HEIGHTMAP_MAP)
+	assert_bool(editor._delete_dialog.visible).is_true()
+
+	editor._delete_dialog.hide()
+	assert_bool(DirAccess.dir_exists_absolute("res://data/maps/%s/" % TEST_HEIGHTMAP_MAP)).is_true()
+
+	editor._pending_delete_map_id = ""
+	await _dispose_test_editor(editor)
+
+
+## Confirming the delete dialog removes the map and refreshes the launcher
+## list (the deleted map no longer appears).
+func test_map_editor_delete_confirmation_confirm_removes_map() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
+
+	editor._request_delete_map(TEST_HEIGHTMAP_MAP)
+	editor._delete_dialog.confirmed.emit()
+
+	assert_bool(DirAccess.dir_exists_absolute("res://data/maps/%s/" % TEST_HEIGHTMAP_MAP)).is_false()
+	assert_str(editor._pending_delete_map_id).is_empty()
+
+	var maps: Array[MapDef] = editor._scan_maps()
+	var found := false
+	for m in maps:
+		if m.id == TEST_HEIGHTMAP_MAP:
+			found = true
+	assert_bool(found).is_false()
+
+	# No need to dispose — map already deleted
+	editor.unload_map()

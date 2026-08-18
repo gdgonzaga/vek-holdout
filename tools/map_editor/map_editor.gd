@@ -49,6 +49,8 @@ var _hud: EditorHUD = null
 var _launcher: EditorLauncher = null
 var _grid_overlay: MeshInstance3D = null
 var _exit_dialog: ConfirmationDialog = null
+var _delete_dialog: ConfirmationDialog = null
+var _pending_delete_map_id: String = ""
 var _drawer_file_dialog: FileDialog = null
 var _dirty: bool = false
 var _undo_stack: Array[Dictionary] = []
@@ -106,11 +108,13 @@ func _ready() -> void:
 	_launcher.new_map_requested.connect(func(payload: Dictionary) -> void:
 		create_new_map(payload)
 	)
+	_launcher.map_delete_requested.connect(_request_delete_map)
 	_launcher.setup(_scan_maps())
 	_launcher.setup_noise_defs(_scan_noise_defs(), DEFAULT_TERRAIN_GEN)
 	_launcher.show_launcher()
 
 	_setup_exit_dialog()
+	_setup_delete_dialog()
 
 
 func _build_grid_overlay() -> void:
@@ -175,6 +179,10 @@ func _input(event: InputEvent) -> void:
 
 	# If exit confirmation dialog is open, ignore camera/edit input
 	if _exit_dialog != null and _exit_dialog.visible:
+		return
+
+	# If delete confirmation dialog is open, ignore camera/edit input
+	if _delete_dialog != null and _delete_dialog.visible:
 		return
 
 	# If search input or metadata in HUD is focused, handle Esc/Enter/Tab and let typing pass through
@@ -497,6 +505,8 @@ func create_new_map(payload: Dictionary) -> String:
 func unload_map() -> void:
 	if _exit_dialog != null and _exit_dialog.visible:
 		_exit_dialog.hide()
+	if _delete_dialog != null and _delete_dialog.visible:
+		_delete_dialog.hide()
 
 	if _dirty:
 		push_warning("MapEditor: unloading with unsaved changes")
@@ -547,6 +557,73 @@ func _request_exit() -> void:
 
 func _on_exit_confirmed() -> void:
 	unload_map()
+
+
+func _setup_delete_dialog() -> void:
+	_delete_dialog = ConfirmationDialog.new()
+	_delete_dialog.name = "DeleteMapConfirmationDialog"
+	_delete_dialog.title = "Delete Map"
+	_delete_dialog.ok_button_text = "Delete"
+	_delete_dialog.cancel_button_text = "Cancel"
+	_delete_dialog.confirmed.connect(_on_delete_confirmed)
+	_delete_dialog.canceled.connect(_on_delete_canceled)
+	add_child(_delete_dialog)
+
+
+func _on_delete_canceled() -> void:
+	_pending_delete_map_id = ""
+
+
+func _request_delete_map(map_id: String) -> void:
+	_pending_delete_map_id = map_id
+	_delete_dialog.dialog_text = "Permanently delete map '%s'?\nThis action cannot be undone." % map_id
+	_delete_dialog.popup_centered()
+
+
+func _on_delete_confirmed() -> void:
+	var map_id := _pending_delete_map_id
+	_pending_delete_map_id = ""
+	if map_id.is_empty():
+		return
+	if _map_def != null and _map_def.id == map_id:
+		unload_map()
+	_delete_map(map_id)
+	if _launcher != null:
+		_launcher.setup(_scan_maps())
+
+
+## Remove the map directory and all its contents from disk. Returns false
+## (with push_error) if the directory could not be found or cleaned up.
+func _delete_map(map_id: String) -> bool:
+	var dir_path := MAPS_DIR + map_id + "/"
+	if not DirAccess.dir_exists_absolute(dir_path):
+		push_error("MapEditor: cannot delete map '%s' — directory not found" % map_id)
+		return false
+	return _remove_dir_recursive(dir_path)
+
+
+func _remove_dir_recursive(dir_path: String) -> bool:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		push_error("MapEditor: failed to open directory '%s'" % dir_path)
+		return false
+	dir.list_dir_begin()
+	var entry := dir.get_next()
+	while not entry.is_empty():
+		var full_path := dir_path.path_join(entry)
+		if dir.current_is_dir():
+			if not _remove_dir_recursive(full_path):
+				return false
+		else:
+			if DirAccess.remove_absolute(full_path) != OK:
+				push_error("MapEditor: failed to remove file '%s'" % full_path)
+				return false
+		entry = dir.get_next()
+	dir.list_dir_end()
+	if DirAccess.remove_absolute(dir_path.trim_suffix("/")) != OK:
+		push_error("MapEditor: failed to remove map directory '%s'" % dir_path)
+		return false
+	return true
 
 
 func _scan_maps() -> Array[MapDef]:
