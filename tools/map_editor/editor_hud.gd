@@ -29,6 +29,7 @@ var _coord_label: Label
 
 var _block_palette: EditorPalettePanel
 var _brush_label: Label
+var _orientation_label: Label
 var _block_info_panel: PanelContainer # Alias for backward compatibility
 var _block_label: Label             # Alias for backward compatibility
 
@@ -130,6 +131,14 @@ func _build_ui() -> void:
 	_brush_label.add_theme_font_size_override("font_size", 11)
 	_brush_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	block_footer.add_child(_brush_label)
+
+	_orientation_label = Label.new()
+	_orientation_label.name = "OrientationLabel"
+	_orientation_label.unique_name_in_owner = true
+	_orientation_label.text = "Rot: #0 [Yaw 0°, Pitch 0°]"
+	_orientation_label.add_theme_font_size_override("font_size", 11)
+	_orientation_label.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
+	block_footer.add_child(_orientation_label)
 
 	# Backward-compatible references
 	_block_info_panel = _block_palette
@@ -846,7 +855,16 @@ func is_any_input_focused() -> bool:
 
 # --- Information display helpers ---
 
-func set_block_info(block_name: String, diameter: int, id_str: String = "", voxel_idx: int = -1) -> void:
+func set_rotation_info(rot_index: int) -> void:
+	if _orientation_label != null:
+		var b := VoxelBlockEncoder.rot_index_to_basis(rot_index)
+		var euler := b.get_euler()
+		var yaw_deg := roundi(rad_to_deg(euler.y))
+		var pitch_deg := roundi(rad_to_deg(euler.x))
+		_orientation_label.text = "Rot: #%d [Yaw %d°, Pitch %d°]" % [rot_index, yaw_deg, pitch_deg]
+
+
+func set_block_info(block_name: String, diameter: int, id_str: String = "", voxel_idx: int = -1, rot_idx: int = 0) -> void:
 	if _block_palette != null:
 		var display_id := id_str
 		if voxel_idx > 0:
@@ -854,6 +872,7 @@ func set_block_info(block_name: String, diameter: int, id_str: String = "", voxe
 		_block_palette.set_selected_info(block_name, display_id)
 	if _brush_label != null:
 		_brush_label.text = "Brush: %dx%dx%d [B+Scroll]" % [diameter, diameter, diameter]
+	set_rotation_info(rot_idx)
 
 
 func set_sculpt_info(radius: float) -> void:

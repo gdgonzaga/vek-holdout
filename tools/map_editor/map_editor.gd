@@ -59,6 +59,7 @@ var _blocky_grid: BlockyGrid = null
 var _block_vt: VoxelTool = null
 var _block_library: BlockLibrary = null
 var _selected_block_index: int = 6 # Default 6 = wood
+var _active_rotation_index: int = 0
 var _brush_diameter: int = 1 # Brush edge length in blocks (B+scroll)
 
 var _smooth_grid: SmoothGrid = null
@@ -210,6 +211,12 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.pressed:
+			if mb.button_index == MOUSE_BUTTON_MIDDLE or (mb.button_index == MOUSE_BUTTON_LEFT and mb.alt_pressed):
+				if _mode == Mode.BLOCK:
+					var hit := _raycast_from_camera()
+					_do_block_pick(hit)
+					get_viewport().set_input_as_handled()
+					return
 			if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
 				if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 					var hovered := get_viewport().gui_get_hovered_control()
@@ -307,8 +314,24 @@ func _input(event: InputEvent) -> void:
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(dir)
 					get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_R and _mode == Mode.FURNITURE:
-				_do_furniture_rotate()
+			elif k.keycode == KEY_R:
+				if _mode == Mode.BLOCK:
+					if k.shift_pressed:
+						_rotate_block_brush(Vector3.RIGHT)
+					elif k.ctrl_pressed or k.command_pressed:
+						_rotate_block_brush(Vector3.FORWARD)
+					else:
+						_rotate_block_brush(Vector3.UP)
+					get_viewport().set_input_as_handled()
+				elif _mode == Mode.FURNITURE:
+					_do_furniture_rotate()
+			elif (k.keycode == KEY_QUOTELEFT or k.keycode == KEY_SECTION or k.keycode == KEY_ASCIITILDE or (k.keycode == KEY_Z and not k.ctrl_pressed)) and _mode == Mode.BLOCK:
+				_reset_block_rotation()
+				get_viewport().set_input_as_handled()
+			elif k.keycode == KEY_I and _mode == Mode.BLOCK:
+				var hit := _raycast_from_camera()
+				_do_block_pick(hit)
+				get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_S and k.ctrl_pressed:
 				save_map()
 				get_viewport().set_input_as_handled()
@@ -975,8 +998,8 @@ func _update_ghost(hit: Dictionary) -> void:
 		_ghost.mesh = _box_mesh
 		var bounds := _brush_box(cell)
 		_ghost.global_position = _box_center(bounds)
-		_ghost.scale = Vector3(_brush_diameter, _brush_diameter, _brush_diameter)
-		_ghost.global_rotation = Vector3.ZERO
+		var rot_basis := VoxelBlockEncoder.rot_index_to_basis(_active_rotation_index)
+		_ghost.transform.basis = rot_basis.scaled(Vector3(_brush_diameter, _brush_diameter, _brush_diameter))
 		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.2, 0.8, 0.2, 0.5)
 		_ghost.visible = true
 
@@ -1134,7 +1157,8 @@ func _do_block_paint(hit: Dictionary) -> void:
 				ops.append({"pos": p, "old_value": _block_vt.get_voxel(p)})
 	_push_undo({"type": "block", "ops": ops})
 
-	_apply_block_brush(cell, _selected_block_index)
+	var raw_val := VoxelBlockEncoder.encode(_selected_block_index, _active_rotation_index)
+	_apply_block_brush(cell, raw_val)
 
 
 func _do_block_erase(hit: Dictionary) -> void:
@@ -1409,7 +1433,7 @@ func _update_hud_info() -> void:
 		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
 		var block_name := def.display_name if def != null and not def.display_name.is_empty() else (def.id if def != null else "Unknown")
 		var block_id := def.id if def != null else ""
-		_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index)
+		_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index, _active_rotation_index)
 	_hud.set_terrain_info(_terrain_material_id, _sculpt_radius)
 	if not _furniture_defs.is_empty() and _selected_furniture_idx >= 0 and _selected_furniture_idx < _furniture_defs.size():
 		var fdef: FurnitureDef = _furniture_defs[_selected_furniture_idx]
@@ -1458,3 +1482,36 @@ func save_map() -> void:
 		_dirty = false
 		if _hud != null and _map_def != null:
 			_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _rotate_block_brush(axis: Vector3) -> void:
+	_active_rotation_index = VoxelBlockEncoder.rotate_around_axis(_active_rotation_index, axis, PI / 2.0)
+	if _block_library != null:
+		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
+		if def != null and def.is_rotatable():
+			_active_rotation_index = def.sanitize_rotation(_active_rotation_index)
+	_update_hud_info()
+	var hit := _raycast_from_camera()
+	_update_ghost(hit)
+
+
+func _reset_block_rotation() -> void:
+	_active_rotation_index = 0
+	_update_hud_info()
+	var hit := _raycast_from_camera()
+	_update_ghost(hit)
+
+
+func _do_block_pick(hit: Dictionary) -> void:
+	if _map_root == null or _blocky_grid == null or not hit.get("hit", false):
+		return
+	var hovered_pos: Vector3i = hit.get("position", Vector3i.ZERO)
+	var raw: int = _blocky_grid.get_raw_voxel(hovered_pos)
+	if raw <= 0:
+		return
+	_selected_block_index = VoxelBlockEncoder.decode_type(raw)
+	_active_rotation_index = VoxelBlockEncoder.decode_rotation(raw)
+	if _hud != null:
+		_hud.select_block_by_index(_selected_block_index)
+	_update_hud_info()
+	_update_ghost(hit)

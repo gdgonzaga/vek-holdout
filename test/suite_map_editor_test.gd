@@ -1459,3 +1459,65 @@ func test_map_editor_delete_confirmation_confirm_removes_map() -> void:
 
 	# No need to dispose — map already deleted
 	editor.unload_map()
+
+
+func test_editor_hud_rotation_indicator() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	hud.set_rotation_info(0)
+	var orientation_lbl: Label = hud.find_child("OrientationLabel", true, false)
+	assert_object(orientation_lbl).is_not_null()
+	assert_str(orientation_lbl.text).contains("Rot: #0")
+
+	hud.set_rotation_info(5)
+	assert_str(orientation_lbl.text).contains("Rot: #5")
+
+
+func test_map_editor_rotation_hotkeys_and_reset() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor._selected_block_index = 1
+
+	# Default rotation is 0
+	assert_int(editor._active_rotation_index).is_equal(0)
+
+	# Cycle Yaw (UP)
+	editor._rotate_block_brush(Vector3.UP)
+	assert_int(editor._active_rotation_index).is_not_equal(0)
+	var yaw_rot := editor._active_rotation_index
+
+	# Cycle Pitch (RIGHT)
+	editor._rotate_block_brush(Vector3.RIGHT)
+	assert_int(editor._active_rotation_index).is_not_equal(yaw_rot)
+
+	# Reset rotation
+	editor._reset_block_rotation()
+	assert_int(editor._active_rotation_index).is_equal(0)
+
+	await _dispose_test_editor(editor)
+
+
+func test_map_editor_eyedropper_decodes_block_and_rotation() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
+
+	var target_pos := Vector3i(10, 5, 10)
+	var raw_val := VoxelBlockEncoder.encode(4, 7)
+	await editor._apply_block_brush(target_pos, raw_val)
+
+	var hit := {
+		"hit": true,
+		"position": target_pos,
+		"normal": Vector3i.UP,
+		"surface": "blocky"
+	}
+
+	editor._do_block_pick(hit)
+
+	assert_int(editor._selected_block_index).is_equal(4)
+	assert_int(editor._active_rotation_index).is_equal(7)
+
+	await _dispose_test_editor(editor)
