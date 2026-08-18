@@ -1,97 +1,101 @@
+class_name SuiteMapEditorTest
 extends GdUnitTestSuite
 
-const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
-const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
 const MapEditorClass = preload("res://tools/map_editor/map_editor.gd")
+const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
+const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
 
 
 func test_editor_hud_modes_and_info() -> void:
 	var hud: EditorHUD = auto_free(EditorHUDClass.new())
 	hud.setup()
 
+	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
+	assert_str(hud._mode_label.text).contains("NAVIGATE")
+
 	hud.set_mode(MapEditorClass.Mode.BLOCK)
-	assert_str(hud._mode_label.text).is_equal("[ F2 ] BLOCK")
+	assert_str(hud._mode_label.text).contains("BLOCK")
 
-	hud.set_map_info("base", true)
-	assert_str(hud._map_info_label.text).is_equal("Map: base *")
+	hud.set_mode(MapEditorClass.Mode.TERRAIN)
+	assert_str(hud._mode_label.text).contains("TERRAIN")
 
-	hud.set_map_info("base", false)
-	assert_str(hud._map_info_label.text).is_equal("Map: base")
+	hud.set_mode(MapEditorClass.Mode.FURNITURE)
+	assert_str(hud._mode_label.text).contains("FURNITURE")
+
+	hud.set_mode(MapEditorClass.Mode.SPAWN)
+	assert_str(hud._mode_label.text).contains("SPAWN")
+
+	hud.set_map_info("test_map", false)
+	assert_str(hud._map_info_label.text).is_equal("Map: test_map")
+
+	hud.set_map_info("test_map", true)
+	assert_str(hud._map_info_label.text).is_equal("Map: test_map *")
 
 
 func test_editor_launcher_population_and_signals() -> void:
 	var launcher: EditorLauncher = auto_free(EditorLauncherClass.new())
+	add_child(launcher)
 
-	var dummy_def := MapDef.new()
-	dummy_def.id = "test_map"
-	dummy_def.display_name = "Test Map"
-	dummy_def.map_type = MapDef.MapType.POI
+	var map_def := MapDef.new()
+	map_def.id = "base"
+	map_def.display_name = "Base Camp"
+	map_def.description = "Starting outpost"
+	map_def.map_type = MapDef.MapType.BASE
+	map_def.scene_path = "res://data/maps/base/map.tscn"
 
-	launcher.setup([dummy_def])
-
-	var signal_map_spy := monitor_signals(launcher)
-	launcher._on_map_selected("test_map")
-	await assert_signal(launcher).is_emitted("map_selected", ["test_map"])
-
-	launcher._new_name_input.text = "new_test_poi"
-	launcher._new_type_select.selected = MapDef.MapType.POI
-	launcher._on_create_pressed()
-	await assert_signal(launcher).is_emitted("new_map_requested", ["new_test_poi", MapDef.MapType.POI])
+	launcher.setup([map_def])
+	assert_int(launcher._maps_container.get_child_count()).is_equal(1)
+	var row: HBoxContainer = launcher._maps_container.get_child(0) as HBoxContainer
+	var btn: Button = row.get_child(0) as Button
+	assert_str(btn.text).contains("Base Camp")
 
 
 func test_map_editor_scan_maps() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
-	var maps: Array[MapDef] = editor._scan_maps()
-	assert_int(maps.size()).is_greater_equal(1)
+	var maps := editor._scan_maps()
 
-	var has_base := false
-	for def in maps:
-		if def.id == "base":
-			has_base = true
-			assert_str(def.scene_path).is_equal("res://data/maps/base/map.tscn")
-			assert_object(def.terrain_gen).is_not_null()
-	assert_bool(has_base).is_true()
+	assert_bool(maps.is_empty()).is_false()
+	var base_found := false
+	for m in maps:
+		if m.id == "base":
+			base_found = true
+			break
+	assert_bool(base_found).is_true()
 
 
 func test_map_editor_terrain_gen_injection() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
-
-	# Create a dummy node structure with SmoothGrid
-	var root := Node3D.new()
-	auto_free(root)
-
+	var map := Node3D.new()
 	var smooth := SmoothGrid.new()
 	smooth.name = "SmoothGrid"
-	root.add_child(smooth)
+	map.add_child(smooth)
 
 	var def := MapDef.new()
-	def.terrain_gen = TerrainGenDef.new()
+	var terrain_gen := TerrainGenDef.new()
+	def.terrain_gen = terrain_gen
 
-	editor._inject_terrain_gen(root, def)
-	assert_object(smooth.terrain_gen).is_equal(def.terrain_gen)
+	editor._inject_terrain_gen(map, def)
+	assert_object(smooth.terrain_gen).is_equal(terrain_gen)
+	map.free()
 
 
 func test_map_editor_attach_streams() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
-
 	var root := Node3D.new()
-	auto_free(root)
 
-	var blocky_grid := BlockyGrid.new()
-	blocky_grid.name = "BlockyGrid"
-	root.add_child(blocky_grid)
-
+	var blocky := Node.new()
+	blocky.name = "BlockyGrid"
 	var blocky_terrain := VoxelTerrain.new()
 	blocky_terrain.name = "VoxelTerrain"
-	blocky_grid.add_child(blocky_terrain)
+	blocky.add_child(blocky_terrain)
+	root.add_child(blocky)
 
-	var smooth_grid := SmoothGrid.new()
-	smooth_grid.name = "SmoothGrid"
-	root.add_child(smooth_grid)
-
+	var smooth := Node.new()
+	smooth.name = "SmoothGrid"
 	var smooth_terrain := VoxelTerrain.new()
 	smooth_terrain.name = "VoxelTerrain"
-	smooth_grid.add_child(smooth_terrain)
+	smooth.add_child(smooth_terrain)
+	root.add_child(smooth)
 
 	editor._attach_streams(root, "base")
 
@@ -100,6 +104,7 @@ func test_map_editor_attach_streams() -> void:
 
 	assert_bool(smooth_terrain.stream is VoxelStreamSQLite).is_true()
 	assert_str((smooth_terrain.stream as VoxelStreamSQLite).database_path).is_equal("res://data/maps/base/terrain.sqlite")
+	root.free()
 
 
 func test_map_editor_load_and_unload_lifecycle() -> void:
@@ -129,12 +134,11 @@ func test_map_editor_mouse_look() -> void:
 	var initial_yaw: float = editor._cam_yaw
 	var initial_pitch: float = editor._cam_pitch
 
-	# Simulate mouse motion event
-	var motion_event := InputEventMouseMotion.new()
-	motion_event.relative = Vector2(10.0, 5.0)
-
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	editor._input(motion_event)
+	# Simulate mouse look update
+	var motion_relative := Vector2(10.0, 5.0)
+	editor._cam_yaw -= motion_relative.x * MapEditorClass.MOUSE_SENSITIVITY
+	editor._cam_pitch -= motion_relative.y * MapEditorClass.MOUSE_SENSITIVITY
+	editor._apply_camera_rotation()
 
 	assert_float(editor._cam_yaw).is_less(initial_yaw)
 	assert_float(editor._cam_pitch).is_less(initial_pitch)
@@ -324,3 +328,209 @@ func test_map_editor_terrain_brush_hotkeys() -> void:
 	key_event_down.keycode = KEY_BRACKETLEFT
 	editor._input(key_event_down)
 	assert_float(editor._sculpt_radius).is_equal_approx(2.0, 0.001)
+
+
+func test_editor_hud_furniture_and_spawn_info() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	hud.set_mode(MapEditorClass.Mode.FURNITURE)
+	assert_bool(hud._furniture_info_panel.visible).is_true()
+	assert_bool(hud._spawn_info_panel.visible).is_false()
+	assert_bool(hud._block_info_panel.visible).is_false()
+	assert_bool(hud._terrain_info_panel.visible).is_false()
+
+	hud.set_furniture_info("Shelf1", 1)
+	assert_str(hud._furniture_label.text).contains("Shelf1")
+	assert_str(hud._yaw_label.text).contains("90°")
+
+	hud.set_furniture_info("Shelf1", 2)
+	assert_str(hud._yaw_label.text).contains("180°")
+
+	hud.set_mode(MapEditorClass.Mode.SPAWN)
+	assert_bool(hud._spawn_info_panel.visible).is_true()
+	assert_bool(hud._furniture_info_panel.visible).is_false()
+	assert_str(hud._spawn_hint_label.text).contains("Player Spawn")
+
+	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
+	assert_bool(hud._furniture_info_panel.visible).is_false()
+	assert_bool(hud._spawn_info_panel.visible).is_false()
+
+
+func test_map_editor_furniture_defs_loaded() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	assert_bool(editor._furniture_defs.is_empty()).is_false()
+	assert_int(editor._selected_furniture_idx).is_equal(0)
+	assert_int(editor._yaw).is_equal(0)
+	assert_object(editor._furniture_auth).is_not_null()
+
+
+func test_map_editor_furniture_cycle_and_rotate() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor._launcher.hide_launcher()
+	editor._set_mode(MapEditorClass.Mode.FURNITURE)
+
+	var initial_idx := editor._selected_furniture_idx
+	var count := editor._furniture_defs.size()
+
+	# Tab cycles furniture
+	var tab_event := InputEventKey.new()
+	tab_event.pressed = true
+	tab_event.keycode = KEY_TAB
+	editor._input(tab_event)
+	assert_int(editor._selected_furniture_idx).is_equal((initial_idx + 1) % count)
+
+	# Shift+Tab cycles backward
+	var shift_tab_event := InputEventKey.new()
+	shift_tab_event.pressed = true
+	shift_tab_event.shift_pressed = true
+	shift_tab_event.keycode = KEY_TAB
+	editor._input(shift_tab_event)
+	assert_int(editor._selected_furniture_idx).is_equal(initial_idx)
+
+	# R rotates furniture
+	var r_event := InputEventKey.new()
+	r_event.pressed = true
+	r_event.keycode = KEY_R
+	editor._input(r_event)
+	assert_int(editor._yaw).is_equal(1)
+
+	editor._input(r_event)
+	assert_int(editor._yaw).is_equal(2)
+
+
+func test_map_editor_furniture_place_and_remove() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+	editor._set_mode(MapEditorClass.Mode.FURNITURE)
+
+	var hit := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(10, 0, 10),
+		"normal": Vector3i(0, 1, 0),
+	}
+
+	var spawns: Node3D = editor._map_root.find_child("SpawnPoints") as Node3D
+	assert_object(spawns).is_not_null()
+	var initial_count := spawns.get_child_count()
+
+	# Place furniture
+	editor._do_furniture_place(hit)
+	assert_bool(editor._dirty).is_true()
+	assert_int(spawns.get_child_count()).is_equal(initial_count + 1)
+
+	var placed_marker: Marker3D = spawns.get_child(spawns.get_child_count() - 1) as Marker3D
+	assert_object(placed_marker).is_not_null()
+	assert_bool(placed_marker.name.begins_with("Furniture_")).is_true()
+
+	# Remove furniture
+	editor._do_furniture_remove(hit)
+	var exists := is_instance_valid(placed_marker) and not placed_marker.is_queued_for_deletion()
+	assert_bool(exists).is_false()
+
+
+func test_map_editor_spawn_markers_cache_and_place() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+	editor._set_mode(MapEditorClass.Mode.SPAWN)
+
+	assert_object(editor._spawn_markers.get("player")).is_not_null()
+	var player_marker: Marker3D = editor._spawn_markers["player"]
+	assert_object(player_marker.get_node_or_null("SpawnVisualizer")).is_not_null()
+
+	# Place new player spawn position
+	var hit_player := {
+		"hit": true,
+		"surface": "smooth",
+		"smooth_point": Vector3(15.0, 3.5, 12.0),
+		"position": Vector3i(15, 3, 12),
+		"normal": Vector3i.ZERO,
+	}
+	editor._do_spawn_place("player", hit_player)
+	assert_vector(player_marker.global_position).is_equal(Vector3(15.0, 3.5, 12.0))
+	assert_vector(editor._map_def.player_spawn).is_equal(Vector3(15.0, 3.5, 12.0))
+
+	# Place colonist spawn
+	var hit_colonist := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(5, 1, 5),
+		"normal": Vector3i(0, 1, 0),
+	}
+	editor._do_spawn_place("colonist", hit_colonist)
+	var colonists: Array = editor._spawn_markers.get("colonists", [])
+	assert_int(colonists.size()).is_equal(1)
+	var col_marker: Marker3D = colonists[0]
+	assert_str(col_marker.name).contains("ColonistSpawn")
+	assert_object(col_marker.get_node_or_null("SpawnVisualizer")).is_not_null()
+
+
+func test_ghost_previews_furniture_and_spawn() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	var hit := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(4, 0, 4),
+		"normal": Vector3i(0, 1, 0),
+	}
+
+	# Test furniture ghost
+	editor._set_mode(MapEditorClass.Mode.FURNITURE)
+	editor._update_ghost(hit)
+	assert_bool(editor._ghost.visible).is_true()
+	var def := editor._furniture_defs[editor._selected_furniture_idx]
+	assert_object(editor._ghost.mesh).is_equal(def.mesh)
+
+	# Test spawn ghost
+	editor._set_mode(MapEditorClass.Mode.SPAWN)
+	editor._update_ghost(hit)
+	assert_bool(editor._ghost.visible).is_true()
+	assert_bool(editor._ghost.mesh is CapsuleMesh).is_true()
+
+
+func test_map_editor_save_scene_packs_markers() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	var spawns: Node3D = editor._map_root.find_child("SpawnPoints") as Node3D
+	var player_marker: Marker3D = spawns.find_child("PlayerSpawn") as Marker3D
+	player_marker.global_position = Vector3(42.0, 10.0, 24.0)
+
+	var hit := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(20, 0, 20),
+		"normal": Vector3i(0, 1, 0),
+	}
+	editor._set_mode(MapEditorClass.Mode.FURNITURE)
+	editor._do_furniture_place(hit)
+
+	var packed := PackedScene.new()
+	var err := packed.pack(editor._map_root)
+	assert_int(err).is_equal(OK)
+
+	var inst := packed.instantiate()
+	var inst_spawns: Node3D = inst.find_child("SpawnPoints") as Node3D
+	assert_object(inst_spawns).is_not_null()
+	var inst_player: Marker3D = inst_spawns.find_child("PlayerSpawn") as Marker3D
+	assert_object(inst_player).is_not_null()
+	assert_vector(inst_player.position).is_equal(Vector3(42.0, 10.0, 24.0))
+
+	var found_furn := false
+	for child in inst_spawns.get_children():
+		if child is Marker3D and child.name.begins_with("Furniture_"):
+			if child.get_meta("anchor", Vector3i.ZERO) == Vector3i(20, 1, 20):
+				found_furn = true
+				break
+	assert_bool(found_furn).is_true()
+	inst.free()

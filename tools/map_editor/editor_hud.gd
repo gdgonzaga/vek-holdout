@@ -3,7 +3,8 @@ extends CanvasLayer
 ## In-game overlay for MapEditor.
 ##
 ## Displays mode indicator badge, hotkey strip, active block/brush info,
-## terrain sculpting info, map name and dirty indicator.
+## terrain sculpting info, furniture placement info, spawn hint info,
+## map name and dirty indicator.
 ##
 ## Owned by MapEditor. Built procedurally in code.
 
@@ -21,6 +22,13 @@ var _terrain_info_panel: PanelContainer
 var _terrain_material_label: Label
 var _terrain_radius_label: Label
 var _terrain_warning_label: Label
+
+var _furniture_info_panel: PanelContainer
+var _furniture_label: Label
+var _yaw_label: Label
+
+var _spawn_info_panel: PanelContainer
+var _spawn_hint_label: Label
 
 const MODE_NAMES: Array[String] = [
 	"NAVIGATE",
@@ -136,6 +144,75 @@ func _build_ui() -> void:
 	terrain_vbox.add_child(_terrain_warning_label)
 
 	root.add_child(_terrain_info_panel)
+
+	# --- Furniture Info (Top Left) ---
+	_furniture_info_panel = PanelContainer.new()
+	_furniture_info_panel.name = "FurnitureInfoPanel"
+	_furniture_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_furniture_info_panel.offset_left = 16.0
+	_furniture_info_panel.offset_top = 16.0
+	_furniture_info_panel.offset_right = 260.0
+	_furniture_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_furniture_info_panel.visible = false
+
+	var furn_style := StyleBoxFlat.new()
+	furn_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
+	furn_style.border_color = Color(0.35, 0.2, 0.4, 0.8)
+	furn_style.set_border_width_all(1)
+	furn_style.set_corner_radius_all(4)
+	furn_style.set_content_margin_all(8)
+	_furniture_info_panel.add_theme_stylebox_override("panel", furn_style)
+
+	var furn_vbox := VBoxContainer.new()
+	furn_vbox.name = "FurnitureInfoVBox"
+	_furniture_info_panel.add_child(furn_vbox)
+
+	_furniture_label = Label.new()
+	_furniture_label.name = "FurnitureLabel"
+	_furniture_label.text = "Furniture: None"
+	_furniture_label.add_theme_font_size_override("font_size", 13)
+	_furniture_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	furn_vbox.add_child(_furniture_label)
+
+	_yaw_label = Label.new()
+	_yaw_label.name = "YawLabel"
+	_yaw_label.text = "Rotation: 0°"
+	_yaw_label.add_theme_font_size_override("font_size", 13)
+	_yaw_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	furn_vbox.add_child(_yaw_label)
+
+	root.add_child(_furniture_info_panel)
+
+	# --- Spawn Info (Top Left) ---
+	_spawn_info_panel = PanelContainer.new()
+	_spawn_info_panel.name = "SpawnInfoPanel"
+	_spawn_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_spawn_info_panel.offset_left = 16.0
+	_spawn_info_panel.offset_top = 16.0
+	_spawn_info_panel.offset_right = 280.0
+	_spawn_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_spawn_info_panel.visible = false
+
+	var spawn_style := StyleBoxFlat.new()
+	spawn_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
+	spawn_style.border_color = Color(0.4, 0.2, 0.2, 0.8)
+	spawn_style.set_border_width_all(1)
+	spawn_style.set_corner_radius_all(4)
+	spawn_style.set_content_margin_all(8)
+	_spawn_info_panel.add_theme_stylebox_override("panel", spawn_style)
+
+	var spawn_vbox := VBoxContainer.new()
+	spawn_vbox.name = "SpawnInfoVBox"
+	_spawn_info_panel.add_child(spawn_vbox)
+
+	_spawn_hint_label = Label.new()
+	_spawn_hint_label.name = "SpawnHintLabel"
+	_spawn_hint_label.text = "LMB: Player Spawn\nShift+LMB: Colonist Spawn"
+	_spawn_hint_label.add_theme_font_size_override("font_size", 13)
+	_spawn_hint_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	spawn_vbox.add_child(_spawn_hint_label)
+
+	root.add_child(_spawn_info_panel)
 
 	# --- Mode Badge (Top Center) ---
 	_mode_badge = PanelContainer.new()
@@ -263,6 +340,14 @@ func set_terrain_info(material_name: String, radius: float) -> void:
 	set_sculpt_info(radius)
 
 
+func set_furniture_info(name: String, yaw_quarters: int) -> void:
+	if _furniture_label != null:
+		_furniture_label.text = "Furniture: " + name
+	if _yaw_label != null:
+		var deg := (yaw_quarters % 4) * 90
+		_yaw_label.text = "Rotation: %d°" % deg
+
+
 func set_terrain_available(available: bool) -> void:
 	if _terrain_warning_label != null:
 		_terrain_warning_label.visible = not available
@@ -279,6 +364,10 @@ func set_mode(mode: int) -> void:
 		_block_info_panel.visible = (mode == 1) # Mode.BLOCK
 	if _terrain_info_panel != null:
 		_terrain_info_panel.visible = (mode == 2) # Mode.TERRAIN
+	if _furniture_info_panel != null:
+		_furniture_info_panel.visible = (mode == 3) # Mode.FURNITURE
+	if _spawn_info_panel != null:
+		_spawn_info_panel.visible = (mode == 4) # Mode.SPAWN
 
 	# Color the mode badge
 	var badge_style := _mode_badge.get_theme_stylebox("panel") as StyleBoxFlat

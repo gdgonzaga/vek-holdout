@@ -3,11 +3,12 @@ extends Node3D
 ## Standalone WYSIWYG dual-voxel map authoring environment.
 ##
 ## Loads both blocky structures and smooth Transvoxel terrain at runtime,
-## providing fly-camera navigation, WYSIWYG visual verification, and
-## map creation/loading lifecycle.
+## providing fly-camera navigation, WYSIWYG visual verification, block/terrain
+## sculpting, furniture authoring, spawn point management, and map lifecycle.
 
 const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
 const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
+const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_authoring.gd")
 
 const MAPS_DIR: String = "res://data/maps/"
 const TEMPLATE_PATH: String = "res://subsystems/maps/map_template.tscn"
@@ -53,10 +54,17 @@ var _smooth_vt: VoxelTool = null
 var _sculpt_radius: float = 2.0
 var _terrain_material_id: String = "ground"
 
+var _furniture_auth: FurnitureAuthoring = null
+var _furniture_defs: Array[FurnitureDef] = []
+var _selected_furniture_idx: int = 0
+var _yaw: int = 0 # Quarter turns (0..3)
+var _spawn_markers: Dictionary = {"player": null, "colonists": []}
+
 var _ghost: MeshInstance3D = null
 var _ghost_mat: StandardMaterial3D = null
 var _box_mesh: BoxMesh = null
 var _sphere_mesh: SphereMesh = null
+var _capsule_mesh: CapsuleMesh = null
 
 var _cam_yaw: float = 0.0
 var _cam_pitch: float = -30.0
@@ -67,6 +75,8 @@ func _ready() -> void:
 	_build_camera()
 	_build_ghost()
 	_block_library = BlockLibrary.new()
+	_furniture_defs = _load_furniture_defs()
+	_furniture_auth = FurnitureAuthoringClass.new()
 
 	_hud = EditorHUDClass.new()
 	add_child(_hud)
@@ -85,7 +95,7 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# If launcher is open, ignore camera input
+	# If launcher is open, ignore camera/edit input
 	if _launcher != null and _launcher.visible:
 		return
 
@@ -107,6 +117,18 @@ func _input(event: InputEvent) -> void:
 						_do_terrain_carve(hit)
 					else:
 						_do_terrain_add(hit)
+				elif _mode == Mode.FURNITURE and mb.button_index == MOUSE_BUTTON_LEFT:
+					var hit := _raycast_from_camera()
+					if mb.shift_pressed:
+						_do_furniture_remove(hit)
+					else:
+						_do_furniture_place(hit)
+				elif _mode == Mode.SPAWN and mb.button_index == MOUSE_BUTTON_LEFT:
+					var hit := _raycast_from_camera()
+					if mb.shift_pressed:
+						_do_spawn_place("colonist", hit)
+					else:
+						_do_spawn_place("player", hit)
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				if Input.is_key_pressed(KEY_B):
 					var dir := 1.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
@@ -141,12 +163,22 @@ func _input(event: InputEvent) -> void:
 				elif _mode == Mode.TERRAIN:
 					_sculpt_radius = clampf(_sculpt_radius - 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
 					_update_hud_info()
+				elif _mode == Mode.FURNITURE:
+					_cycle_furniture(-1)
 			elif k.keycode == KEY_BRACKETRIGHT:
 				if _mode == Mode.BLOCK:
 					_cycle_block(1)
 				elif _mode == Mode.TERRAIN:
 					_sculpt_radius = clampf(_sculpt_radius + 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
 					_update_hud_info()
+				elif _mode == Mode.FURNITURE:
+					_cycle_furniture(1)
+			elif k.keycode == KEY_TAB and _mode == Mode.FURNITURE:
+				var dir := -1 if k.shift_pressed else 1
+				_cycle_furniture(dir)
+				get_viewport().set_input_as_handled()
+			elif k.keycode == KEY_R and _mode == Mode.FURNITURE:
+				_do_furniture_rotate()
 			elif k.keycode == KEY_S and k.ctrl_pressed:
 				save_map()
 
@@ -175,6 +207,12 @@ func _process(delta: float) -> void:
 		_update_ghost(hit)
 	elif _mode == Mode.TERRAIN:
 		var hit := _raycast_terrain()
+		_update_ghost(hit)
+	elif _mode == Mode.FURNITURE:
+		var hit := _raycast_from_camera()
+		_update_ghost(hit)
+	elif _mode == Mode.SPAWN:
+		var hit := _raycast_from_camera()
 		_update_ghost(hit)
 	else:
 		if _ghost != null:
@@ -250,6 +288,9 @@ func load_map(map_id: String) -> void:
 		_terrain_material_id = "ground"
 
 	_attach_streams(_map_root, map_id)
+	if _furniture_auth != null:
+		_furniture_auth.bind(_map_root)
+	_cache_spawn_markers()
 	_position_camera_at_spawn()
 
 	if _hud != null:
@@ -297,6 +338,10 @@ func create_new_map(map_name: String, map_type: int = MapDef.MapType.POI) -> Str
 func unload_map() -> void:
 	if _dirty:
 		push_warning("MapEditor: unloading with unsaved changes")
+
+	if _furniture_auth != null:
+		_furniture_auth.unbind()
+	_spawn_markers = {"player": null, "colonists": []}
 
 	if _map_root != null:
 		_map_root.queue_free()
@@ -477,6 +522,10 @@ func _build_ghost() -> void:
 	_sphere_mesh.radius = 1.0
 	_sphere_mesh.height = 2.0
 
+	_capsule_mesh = CapsuleMesh.new()
+	_capsule_mesh.radius = 0.4
+	_capsule_mesh.height = 1.8
+
 	_ghost.mesh = _box_mesh
 	_ghost_mat = StandardMaterial3D.new()
 	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -490,6 +539,8 @@ func _build_ghost() -> void:
 ## Previews placement/carve target:
 ## Block mode: BoxMesh scaled to brush diameter at cell center.
 ## Terrain mode: SphereMesh scaled to sculpt radius at raycast surface point.
+## Furniture mode: Selected furniture's mesh preview rotated by _yaw.
+## Spawn mode: CapsuleMesh preview (green for player, blue for colonist).
 func _update_ghost(hit: Dictionary) -> void:
 	if _ghost == null:
 		return
@@ -508,6 +559,7 @@ func _update_ghost(hit: Dictionary) -> void:
 		var box_center := _box_center(bounds)
 		_ghost.global_position = box_center
 		_ghost.scale = Vector3(_brush_diameter, _brush_diameter, _brush_diameter)
+		_ghost.global_rotation = Vector3.ZERO
 		_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
 
 	elif _mode == Mode.TERRAIN:
@@ -519,7 +571,45 @@ func _update_ghost(hit: Dictionary) -> void:
 		_ghost.visible = true
 		_ghost.global_position = hit.get("point", Vector3.ZERO)
 		_ghost.scale = Vector3(_sculpt_radius, _sculpt_radius, _sculpt_radius)
+		_ghost.global_rotation = Vector3.ZERO
 		_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
+
+	elif _mode == Mode.FURNITURE:
+		if _furniture_defs.is_empty() or _selected_furniture_idx < 0 or _selected_furniture_idx >= _furniture_defs.size():
+			_ghost.visible = false
+			return
+		var def := _furniture_defs[_selected_furniture_idx]
+		if def == null or def.mesh == null or not hit.get("hit", false):
+			_ghost.visible = false
+			return
+		var anchor := _target_cell(hit, false)
+		if anchor == Vector3i.MIN:
+			_ghost.visible = false
+			return
+		_ghost.mesh = def.mesh
+		_ghost.scale = Vector3.ONE
+		var dims := FurnitureLayer.dimensions_of(def)
+		var origin := FurnitureLayer.world_origin(anchor, dims, _yaw)
+		_ghost.global_position = origin
+		_ghost.global_rotation = Vector3(0, deg_to_rad(_yaw * 90), 0)
+		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.4, 0.8, 1.0, 0.5)
+		_ghost.visible = true
+
+	elif _mode == Mode.SPAWN:
+		if not hit.get("hit", false):
+			_ghost.visible = false
+			return
+		_ghost.mesh = _capsule_mesh
+		_ghost.scale = Vector3.ONE
+		var is_colonist := Input.is_key_pressed(KEY_SHIFT)
+		var pos := _get_surface_hit_point(hit)
+		_ghost.global_position = pos + Vector3(0, 0.9, 0)
+		_ghost.global_rotation = Vector3.ZERO
+		_ghost_mat.albedo_color = Color(0.2, 0.5, 1.0, 0.5) if is_colonist else Color(0.2, 1.0, 0.2, 0.5)
+		_ghost.visible = true
+
+	else:
+		_ghost.visible = false
 
 
 func _raycast_from_camera() -> Dictionary:
@@ -551,8 +641,20 @@ func _raycast_terrain() -> Dictionary:
 	}
 
 
+## Derives the world-space surface hit point from a raycast hit dictionary.
+func _get_surface_hit_point(hit: Dictionary) -> Vector3:
+	if hit.has("smooth_point"):
+		return hit["smooth_point"]
+	var pos: Vector3i = hit.get("position", Vector3i.ZERO)
+	var normal: Vector3i = hit.get("normal", Vector3i.ZERO)
+	var center := Vector3(pos) + Vector3(0.5, 0.5, 0.5)
+	if normal == Vector3i.UP:
+		return Vector3(center.x, float(pos.y + 1), center.z)
+	return center + Vector3(normal) * 0.5
+
+
 ## Cell a crosshair stroke would write, or Vector3i.MIN when the hit has no
-## valid target. Used for blocky mode.
+## valid target. Used for blocky and furniture modes.
 func _target_cell(hit: Dictionary, erase: bool) -> Vector3i:
 	var surface: String = hit.get("surface", "")
 	var pos: Vector3i = hit.get("position", Vector3i.ZERO)
@@ -643,6 +745,172 @@ func _do_terrain_carve(hit: Dictionary) -> void:
 		_hud.set_map_info(_map_def.id, _dirty)
 
 
+func _do_furniture_place(hit: Dictionary) -> void:
+	if _map_root == null or _furniture_auth == null or not hit.get("hit", false):
+		return
+	var cell := _target_cell(hit, false)
+	if cell == Vector3i.MIN:
+		return
+	if _furniture_defs.is_empty() or _selected_furniture_idx < 0 or _selected_furniture_idx >= _furniture_defs.size():
+		return
+	var def := _furniture_defs[_selected_furniture_idx]
+	if def == null:
+		return
+	var marker := _furniture_auth.place(def, cell, _yaw)
+	if marker != null:
+		_dirty = true
+		if _hud != null and _map_def != null:
+			_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _do_furniture_remove(hit: Dictionary) -> void:
+	if _map_root == null or _furniture_auth == null or not hit.get("hit", false):
+		return
+	var cell := _target_cell(hit, false)
+	var removed := false
+	if cell != Vector3i.MIN:
+		removed = _furniture_auth.remove_at(cell)
+	if not removed:
+		var solid_cell := _target_cell(hit, true)
+		if solid_cell != Vector3i.MIN:
+			removed = _furniture_auth.remove_at(solid_cell)
+	if removed:
+		_dirty = true
+		if _hud != null and _map_def != null:
+			_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _do_furniture_rotate() -> void:
+	_yaw = (_yaw + 1) % 4
+	_update_hud_info()
+
+
+func _cycle_furniture(dir: int) -> void:
+	if _furniture_defs.is_empty():
+		return
+	_selected_furniture_idx = (_selected_furniture_idx + dir) % _furniture_defs.size()
+	if _selected_furniture_idx < 0:
+		_selected_furniture_idx += _furniture_defs.size()
+	_update_hud_info()
+
+
+func _do_spawn_place(type: String, hit: Dictionary) -> void:
+	if _map_root == null or not hit.get("hit", false):
+		return
+	var spawn_points: Node3D = _map_root.find_child("SpawnPoints") as Node3D
+	if spawn_points == null:
+		spawn_points = Node3D.new()
+		spawn_points.name = "SpawnPoints"
+		_map_root.add_child(spawn_points)
+		spawn_points.owner = _map_root
+
+	var target_pos := _get_surface_hit_point(hit)
+
+	if type == "player":
+		var player_marker: Marker3D = _spawn_markers.get("player")
+		if player_marker == null or not is_instance_valid(player_marker):
+			player_marker = spawn_points.find_child("PlayerSpawn") as Marker3D
+			if player_marker == null:
+				player_marker = Marker3D.new()
+				player_marker.name = "PlayerSpawn"
+				spawn_points.add_child(player_marker)
+				player_marker.owner = _map_root
+			_spawn_markers["player"] = player_marker
+		player_marker.global_position = target_pos
+		_visualize_spawn(player_marker, Color(0.2, 1.0, 0.2, 0.5))
+		if _map_def != null:
+			_map_def.player_spawn = target_pos
+		_dirty = true
+
+	elif type == "colonist":
+		var next_idx := 1
+		for child in spawn_points.get_children():
+			if child.name.begins_with("ColonistSpawn"):
+				var suffix := child.name.trim_prefix("ColonistSpawn_").trim_prefix("ColonistSpawn")
+				if suffix.is_valid_int():
+					next_idx = maxi(next_idx, int(suffix) + 1)
+				else:
+					next_idx = maxi(next_idx, 2)
+		var marker := Marker3D.new()
+		marker.name = "ColonistSpawn_%d" % next_idx
+		spawn_points.add_child(marker)
+		marker.owner = _map_root
+		marker.global_position = target_pos
+		_visualize_spawn(marker, Color(0.2, 0.5, 1.0, 0.5))
+		var col_list: Array = _spawn_markers.get("colonists", [])
+		col_list.append(marker)
+		_spawn_markers["colonists"] = col_list
+		_dirty = true
+
+	if _hud != null and _map_def != null:
+		_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _load_furniture_defs() -> Array[FurnitureDef]:
+	var out: Array[FurnitureDef] = []
+	var dir_path := "res://data/furniture/"
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		push_warning("MapEditor: could not open " + dir_path)
+		return out
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".tres"):
+			var res = load(dir_path + fname)
+			if res is FurnitureDef:
+				out.append(res as FurnitureDef)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	out.sort_custom(func(a: FurnitureDef, b: FurnitureDef) -> bool:
+		return a.id < b.id
+	)
+	return out
+
+
+func _cache_spawn_markers() -> void:
+	_spawn_markers = {
+		"player": null,
+		"colonists": [],
+	}
+	if _map_root == null:
+		return
+	var spawns: Node3D = _map_root.find_child("SpawnPoints") as Node3D
+	if spawns == null:
+		return
+	for child in spawns.get_children():
+		if child is Marker3D:
+			if child.name == "PlayerSpawn":
+				_spawn_markers["player"] = child
+				_visualize_spawn(child, Color(0.2, 1.0, 0.2, 0.5))
+			elif child.name.begins_with("ColonistSpawn"):
+				_spawn_markers["colonists"].append(child)
+				_visualize_spawn(child, Color(0.2, 0.5, 1.0, 0.5))
+
+
+func _visualize_spawn(marker: Marker3D, color: Color) -> void:
+	var existing := marker.get_node_or_null("SpawnVisualizer") as MeshInstance3D
+	if existing != null:
+		var mat := existing.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_color = color
+		return
+	var visualizer := MeshInstance3D.new()
+	visualizer.name = "SpawnVisualizer"
+	var capsule := CapsuleMesh.new()
+	capsule.radius = 0.4
+	capsule.height = 1.8
+	visualizer.mesh = capsule
+	visualizer.position = Vector3(0, 0.9, 0)
+	visualizer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = color
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	visualizer.material_override = mat
+	marker.add_child(visualizer)
+
+
 func _cycle_block(dir: int) -> void:
 	if _block_library == null:
 		return
@@ -670,11 +938,37 @@ func _update_hud_info() -> void:
 		var block_name := def.id if def != null else "Unknown"
 		_hud.set_block_info(block_name, _brush_diameter)
 	_hud.set_terrain_info(_terrain_material_id, _sculpt_radius)
+	if not _furniture_defs.is_empty() and _selected_furniture_idx >= 0 and _selected_furniture_idx < _furniture_defs.size():
+		var fdef: FurnitureDef = _furniture_defs[_selected_furniture_idx]
+		var fname := fdef.display_name if fdef != null and not fdef.display_name.is_empty() else (fdef.id if fdef != null else "Unknown")
+		_hud.set_furniture_info(fname, _yaw)
+	else:
+		_hud.set_furniture_info("None", _yaw)
 
 
 func save_map() -> void:
 	if _map_root != null:
 		_map_root.flush_voxel_streams()
+
+		if _map_def != null:
+			if _spawn_markers.get("player") != null and is_instance_valid(_spawn_markers["player"]):
+				var ppos: Vector3 = (_spawn_markers["player"] as Marker3D).global_position
+				_map_def.player_spawn = ppos
+			var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
+			var err_def := ResourceSaver.save(_map_def, def_path)
+			if err_def != OK:
+				push_warning("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err_def])
+
+		if not _map_scene_path.is_empty():
+			var packed := PackedScene.new()
+			var err_pack := packed.pack(_map_root)
+			if err_pack == OK:
+				var err_save := ResourceSaver.save(packed, _map_scene_path)
+				if err_save != OK:
+					push_warning("MapEditor: failed to save scene to '%s' (error %d)" % [_map_scene_path, err_save])
+			else:
+				push_warning("MapEditor: failed to pack map scene (error %d)" % err_pack)
+
 		_dirty = false
 		if _hud != null and _map_def != null:
 			_hud.set_map_info(_map_def.id, _dirty)
