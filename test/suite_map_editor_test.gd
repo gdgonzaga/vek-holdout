@@ -4,6 +4,8 @@ extends GdUnitTestSuite
 const MapEditorClass = preload("res://tools/map_editor/map_editor.gd")
 const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
 const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
+const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
+const EditorPalettePanelClass = preload("res://tools/map_editor/editor_palette_panel.gd")
 
 
 func test_editor_hud_modes_and_info() -> void:
@@ -719,3 +721,320 @@ func test_map_editor_save_button_triggers_save_map() -> void:
 	editor._hud._save_button.pressed.emit()
 	assert_bool(editor._dirty).is_false()
 	assert_bool(editor._hud._map_info_label.text.contains("*")).is_false()
+
+
+func test_editor_grid_overlay_create_and_toggle() -> void:
+	var mesh_inst: MeshInstance3D = auto_free(EditorGridOverlayClass.create(50.0, 2.0))
+	assert_object(mesh_inst).is_not_null()
+	assert_bool(mesh_inst.mesh is ImmediateMesh).is_true()
+
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	assert_object(editor._grid_overlay).is_not_null()
+	assert_bool(editor._grid_overlay.visible).is_false()
+
+	# Toggle method
+	editor._launcher.hide_launcher()
+	editor._toggle_grid()
+	assert_bool(editor._grid_overlay.visible).is_true()
+	editor._launcher.hide_launcher()
+	editor._toggle_grid()
+	assert_bool(editor._grid_overlay.visible).is_false()
+
+	# Hotkey G
+	var g_event := InputEventKey.new()
+	g_event.pressed = true
+	g_event.keycode = KEY_G
+	editor._input(g_event)
+	assert_bool(editor._grid_overlay.visible).is_true()
+
+
+func test_map_editor_coordinate_readout() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	assert_object(hud._coord_label).is_not_null()
+	assert_str(hud._coord_label.text).is_empty()
+
+	hud.set_coordinates(Vector3(12.34, 5.67, -8.91))
+	assert_str(hud._coord_label.text).contains("X: 12.3")
+	assert_str(hud._coord_label.text).contains("Y: 5.7")
+	assert_str(hud._coord_label.text).contains("Z: -8.9")
+
+	hud.clear_coordinates()
+	assert_str(hud._coord_label.text).is_empty()
+
+
+func test_map_editor_metadata_editing_and_save() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	assert_object(editor._hud._metadata_panel).is_not_null()
+	assert_bool(editor._hud._metadata_panel.visible).is_false()
+
+	# Toggle metadata panel
+	editor._hud.toggle_metadata_panel()
+	assert_bool(editor._hud._metadata_panel.visible).is_true()
+
+	# Edit metadata fields
+	editor._hud._meta_display_name_input.text = "Custom Base Title"
+	editor._hud._meta_desc_input.text = "Custom description for testing"
+	editor._hud._meta_type_option.selected = 1 # POI
+	editor._hud._meta_difficulty_spin.value = 4
+
+	var edits := editor._hud.get_metadata_edits()
+	assert_str(edits.get("display_name", "")).is_equal("Custom Base Title")
+	assert_str(edits.get("description", "")).is_equal("Custom description for testing")
+	assert_int(edits.get("map_type", -1)).is_equal(1)
+	assert_int(edits.get("difficulty", -1)).is_equal(4)
+
+	# Save map syncs metadata into MapDef
+	editor.save_map()
+	assert_str(editor._map_def.display_name).is_equal("Custom Base Title")
+	assert_str(editor._map_def.description).is_equal("Custom description for testing")
+	assert_int(editor._map_def.map_type).is_equal(1)
+	assert_int(editor._map_def.difficulty).is_equal(4)
+
+
+func test_map_editor_block_undo() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	var entry: Dictionary = {
+		"type": "block",
+		"ops": [
+			{"pos": Vector3i(0, 0, 0), "old_value": 3}
+		]
+	}
+	editor._push_undo(entry)
+	assert_int(editor._undo_stack.size()).is_equal(1)
+
+	editor._undo_last()
+	assert_int(editor._undo_stack.size()).is_equal(0)
+	assert_bool(editor._dirty).is_true()
+
+
+func test_map_editor_undo_stack_max_depth() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	for i in range(60):
+		editor._push_undo({"type": "block", "ops": [{"pos": Vector3i(i, 0, 0), "old_value": i}]})
+
+	assert_int(editor._undo_stack.size()).is_equal(MapEditorClass.MAX_UNDO_DEPTH)
+	var first_entry: Dictionary = editor._undo_stack[0]
+	assert_int(first_entry["ops"][0]["old_value"]).is_equal(10)
+
+
+func test_map_editor_terrain_undo() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	var hit := {
+		"hit": true,
+		"point": Vector3(10.0, 0.0, 10.0),
+		"normal": Vector3.UP,
+	}
+
+	editor._do_terrain_add(hit)
+	assert_int(editor._undo_stack.size()).is_equal(1)
+	assert_str(editor._undo_stack[0].get("type", "")).is_equal("terrain")
+	assert_bool(editor._undo_stack[0].get("was_add", false)).is_true()
+
+	editor._undo_last()
+	assert_int(editor._undo_stack.size()).is_equal(0)
+	assert_bool(editor._dirty).is_true()
+
+
+func test_map_editor_ctrl_z_undo_hotkey() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	var hit := {
+		"hit": true,
+		"point": Vector3(5.0, 0.0, 5.0),
+		"normal": Vector3.UP,
+	}
+	editor._do_terrain_carve(hit)
+	assert_int(editor._undo_stack.size()).is_equal(1)
+
+	var ctrl_z := InputEventKey.new()
+	ctrl_z.pressed = true
+	ctrl_z.keycode = KEY_Z
+	ctrl_z.ctrl_pressed = true
+	editor._input(ctrl_z)
+
+	assert_int(editor._undo_stack.size()).is_equal(0)
+
+
+func test_editor_palette_panel_filtering_and_selection() -> void:
+	var panel: EditorPalettePanel = auto_free(EditorPalettePanelClass.new())
+	panel.setup("TEST PALETTE", "Search...", Color.WHITE)
+
+	var item1 := EditorPalettePanelClass.Item.new()
+	item1.index = 1
+	item1.id = "wood_block"
+	item1.display_name = "Wood Block"
+	item1.label = "Wood Block [#1]"
+
+	var item2 := EditorPalettePanelClass.Item.new()
+	item2.index = 2
+	item2.id = "stone_block"
+	item2.display_name = "Stone Block"
+	item2.label = "Stone Block [#2]"
+
+	var item3 := EditorPalettePanelClass.Item.new()
+	item3.index = 3
+	item3.id = "metal_plate"
+	item3.display_name = "Metal Plate"
+	item3.label = "Metal Plate [#3]"
+
+	panel.populate([item1, item2, item3], 2)
+	assert_int(panel._item_list.item_count).is_equal(3)
+	assert_str(panel._count_label.text).is_equal("(3/3)")
+	assert_int(panel._item_list.get_selected_items()[0]).is_equal(1) # item2 is selected
+
+	# Filter by display_name
+	panel._on_search_changed("metal")
+	assert_int(panel._item_list.item_count).is_equal(1)
+	assert_str(panel._count_label.text).is_equal("(1/3)")
+	assert_str(panel._item_list.get_item_text(0)).contains("Metal Plate")
+
+	# Filter by id substring
+	panel._on_search_changed("wood_block")
+	assert_int(panel._item_list.item_count).is_equal(1)
+	assert_str(panel._item_list.get_item_text(0)).contains("Wood Block")
+
+	# Clear search restores list
+	panel._on_search_changed("")
+	assert_int(panel._item_list.item_count).is_equal(3)
+
+
+func test_editor_hud_block_palette_population_and_filter() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	var b1 := BlockDef.new()
+	b1.id = "wood"
+	b1.display_name = "Wood Block"
+	b1.hp = 50
+
+	var b2 := BlockDef.new()
+	b2.id = "stone"
+	b2.display_name = "Stone Block"
+	b2.hp = 300
+
+	var b3 := BlockDef.new()
+	b3.id = "metal"
+	b3.display_name = "Metal Block"
+	b3.hp = 600
+
+	var dict := {
+		2: b1,
+		5: b2,
+		8: b3,
+	}
+
+	hud.populate_block_list(dict, 5)
+	assert_int(hud._block_palette._item_list.item_count).is_equal(3)
+	assert_str(hud._block_palette._count_label.text).is_equal("(3/3)")
+
+	# Filter for stone
+	hud._block_palette._on_search_changed("stone")
+	assert_int(hud._block_palette._item_list.item_count).is_equal(1)
+	assert_str(hud._block_palette._count_label.text).is_equal("(1/3)")
+	assert_str(hud._block_palette._item_list.get_item_text(0)).contains("Stone Block")
+
+	# Filter for metal
+	hud._block_palette._on_search_changed("metal")
+	assert_int(hud._block_palette._item_list.item_count).is_equal(1)
+	assert_str(hud._block_palette._item_list.get_item_text(0)).contains("Metal Block")
+
+	# Reset
+	hud._block_palette._on_search_changed("")
+	assert_int(hud._block_palette._item_list.item_count).is_equal(3)
+
+
+func test_editor_hud_block_palette_selection_and_signals() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	var b1 := BlockDef.new()
+	b1.id = "wood"
+	b1.display_name = "Wood Block"
+
+	var b2 := BlockDef.new()
+	b2.id = "stone"
+	b2.display_name = "Stone Block"
+
+	hud.populate_block_list({1: b1, 6: b2}, 1)
+
+	var selected_val := [-1]
+	hud.block_selected.connect(func(idx: int) -> void:
+		selected_val[0] = idx
+	)
+
+	# Click second item in list (index 6)
+	hud._block_palette._on_item_selected(1)
+	assert_int(selected_val[0]).is_equal(6)
+
+	# Select by index method
+	hud.select_block_by_index(1)
+	assert_int(hud._block_palette._item_list.get_selected_items()[0]).is_equal(0)
+
+
+func test_map_editor_block_cycle_filtered() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	var b1 := BlockDef.new()
+	b1.id = "wood_oak"
+	b1.display_name = "Oak Wood"
+
+	var b2 := BlockDef.new()
+	b2.id = "stone_granite"
+	b2.display_name = "Granite Stone"
+
+	var b3 := BlockDef.new()
+	b3.id = "wood_pine"
+	b3.display_name = "Pine Wood"
+
+	var defs := {1: b1, 2: b2, 3: b3}
+	editor._hud.populate_block_list(defs, 1)
+	editor._selected_block_index = 1
+
+	# Filter for "wood" -> matches b1 (idx 1) and b3 (idx 3)
+	editor._hud._block_palette._on_search_changed("wood")
+	assert_int(editor._hud.get_filtered_block_indices().size()).is_equal(2)
+	assert_int(editor._selected_block_index).is_equal(1)
+
+	# Cycle next -> should pick 3 (Pine Wood) skipping 2 (Granite Stone)
+	editor._cycle_block(1)
+	assert_int(editor._selected_block_index).is_equal(3)
+
+	# Cycle next -> wraps back to 1 (Oak Wood)
+	editor._cycle_block(1)
+	assert_int(editor._selected_block_index).is_equal(1)
+
+
+func test_map_editor_block_tab_key_cycling() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	editor._set_mode(MapEditorClass.Mode.BLOCK)
+	var initial_idx := editor._selected_block_index
+	var filtered_indices := editor._hud.get_filtered_block_indices()
+	assert_bool(filtered_indices.size() > 1).is_true()
+
+	var tab_event := InputEventKey.new()
+	tab_event.pressed = true
+	tab_event.keycode = KEY_TAB
+	editor._input(tab_event)
+
+	assert_int(editor._selected_block_index).is_not_equal(initial_idx)

@@ -4,10 +4,12 @@ extends Node3D
 ##
 ## Loads both blocky structures and smooth Transvoxel terrain at runtime,
 ## providing fly-camera navigation, WYSIWYG visual verification, block/terrain
-## sculpting, furniture authoring, spawn point management, and map lifecycle.
+## sculpting, furniture authoring, spawn point management, undo history,
+## grid overlay, and map lifecycle.
 
 const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
 const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
+const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
 const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_authoring.gd")
 
 const MAPS_DIR: String = "res://data/maps/"
@@ -17,6 +19,9 @@ const DEFAULT_TERRAIN_GEN: String = "res://data/terrain/default_ground.tres"
 const FLY_SPEED: float = 8.0
 const FLY_SPEED_FAST: float = 20.0
 const MOUSE_SENSITIVITY: float = 0.2
+
+## Maximum number of undo operations in history.
+const MAX_UNDO_DEPTH: int = 50
 
 ## Largest brush edge length B+scroll can reach in block mode.
 const MAX_BRUSH_DIAMETER: int = 11
@@ -41,8 +46,10 @@ var _camera: Camera3D = null
 var _viewer: VoxelViewer = null
 var _hud: EditorHUD = null
 var _launcher: EditorLauncher = null
+var _grid_overlay: MeshInstance3D = null
 var _exit_dialog: ConfirmationDialog = null
 var _dirty: bool = false
+var _undo_stack: Array[Dictionary] = []
 
 var _blocky_grid: BlockyGrid = null
 var _block_vt: VoxelTool = null
@@ -75,6 +82,7 @@ func _ready() -> void:
 	_build_environment()
 	_build_camera()
 	_build_ghost()
+	_build_grid_overlay()
 	_block_library = BlockLibrary.new()
 	_furniture_defs = _load_furniture_defs()
 	_furniture_auth = FurnitureAuthoringClass.new()
@@ -82,6 +90,7 @@ func _ready() -> void:
 	_hud = EditorHUDClass.new()
 	add_child(_hud)
 	_hud.setup(self)
+	_hud.block_selected.connect(_on_hud_block_selected)
 	_hud.furniture_selected.connect(_on_hud_furniture_selected)
 	_hud.save_requested.connect(save_map)
 	_hud.set_mode(_mode)
@@ -99,6 +108,61 @@ func _ready() -> void:
 	_setup_exit_dialog()
 
 
+func _build_grid_overlay() -> void:
+	_grid_overlay = EditorGridOverlayClass.create()
+	add_child(_grid_overlay)
+	_grid_overlay.visible = false
+
+
+func _toggle_grid() -> void:
+	if _grid_overlay == null:
+		_build_grid_overlay()
+	_grid_overlay.visible = not _grid_overlay.visible
+
+
+func _push_undo(entry: Dictionary) -> void:
+	_undo_stack.append(entry)
+	if _undo_stack.size() > MAX_UNDO_DEPTH:
+		_undo_stack.pop_front()
+
+
+func _undo_last() -> void:
+	if _undo_stack.is_empty() or _map_root == null:
+		return
+	var entry: Dictionary = _undo_stack.pop_back()
+	var entry_type: String = entry.get("type", "")
+
+	if entry_type == "block":
+		if _block_vt != null:
+			var ops: Array = entry.get("ops", [])
+			for op in ops:
+				var p: Vector3i = op["pos"]
+				var old_val: int = op["old_value"]
+				_block_vt.set_voxel(p, old_val)
+			var terrain := _map_root.get_blocky_terrain()
+			if terrain != null:
+				terrain.save_modified_blocks()
+			_dirty = true
+			if _hud != null and _map_def != null:
+				_hud.set_map_info(_map_def.id, _dirty)
+
+	elif entry_type == "terrain":
+		if _smooth_grid != null:
+			var point: Vector3 = entry.get("point", Vector3.ZERO)
+			var radius: float = entry.get("radius", 2.0)
+			var was_add: bool = entry.get("was_add", true)
+			if was_add:
+				_smooth_grid.carve(point, radius)
+			else:
+				_smooth_grid.add_material(point, _terrain_material_id, radius)
+			var terrain := _map_root.get_smooth_terrain()
+			if terrain != null:
+				terrain.save_modified_blocks()
+			_dirty = true
+			if _hud != null and _map_def != null:
+				_hud.set_map_info(_map_def.id, _dirty)
+
+
 func _input(event: InputEvent) -> void:
 	# If launcher is open, ignore camera/edit input
 	if _launcher != null and _launcher.visible:
@@ -108,18 +172,26 @@ func _input(event: InputEvent) -> void:
 	if _exit_dialog != null and _exit_dialog.visible:
 		return
 
-	# If search input in HUD is focused, handle Esc/Enter/Tab and let typing pass through
-	if _hud != null and _hud.is_search_focused():
+	# If search input or metadata in HUD is focused, handle Esc/Enter/Tab and let typing pass through
+	if _hud != null and _hud.is_any_input_focused():
 		if event is InputEventKey and event.pressed:
 			if event.keycode == KEY_ESCAPE or event.keycode == KEY_ENTER:
 				_hud.unfocus_search()
+				var focused := get_viewport().gui_get_focus_owner()
+				if focused != null:
+					focused.release_focus()
 				get_viewport().set_input_as_handled()
 				return
-			elif event.keycode == KEY_TAB and _mode == Mode.FURNITURE:
+			elif event.keycode == KEY_TAB and _hud.is_search_focused():
 				var dir := -1 if event.shift_pressed else 1
-				_cycle_furniture(dir)
-				get_viewport().set_input_as_handled()
-				return
+				if _mode == Mode.BLOCK:
+					_cycle_block(dir)
+					get_viewport().set_input_as_handled()
+					return
+				elif _mode == Mode.FURNITURE:
+					_cycle_furniture(dir)
+					get_viewport().set_input_as_handled()
+					return
 		return
 
 	if event is InputEventMouseButton:
@@ -183,6 +255,12 @@ func _input(event: InputEvent) -> void:
 				_set_mode(Mode.FURNITURE)
 			elif k.keycode == KEY_F5:
 				_set_mode(Mode.SPAWN)
+			elif k.keycode == KEY_G:
+				_toggle_grid()
+				get_viewport().set_input_as_handled()
+			elif k.keycode == KEY_Z and k.ctrl_pressed:
+				_undo_last()
+				get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_BRACKETLEFT:
 				if _mode == Mode.BLOCK:
 					_cycle_block(-1)
@@ -199,14 +277,19 @@ func _input(event: InputEvent) -> void:
 					_update_hud_info()
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(1)
-			elif k.keycode == KEY_TAB and _mode == Mode.FURNITURE:
+			elif k.keycode == KEY_TAB:
 				var dir := -1 if k.shift_pressed else 1
-				_cycle_furniture(dir)
-				get_viewport().set_input_as_handled()
+				if _mode == Mode.BLOCK:
+					_cycle_block(dir)
+					get_viewport().set_input_as_handled()
+				elif _mode == Mode.FURNITURE:
+					_cycle_furniture(dir)
+					get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_R and _mode == Mode.FURNITURE:
 				_do_furniture_rotate()
 			elif k.keycode == KEY_S and k.ctrl_pressed:
 				save_map()
+				get_viewport().set_input_as_handled()
 
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
@@ -223,26 +306,54 @@ func _apply_camera_rotation() -> void:
 
 
 func _process(delta: float) -> void:
-	if _camera == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or (_hud != null and _hud.is_search_focused()):
+	if _camera == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or (_hud != null and _hud.is_any_input_focused()):
 		if _ghost != null:
 			_ghost.visible = false
+		if _hud != null:
+			_hud.clear_coordinates()
 		return
 
 	if _mode == Mode.BLOCK:
 		var hit := _raycast_from_camera()
 		_update_ghost(hit)
+		if _hud != null:
+			if hit.get("hit", false):
+				_hud.set_coordinates(_get_surface_hit_point(hit))
+			else:
+				_hud.clear_coordinates()
 	elif _mode == Mode.TERRAIN:
 		var hit := _raycast_terrain()
 		_update_ghost(hit)
+		if _hud != null:
+			if hit.get("hit", false):
+				_hud.set_coordinates(hit.get("point", Vector3.ZERO))
+			else:
+				_hud.clear_coordinates()
 	elif _mode == Mode.FURNITURE:
 		var hit := _raycast_from_camera()
 		_update_ghost(hit)
+		if _hud != null:
+			if hit.get("hit", false):
+				_hud.set_coordinates(_get_surface_hit_point(hit))
+			else:
+				_hud.clear_coordinates()
 	elif _mode == Mode.SPAWN:
 		var hit := _raycast_from_camera()
 		_update_ghost(hit)
+		if _hud != null:
+			if hit.get("hit", false):
+				_hud.set_coordinates(_get_surface_hit_point(hit))
+			else:
+				_hud.clear_coordinates()
 	else:
 		if _ghost != null:
 			_ghost.visible = false
+		if _hud != null:
+			var hit := _raycast_from_camera()
+			if hit.get("hit", false):
+				_hud.set_coordinates(_get_surface_hit_point(hit))
+			else:
+				_hud.clear_coordinates()
 
 	var speed: float = FLY_SPEED_FAST if Input.is_key_pressed(KEY_SHIFT) else FLY_SPEED
 	var forward: Vector3 = -_camera.global_transform.basis.z
@@ -296,6 +407,7 @@ func load_map(map_id: String) -> void:
 	_map_def = def
 	_map_scene_path = def.scene_path
 	_dirty = false
+	_undo_stack.clear()
 
 	_blocky_grid = _map_root.blocky_grid
 	if _blocky_grid != null:
@@ -320,8 +432,10 @@ func load_map(map_id: String) -> void:
 	_position_camera_at_spawn()
 
 	if _hud != null:
+		_hud.populate_block_library(_block_library, _selected_block_index)
 		_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
 		_hud.set_map_info(map_id, _dirty)
+		_hud.set_metadata(def.display_name, def.description, def.map_type, def.difficulty)
 		_hud.set_terrain_available(_smooth_grid != null)
 		_hud.show()
 		_update_hud_info()
@@ -380,6 +494,7 @@ func unload_map() -> void:
 	_map_def = null
 	_map_scene_path = ""
 	_dirty = false
+	_undo_stack.clear()
 
 	_blocky_grid = null
 	_block_vt = null
@@ -394,7 +509,6 @@ func unload_map() -> void:
 		_launcher.show_launcher()
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
 
 
 func _setup_exit_dialog() -> void:
@@ -448,8 +562,11 @@ func _build_environment() -> void:
 	add_child(env)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-45, 30, 0)
-	sun.light_color = Color(1.0, 0.95, 0.85)
+	sun.name = "DirectionalLight3D"
+	sun.rotation_degrees = Vector3(-45.0, 30.0, 0.0)
+	sun.light_color = Color(1.0, 0.95, 0.9)
+	sun.light_energy = 1.0
+	sun.shadow_enabled = true
 	add_child(sun)
 
 
@@ -457,175 +574,181 @@ func _build_camera() -> void:
 	_camera = Camera3D.new()
 	_camera.name = "EditorCamera"
 	_camera.current = true
-	_camera.fov = 70.0
-	_camera.position = Vector3(0, 10, 20)
+	_camera.position = Vector3(0.0, 10.0, 20.0)
+	_apply_camera_rotation()
 	add_child(_camera)
 
 	_viewer = VoxelViewer.new()
-	_viewer.name = "EditorViewer"
+	_viewer.name = "VoxelViewer"
+	_viewer.requires_visuals = true
+	_viewer.requires_collisions = true
 	_camera.add_child(_viewer)
 
 
-func _inject_terrain_gen(map: Node, def: MapDef) -> void:
-	var smooth: SmoothGrid = map.get_node_or_null("SmoothGrid") as SmoothGrid
-	if smooth != null:
-		smooth.terrain_gen = def.terrain_gen
-
-
-func _attach_streams(map: Node, map_id: String) -> void:
-	var folder := MAPS_DIR + map_id + "/"
-	var blocky_terrain := map.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
-	if blocky_terrain != null:
-		var stream := VoxelStreamSQLite.new()
-		stream.database_path = folder + "map.sqlite"
-		blocky_terrain.stream = stream
-
-	var smooth_terrain := map.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
-	if smooth_terrain != null:
-		var smooth_stream := VoxelStreamSQLite.new()
-		smooth_stream.database_path = folder + "terrain.sqlite"
-		smooth_terrain.stream = smooth_stream
-
-
-func _position_camera_at_spawn() -> void:
-	if _camera == null:
-		return
-	var target_pos := Vector3(0, 5, 0)
-	if _map_root != null:
-		var spawns: Node3D = _map_root.find_child("SpawnPoints") as Node3D
-		var player_spawn: Node3D = spawns.find_child("PlayerSpawn") as Node3D if spawns != null else null
-		if player_spawn != null:
-			target_pos = player_spawn.global_position
-		elif _map_def != null and _map_def.player_spawn != Vector3.ZERO:
-			target_pos = _map_def.player_spawn
-
-	_camera.global_position = target_pos + Vector3(0, 6, 10)
-	_cam_yaw = 0.0
-	_cam_pitch = -30.0
-	_apply_camera_rotation()
-
-
-func _stamp_map_scene(src_path: String, dst_path: String, db_path: String) -> void:
-	var packed: PackedScene = load(src_path)
-	if packed == null:
-		push_error("MapEditor: could not load template '%s'" % src_path)
-		return
-	var instance: Node = packed.instantiate()
-	var terrain := instance.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
-	if terrain != null:
-		var stream := VoxelStreamSQLite.new()
-		stream.database_path = db_path
-		terrain.stream = stream
-	else:
-		push_warning("MapEditor: stamped map has no BlockyGrid/VoxelTerrain")
-
-	var smooth_terrain := instance.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
-	if smooth_terrain != null:
-		var smooth_stream := VoxelStreamSQLite.new()
-		smooth_stream.database_path = db_path.get_base_dir().path_join("terrain.sqlite")
-		smooth_terrain.stream = smooth_stream
-
-	var out := PackedScene.new()
-	out.pack(instance)
-	var err := ResourceSaver.save(out, dst_path)
-	if err != OK:
-		push_warning("MapEditor: failed to write '%s'" % dst_path)
-	instance.queue_free()
-
-
-func _create_map_def(map_name: String, folder_path: String, tscn_path: String, \
-		map_type: int = MapDef.MapType.POI) -> void:
-	var def := MapDef.new()
-	def.id = map_name
-	def.display_name = map_name.capitalize()
-	def.description = "Authored via Map Editor."
-	def.map_type = map_type
-	def.scene_path = tscn_path
-	var terrain_gen: TerrainGenDef = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
-	if terrain_gen != null:
-		def.terrain_gen = terrain_gen
-	else:
-		push_warning("MapEditor: missing " + DEFAULT_TERRAIN_GEN \
-				+ " — new map starts without natural terrain")
-	var tres_path := folder_path + "map_def.tres"
-	var err := ResourceSaver.save(def, tres_path)
-	if err != OK:
-		push_warning("MapEditor: failed to write map_def.tres (error %d)" % err)
-
-
-func _set_mode(new_mode: Mode) -> void:
-	_mode = new_mode
-	if _hud != null:
-		_hud.set_mode(_mode)
-		if _mode == Mode.FURNITURE:
-			_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
-		_update_hud_info()
-
-
 func _build_ghost() -> void:
-	if _ghost != null:
-		_ghost.queue_free()
-	_ghost = MeshInstance3D.new()
-	_ghost.name = "EditorGhost"
-
 	_box_mesh = BoxMesh.new()
-	_box_mesh.size = Vector3(1.0, 1.0, 1.0)
-
 	_sphere_mesh = SphereMesh.new()
-	_sphere_mesh.radius = 1.0
-	_sphere_mesh.height = 2.0
-
 	_capsule_mesh = CapsuleMesh.new()
 	_capsule_mesh.radius = 0.4
 	_capsule_mesh.height = 1.8
 
-	_ghost.mesh = _box_mesh
 	_ghost_mat = StandardMaterial3D.new()
 	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_ghost_mat.albedo_color = Color(0.0, 1.0, 0.0, 0.4)
+	_ghost_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.5)
 	_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	_ghost = MeshInstance3D.new()
+	_ghost.name = "GhostMesh"
 	_ghost.material_override = _ghost_mat
+	_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_ghost.visible = false
 	add_child(_ghost)
 
 
-## Previews placement/carve target:
-## Block mode: BoxMesh scaled to brush diameter at cell center.
-## Terrain mode: SphereMesh scaled to sculpt radius at raycast surface point.
-## Furniture mode: Selected furniture's mesh preview rotated by _yaw.
-## Spawn mode: CapsuleMesh preview (green for player, blue for colonist).
+func _position_camera_at_spawn() -> void:
+	if _map_def != null:
+		_camera.global_position = _map_def.player_spawn + Vector3(0.0, 2.0, 5.0)
+	else:
+		_camera.global_position = Vector3(0.0, 10.0, 20.0)
+	_cam_yaw = 0.0
+	_cam_pitch = -20.0
+	_apply_camera_rotation()
+
+
+func _stamp_map_scene(template_path: String, tscn_dest_path: String, db_dest_path: String) -> void:
+	var template_packed: PackedScene = load(template_path) as PackedScene
+	if template_packed == null:
+		push_error("MapEditor: failed to load template '%s'" % template_path)
+		return
+
+	var instance := template_packed.instantiate()
+	var blocky_grid: BlockyGrid = instance.find_child("BlockyGrid") as BlockyGrid
+	if blocky_grid != null:
+		var stream := VoxelStreamSQLite.new()
+		stream.database_path = db_dest_path
+		var vt: VoxelTerrain = blocky_grid.get_node_or_null("VoxelTerrain") as VoxelTerrain
+		if vt != null:
+			vt.stream = stream
+
+	var packed := PackedScene.new()
+	var err := packed.pack(instance)
+	if err == OK:
+		ResourceSaver.save(packed, tscn_dest_path)
+	else:
+		push_error("MapEditor: failed to pack scene for '%s' (error %d)" % [tscn_dest_path, err])
+	instance.free()
+
+
+func _create_map_def(map_name: String, folder_path: String, tscn_path: String, map_type: int) -> void:
+	var def := MapDef.new()
+	def.id = map_name
+	def.display_name = map_name.capitalize()
+	def.scene_path = tscn_path
+	def.map_type = map_type as MapDef.MapType
+	def.player_spawn = Vector3(0, 5, 0)
+	def.enemy_spawns = []
+	def.unlock_condition = ""
+	def.difficulty = 1
+
+	if ResourceLoader.exists(DEFAULT_TERRAIN_GEN):
+		def.terrain_gen = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
+
+	var def_path := folder_path + "map_def.tres"
+	var err := ResourceSaver.save(def, def_path)
+	if err != OK:
+		push_error("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err])
+
+
+func _inject_terrain_gen(map: Node, def: MapDef) -> void:
+	if def != null and def.terrain_gen != null and map != null:
+		var smooth := map.get_node_or_null("SmoothGrid") as SmoothGrid
+		if smooth == null:
+			smooth = map.find_child("SmoothGrid") as SmoothGrid
+		if smooth != null:
+			smooth.terrain_gen = def.terrain_gen
+
+
+func _attach_streams(map: Node, map_id: String) -> void:
+	var m: Map = map as Map
+	var blocky_terrain: VoxelTerrain = null
+	var smooth_terrain: VoxelTerrain = null
+
+	if m != null:
+		blocky_terrain = m.get_blocky_terrain()
+		smooth_terrain = m.get_smooth_terrain()
+
+	# Fallback if map._ready hasn't populated @onready fields or non-Map node
+	if blocky_terrain == null and map != null:
+		blocky_terrain = map.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
+	if smooth_terrain == null and map != null:
+		smooth_terrain = map.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
+
+	var map_dir := MAPS_DIR + map_id + "/"
+
+	if blocky_terrain != null:
+		var stream_path := map_dir + "map.sqlite"
+		if blocky_terrain.stream is VoxelStreamSQLite:
+			(blocky_terrain.stream as VoxelStreamSQLite).database_path = stream_path
+		elif blocky_terrain.stream == null:
+			var stream := VoxelStreamSQLite.new()
+			stream.database_path = stream_path
+			blocky_terrain.stream = stream
+
+	if smooth_terrain != null:
+		var stream_path := map_dir + "terrain.sqlite"
+		if smooth_terrain.stream is VoxelStreamSQLite:
+			(smooth_terrain.stream as VoxelStreamSQLite).database_path = stream_path
+		elif smooth_terrain.stream == null:
+			var stream := VoxelStreamSQLite.new()
+			stream.database_path = stream_path
+			smooth_terrain.stream = stream
+
+
+func _set_mode(mode: Mode) -> void:
+	_mode = mode
+	if _hud != null:
+		_hud.set_mode(_mode)
+		if _mode == Mode.BLOCK:
+			_hud.populate_block_library(_block_library, _selected_block_index)
+		elif _mode == Mode.FURNITURE:
+			_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
+		_update_hud_info()
+	if _ghost != null:
+		_ghost.visible = false
+
+
 func _update_ghost(hit: Dictionary) -> void:
-	if _ghost == null:
+	if _ghost == null or _ghost_mat == null:
 		return
 
 	var is_erase := Input.is_key_pressed(KEY_SHIFT)
 
 	if _mode == Mode.BLOCK:
-		_ghost.mesh = _box_mesh
-		var cell := _target_cell(hit, is_erase)
-		if not hit.get("hit", false) or cell == Vector3i.MIN:
+		if not hit.get("hit", false):
 			_ghost.visible = false
 			return
-
-		_ghost.visible = true
+		var cell := _target_cell(hit, is_erase)
+		if cell == Vector3i.MIN:
+			_ghost.visible = false
+			return
+		_ghost.mesh = _box_mesh
 		var bounds := _brush_box(cell)
-		var box_center := _box_center(bounds)
-		_ghost.global_position = box_center
+		_ghost.global_position = _box_center(bounds)
 		_ghost.scale = Vector3(_brush_diameter, _brush_diameter, _brush_diameter)
 		_ghost.global_rotation = Vector3.ZERO
-		_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
+		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.2, 0.8, 0.2, 0.5)
+		_ghost.visible = true
 
 	elif _mode == Mode.TERRAIN:
-		if _smooth_grid == null or not hit.get("hit", false):
+		if not hit.get("hit", false):
 			_ghost.visible = false
 			return
-
 		_ghost.mesh = _sphere_mesh
-		_ghost.visible = true
 		_ghost.global_position = hit.get("point", Vector3.ZERO)
-		_ghost.scale = Vector3(_sculpt_radius, _sculpt_radius, _sculpt_radius)
+		_ghost.scale = Vector3.ONE * _sculpt_radius
 		_ghost.global_rotation = Vector3.ZERO
-		_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
+		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.2, 0.8, 0.4, 0.5)
+		_ghost.visible = true
 
 	elif _mode == Mode.FURNITURE:
 		if _furniture_defs.is_empty() or _selected_furniture_idx < 0 or _selected_furniture_idx >= _furniture_defs.size():
@@ -760,6 +883,16 @@ func _do_block_paint(hit: Dictionary) -> void:
 	var cell := _target_cell(hit, false)
 	if cell == Vector3i.MIN:
 		return
+
+	var bounds := _brush_box(cell)
+	var ops: Array[Dictionary] = []
+	for x in range(bounds[0].x, bounds[1].x + 1):
+		for y in range(bounds[0].y, bounds[1].y + 1):
+			for z in range(bounds[0].z, bounds[1].z + 1):
+				var p := Vector3i(x, y, z)
+				ops.append({"pos": p, "old_value": _block_vt.get_voxel(p)})
+	_push_undo({"type": "block", "ops": ops})
+
 	_apply_block_brush(cell, _selected_block_index)
 
 
@@ -769,6 +902,16 @@ func _do_block_erase(hit: Dictionary) -> void:
 	var cell := _target_cell(hit, true)
 	if cell == Vector3i.MIN:
 		return
+
+	var bounds := _brush_box(cell)
+	var ops: Array[Dictionary] = []
+	for x in range(bounds[0].x, bounds[1].x + 1):
+		for y in range(bounds[0].y, bounds[1].y + 1):
+			for z in range(bounds[0].z, bounds[1].z + 1):
+				var p := Vector3i(x, y, z)
+				ops.append({"pos": p, "old_value": _block_vt.get_voxel(p)})
+	_push_undo({"type": "block", "ops": ops})
+
 	_apply_block_brush(cell, 0)
 
 
@@ -776,6 +919,7 @@ func _do_terrain_add(hit: Dictionary) -> void:
 	if _map_root == null or _smooth_grid == null or not hit.get("hit", false):
 		return
 	var point: Vector3 = hit.get("point", Vector3.ZERO)
+	_push_undo({"type": "terrain", "point": point, "radius": _sculpt_radius, "was_add": true})
 	_smooth_grid.add_material(point, _terrain_material_id, _sculpt_radius)
 	var terrain := _map_root.get_smooth_terrain()
 	if terrain != null:
@@ -789,6 +933,7 @@ func _do_terrain_carve(hit: Dictionary) -> void:
 	if _map_root == null or _smooth_grid == null or not hit.get("hit", false):
 		return
 	var point: Vector3 = hit.get("point", Vector3.ZERO)
+	_push_undo({"type": "terrain", "point": point, "radius": _sculpt_radius, "was_add": false})
 	_smooth_grid.carve(point, _sculpt_radius)
 	var terrain := _map_root.get_smooth_terrain()
 	if terrain != null:
@@ -987,20 +1132,33 @@ func _visualize_spawn(marker: Marker3D, color: Color) -> void:
 func _cycle_block(dir: int) -> void:
 	if _block_library == null:
 		return
-	var indices: Array = []
-	for idx in _block_library._defs_by_index.keys():
-		indices.append(idx)
-	indices.sort()
-	if indices.is_empty():
+	var filtered: Array[int] = _hud.get_filtered_block_indices() if _hud != null else []
+	if filtered.is_empty():
+		for idx in _block_library._defs_by_index.keys():
+			filtered.append(idx)
+		filtered.sort()
+	if filtered.is_empty():
 		return
-	var cur_pos := indices.find(_selected_block_index)
+	var cur_pos := filtered.find(_selected_block_index)
 	if cur_pos == -1:
 		cur_pos = 0
-	cur_pos = (cur_pos + dir) % indices.size()
-	if cur_pos < 0:
-		cur_pos += indices.size()
-	_selected_block_index = indices[cur_pos]
+	else:
+		cur_pos = (cur_pos + dir) % filtered.size()
+		if cur_pos < 0:
+			cur_pos += filtered.size()
+	_selected_block_index = filtered[cur_pos]
+	if _hud != null:
+		_hud.select_block_by_index(_selected_block_index)
 	_update_hud_info()
+
+
+func _on_hud_block_selected(idx: int) -> void:
+	if _block_library != null and _block_library.get_def_by_index(idx) != null:
+		_selected_block_index = idx
+		_update_hud_info()
+		if _camera != null and _ghost != null and _mode == Mode.BLOCK:
+			var hit := _raycast_from_camera()
+			_update_ghost(hit)
 
 
 func _update_hud_info() -> void:
@@ -1008,8 +1166,9 @@ func _update_hud_info() -> void:
 		return
 	if _block_library != null:
 		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
-		var block_name := def.id if def != null else "Unknown"
-		_hud.set_block_info(block_name, _brush_diameter)
+		var block_name := def.display_name if def != null and not def.display_name.is_empty() else (def.id if def != null else "Unknown")
+		var block_id := def.id if def != null else ""
+		_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index)
 	_hud.set_terrain_info(_terrain_material_id, _sculpt_radius)
 	if not _furniture_defs.is_empty() and _selected_furniture_idx >= 0 and _selected_furniture_idx < _furniture_defs.size():
 		var fdef: FurnitureDef = _furniture_defs[_selected_furniture_idx]
@@ -1029,6 +1188,17 @@ func save_map() -> void:
 			if _spawn_markers.get("player") != null and is_instance_valid(_spawn_markers["player"]):
 				var ppos: Vector3 = (_spawn_markers["player"] as Marker3D).global_position
 				_map_def.player_spawn = ppos
+			if _hud != null:
+				var meta_edits := _hud.get_metadata_edits()
+				if meta_edits.has("display_name"):
+					_map_def.display_name = meta_edits["display_name"]
+				if meta_edits.has("description"):
+					_map_def.description = meta_edits["description"]
+				if meta_edits.has("map_type"):
+					_map_def.map_type = meta_edits["map_type"]
+				if meta_edits.has("difficulty"):
+					_map_def.difficulty = meta_edits["difficulty"]
+
 			var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
 			var err_def := ResourceSaver.save(_map_def, def_path)
 			if err_def != OK:

@@ -1,0 +1,111 @@
+# Map Editor Architecture
+
+The **Map Editor** (`tools/map_editor/map_editor.tscn` + `map_editor.gd`) is a standalone in-engine authoring environment for creating and editing dual-voxel maps in *Vek: Holdout*.
+
+---
+
+## 1. Motivation: Why a Standalone Scene?
+
+In *Vek: Holdout*, environments consist of two complementary voxel systems:
+1. **Blocky Voxels (`BlockyGrid`)**: Discrete cubic blocks for building, structural walls, floors, and furniture anchors.
+2. **Smooth Terrain (`SmoothGrid`)**: Continuous Transvoxel signed-distance field (SDF) natural terrain (hills, valleys, cliffs).
+
+In the Godot editor viewport, `VoxelTerrain` Transvoxel meshing cannot generate smooth meshes without an active runtime loop and `VoxelViewer`. Attempting to author maps inside the editor viewport left smooth terrain invisible.
+
+The standalone Map Editor runs as a game scene (`F6` or configured main scene), providing:
+- **Full Transvoxel runtime streaming**: Both blocky structures and natural terrain are visible and interactable simultaneously.
+- **Unified authoring**: Voxel sculpting, block placement, furniture authoring, spawn markers, and metadata editing in one coherent tool.
+- **Zero test-run impedance**: Maps authored in the editor immediately match runtime gameplay appearance and collisions.
+
+---
+
+## 2. Architecture & Scene Hierarchy
+
+```
+MapEditor (Node3D, tools/map_editor/map_editor.gd)
+├── WorldEnvironment
+├── DirectionalLight3D
+├── EditorCamera (Camera3D)
+│   └── VoxelViewer
+├── GhostMesh (MeshInstance3D)
+├── GridOverlay (MeshInstance3D, from EditorGridOverlay)
+├── EditorHUD (CanvasLayer, tools/map_editor/editor_hud.gd)
+│   └── HUDContainer (Control)
+│       ├── BlockPalettePanel (Searchable ItemList via EditorPalettePanel)
+│       ├── TerrainInfoPanel
+│       ├── FurnitureInfoPanel (Searchable ItemList via EditorPalettePanel)
+│       ├── SpawnInfoPanel
+│       ├── ModeBadge
+│       ├── MapInfoPanel
+│       ├── MetadataPanel
+│       ├── HotkeyPanel
+│       └── Crosshair + CoordLabel
+├── EditorLauncher (CanvasLayer, tools/map_editor/editor_launcher.gd)
+├── ExitConfirmationDialog (ConfirmationDialog)
+└── [Loaded Map Root] (Map, res://data/maps/<id>/map.tscn)
+    ├── BlockyGrid (BlockyGrid)
+    │   └── VoxelTerrain
+    ├── SmoothGrid (SmoothGrid)
+    │   └── VoxelTerrain
+    └── SpawnPoints (Node3D)
+        ├── PlayerSpawn (Marker3D)
+        ├── ColonistSpawn_* (Marker3D)
+        └── Furniture_* (Marker3D)
+```
+
+---
+
+## 3. Map Lifecycle & Flows
+
+### A. Creation & Loading Flow
+
+```mermaid
+sequenceDiagram
+    participant Launcher as EditorLauncher
+    participant Editor as MapEditor
+    participant Storage as FileSystem / Data
+    participant MapNode as Loaded Map Scene
+
+    Launcher->>Editor: map_selected("base")
+    Editor->>Storage: Load MapDef ("res://data/maps/base/map_def.tres")
+    Editor->>Storage: Instantiate "map.tscn"
+    Editor->>Editor: Inject terrain_gen into SmoothGrid
+    Editor->>Editor: add_child(map_instance)
+    Editor->>Storage: Attach VoxelStreamSQLite (map.sqlite & terrain.sqlite)
+    Editor->>Editor: Bind FurnitureAuthoring & Cache Spawn Markers
+    Editor->>Editor: Populate EditorHUD (block & furniture palettes, metadata, coordinates)
+    Editor->>Launcher: hide_launcher()
+```
+
+### B. Dual-Voxel Editing & Undo Pipeline
+
+Every modification records its reverse operation in a bounded undo buffer (`_undo_stack: Array[Dictionary]`, max depth 50):
+
+- **Blocky Edits (`_do_block_paint` / `_do_block_erase`)**:
+  1. Computes the brush bounding box (`_brush_box`).
+  2. Reads existing voxel IDs for all cells in the box (`_block_vt.get_voxel(pos)`).
+  3. Pushes `{ "type": "block", "ops": [{ "pos": Vector3i, "old_value": int }, ...] }` to `_undo_stack`.
+  4. Writes new voxel IDs via `_block_vt.do_box()` and flushes changes to `map.sqlite`.
+  5. Reversing: Restores exact prior voxel IDs and saves block terrain.
+
+- **Smooth Terrain Edits (`_do_terrain_add` / `_do_terrain_carve`)**:
+  1. Records the sculpt hit point and radius.
+  2. Pushes `{ "type": "terrain", "point": Vector3, "radius": float, "was_add": bool }` to `_undo_stack`.
+  3. Executes `SmoothGrid.add_material()` or `SmoothGrid.carve()` and flushes changes to `terrain.sqlite`.
+  4. Reversing: Inverts the operation (adds if previously carved, carves if previously added).
+
+### C. Save Flow
+
+When `save_map()` is triggered (`Ctrl+S` or UI Save button):
+1. **Flush Voxel Streams**: Calls `Map.flush_voxel_streams()` to persist uncommitted voxel blocks to SQLite.
+2. **Update MapDef**: Reads metadata edits (`display_name`, `description`, `map_type`, `difficulty`) and `PlayerSpawn` position, then saves `map_def.tres` via `ResourceSaver`.
+3. **Pack Scene**: Packs `_map_root` (excluding editor camera and UI scaffolding) into `PackedScene` and saves `map.tscn`.
+4. **Update HUD**: Clears the dirty indicator flag.
+
+---
+
+## 4. Relationship to `voxel_paint` Plugin
+
+The `voxel_paint` Godot editor plugin (`addons/voxel_paint/`) authored blocky voxels inside the Godot editor. With the Map Editor:
+- The Map Editor completely replaces the plugin by offering full dual-voxel editing, smooth terrain visibility, furniture placement, spawn point management, and in-game coordinate verification.
+- Shared logic (e.g. `FurnitureAuthoring` and `BlockLibrary`) is reused directly.

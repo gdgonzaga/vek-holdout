@@ -35,6 +35,7 @@ nav:
     - Jobs: jobs.md
     - Skills: skills.md
     - Maps: maps.md
+    - "Map Editor": map-editor.md
     - Expeditions: expeditions.md
     - Inventory: inventory.md
     - Crafting: crafting.md

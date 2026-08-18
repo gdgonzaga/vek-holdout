@@ -2,12 +2,15 @@ class_name EditorHUD
 extends CanvasLayer
 ## In-game overlay for MapEditor.
 ##
-## Displays mode indicator badge, hotkey strip, active block/brush info,
+## Displays mode indicator badge, hotkey strip, filterable block palette,
 ## terrain sculpting info, filterable furniture palette, spawn hint info,
-## map name and dirty indicator.
+## map name and dirty indicator, world coordinate readout, and metadata panel.
 ##
 ## Owned by MapEditor. Built procedurally in code.
 
+const EditorPalettePanelClass = preload("res://tools/map_editor/editor_palette_panel.gd")
+
+signal block_selected(index: int)
 signal furniture_selected(index: int)
 signal save_requested()
 
@@ -15,32 +18,41 @@ var _mode_badge: PanelContainer
 var _mode_label: Label
 var _map_info_label: Label
 var _save_button: Button
+var _meta_button: Button
 var _hotkey_label: Label
 var _crosshair: Control
+var _coord_label: Label
 
-var _block_info_panel: PanelContainer
-var _block_label: Label
+var _block_palette: EditorPalettePanel
 var _brush_label: Label
+var _block_info_panel: PanelContainer # Alias for backward compatibility
+var _block_label: Label             # Alias for backward compatibility
 
 var _terrain_info_panel: PanelContainer
 var _terrain_material_label: Label
 var _terrain_radius_label: Label
 var _terrain_warning_label: Label
 
-var _furniture_info_panel: PanelContainer
-var _furniture_count_label: Label
-var _furniture_search_input: LineEdit
-var _furniture_item_list: ItemList
-var _furniture_label: Label
-var _yaw_label: Label
+var _furniture_palette: EditorPalettePanel
 var _furniture_dims_label: Label
-var _furniture_id_label: Label
+var _yaw_label: Label
+var _furniture_info_panel: PanelContainer # Alias for backward compatibility
+var _furniture_count_label: Label         # Alias for backward compatibility
+var _furniture_search_input: LineEdit     # Alias for backward compatibility
+var _furniture_item_list: ItemList         # Alias for backward compatibility
+var _furniture_label: Label               # Alias for backward compatibility
+var _furniture_id_label: Label            # Alias for backward compatibility
 var _furniture_defs: Array[FurnitureDef] = []
-var _filtered_indices: Array[int] = []
 var _selected_global_idx: int = 0
 
 var _spawn_info_panel: PanelContainer
 var _spawn_hint_label: Label
+
+var _metadata_panel: PanelContainer
+var _meta_display_name_input: LineEdit
+var _meta_desc_input: TextEdit
+var _meta_type_option: OptionButton
+var _meta_difficulty_spin: SpinBox
 
 const MODE_NAMES: Array[String] = [
 	"NAVIGATE",
@@ -51,11 +63,11 @@ const MODE_NAMES: Array[String] = [
 ]
 
 const MODE_HOTKEYS: Array[String] = [
-	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [Esc] Release Mouse / Menu   [F1-F5] Modes",
-	"[LMB] Paint   [Shift+LMB] Erase   [[/]] Block   [B+Scroll] Size   [Ctrl+S] Save   [F1-F5] Modes",
-	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Scroll] Radius   [Ctrl+S] Save   [F1-F5] Modes",
-	"[LMB] Place   [Shift+LMB] Remove   [Tab/List] Select   [R] Rotate   [Ctrl+S] Save   [F1-F5] Modes",
-	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [F1-F5] Modes",
+	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [G] Grid   [Esc] Menu   [F1-F5] Modes",
+	"[LMB] Paint   [Shift+LMB] Erase   [Tab/List] Select   [B+Scroll] Size   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
+	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Scroll] Radius   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
+	"[LMB] Place   [Shift+LMB] Remove   [Tab/List] Select   [R] Rotate   [Ctrl+S] Save   [G] Grid",
+	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [G] Grid   [F1-F5] Modes",
 ]
 
 
@@ -73,43 +85,34 @@ func _build_ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
-	# --- Block Info (Top Left) ---
-	_block_info_panel = PanelContainer.new()
-	_block_info_panel.name = "BlockInfoPanel"
-	_block_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_block_info_panel.offset_left = 16.0
-	_block_info_panel.offset_top = 16.0
-	_block_info_panel.offset_right = 240.0
-	_block_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_block_info_panel.visible = false
+	# --- Block Palette Sidebar (Top Left) ---
+	_block_palette = EditorPalettePanelClass.new()
+	_block_palette.name = "BlockPalettePanel"
+	_block_palette.setup(
+		"BLOCK PALETTE",
+		"Filter blocks... (Esc to unfocus)",
+		Color(0.8, 0.6, 0.2, 0.85),
+		Color(0.95, 0.8, 0.5)
+	)
+	_block_palette.item_selected.connect(func(idx: int) -> void:
+		block_selected.emit(idx)
+	)
+	_block_palette.visible = false
 
-	var block_style := StyleBoxFlat.new()
-	block_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
-	block_style.border_color = Color(0.2, 0.25, 0.35, 0.8)
-	block_style.set_border_width_all(1)
-	block_style.set_corner_radius_all(4)
-	block_style.set_content_margin_all(8)
-	_block_info_panel.add_theme_stylebox_override("panel", block_style)
-
-	var vbox := VBoxContainer.new()
-	vbox.name = "BlockInfoVBox"
-	_block_info_panel.add_child(vbox)
-
-	_block_label = Label.new()
-	_block_label.name = "BlockLabel"
-	_block_label.text = "Block: Wood"
-	_block_label.add_theme_font_size_override("font_size", 13)
-	_block_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
-	vbox.add_child(_block_label)
-
+	# Add brush size info to Block Palette footer
+	var block_footer := _block_palette.get_footer_vbox()
 	_brush_label = Label.new()
 	_brush_label.name = "BrushLabel"
-	_brush_label.text = "Brush: 1x1x1"
-	_brush_label.add_theme_font_size_override("font_size", 13)
-	_brush_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
-	vbox.add_child(_brush_label)
+	_brush_label.text = "Brush: 1x1x1 [B+Scroll]"
+	_brush_label.add_theme_font_size_override("font_size", 11)
+	_brush_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	block_footer.add_child(_brush_label)
 
-	root.add_child(_block_info_panel)
+	# Backward-compatible references
+	_block_info_panel = _block_palette
+	_block_label = _block_palette._selected_label
+
+	root.add_child(_block_palette)
 
 	# --- Terrain Info (Top Left) ---
 	_terrain_info_panel = PanelContainer.new()
@@ -123,7 +126,7 @@ func _build_ui() -> void:
 
 	var terrain_style := StyleBoxFlat.new()
 	terrain_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
-	terrain_style.border_color = Color(0.2, 0.35, 0.25, 0.8)
+	terrain_style.border_color = Color(0.2, 0.25, 0.35, 0.8)
 	terrain_style.set_border_width_all(1)
 	terrain_style.set_corner_radius_all(4)
 	terrain_style.set_content_margin_all(8)
@@ -158,107 +161,50 @@ func _build_ui() -> void:
 	root.add_child(_terrain_info_panel)
 
 	# --- Furniture Palette Sidebar (Top Left) ---
-	_furniture_info_panel = PanelContainer.new()
-	_furniture_info_panel.name = "FurnitureInfoPanel"
-	_furniture_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_furniture_info_panel.offset_left = 16.0
-	_furniture_info_panel.offset_top = 16.0
-	_furniture_info_panel.offset_right = 300.0
-	_furniture_info_panel.offset_bottom = 440.0
-	_furniture_info_panel.custom_minimum_size = Vector2(284, 400)
-	_furniture_info_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	_furniture_info_panel.visible = false
+	_furniture_palette = EditorPalettePanelClass.new()
+	_furniture_palette.name = "FurnitureInfoPanel"
+	_furniture_palette.setup(
+		"FURNITURE PALETTE",
+		"Filter furniture... (Esc to unfocus)",
+		Color(0.6, 0.3, 0.7, 0.85),
+		Color(0.85, 0.65, 0.95)
+	)
+	_furniture_palette.item_selected.connect(func(idx: int) -> void:
+		_selected_global_idx = idx
+		furniture_selected.emit(idx)
+	)
+	_furniture_palette.visible = false
 
-	var furn_style := StyleBoxFlat.new()
-	furn_style.bg_color = Color(0.08, 0.1, 0.14, 0.92)
-	furn_style.border_color = Color(0.6, 0.3, 0.7, 0.85)
-	furn_style.set_border_width_all(1)
-	furn_style.set_corner_radius_all(6)
-	furn_style.set_content_margin_all(10)
-	_furniture_info_panel.add_theme_stylebox_override("panel", furn_style)
-
-	var furn_vbox := VBoxContainer.new()
-	furn_vbox.name = "FurnitureVBox"
-	furn_vbox.add_theme_constant_override("separation", 6)
-	_furniture_info_panel.add_child(furn_vbox)
-
-	# Header: Title + Count
-	var header_hbox := HBoxContainer.new()
-	header_hbox.name = "HeaderHBox"
-	furn_vbox.add_child(header_hbox)
-
-	var title_lbl := Label.new()
-	title_lbl.name = "PaletteTitle"
-	title_lbl.text = "FURNITURE PALETTE"
-	title_lbl.add_theme_font_size_override("font_size", 13)
-	title_lbl.add_theme_color_override("font_color", Color(0.85, 0.65, 0.95))
-	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_hbox.add_child(title_lbl)
-
-	_furniture_count_label = Label.new()
-	_furniture_count_label.name = "FurnitureCountLabel"
-	_furniture_count_label.text = "(0)"
-	_furniture_count_label.add_theme_font_size_override("font_size", 11)
-	_furniture_count_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
-	_furniture_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	header_hbox.add_child(_furniture_count_label)
-
-	# Search LineEdit
-	_furniture_search_input = LineEdit.new()
-	_furniture_search_input.name = "FurnitureSearchInput"
-	_furniture_search_input.placeholder_text = "Filter furniture... (Esc to unfocus)"
-	_furniture_search_input.clear_button_enabled = true
-	_furniture_search_input.add_theme_font_size_override("font_size", 12)
-	_furniture_search_input.text_changed.connect(_on_furniture_search_changed)
-	furn_vbox.add_child(_furniture_search_input)
-
-	# ItemList
-	_furniture_item_list = ItemList.new()
-	_furniture_item_list.name = "FurnitureItemList"
-	_furniture_item_list.select_mode = ItemList.SELECT_SINGLE
-	_furniture_item_list.allow_reselect = true
-	_furniture_item_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_furniture_item_list.custom_minimum_size = Vector2(0, 200)
-	_furniture_item_list.add_theme_font_size_override("font_size", 12)
-	_furniture_item_list.item_selected.connect(_on_furniture_item_selected)
-	furn_vbox.add_child(_furniture_item_list)
-
-	# Separator
-	var sep := HSeparator.new()
-	sep.name = "Separator"
-	furn_vbox.add_child(sep)
-
-	# Footer Info: Details
-	_furniture_label = Label.new()
-	_furniture_label.name = "FurnitureLabel"
-	_furniture_label.text = "Furniture: None"
-	_furniture_label.add_theme_font_size_override("font_size", 12)
-	_furniture_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
-	furn_vbox.add_child(_furniture_label)
-
-	_yaw_label = Label.new()
-	_yaw_label.name = "YawLabel"
-	_yaw_label.text = "Rotation: 0° [R]"
-	_yaw_label.add_theme_font_size_override("font_size", 12)
-	_yaw_label.add_theme_color_override("font_color", Color(0.8, 0.85, 0.9))
-	furn_vbox.add_child(_yaw_label)
+	# Add size and rotation info to Furniture Palette footer
+	var furn_footer := _furniture_palette.get_footer_vbox()
+	var dims_yaw_hbox := HBoxContainer.new()
+	dims_yaw_hbox.name = "DimsYawHBox"
+	furn_footer.add_child(dims_yaw_hbox)
 
 	_furniture_dims_label = Label.new()
 	_furniture_dims_label.name = "FurnitureDimsLabel"
 	_furniture_dims_label.text = "Size: 1x1x1"
 	_furniture_dims_label.add_theme_font_size_override("font_size", 11)
-	_furniture_dims_label.add_theme_color_override("font_color", Color(0.65, 0.7, 0.8))
-	furn_vbox.add_child(_furniture_dims_label)
+	_furniture_dims_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	_furniture_dims_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dims_yaw_hbox.add_child(_furniture_dims_label)
 
-	_furniture_id_label = Label.new()
-	_furniture_id_label.name = "FurnitureIdLabel"
-	_furniture_id_label.text = ""
-	_furniture_id_label.add_theme_font_size_override("font_size", 11)
-	_furniture_id_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
-	_furniture_id_label.visible = false
-	furn_vbox.add_child(_furniture_id_label)
+	_yaw_label = Label.new()
+	_yaw_label.name = "YawLabel"
+	_yaw_label.text = "0° [R]"
+	_yaw_label.add_theme_font_size_override("font_size", 11)
+	_yaw_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	dims_yaw_hbox.add_child(_yaw_label)
 
-	root.add_child(_furniture_info_panel)
+	# Backward-compatible references
+	_furniture_info_panel = _furniture_palette
+	_furniture_count_label = _furniture_palette._count_label
+	_furniture_search_input = _furniture_palette._search_input
+	_furniture_item_list = _furniture_palette._item_list
+	_furniture_label = _furniture_palette._selected_label
+	_furniture_id_label = _furniture_palette._id_label
+
+	root.add_child(_furniture_palette)
 
 	# --- Spawn Info (Top Left) ---
 	_spawn_info_panel = PanelContainer.new()
@@ -266,7 +212,7 @@ func _build_ui() -> void:
 	_spawn_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_spawn_info_panel.offset_left = 16.0
 	_spawn_info_panel.offset_top = 16.0
-	_spawn_info_panel.offset_right = 280.0
+	_spawn_info_panel.offset_right = 260.0
 	_spawn_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_spawn_info_panel.visible = false
 
@@ -322,13 +268,13 @@ func _build_ui() -> void:
 	var info_panel := PanelContainer.new()
 	info_panel.name = "MapInfoPanel"
 	info_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	info_panel.offset_left = -280.0
+	info_panel.offset_left = -340.0
 	info_panel.offset_top = 16.0
 	info_panel.offset_right = -16.0
 	info_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var info_style := StyleBoxFlat.new()
-	info_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
+	info_style.bg_color = Color(0.08, 0.1, 0.14, 0.85)
 	info_style.border_color = Color(0.2, 0.25, 0.35, 0.8)
 	info_style.set_border_width_all(1)
 	info_style.set_corner_radius_all(4)
@@ -348,15 +294,111 @@ func _build_ui() -> void:
 	_save_button.pressed.connect(_on_save_pressed)
 	info_hbox.add_child(_save_button)
 
+	_meta_button = Button.new()
+	_meta_button.name = "MetadataButton"
+	_meta_button.text = "Metadata"
+	_meta_button.tooltip_text = "Toggle map metadata panel"
+	_meta_button.add_theme_font_size_override("font_size", 12)
+	_meta_button.pressed.connect(toggle_metadata_panel)
+	info_hbox.add_child(_meta_button)
+
 	_map_info_label = Label.new()
 	_map_info_label.name = "MapInfoLabel"
 	_map_info_label.text = "Map: none"
 	_map_info_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_map_info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_map_info_label.add_theme_font_size_override("font_size", 13)
 	_map_info_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
 	info_hbox.add_child(_map_info_label)
 
 	root.add_child(info_panel)
+
+	# --- Metadata Panel (Top Right, expandable) ---
+	_metadata_panel = PanelContainer.new()
+	_metadata_panel.name = "MetadataPanel"
+	_metadata_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_metadata_panel.offset_left = -340.0
+	_metadata_panel.offset_top = 56.0
+	_metadata_panel.offset_right = -16.0
+	_metadata_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_metadata_panel.visible = false
+
+	var meta_style := StyleBoxFlat.new()
+	meta_style.bg_color = Color(0.08, 0.1, 0.14, 0.92)
+	meta_style.border_color = Color(0.3, 0.4, 0.55, 0.85)
+	meta_style.set_border_width_all(1)
+	meta_style.set_corner_radius_all(6)
+	meta_style.set_content_margin_all(10)
+	_metadata_panel.add_theme_stylebox_override("panel", meta_style)
+
+	var meta_vbox := VBoxContainer.new()
+	meta_vbox.name = "MetadataVBox"
+	meta_vbox.add_theme_constant_override("separation", 6)
+	_metadata_panel.add_child(meta_vbox)
+
+	var meta_title := Label.new()
+	meta_title.name = "MetaTitle"
+	meta_title.text = "MAP METADATA"
+	meta_title.add_theme_font_size_override("font_size", 13)
+	meta_title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	meta_vbox.add_child(meta_title)
+
+	# Display Name
+	var name_lbl := Label.new()
+	name_lbl.text = "Display Name:"
+	name_lbl.add_theme_font_size_override("font_size", 11)
+	meta_vbox.add_child(name_lbl)
+
+	_meta_display_name_input = LineEdit.new()
+	_meta_display_name_input.name = "DisplayNameInput"
+	_meta_display_name_input.placeholder_text = "Map Name"
+	_meta_display_name_input.add_theme_font_size_override("font_size", 12)
+	meta_vbox.add_child(_meta_display_name_input)
+
+	# Description
+	var desc_lbl := Label.new()
+	desc_lbl.text = "Description:"
+	desc_lbl.add_theme_font_size_override("font_size", 11)
+	meta_vbox.add_child(desc_lbl)
+
+	_meta_desc_input = TextEdit.new()
+	_meta_desc_input.name = "DescriptionInput"
+	_meta_desc_input.placeholder_text = "Map description..."
+	_meta_desc_input.custom_minimum_size = Vector2(0, 60)
+	_meta_desc_input.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_meta_desc_input.add_theme_font_size_override("font_size", 11)
+	meta_vbox.add_child(_meta_desc_input)
+
+	# Map Type
+	var type_lbl := Label.new()
+	type_lbl.text = "Map Type:"
+	type_lbl.add_theme_font_size_override("font_size", 11)
+	meta_vbox.add_child(type_lbl)
+
+	_meta_type_option = OptionButton.new()
+	_meta_type_option.name = "MapTypeOption"
+	_meta_type_option.add_item("BASE (0)", 0)
+	_meta_type_option.add_item("POI (1)", 1)
+	_meta_type_option.add_item("BUILDING (2)", 2)
+	_meta_type_option.add_item("TOWN (3)", 3)
+	_meta_type_option.add_theme_font_size_override("font_size", 11)
+	meta_vbox.add_child(_meta_type_option)
+
+	# Difficulty
+	var diff_lbl := Label.new()
+	diff_lbl.text = "Difficulty (1-10):"
+	diff_lbl.add_theme_font_size_override("font_size", 11)
+	meta_vbox.add_child(diff_lbl)
+
+	_meta_difficulty_spin = SpinBox.new()
+	_meta_difficulty_spin.name = "DifficultySpin"
+	_meta_difficulty_spin.min_value = 1
+	_meta_difficulty_spin.max_value = 10
+	_meta_difficulty_spin.step = 1
+	_meta_difficulty_spin.value = 1
+	meta_vbox.add_child(_meta_difficulty_spin)
+
+	root.add_child(_metadata_panel)
 
 	# --- Hotkey Strip (Bottom Center) ---
 	var hotkey_panel := PanelContainer.new()
@@ -386,7 +428,7 @@ func _build_ui() -> void:
 	hotkey_panel.add_child(_hotkey_label)
 	root.add_child(hotkey_panel)
 
-	# --- Crosshair (Center) ---
+	# --- Crosshair & Coordinate Readout (Center) ---
 	_crosshair = Control.new()
 	_crosshair.name = "Crosshair"
 	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
@@ -411,97 +453,190 @@ func _build_ui() -> void:
 	v_line.offset_bottom = 6
 	_crosshair.add_child(v_line)
 
+	_coord_label = Label.new()
+	_coord_label.name = "CoordLabel"
+	_coord_label.set_anchors_preset(Control.PRESET_CENTER)
+	_coord_label.offset_top = 16.0
+	_coord_label.offset_left = -150.0
+	_coord_label.offset_right = 150.0
+	_coord_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_coord_label.add_theme_font_size_override("font_size", 11)
+	_coord_label.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0, 0.75))
+	_coord_label.text = ""
+	_crosshair.add_child(_coord_label)
+
 	root.add_child(_crosshair)
 
+
+# --- Block Palette API ---
+
+func populate_block_library(library: BlockLibrary, selected_idx: int = 6) -> void:
+	if library == null or _block_palette == null:
+		return
+	var items: Array[EditorPalettePanel.Item] = []
+	var indices: Array = []
+	for idx in library._defs_by_index.keys():
+		indices.append(idx)
+	indices.sort()
+
+	for idx_val in indices:
+		var idx: int = int(idx_val)
+		var def: BlockDef = library.get_def_by_index(idx)
+		if def == null:
+			continue
+		var item := EditorPalettePanelClass.Item.new()
+		item.index = idx
+		item.id = def.id
+		item.display_name = def.display_name if not def.display_name.is_empty() else def.id.capitalize()
+		item.label = "%s  [#%d]" % [item.display_name, idx]
+		item.icon = def.icon if def.icon != null else def.texture
+		item.tooltip = "%s (%s)\nVoxel Index: %d\nHP: %d%s" % [
+			item.display_name,
+			def.id,
+			idx,
+			def.hp,
+			"\nType: Ground/Terrain" if def.is_terrain else "",
+		]
+		items.append(item)
+
+	_block_palette.populate(items, selected_idx)
+
+
+func populate_block_list(defs_by_index: Dictionary, selected_idx: int = 6) -> void:
+	if _block_palette == null:
+		return
+	var items: Array[EditorPalettePanel.Item] = []
+	var indices: Array = []
+	for idx in defs_by_index.keys():
+		indices.append(idx)
+	indices.sort()
+
+	for idx_val in indices:
+		var idx: int = int(idx_val)
+		var def: BlockDef = defs_by_index.get(idx)
+		if def == null:
+			continue
+		var item := EditorPalettePanelClass.Item.new()
+		item.index = idx
+		item.id = def.id
+		item.display_name = def.display_name if not def.display_name.is_empty() else def.id.capitalize()
+		item.label = "%s  [#%d]" % [item.display_name, idx]
+		item.icon = def.icon if def.icon != null else def.texture
+		item.tooltip = "%s (%s)\nVoxel Index: %d\nHP: %d%s" % [
+			item.display_name,
+			def.id,
+			idx,
+			def.hp,
+			"\nType: Ground/Terrain" if def.is_terrain else "",
+		]
+		items.append(item)
+
+	_block_palette.populate(items, selected_idx)
+
+
+func select_block_by_index(global_idx: int) -> void:
+	if _block_palette != null:
+		_block_palette.select_by_index(global_idx)
+
+
+func get_filtered_block_indices() -> Array[int]:
+	return _block_palette.get_filtered_indices() if _block_palette != null else []
+
+
+# --- Furniture Palette API ---
 
 func populate_furniture_list(defs: Array[FurnitureDef], selected_idx: int = 0) -> void:
 	_furniture_defs = defs
 	_selected_global_idx = selected_idx
-	var current_query := _furniture_search_input.text if _furniture_search_input != null else ""
-	_filter_furniture_list(current_query)
+	if _furniture_palette == null:
+		return
+
+	var items: Array[EditorPalettePanel.Item] = []
+	for i in range(defs.size()):
+		var def := defs[i]
+		if def == null:
+			continue
+		var item := EditorPalettePanelClass.Item.new()
+		item.index = i
+		item.id = def.id
+		item.display_name = def.display_name if not def.display_name.is_empty() else def.id
+		item.label = "%s  [%dx%dx%d]" % [item.display_name, def.dimensions.x, def.dimensions.y, def.dimensions.z]
+		item.icon = def.icon
+		item.tooltip = "%s (%s)\nDimensions: %dx%dx%d" % [
+			item.display_name,
+			def.id,
+			def.dimensions.x,
+			def.dimensions.y,
+			def.dimensions.z,
+		]
+		items.append(item)
+
+	_furniture_palette.populate(items, selected_idx)
 
 
 func _on_furniture_search_changed(new_text: String) -> void:
-	_filter_furniture_list(new_text)
-
-
-func _filter_furniture_list(query: String) -> void:
-	if _furniture_item_list == null:
-		return
-	_furniture_item_list.clear()
-	_filtered_indices.clear()
-
-	var q := query.strip_edges().to_lower()
-	for i in range(_furniture_defs.size()):
-		var def := _furniture_defs[i]
-		if def == null:
-			continue
-		var dname := def.display_name if not def.display_name.is_empty() else def.id
-		var matches := q.is_empty() or dname.to_lower().contains(q) or def.id.to_lower().contains(q)
-		if matches:
-			_filtered_indices.append(i)
-			var label := "%s  [%dx%dx%d]" % [dname, def.dimensions.x, def.dimensions.y, def.dimensions.z]
-			var list_idx := _furniture_item_list.add_item(label, def.icon)
-			_furniture_item_list.set_item_tooltip(list_idx, "%s (%s)\nDimensions: %dx%dx%d" % [
-				dname,
-				def.id,
-				def.dimensions.x,
-				def.dimensions.y,
-				def.dimensions.z,
-			])
-
-	if _furniture_count_label != null:
-		_furniture_count_label.text = "(%d/%d)" % [_filtered_indices.size(), _furniture_defs.size()]
-
-	# Re-select the active item if present in filtered items, or select first match
-	var found_selected_idx := _filtered_indices.find(_selected_global_idx)
-	if found_selected_idx != -1:
-		_furniture_item_list.select(found_selected_idx)
-		_furniture_item_list.ensure_current_is_visible()
-	elif not _filtered_indices.is_empty():
-		_selected_global_idx = _filtered_indices[0]
-		_furniture_item_list.select(0)
-		_furniture_item_list.ensure_current_is_visible()
-		furniture_selected.emit(_selected_global_idx)
+	if _furniture_palette != null:
+		_furniture_palette._on_search_changed(new_text)
 
 
 func _on_furniture_item_selected(list_idx: int) -> void:
-	if list_idx >= 0 and list_idx < _filtered_indices.size():
-		var global_idx := _filtered_indices[list_idx]
-		_selected_global_idx = global_idx
-		furniture_selected.emit(global_idx)
+	if _furniture_palette != null:
+		_furniture_palette._on_item_selected(list_idx)
 
 
 func select_furniture_by_index(global_idx: int) -> void:
 	_selected_global_idx = global_idx
-	if _furniture_item_list == null:
-		return
-	var found_list_idx := _filtered_indices.find(global_idx)
-	if found_list_idx != -1:
-		_furniture_item_list.select(found_list_idx)
-		_furniture_item_list.ensure_current_is_visible()
-	else:
-		_furniture_item_list.deselect_all()
+	if _furniture_palette != null:
+		_furniture_palette.select_by_index(global_idx)
 
 
 func get_filtered_furniture_indices() -> Array[int]:
-	return _filtered_indices
+	return _furniture_palette.get_filtered_indices() if _furniture_palette != null else []
 
+
+# --- Focus and Mode API ---
 
 func is_search_focused() -> bool:
-	return _furniture_search_input != null and _furniture_search_input.has_focus()
+	if _furniture_palette != null and _furniture_palette.is_search_focused():
+		return true
+	if _block_palette != null and _block_palette.is_search_focused():
+		return true
+	return false
 
 
 func unfocus_search() -> void:
-	if _furniture_search_input != null and _furniture_search_input.has_focus():
-		_furniture_search_input.release_focus()
+	if _furniture_palette != null and _furniture_palette.is_search_focused():
+		_furniture_palette.unfocus_search()
+	if _block_palette != null and _block_palette.is_search_focused():
+		_block_palette.unfocus_search()
 
 
-func set_block_info(block_name: String, diameter: int) -> void:
-	if _block_label != null:
-		_block_label.text = "Block: " + block_name
+func is_metadata_focused() -> bool:
+	if _meta_display_name_input != null and _meta_display_name_input.has_focus():
+		return true
+	if _meta_desc_input != null and _meta_desc_input.has_focus():
+		return true
+	if _meta_type_option != null and _meta_type_option.has_focus():
+		return true
+	if _meta_difficulty_spin != null and _meta_difficulty_spin.get_line_edit() != null and _meta_difficulty_spin.get_line_edit().has_focus():
+		return true
+	return false
+
+
+func is_any_input_focused() -> bool:
+	return is_search_focused() or is_metadata_focused()
+
+
+# --- Information display helpers ---
+
+func set_block_info(block_name: String, diameter: int, id_str: String = "", voxel_idx: int = -1) -> void:
+	if _block_palette != null:
+		var display_id := id_str
+		if voxel_idx > 0:
+			display_id = "%s (Voxel #%d)" % [id_str if not id_str.is_empty() else "-", voxel_idx]
+		_block_palette.set_selected_info(block_name, display_id)
 	if _brush_label != null:
-		_brush_label.text = "Brush: %dx%dx%d" % [diameter, diameter, diameter]
+		_brush_label.text = "Brush: %dx%dx%d [B+Scroll]" % [diameter, diameter, diameter]
 
 
 func set_sculpt_info(radius: float) -> void:
@@ -516,24 +651,57 @@ func set_terrain_info(material_name: String, radius: float) -> void:
 
 
 func set_furniture_info(name: String, yaw_quarters: int, dims: Vector3i = Vector3i.ONE, id_str: String = "") -> void:
-	if _furniture_label != null:
-		_furniture_label.text = "Furniture: " + name
+	if _furniture_palette != null:
+		_furniture_palette.set_selected_info(name, id_str)
 	if _yaw_label != null:
 		var deg := (yaw_quarters % 4) * 90
 		_yaw_label.text = "Rotation: %d° [R]" % deg
 	if _furniture_dims_label != null:
 		_furniture_dims_label.text = "Size: %dx%dx%d (WxHxD)" % [dims.x, dims.y, dims.z]
-	if _furniture_id_label != null:
-		if not id_str.is_empty():
-			_furniture_id_label.text = "ID: " + id_str
-			_furniture_id_label.visible = true
-		else:
-			_furniture_id_label.visible = false
 
 
 func set_terrain_available(available: bool) -> void:
 	if _terrain_warning_label != null:
 		_terrain_warning_label.visible = not available
+
+
+func set_coordinates(pos: Vector3) -> void:
+	if _coord_label != null:
+		_coord_label.text = "X: %.1f  Y: %.1f  Z: %.1f" % [pos.x, pos.y, pos.z]
+
+
+func clear_coordinates() -> void:
+	if _coord_label != null:
+		_coord_label.text = ""
+
+
+func set_metadata(display_name: String, description: String, map_type: int, difficulty: int) -> void:
+	if _meta_display_name_input != null:
+		_meta_display_name_input.text = display_name
+	if _meta_desc_input != null:
+		_meta_desc_input.text = description
+	if _meta_type_option != null:
+		_meta_type_option.selected = map_type
+	if _meta_difficulty_spin != null:
+		_meta_difficulty_spin.value = float(difficulty)
+
+
+func get_metadata_edits() -> Dictionary:
+	var out := {}
+	if _meta_display_name_input != null:
+		out["display_name"] = _meta_display_name_input.text
+	if _meta_desc_input != null:
+		out["description"] = _meta_desc_input.text
+	if _meta_type_option != null:
+		out["map_type"] = _meta_type_option.selected
+	if _meta_difficulty_spin != null:
+		out["difficulty"] = int(_meta_difficulty_spin.value)
+	return out
+
+
+func toggle_metadata_panel() -> void:
+	if _metadata_panel != null:
+		_metadata_panel.visible = not _metadata_panel.visible
 
 
 func set_mode(mode: int) -> void:
@@ -543,12 +711,12 @@ func set_mode(mode: int) -> void:
 	_mode_label.text = "[ F%d ] %s" % [key_num, MODE_NAMES[mode]]
 	_hotkey_label.text = MODE_HOTKEYS[mode]
 
-	if _block_info_panel != null:
-		_block_info_panel.visible = (mode == 1) # Mode.BLOCK
+	if _block_palette != null:
+		_block_palette.visible = (mode == 1) # Mode.BLOCK
 	if _terrain_info_panel != null:
 		_terrain_info_panel.visible = (mode == 2) # Mode.TERRAIN
-	if _furniture_info_panel != null:
-		_furniture_info_panel.visible = (mode == 3) # Mode.FURNITURE
+	if _furniture_palette != null:
+		_furniture_palette.visible = (mode == 3) # Mode.FURNITURE
 	if _spawn_info_panel != null:
 		_spawn_info_panel.visible = (mode == 4) # Mode.SPAWN
 
@@ -566,7 +734,6 @@ func set_mode(mode: int) -> void:
 				badge_style.border_color = Color(0.7, 0.3, 0.8, 0.9)
 			4: # SPAWN
 				badge_style.border_color = Color(0.9, 0.3, 0.3, 0.9)
-
 
 
 func _on_save_pressed() -> void:
