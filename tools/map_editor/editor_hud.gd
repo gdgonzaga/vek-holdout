@@ -3,10 +3,12 @@ extends CanvasLayer
 ## In-game overlay for MapEditor.
 ##
 ## Displays mode indicator badge, hotkey strip, active block/brush info,
-## terrain sculpting info, furniture placement info, spawn hint info,
+## terrain sculpting info, filterable furniture palette, spawn hint info,
 ## map name and dirty indicator.
 ##
 ## Owned by MapEditor. Built procedurally in code.
+
+signal furniture_selected(index: int)
 
 var _mode_badge: PanelContainer
 var _mode_label: Label
@@ -24,8 +26,16 @@ var _terrain_radius_label: Label
 var _terrain_warning_label: Label
 
 var _furniture_info_panel: PanelContainer
+var _furniture_count_label: Label
+var _furniture_search_input: LineEdit
+var _furniture_item_list: ItemList
 var _furniture_label: Label
 var _yaw_label: Label
+var _furniture_dims_label: Label
+var _furniture_id_label: Label
+var _furniture_defs: Array[FurnitureDef] = []
+var _filtered_indices: Array[int] = []
+var _selected_global_idx: int = 0
 
 var _spawn_info_panel: PanelContainer
 var _spawn_hint_label: Label
@@ -42,7 +52,7 @@ const MODE_HOTKEYS: Array[String] = [
 	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [Esc] Release Mouse / Menu   [F1-F5] Modes",
 	"[LMB] Paint   [Shift+LMB] Erase   [[/]] Block   [B+Scroll] Size   [Ctrl+S] Save   [F1-F5] Modes",
 	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Scroll] Radius   [Ctrl+S] Save   [F1-F5] Modes",
-	"[LMB] Place   [Shift+LMB] Remove   [Tab] Cycle   [R] Rotate   [Ctrl+S] Save   [F1-F5] Modes",
+	"[LMB] Place   [Shift+LMB] Remove   [Tab/List] Select   [R] Rotate   [Ctrl+S] Save   [F1-F5] Modes",
 	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [F1-F5] Modes",
 ]
 
@@ -137,49 +147,114 @@ func _build_ui() -> void:
 
 	_terrain_warning_label = Label.new()
 	_terrain_warning_label.name = "TerrainWarningLabel"
-	_terrain_warning_label.text = "No terrain on map"
-	_terrain_warning_label.add_theme_font_size_override("font_size", 12)
-	_terrain_warning_label.add_theme_color_override("font_color", Color(0.95, 0.4, 0.4))
+	_terrain_warning_label.text = "Smooth terrain unavailable\n(terrain.sqlite missing)"
+	_terrain_warning_label.add_theme_font_size_override("font_size", 11)
+	_terrain_warning_label.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
 	_terrain_warning_label.visible = false
 	terrain_vbox.add_child(_terrain_warning_label)
 
 	root.add_child(_terrain_info_panel)
 
-	# --- Furniture Info (Top Left) ---
+	# --- Furniture Palette Sidebar (Top Left) ---
 	_furniture_info_panel = PanelContainer.new()
 	_furniture_info_panel.name = "FurnitureInfoPanel"
 	_furniture_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_furniture_info_panel.offset_left = 16.0
 	_furniture_info_panel.offset_top = 16.0
-	_furniture_info_panel.offset_right = 260.0
-	_furniture_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_furniture_info_panel.offset_right = 300.0
+	_furniture_info_panel.offset_bottom = 440.0
+	_furniture_info_panel.custom_minimum_size = Vector2(284, 400)
+	_furniture_info_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_furniture_info_panel.visible = false
 
 	var furn_style := StyleBoxFlat.new()
-	furn_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
-	furn_style.border_color = Color(0.35, 0.2, 0.4, 0.8)
+	furn_style.bg_color = Color(0.08, 0.1, 0.14, 0.92)
+	furn_style.border_color = Color(0.6, 0.3, 0.7, 0.85)
 	furn_style.set_border_width_all(1)
-	furn_style.set_corner_radius_all(4)
-	furn_style.set_content_margin_all(8)
+	furn_style.set_corner_radius_all(6)
+	furn_style.set_content_margin_all(10)
 	_furniture_info_panel.add_theme_stylebox_override("panel", furn_style)
 
 	var furn_vbox := VBoxContainer.new()
-	furn_vbox.name = "FurnitureInfoVBox"
+	furn_vbox.name = "FurnitureVBox"
+	furn_vbox.add_theme_constant_override("separation", 6)
 	_furniture_info_panel.add_child(furn_vbox)
 
+	# Header: Title + Count
+	var header_hbox := HBoxContainer.new()
+	header_hbox.name = "HeaderHBox"
+	furn_vbox.add_child(header_hbox)
+
+	var title_lbl := Label.new()
+	title_lbl.name = "PaletteTitle"
+	title_lbl.text = "FURNITURE PALETTE"
+	title_lbl.add_theme_font_size_override("font_size", 13)
+	title_lbl.add_theme_color_override("font_color", Color(0.85, 0.65, 0.95))
+	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_hbox.add_child(title_lbl)
+
+	_furniture_count_label = Label.new()
+	_furniture_count_label.name = "FurnitureCountLabel"
+	_furniture_count_label.text = "(0)"
+	_furniture_count_label.add_theme_font_size_override("font_size", 11)
+	_furniture_count_label.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
+	_furniture_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	header_hbox.add_child(_furniture_count_label)
+
+	# Search LineEdit
+	_furniture_search_input = LineEdit.new()
+	_furniture_search_input.name = "FurnitureSearchInput"
+	_furniture_search_input.placeholder_text = "Filter furniture... (Esc to unfocus)"
+	_furniture_search_input.clear_button_enabled = true
+	_furniture_search_input.add_theme_font_size_override("font_size", 12)
+	_furniture_search_input.text_changed.connect(_on_furniture_search_changed)
+	furn_vbox.add_child(_furniture_search_input)
+
+	# ItemList
+	_furniture_item_list = ItemList.new()
+	_furniture_item_list.name = "FurnitureItemList"
+	_furniture_item_list.select_mode = ItemList.SELECT_SINGLE
+	_furniture_item_list.allow_reselect = true
+	_furniture_item_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_furniture_item_list.custom_minimum_size = Vector2(0, 200)
+	_furniture_item_list.add_theme_font_size_override("font_size", 12)
+	_furniture_item_list.item_selected.connect(_on_furniture_item_selected)
+	furn_vbox.add_child(_furniture_item_list)
+
+	# Separator
+	var sep := HSeparator.new()
+	sep.name = "Separator"
+	furn_vbox.add_child(sep)
+
+	# Footer Info: Details
 	_furniture_label = Label.new()
 	_furniture_label.name = "FurnitureLabel"
 	_furniture_label.text = "Furniture: None"
-	_furniture_label.add_theme_font_size_override("font_size", 13)
-	_furniture_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	_furniture_label.add_theme_font_size_override("font_size", 12)
+	_furniture_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
 	furn_vbox.add_child(_furniture_label)
 
 	_yaw_label = Label.new()
 	_yaw_label.name = "YawLabel"
-	_yaw_label.text = "Rotation: 0°"
-	_yaw_label.add_theme_font_size_override("font_size", 13)
-	_yaw_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	_yaw_label.text = "Rotation: 0° [R]"
+	_yaw_label.add_theme_font_size_override("font_size", 12)
+	_yaw_label.add_theme_color_override("font_color", Color(0.8, 0.85, 0.9))
 	furn_vbox.add_child(_yaw_label)
+
+	_furniture_dims_label = Label.new()
+	_furniture_dims_label.name = "FurnitureDimsLabel"
+	_furniture_dims_label.text = "Size: 1x1x1"
+	_furniture_dims_label.add_theme_font_size_override("font_size", 11)
+	_furniture_dims_label.add_theme_color_override("font_color", Color(0.65, 0.7, 0.8))
+	furn_vbox.add_child(_furniture_dims_label)
+
+	_furniture_id_label = Label.new()
+	_furniture_id_label.name = "FurnitureIdLabel"
+	_furniture_id_label.text = ""
+	_furniture_id_label.add_theme_font_size_override("font_size", 11)
+	_furniture_id_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
+	_furniture_id_label.visible = false
+	furn_vbox.add_child(_furniture_id_label)
 
 	root.add_child(_furniture_info_panel)
 
@@ -322,6 +397,89 @@ func _build_ui() -> void:
 	root.add_child(_crosshair)
 
 
+func populate_furniture_list(defs: Array[FurnitureDef], selected_idx: int = 0) -> void:
+	_furniture_defs = defs
+	_selected_global_idx = selected_idx
+	var current_query := _furniture_search_input.text if _furniture_search_input != null else ""
+	_filter_furniture_list(current_query)
+
+
+func _on_furniture_search_changed(new_text: String) -> void:
+	_filter_furniture_list(new_text)
+
+
+func _filter_furniture_list(query: String) -> void:
+	if _furniture_item_list == null:
+		return
+	_furniture_item_list.clear()
+	_filtered_indices.clear()
+
+	var q := query.strip_edges().to_lower()
+	for i in range(_furniture_defs.size()):
+		var def := _furniture_defs[i]
+		if def == null:
+			continue
+		var dname := def.display_name if not def.display_name.is_empty() else def.id
+		var matches := q.is_empty() or dname.to_lower().contains(q) or def.id.to_lower().contains(q)
+		if matches:
+			_filtered_indices.append(i)
+			var label := "%s  [%dx%dx%d]" % [dname, def.dimensions.x, def.dimensions.y, def.dimensions.z]
+			var list_idx := _furniture_item_list.add_item(label, def.icon)
+			_furniture_item_list.set_item_tooltip(list_idx, "%s (%s)\nDimensions: %dx%dx%d" % [
+				dname,
+				def.id,
+				def.dimensions.x,
+				def.dimensions.y,
+				def.dimensions.z,
+			])
+
+	if _furniture_count_label != null:
+		_furniture_count_label.text = "(%d/%d)" % [_filtered_indices.size(), _furniture_defs.size()]
+
+	# Re-select the active item if present in filtered items, or select first match
+	var found_selected_idx := _filtered_indices.find(_selected_global_idx)
+	if found_selected_idx != -1:
+		_furniture_item_list.select(found_selected_idx)
+		_furniture_item_list.ensure_current_is_visible()
+	elif not _filtered_indices.is_empty():
+		_selected_global_idx = _filtered_indices[0]
+		_furniture_item_list.select(0)
+		_furniture_item_list.ensure_current_is_visible()
+		furniture_selected.emit(_selected_global_idx)
+
+
+func _on_furniture_item_selected(list_idx: int) -> void:
+	if list_idx >= 0 and list_idx < _filtered_indices.size():
+		var global_idx := _filtered_indices[list_idx]
+		_selected_global_idx = global_idx
+		furniture_selected.emit(global_idx)
+
+
+func select_furniture_by_index(global_idx: int) -> void:
+	_selected_global_idx = global_idx
+	if _furniture_item_list == null:
+		return
+	var found_list_idx := _filtered_indices.find(global_idx)
+	if found_list_idx != -1:
+		_furniture_item_list.select(found_list_idx)
+		_furniture_item_list.ensure_current_is_visible()
+	else:
+		_furniture_item_list.deselect_all()
+
+
+func get_filtered_furniture_indices() -> Array[int]:
+	return _filtered_indices
+
+
+func is_search_focused() -> bool:
+	return _furniture_search_input != null and _furniture_search_input.has_focus()
+
+
+func unfocus_search() -> void:
+	if _furniture_search_input != null and _furniture_search_input.has_focus():
+		_furniture_search_input.release_focus()
+
+
 func set_block_info(block_name: String, diameter: int) -> void:
 	if _block_label != null:
 		_block_label.text = "Block: " + block_name
@@ -340,12 +498,20 @@ func set_terrain_info(material_name: String, radius: float) -> void:
 	set_sculpt_info(radius)
 
 
-func set_furniture_info(name: String, yaw_quarters: int) -> void:
+func set_furniture_info(name: String, yaw_quarters: int, dims: Vector3i = Vector3i.ONE, id_str: String = "") -> void:
 	if _furniture_label != null:
 		_furniture_label.text = "Furniture: " + name
 	if _yaw_label != null:
 		var deg := (yaw_quarters % 4) * 90
-		_yaw_label.text = "Rotation: %d°" % deg
+		_yaw_label.text = "Rotation: %d° [R]" % deg
+	if _furniture_dims_label != null:
+		_furniture_dims_label.text = "Size: %dx%dx%d (WxHxD)" % [dims.x, dims.y, dims.z]
+	if _furniture_id_label != null:
+		if not id_str.is_empty():
+			_furniture_id_label.text = "ID: " + id_str
+			_furniture_id_label.visible = true
+		else:
+			_furniture_id_label.visible = false
 
 
 func set_terrain_available(available: bool) -> void:

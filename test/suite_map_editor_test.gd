@@ -357,6 +357,78 @@ func test_editor_hud_furniture_and_spawn_info() -> void:
 	assert_bool(hud._spawn_info_panel.visible).is_false()
 
 
+func test_editor_hud_furniture_palette_population_and_filter() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	var def1 := FurnitureDef.new()
+	def1.id = "bench_wood"
+	def1.display_name = "Wooden Bench"
+	def1.dimensions = Vector3i(2, 1, 1)
+
+	var def2 := FurnitureDef.new()
+	def2.id = "shelf_metal"
+	def2.display_name = "Metal Shelf"
+	def2.dimensions = Vector3i(1, 2, 1)
+
+	var def3 := FurnitureDef.new()
+	def3.id = "storage_box"
+	def3.display_name = "Storage Box"
+	def3.dimensions = Vector3i(1, 1, 1)
+
+	var defs: Array[FurnitureDef] = [def1, def2, def3]
+	hud.populate_furniture_list(defs, 0)
+
+	assert_int(hud._furniture_item_list.item_count).is_equal(3)
+	assert_str(hud._furniture_count_label.text).is_equal("(3/3)")
+	assert_int(hud._furniture_item_list.get_selected_items()[0]).is_equal(0)
+
+	# Filter by "shelf"
+	hud._on_furniture_search_changed("shelf")
+	assert_int(hud._furniture_item_list.item_count).is_equal(1)
+	assert_str(hud._furniture_count_label.text).is_equal("(1/3)")
+	assert_str(hud._furniture_item_list.get_item_text(0)).contains("Metal Shelf")
+
+	# Filter by ID "storage"
+	hud._on_furniture_search_changed("storage")
+	assert_int(hud._furniture_item_list.item_count).is_equal(1)
+	assert_str(hud._furniture_item_list.get_item_text(0)).contains("Storage Box")
+
+	# Clear filter
+	hud._on_furniture_search_changed("")
+	assert_int(hud._furniture_item_list.item_count).is_equal(3)
+
+
+func test_editor_hud_furniture_palette_selection_and_signals() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	var def1 := FurnitureDef.new()
+	def1.id = "item1"
+	def1.display_name = "Item 1"
+
+	var def2 := FurnitureDef.new()
+	def2.id = "item2"
+	def2.display_name = "Item 2"
+
+	hud.populate_furniture_list([def1, def2], 0)
+
+	var selected_indices: Array[int] = []
+	hud.furniture_selected.connect(func(idx: int) -> void:
+		selected_indices.append(idx)
+	)
+
+	# Select second item in list
+	hud._on_furniture_item_selected(1)
+	assert_int(selected_indices.size()).is_equal(1)
+	assert_int(selected_indices[0]).is_equal(1)
+
+	# Programmatic selection
+	hud.select_furniture_by_index(0)
+	assert_int(hud._selected_global_idx).is_equal(0)
+	assert_int(hud._furniture_item_list.get_selected_items()[0]).is_equal(0)
+
+
 func test_map_editor_furniture_defs_loaded() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
@@ -400,6 +472,40 @@ func test_map_editor_furniture_cycle_and_rotate() -> void:
 
 	editor._input(r_event)
 	assert_int(editor._yaw).is_equal(2)
+
+
+func test_map_editor_furniture_cycle_filtered() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor._launcher.hide_launcher()
+	editor._set_mode(MapEditorClass.Mode.FURNITURE)
+
+	# Mock two specific defs
+	var d1 := FurnitureDef.new()
+	d1.id = "target_alpha"
+	d1.display_name = "Target Alpha"
+	var d2 := FurnitureDef.new()
+	d2.id = "other_item"
+	d2.display_name = "Other Item"
+	var d3 := FurnitureDef.new()
+	d3.id = "target_beta"
+	d3.display_name = "Target Beta"
+
+	editor._furniture_defs = [d1, d2, d3]
+	editor._hud.populate_furniture_list(editor._furniture_defs, 0)
+
+	# Filter by "target"
+	editor._hud._on_furniture_search_changed("target")
+	assert_int(editor._hud.get_filtered_furniture_indices().size()).is_equal(2)
+	assert_int(editor._selected_furniture_idx).is_equal(0)
+
+	# Tab cycles to next filtered item (index 2 = target_beta)
+	editor._cycle_furniture(1)
+	assert_int(editor._selected_furniture_idx).is_equal(2)
+
+	# Tab cycles back to first filtered item (index 0 = target_alpha)
+	editor._cycle_furniture(1)
+	assert_int(editor._selected_furniture_idx).is_equal(0)
 
 
 func test_map_editor_furniture_place_and_remove() -> void:

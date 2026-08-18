@@ -81,6 +81,7 @@ func _ready() -> void:
 	_hud = EditorHUDClass.new()
 	add_child(_hud)
 	_hud.setup(self)
+	_hud.furniture_selected.connect(_on_hud_furniture_selected)
 	_hud.set_mode(_mode)
 	_hud.hide()
 
@@ -97,6 +98,20 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	# If launcher is open, ignore camera/edit input
 	if _launcher != null and _launcher.visible:
+		return
+
+	# If search input in HUD is focused, handle Esc/Enter/Tab and let typing pass through
+	if _hud != null and _hud.is_search_focused():
+		if event is InputEventKey and event.pressed:
+			if event.keycode == KEY_ESCAPE or event.keycode == KEY_ENTER:
+				_hud.unfocus_search()
+				get_viewport().set_input_as_handled()
+				return
+			elif event.keycode == KEY_TAB and _mode == Mode.FURNITURE:
+				var dir := -1 if event.shift_pressed else 1
+				_cycle_furniture(dir)
+				get_viewport().set_input_as_handled()
+				return
 		return
 
 	if event is InputEventMouseButton:
@@ -197,7 +212,7 @@ func _apply_camera_rotation() -> void:
 
 
 func _process(delta: float) -> void:
-	if _camera == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if _camera == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or (_hud != null and _hud.is_search_focused()):
 		if _ghost != null:
 			_ghost.visible = false
 		return
@@ -294,6 +309,7 @@ func load_map(map_id: String) -> void:
 	_position_camera_at_spawn()
 
 	if _hud != null:
+		_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
 		_hud.set_map_info(map_id, _dirty)
 		_hud.set_terrain_available(_smooth_grid != null)
 		_hud.show()
@@ -506,6 +522,8 @@ func _set_mode(new_mode: Mode) -> void:
 	_mode = new_mode
 	if _hud != null:
 		_hud.set_mode(_mode)
+		if _mode == Mode.FURNITURE:
+			_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
 		_update_hud_info()
 
 
@@ -788,10 +806,30 @@ func _do_furniture_rotate() -> void:
 func _cycle_furniture(dir: int) -> void:
 	if _furniture_defs.is_empty():
 		return
-	_selected_furniture_idx = (_selected_furniture_idx + dir) % _furniture_defs.size()
-	if _selected_furniture_idx < 0:
-		_selected_furniture_idx += _furniture_defs.size()
+	var filtered: Array[int] = _hud.get_filtered_furniture_indices() if _hud != null else []
+	if filtered.is_empty():
+		for i in range(_furniture_defs.size()):
+			filtered.append(i)
+	var cur_pos := filtered.find(_selected_furniture_idx)
+	if cur_pos == -1:
+		cur_pos = 0
+	else:
+		cur_pos = (cur_pos + dir) % filtered.size()
+		if cur_pos < 0:
+			cur_pos += filtered.size()
+	_selected_furniture_idx = filtered[cur_pos]
+	if _hud != null:
+		_hud.select_furniture_by_index(_selected_furniture_idx)
 	_update_hud_info()
+
+
+func _on_hud_furniture_selected(idx: int) -> void:
+	if idx >= 0 and idx < _furniture_defs.size():
+		_selected_furniture_idx = idx
+		_update_hud_info()
+		if _camera != null and _ghost != null and _mode == Mode.FURNITURE:
+			var hit := _raycast_from_camera()
+			_update_ghost(hit)
 
 
 func _do_spawn_place(type: String, hit: Dictionary) -> void:
@@ -941,7 +979,9 @@ func _update_hud_info() -> void:
 	if not _furniture_defs.is_empty() and _selected_furniture_idx >= 0 and _selected_furniture_idx < _furniture_defs.size():
 		var fdef: FurnitureDef = _furniture_defs[_selected_furniture_idx]
 		var fname := fdef.display_name if fdef != null and not fdef.display_name.is_empty() else (fdef.id if fdef != null else "Unknown")
-		_hud.set_furniture_info(fname, _yaw)
+		var dims := fdef.dimensions if fdef != null else Vector3i.ONE
+		var fid := fdef.id if fdef != null else ""
+		_hud.set_furniture_info(fname, _yaw, dims, fid)
 	else:
 		_hud.set_furniture_info("None", _yaw)
 
