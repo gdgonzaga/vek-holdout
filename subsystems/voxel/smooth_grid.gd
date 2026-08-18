@@ -124,7 +124,7 @@ func get_material_at(pos: Vector3i) -> String:
 func add_material(pos: Vector3, material_id: String, radius: float) -> void:
 	if _voxel_tool == null:
 		return
-	_voxel_tool.mode = VoxelTool.MODE_SET
+	_voxel_tool.mode = VoxelTool.MODE_ADD
 	_voxel_tool.value = SOLID_DENSITY
 	_voxel_tool.do_sphere(pos, radius)
 	_evict_columns_near(pos, radius)

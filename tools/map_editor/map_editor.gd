@@ -17,8 +17,11 @@ const FLY_SPEED: float = 8.0
 const FLY_SPEED_FAST: float = 20.0
 const MOUSE_SENSITIVITY: float = 0.2
 
-## Largest brush edge length B+scroll can reach.
+## Largest brush edge length B+scroll can reach in block mode.
 const MAX_BRUSH_DIAMETER: int = 11
+## Min/max sculpt radius for smooth terrain mode.
+const MIN_SCULPT_RADIUS: float = 0.5
+const MAX_SCULPT_RADIUS: float = 5.0
 
 enum Mode {
 	NAVIGATE,
@@ -44,8 +47,16 @@ var _block_vt: VoxelTool = null
 var _block_library: BlockLibrary = null
 var _selected_block_index: int = 6 # Default 6 = wood
 var _brush_diameter: int = 1 # Brush edge length in blocks (B+scroll)
+
+var _smooth_grid: SmoothGrid = null
+var _smooth_vt: VoxelTool = null
+var _sculpt_radius: float = 2.0
+var _terrain_material_id: String = "ground"
+
 var _ghost: MeshInstance3D = null
 var _ghost_mat: StandardMaterial3D = null
+var _box_mesh: BoxMesh = null
+var _sphere_mesh: SphereMesh = null
 
 var _cam_yaw: float = 0.0
 var _cam_pitch: float = -30.0
@@ -90,11 +101,20 @@ func _input(event: InputEvent) -> void:
 						_do_block_erase(hit)
 					else:
 						_do_block_paint(hit)
+				elif _mode == Mode.TERRAIN and mb.button_index == MOUSE_BUTTON_LEFT:
+					var hit := _raycast_terrain()
+					if mb.shift_pressed:
+						_do_terrain_carve(hit)
+					else:
+						_do_terrain_add(hit)
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				if _mode == Mode.BLOCK and Input.is_key_pressed(KEY_B):
-					var dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
-					_brush_diameter = clampi(_brush_diameter + dir, 1, MAX_BRUSH_DIAMETER)
-					_update_hud_block_info()
+				if Input.is_key_pressed(KEY_B):
+					var dir := 1.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
+					if _mode == Mode.BLOCK:
+						_brush_diameter = clampi(_brush_diameter + int(dir), 1, MAX_BRUSH_DIAMETER)
+					elif _mode == Mode.TERRAIN:
+						_sculpt_radius = clampf(_sculpt_radius + dir * 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
+					_update_hud_info()
 					get_viewport().set_input_as_handled()
 
 	elif event is InputEventKey:
@@ -118,9 +138,15 @@ func _input(event: InputEvent) -> void:
 			elif k.keycode == KEY_BRACKETLEFT:
 				if _mode == Mode.BLOCK:
 					_cycle_block(-1)
+				elif _mode == Mode.TERRAIN:
+					_sculpt_radius = clampf(_sculpt_radius - 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
+					_update_hud_info()
 			elif k.keycode == KEY_BRACKETRIGHT:
 				if _mode == Mode.BLOCK:
 					_cycle_block(1)
+				elif _mode == Mode.TERRAIN:
+					_sculpt_radius = clampf(_sculpt_radius + 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
+					_update_hud_info()
 			elif k.keycode == KEY_S and k.ctrl_pressed:
 				save_map()
 
@@ -147,6 +173,9 @@ func _process(delta: float) -> void:
 	if _mode == Mode.BLOCK:
 		var hit := _raycast_from_camera()
 		_update_ghost(hit)
+	elif _mode == Mode.TERRAIN:
+		var hit := _raycast_terrain()
+		_update_ghost(hit)
 	else:
 		if _ghost != null:
 			_ghost.visible = false
@@ -169,9 +198,6 @@ func _process(delta: float) -> void:
 
 	if move != Vector3.ZERO:
 		_camera.global_position += move.normalized() * speed * delta
-
-
-
 
 
 func load_map(map_id: String) -> void:
@@ -212,13 +238,25 @@ func load_map(map_id: String) -> void:
 		_block_vt = _blocky_grid.get_voxel_tool()
 		_block_vt.mode = VoxelTool.MODE_SET
 
+	_smooth_grid = _map_root.get_smooth_grid()
+	if _smooth_grid != null:
+		_smooth_vt = _smooth_grid.get_voxel_tool()
+		if _smooth_grid.default_material != null and not _smooth_grid.default_material.id.is_empty():
+			_terrain_material_id = _smooth_grid.default_material.id
+		else:
+			_terrain_material_id = "ground"
+	else:
+		_smooth_vt = null
+		_terrain_material_id = "ground"
+
 	_attach_streams(_map_root, map_id)
 	_position_camera_at_spawn()
 
 	if _hud != null:
 		_hud.set_map_info(map_id, _dirty)
+		_hud.set_terrain_available(_smooth_grid != null)
 		_hud.show()
-		_update_hud_block_info()
+		_update_hud_info()
 
 	if _launcher != null:
 		_launcher.hide_launcher()
@@ -258,19 +296,21 @@ func create_new_map(map_name: String, map_type: int = MapDef.MapType.POI) -> Str
 
 func unload_map() -> void:
 	if _dirty:
-		save_map()
+		push_warning("MapEditor: unloading with unsaved changes")
+
 	if _map_root != null:
 		_map_root.queue_free()
 		_map_root = null
+
 	_map_def = null
 	_map_scene_path = ""
 	_dirty = false
+
 	_blocky_grid = null
 	_block_vt = null
-	if _ghost != null:
-		_ghost.visible = false
+	_smooth_grid = null
+	_smooth_vt = null
 
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if _hud != null:
 		_hud.hide()
 
@@ -278,87 +318,7 @@ func unload_map() -> void:
 		_launcher.setup(_scan_maps())
 		_launcher.show_launcher()
 
-
-func _inject_terrain_gen(map: Node, def: MapDef) -> void:
-	if def.terrain_gen != null and map.get_node_or_null("SmoothGrid") != null:
-		var smooth := map.get_node("SmoothGrid") as SmoothGrid
-		if smooth != null:
-			smooth.terrain_gen = def.terrain_gen
-
-
-func _attach_streams(map: Node, map_id: String) -> void:
-	var m: Map = map as Map
-	var blocky_terrain: VoxelTerrain = null
-	var smooth_terrain: VoxelTerrain = null
-
-	if m != null:
-		blocky_terrain = m.get_blocky_terrain()
-		smooth_terrain = m.get_smooth_terrain()
-
-	# Fallback if map._ready hasn't populated @onready fields or non-Map node
-	if blocky_terrain == null:
-		blocky_terrain = map.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
-	if smooth_terrain == null:
-		smooth_terrain = map.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
-
-	var map_dir := MAPS_DIR + map_id + "/"
-
-	if blocky_terrain != null:
-		var stream_path := map_dir + "map.sqlite"
-		if blocky_terrain.stream is VoxelStreamSQLite:
-			(blocky_terrain.stream as VoxelStreamSQLite).database_path = stream_path
-		elif blocky_terrain.stream == null:
-			var stream := VoxelStreamSQLite.new()
-			stream.database_path = stream_path
-			blocky_terrain.stream = stream
-
-	if smooth_terrain != null:
-		var stream_path := map_dir + "terrain.sqlite"
-		if smooth_terrain.stream is VoxelStreamSQLite:
-			(smooth_terrain.stream as VoxelStreamSQLite).database_path = stream_path
-		elif smooth_terrain.stream == null:
-			var stream := VoxelStreamSQLite.new()
-			stream.database_path = stream_path
-			smooth_terrain.stream = stream
-
-
-func _build_camera() -> void:
-	_camera = Camera3D.new()
-	_camera.name = "FlyCamera"
-	_camera.current = true
-	_camera.position = Vector3(0, 15, 15)
-	_cam_yaw = 0.0
-	_cam_pitch = -30.0
-	_apply_camera_rotation()
-	add_child(_camera)
-
-	_viewer = VoxelViewer.new()
-	_viewer.name = "VoxelViewer"
-	_viewer.requires_visuals = true
-	if "requires_collision" in _viewer:
-		_viewer.set("requires_collision", true)
-	_camera.add_child(_viewer)
-
-
-func _build_environment() -> void:
-	var env := Environment.new()
-	var sky := Sky.new()
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.35, 0.55, 0.85)
-	sky_mat.sky_horizon_color = Color(0.65, 0.75, 0.85)
-	sky_mat.ground_bottom_color = Color(0.2, 0.2, 0.2)
-	sky_mat.ground_horizon_color = Color(0.65, 0.75, 0.85)
-	sky.sky_material = sky_mat
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_color = Color.WHITE
-	env.ambient_light_energy = 0.5
-
-	var world_env := WorldEnvironment.new()
-	world_env.name = "WorldEnvironment"
-	world_env.environment = env
-	add_child(world_env)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _scan_maps() -> Array[MapDef]:
@@ -366,18 +326,69 @@ func _scan_maps() -> Array[MapDef]:
 	var dir := DirAccess.open(MAPS_DIR)
 	if dir == null:
 		return results
+
 	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if dir.current_is_dir() and not fname.begins_with("."):
-			var def_path := MAPS_DIR + fname + "/map_def.tres"
+	var entry := dir.get_next()
+	while not entry.is_empty():
+		if dir.current_is_dir() and not entry.begins_with("."):
+			var def_path := MAPS_DIR + entry + "/map_def.tres"
 			if ResourceLoader.exists(def_path):
-				var def: MapDef = load(def_path) as MapDef
+				var def := load(def_path) as MapDef
 				if def != null:
 					results.append(def)
-		fname = dir.get_next()
+		entry = dir.get_next()
 	dir.list_dir_end()
 	return results
+
+
+func _build_environment() -> void:
+	var env := WorldEnvironment.new()
+	var env_res := Environment.new()
+	env_res.background_mode = Environment.BG_COLOR
+	env_res.background_color = Color(0.1, 0.12, 0.15)
+	env_res.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env_res.ambient_light_color = Color(0.6, 0.65, 0.7)
+	env.environment = env_res
+	add_child(env)
+
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-45, 30, 0)
+	sun.light_color = Color(1.0, 0.95, 0.85)
+	add_child(sun)
+
+
+func _build_camera() -> void:
+	_camera = Camera3D.new()
+	_camera.name = "EditorCamera"
+	_camera.current = true
+	_camera.fov = 70.0
+	_camera.position = Vector3(0, 10, 20)
+	add_child(_camera)
+
+	_viewer = VoxelViewer.new()
+	_viewer.name = "EditorViewer"
+	_camera.add_child(_viewer)
+
+
+func _inject_terrain_gen(map: Node, def: MapDef) -> void:
+	var smooth: SmoothGrid = map.get_node_or_null("SmoothGrid") as SmoothGrid
+	if smooth != null:
+		smooth.terrain_gen = def.terrain_gen
+
+
+func _attach_streams(map: Node, map_id: String) -> void:
+	var folder := MAPS_DIR + map_id + "/"
+	var blocky_terrain := map.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
+	if blocky_terrain != null:
+		var stream := VoxelStreamSQLite.new()
+		stream.database_path = folder + "map.sqlite"
+		blocky_terrain.stream = stream
+
+	var smooth_terrain := map.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
+	if smooth_terrain != null:
+		var smooth_stream := VoxelStreamSQLite.new()
+		smooth_stream.database_path = folder + "terrain.sqlite"
+		smooth_terrain.stream = smooth_stream
 
 
 func _position_camera_at_spawn() -> void:
@@ -422,7 +433,7 @@ func _stamp_map_scene(src_path: String, dst_path: String, db_path: String) -> vo
 	out.pack(instance)
 	var err := ResourceSaver.save(out, dst_path)
 	if err != OK:
-		push_warning("MapEditor: failed to write '%s' (error %d)" % [dst_path, err])
+		push_warning("MapEditor: failed to write '%s'" % dst_path)
 	instance.queue_free()
 
 
@@ -450,7 +461,7 @@ func _set_mode(new_mode: Mode) -> void:
 	_mode = new_mode
 	if _hud != null:
 		_hud.set_mode(_mode)
-		_update_hud_block_info()
+		_update_hud_info()
 
 
 func _build_ghost() -> void:
@@ -458,9 +469,15 @@ func _build_ghost() -> void:
 		_ghost.queue_free()
 	_ghost = MeshInstance3D.new()
 	_ghost.name = "EditorGhost"
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(1.0, 1.0, 1.0)
-	_ghost.mesh = box_mesh
+
+	_box_mesh = BoxMesh.new()
+	_box_mesh.size = Vector3(1.0, 1.0, 1.0)
+
+	_sphere_mesh = SphereMesh.new()
+	_sphere_mesh.radius = 1.0
+	_sphere_mesh.height = 2.0
+
+	_ghost.mesh = _box_mesh
 	_ghost_mat = StandardMaterial3D.new()
 	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_ghost_mat.albedo_color = Color(0.0, 1.0, 0.0, 0.4)
@@ -470,28 +487,39 @@ func _build_ghost() -> void:
 	add_child(_ghost)
 
 
-## Previews exactly what _apply_block_brush will write at the crosshair cell:
-## a box ghost scaled to the brush diameter, green for paint, red for erase.
+## Previews placement/carve target:
+## Block mode: BoxMesh scaled to brush diameter at cell center.
+## Terrain mode: SphereMesh scaled to sculpt radius at raycast surface point.
 func _update_ghost(hit: Dictionary) -> void:
 	if _ghost == null:
 		return
 
 	var is_erase := Input.is_key_pressed(KEY_SHIFT)
-	var cell := _target_cell(hit, is_erase)
-	if not hit.get("hit", false) or cell == Vector3i.MIN:
-		_ghost.visible = false
-		return
 
-	_ghost.visible = true
-	var bounds := _brush_box(cell)
-	var box_center: Vector3 = (Vector3(bounds[0]) + Vector3(bounds[1])) * 0.5 + Vector3(0.5, 0.5, 0.5)
-	var terrain := _map_root.get_blocky_terrain() if _map_root != null else null
-	if terrain != null:
-		_ghost.global_position = terrain.to_global(box_center)
-	else:
+	if _mode == Mode.BLOCK:
+		_ghost.mesh = _box_mesh
+		var cell := _target_cell(hit, is_erase)
+		if not hit.get("hit", false) or cell == Vector3i.MIN:
+			_ghost.visible = false
+			return
+
+		_ghost.visible = true
+		var bounds := _brush_box(cell)
+		var box_center := _box_center(bounds)
 		_ghost.global_position = box_center
-	_ghost.scale = Vector3(_brush_diameter, _brush_diameter, _brush_diameter)
-	_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
+		_ghost.scale = Vector3(_brush_diameter, _brush_diameter, _brush_diameter)
+		_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
+
+	elif _mode == Mode.TERRAIN:
+		if _smooth_grid == null or not hit.get("hit", false):
+			_ghost.visible = false
+			return
+
+		_ghost.mesh = _sphere_mesh
+		_ghost.visible = true
+		_ghost.global_position = hit.get("point", Vector3.ZERO)
+		_ghost.scale = Vector3(_sculpt_radius, _sculpt_radius, _sculpt_radius)
+		_ghost_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.4) if is_erase else Color(0.0, 1.0, 0.0, 0.4)
 
 
 func _raycast_from_camera() -> Dictionary:
@@ -506,28 +534,39 @@ func _raycast_from_camera() -> Dictionary:
 	return _blocky_grid.raycast_to_voxel(origin, dir, 100.0)
 
 
+func _raycast_terrain() -> Dictionary:
+	if _map_root == null or _smooth_grid == null or _camera == null:
+		return {"hit": false, "point": Vector3.ZERO, "normal": Vector3.ZERO}
+	var viewport := get_viewport()
+	if viewport == null:
+		return {"hit": false, "point": Vector3.ZERO, "normal": Vector3.ZERO}
+	var center: Vector2 = viewport.size / 2
+	var origin := _camera.project_ray_origin(center)
+	var dir := _camera.project_ray_normal(center)
+	var res := _smooth_grid.raycast_to_surface(origin, dir, 100.0)
+	return {
+		"hit": res.get("hit", false),
+		"point": res.get("position", Vector3.ZERO),
+		"normal": res.get("normal", Vector3.ZERO),
+	}
+
+
 ## Cell a crosshair stroke would write, or Vector3i.MIN when the hit has no
-## valid target. Paint places on the struck face of blocky/body hits, or the
-## derived floor cell of smooth hits; erase only accepts blocky cells. Shared
-## by the actions and the ghost so both always agree on the anchor.
+## valid target. Used for blocky mode.
 func _target_cell(hit: Dictionary, erase: bool) -> Vector3i:
 	var surface: String = hit.get("surface", "")
 	var pos: Vector3i = hit.get("position", Vector3i.ZERO)
-	if erase:
-		return pos if surface == "blocky" else Vector3i.MIN
 	if surface == "blocky" or surface == "body":
-		return pos + hit.get("normal", Vector3i.ZERO)
+		return pos if erase else pos + hit.get("normal", Vector3i.ZERO)
 	if surface == "smooth":
+		if erase:
+			return Vector3i.MIN
 		return pos
 	return Vector3i.MIN
 
 
-## Brush footprint in cells for one stroke anchored on `cell`: returns
-## [begin, end] with end inclusive, matching `do_box` in this build. Diameter
-## is the full edge length in blocks; odd diameters center exactly on `cell`,
-## even diameters are biased one cell toward +x/+y/+z. Single definition
-## shared by the ghost preview and the voxel write so the preview can never
-## diverge from what lands in the world.
+## Brush footprint in cells for one block stroke anchored on `cell`: returns
+## [begin, end] with end inclusive, matching `do_box` in this build.
 func _brush_box(cell: Vector3i) -> Array[Vector3i]:
 	var back := (_brush_diameter - 1) / 2
 	var begin := cell - Vector3i(back, back, back)
@@ -535,7 +574,12 @@ func _brush_box(cell: Vector3i) -> Array[Vector3i]:
 	return [begin, end]
 
 
-## Writes one paint/erase stroke's full brush footprint and persists it.
+## Computes the world-space center of a brush box footprint.
+func _box_center(bounds: Array[Vector3i]) -> Vector3:
+	return (Vector3(bounds[0]) + Vector3(bounds[1])) * 0.5 + Vector3(0.5, 0.5, 0.5)
+
+
+## Writes one block paint/erase stroke's full brush footprint and persists it.
 func _apply_block_brush(cell: Vector3i, value: int) -> void:
 	const MAX_RETRIES := 5
 	const RETRY_DELAY := 0.1
@@ -552,7 +596,7 @@ func _apply_block_brush(cell: Vector3i, value: int) -> void:
 			return
 		await Engine.get_main_loop().create_timer(RETRY_DELAY).timeout
 
-	push_warning("MapEditor: write at %s did not land after %d retries" % [str(cell), MAX_RETRIES])
+	push_warning("MapEditor: block write at %s did not land after %d retries" % [str(cell), MAX_RETRIES])
 
 
 func _do_block_paint(hit: Dictionary) -> void:
@@ -573,6 +617,32 @@ func _do_block_erase(hit: Dictionary) -> void:
 	_apply_block_brush(cell, 0)
 
 
+func _do_terrain_add(hit: Dictionary) -> void:
+	if _map_root == null or _smooth_grid == null or not hit.get("hit", false):
+		return
+	var point: Vector3 = hit.get("point", Vector3.ZERO)
+	_smooth_grid.add_material(point, _terrain_material_id, _sculpt_radius)
+	var terrain := _map_root.get_smooth_terrain()
+	if terrain != null:
+		terrain.save_modified_blocks()
+	_dirty = true
+	if _hud != null and _map_def != null:
+		_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _do_terrain_carve(hit: Dictionary) -> void:
+	if _map_root == null or _smooth_grid == null or not hit.get("hit", false):
+		return
+	var point: Vector3 = hit.get("point", Vector3.ZERO)
+	_smooth_grid.carve(point, _sculpt_radius)
+	var terrain := _map_root.get_smooth_terrain()
+	if terrain != null:
+		terrain.save_modified_blocks()
+	_dirty = true
+	if _hud != null and _map_def != null:
+		_hud.set_map_info(_map_def.id, _dirty)
+
+
 func _cycle_block(dir: int) -> void:
 	if _block_library == null:
 		return
@@ -589,14 +659,17 @@ func _cycle_block(dir: int) -> void:
 	if cur_pos < 0:
 		cur_pos += indices.size()
 	_selected_block_index = indices[cur_pos]
-	_update_hud_block_info()
+	_update_hud_info()
 
 
-func _update_hud_block_info() -> void:
-	if _hud != null and _block_library != null:
+func _update_hud_info() -> void:
+	if _hud == null:
+		return
+	if _block_library != null:
 		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
 		var block_name := def.id if def != null else "Unknown"
 		_hud.set_block_info(block_name, _brush_diameter)
+	_hud.set_terrain_info(_terrain_material_id, _sculpt_radius)
 
 
 func save_map() -> void:

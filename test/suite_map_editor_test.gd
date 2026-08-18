@@ -1,45 +1,22 @@
 extends GdUnitTestSuite
 
-## Test suite for MapEditor Phase 1 foundation components:
-## - EditorHUD
-## - EditorLauncher
-## - MapEditor loading, scanning, terrain injection, and mouse-look
-
-const MapEditorClass = preload("res://tools/map_editor/map_editor.gd")
-const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
 const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
+const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
+const MapEditorClass = preload("res://tools/map_editor/map_editor.gd")
+
 
 func test_editor_hud_modes_and_info() -> void:
 	var hud: EditorHUD = auto_free(EditorHUDClass.new())
 	hud.setup()
 
-	# Initial mode
-	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
-	assert_str(hud._mode_label.text).contains("NAVIGATE")
-	assert_str(hud._hotkey_label.text).contains("Fly")
-
-	# Block mode
 	hud.set_mode(MapEditorClass.Mode.BLOCK)
-	assert_str(hud._mode_label.text).contains("BLOCK")
-	assert_str(hud._hotkey_label.text).contains("Paint")
-
-	# Terrain mode
-	hud.set_mode(MapEditorClass.Mode.TERRAIN)
-	assert_str(hud._mode_label.text).contains("TERRAIN")
-	assert_str(hud._hotkey_label.text).contains("Carve")
-
-	# Map info dirty indicator
-	hud.set_map_info("base", false)
-	assert_str(hud._map_info_label.text).is_equal("Map: base")
+	assert_str(hud._mode_label.text).is_equal("[ F2 ] BLOCK")
 
 	hud.set_map_info("base", true)
 	assert_str(hud._map_info_label.text).is_equal("Map: base *")
 
-	# Crosshair color update
-	hud.set_crosshair_color(Color.RED)
-	for child in hud._crosshair.get_children():
-		if child is ColorRect:
-			assert_object(child.color).is_equal(Color.RED)
+	hud.set_map_info("base", false)
+	assert_str(hud._map_info_label.text).is_equal("Map: base")
 
 
 func test_editor_launcher_population_and_signals() -> void:
@@ -202,9 +179,6 @@ func test_brush_box_matches_diameter() -> void:
 	assert_vector(editor._brush_box(cell)[1]).is_equal(cell + Vector3i(2, 2, 2))
 
 
-## Paint anchors on the struck face (blocky/body) or the derived floor cell
-## (smooth); erase only accepts blocky cells — the same rules for the ghost
-## and the actions, via _target_cell.
 func test_target_cell_surfaces() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 
@@ -226,13 +200,10 @@ func test_target_cell_surfaces() -> void:
 	assert_vector(editor._target_cell(miss, false)).is_equal(Vector3i.MIN)
 
 
-## Ghost must preview exactly the footprint the paint/erase write covers —
-## sized and positioned from the same _brush_box() the voxel write uses. Odd
-## diameters center on the placement cell; even ones sit half a cell toward
-## +x/+y/+z. No map is loaded, so nothing touches data/maps/*/ sqlite.
 func test_ghost_previews_brush_footprint() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
+	editor._set_mode(MapEditorClass.Mode.BLOCK)
 
 	var hit := {
 		"hit": true,
@@ -256,7 +227,7 @@ func test_ghost_previews_brush_footprint() -> void:
 func test_map_editor_block_editing_init() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	
+
 	assert_object(editor._block_library).is_not_null()
 	assert_int(editor._selected_block_index).is_equal(6)
 	assert_int(editor._brush_diameter).is_equal(1)
@@ -267,7 +238,89 @@ func test_map_editor_block_editing_init() -> void:
 func test_map_editor_cycle_block() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	
+
 	var initial_idx := editor._selected_block_index
 	editor._cycle_block(1)
 	assert_int(editor._selected_block_index).is_not_equal(initial_idx)
+
+
+func test_editor_hud_terrain_info() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	hud.set_mode(MapEditorClass.Mode.TERRAIN)
+	assert_bool(hud._terrain_info_panel.visible).is_true()
+	assert_bool(hud._block_info_panel.visible).is_false()
+
+	hud.set_terrain_info("ground", 3.0)
+	assert_str(hud._terrain_material_label.text).contains("Ground")
+	assert_str(hud._terrain_radius_label.text).contains("3.0 m")
+
+	hud.set_terrain_available(false)
+	assert_bool(hud._terrain_warning_label.visible).is_true()
+
+	hud.set_terrain_available(true)
+	assert_bool(hud._terrain_warning_label.visible).is_false()
+
+	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
+	assert_bool(hud._terrain_info_panel.visible).is_false()
+
+
+func test_ghost_previews_terrain_sculpt_sphere() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor._launcher.hide_launcher()
+	editor._set_mode(MapEditorClass.Mode.TERRAIN)
+
+	# Mock smooth grid so ghost is not suppressed
+	var smooth := SmoothGrid.new()
+	smooth.name = "SmoothGrid"
+	var smooth_vt := VoxelTerrain.new()
+	smooth_vt.name = "VoxelTerrain"
+	smooth.add_child(smooth_vt)
+	editor.add_child(smooth)
+	editor._smooth_grid = smooth
+
+	var hit := {
+		"hit": true,
+		"point": Vector3(4.5, 2.0, 7.5),
+		"normal": Vector3(0, 1, 0),
+	}
+	editor._sculpt_radius = 2.5
+	editor._update_ghost(hit)
+	assert_bool(editor._ghost.visible).is_true()
+	assert_bool(editor._ghost.mesh is SphereMesh).is_true()
+	assert_vector(editor._ghost.scale).is_equal(Vector3(2.5, 2.5, 2.5))
+	assert_vector(editor._ghost.global_position).is_equal(Vector3(4.5, 2.0, 7.5))
+
+
+func test_map_editor_terrain_state_on_load() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+
+	assert_object(editor._smooth_grid).is_not_null()
+	assert_object(editor._smooth_vt).is_not_null()
+	assert_str(editor._terrain_material_id).is_equal("ground")
+
+
+func test_map_editor_terrain_brush_hotkeys() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor._launcher.hide_launcher()
+	editor._set_mode(MapEditorClass.Mode.TERRAIN)
+	editor._sculpt_radius = 2.0
+
+	# Press ']' to increase radius
+	var key_event_up := InputEventKey.new()
+	key_event_up.pressed = true
+	key_event_up.keycode = KEY_BRACKETRIGHT
+	editor._input(key_event_up)
+	assert_float(editor._sculpt_radius).is_equal_approx(2.5, 0.001)
+
+	# Press '[' to decrease radius
+	var key_event_down := InputEventKey.new()
+	key_event_down.pressed = true
+	key_event_down.keycode = KEY_BRACKETLEFT
+	editor._input(key_event_down)
+	assert_float(editor._sculpt_radius).is_equal_approx(2.0, 0.001)

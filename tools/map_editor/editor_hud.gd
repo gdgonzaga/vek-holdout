@@ -1,6 +1,9 @@
 class_name EditorHUD
 extends CanvasLayer
-## In-editor HUD overlay providing mode indicator, map info, crosshair, and hotkeys.
+## In-game overlay for MapEditor.
+##
+## Displays mode indicator badge, hotkey strip, active block/brush info,
+## terrain sculpting info, map name and dirty indicator.
 ##
 ## Owned by MapEditor. Built procedurally in code.
 
@@ -14,6 +17,11 @@ var _block_info_panel: PanelContainer
 var _block_label: Label
 var _brush_label: Label
 
+var _terrain_info_panel: PanelContainer
+var _terrain_material_label: Label
+var _terrain_radius_label: Label
+var _terrain_warning_label: Label
+
 const MODE_NAMES: Array[String] = [
 	"NAVIGATE",
 	"BLOCK",
@@ -25,7 +33,7 @@ const MODE_NAMES: Array[String] = [
 const MODE_HOTKEYS: Array[String] = [
 	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [Esc] Release Mouse / Menu   [F1-F5] Modes",
 	"[LMB] Paint   [Shift+LMB] Erase   [[/]] Block   [B+Scroll] Size   [Ctrl+S] Save   [F1-F5] Modes",
-	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [Ctrl+S] Save   [F1-F5] Modes",
+	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Scroll] Radius   [Ctrl+S] Save   [F1-F5] Modes",
 	"[LMB] Place   [Shift+LMB] Remove   [Tab] Cycle   [R] Rotate   [Ctrl+S] Save   [F1-F5] Modes",
 	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [F1-F5] Modes",
 ]
@@ -82,6 +90,52 @@ func _build_ui() -> void:
 	vbox.add_child(_brush_label)
 
 	root.add_child(_block_info_panel)
+
+	# --- Terrain Info (Top Left) ---
+	_terrain_info_panel = PanelContainer.new()
+	_terrain_info_panel.name = "TerrainInfoPanel"
+	_terrain_info_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_terrain_info_panel.offset_left = 16.0
+	_terrain_info_panel.offset_top = 16.0
+	_terrain_info_panel.offset_right = 240.0
+	_terrain_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_terrain_info_panel.visible = false
+
+	var terrain_style := StyleBoxFlat.new()
+	terrain_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
+	terrain_style.border_color = Color(0.2, 0.35, 0.25, 0.8)
+	terrain_style.set_border_width_all(1)
+	terrain_style.set_corner_radius_all(4)
+	terrain_style.set_content_margin_all(8)
+	_terrain_info_panel.add_theme_stylebox_override("panel", terrain_style)
+
+	var terrain_vbox := VBoxContainer.new()
+	terrain_vbox.name = "TerrainInfoVBox"
+	_terrain_info_panel.add_child(terrain_vbox)
+
+	_terrain_material_label = Label.new()
+	_terrain_material_label.name = "TerrainMaterialLabel"
+	_terrain_material_label.text = "Material: Ground"
+	_terrain_material_label.add_theme_font_size_override("font_size", 13)
+	_terrain_material_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	terrain_vbox.add_child(_terrain_material_label)
+
+	_terrain_radius_label = Label.new()
+	_terrain_radius_label.name = "TerrainRadiusLabel"
+	_terrain_radius_label.text = "Radius: 2.0 m"
+	_terrain_radius_label.add_theme_font_size_override("font_size", 13)
+	_terrain_radius_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	terrain_vbox.add_child(_terrain_radius_label)
+
+	_terrain_warning_label = Label.new()
+	_terrain_warning_label.name = "TerrainWarningLabel"
+	_terrain_warning_label.text = "No terrain on map"
+	_terrain_warning_label.add_theme_font_size_override("font_size", 12)
+	_terrain_warning_label.add_theme_color_override("font_color", Color(0.95, 0.4, 0.4))
+	_terrain_warning_label.visible = false
+	terrain_vbox.add_child(_terrain_warning_label)
+
+	root.add_child(_terrain_info_panel)
 
 	# --- Mode Badge (Top Center) ---
 	_mode_badge = PanelContainer.new()
@@ -198,6 +252,22 @@ func set_block_info(block_name: String, diameter: int) -> void:
 		_brush_label.text = "Brush: %dx%dx%d" % [diameter, diameter, diameter]
 
 
+func set_sculpt_info(radius: float) -> void:
+	if _terrain_radius_label != null:
+		_terrain_radius_label.text = "Radius: %.1f m" % radius
+
+
+func set_terrain_info(material_name: String, radius: float) -> void:
+	if _terrain_material_label != null:
+		_terrain_material_label.text = "Material: " + material_name.capitalize()
+	set_sculpt_info(radius)
+
+
+func set_terrain_available(available: bool) -> void:
+	if _terrain_warning_label != null:
+		_terrain_warning_label.visible = not available
+
+
 func set_mode(mode: int) -> void:
 	if mode < 0 or mode >= MODE_NAMES.size():
 		return
@@ -207,6 +277,8 @@ func set_mode(mode: int) -> void:
 
 	if _block_info_panel != null:
 		_block_info_panel.visible = (mode == 1) # Mode.BLOCK
+	if _terrain_info_panel != null:
+		_terrain_info_panel.visible = (mode == 2) # Mode.TERRAIN
 
 	# Color the mode badge
 	var badge_style := _mode_badge.get_theme_stylebox("panel") as StyleBoxFlat
