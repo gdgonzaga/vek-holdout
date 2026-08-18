@@ -14,6 +14,7 @@ Every map in *Vek: Holdout* lives under `res://data/maps/<map_id>/` and is compo
 |---|---|
 | `map_def.tres` | `MapDef` resource catalog entry (id, display name, scene path, map type, player spawn, difficulty). |
 | `map.tscn` | Stamped scene holding the blocky terrain, smooth terrain, and `SpawnPoints` container with marker nodes. |
+| `terrain_gen.tres` | Optional per-map `TerrainGenDef` — written when the map is created from a heightmap image (embedded texture). |
 | `map.sqlite` | Authored blocky voxel database (copied to `user://maps/<map_id>/` at runtime). |
 | `terrain.sqlite` | Optional authored Transvoxel smooth terrain database (copied to `user://maps/<map_id>/` at runtime). |
 
@@ -29,13 +30,15 @@ The **Map Editor** is an in-engine authoring tool that runs the actual game voxe
 
 ### Creating a New Map
 
-1. In the Map Launcher, click **Create New Map**.
-2. Enter a unique map name (lowercase `snake_case`, no spaces).
-3. Select the map type (`BASE`, `POI`, `BUILDING`, or `TOWN`).
-4. Click **Create & Edit**. The editor will:
+1. In the Map Launcher, fill in the **CREATE NEW MAP** form: enter a unique map name (lowercase `snake_case`, no spaces) and select the map type (`BASE`, `POI`, `BUILDING`, or `TOWN`).
+2. Pick a **Terrain** mode:
+   - **Procedural (noise)** — choose a shared terrain def from `data/terrain/` (the default, `ground_default`, is preselected).
+   - **Heightmap (image)** — pick a grayscale image from disk (see section 5).
+   - **None** — blocky-only map, no smooth terrain.
+3. Click **Create & Open**. The editor will:
    - Create `res://data/maps/<map_id>/`
    - Stamp a fresh `map.tscn` with a dedicated SQLite voxel stream
-   - Initialize `map_def.tres` with default terrain generation
+   - Initialize `map_def.tres` (pointing at the chosen terrain def; heightmap maps also get their per-map `terrain_gen.tres`)
    - Load the new map directly into the editing viewport.
 
 ### Opening an Existing Map
@@ -100,7 +103,26 @@ Place player and colonist spawn markers.
 
 ---
 
-## 5. Map Metadata Editing
+## 5. Terrain from a Heightmap Image
+
+You can author the natural terrain's base shape in any external image editor (Krita, GIMP, Photoshop) and import it at map creation:
+
+1. **Paint a grayscale heightmap**: bright pixels are high ground, dark pixels are low. One pixel = one world meter, and the image's top-left corner sits at world origin (image +x → world +x, image +y → world +z). PNG/JPG/BMP/WebP/TGA are accepted; keep it at least 16 px and preferably under 1024×1024 (a 512×512 image is a 512×512 m map).
+2. In the launcher's create form, set **Terrain** to **Heightmap (image)** and click **Browse…** to pick the file. The form previews the image and its footprint (`512×512 px → 512×512 m`).
+3. Set **Start** / **Range**: pixel brightness 0–1 maps to `Start … Start + Range` meters (e.g. start −6, range 16 → the floor sits at −6 m and the brightest peaks at +10 m).
+4. **Create & Open** — the editor writes a self-contained `terrain_gen.tres` (image embedded) into the map folder and loads the map with the terrain already generated.
+
+**Sculpting on top still works**: F3 terrain brushes are overrides stored in `terrain.sqlite` — the heightmap stays the base that regenerates wherever you haven't sculpted. Changing the image or span later never rewrites existing sculpts, but they keep their *absolute* heights, so a lowered base may leave them floating (the terrain drawer warns about this).
+
+**Adjusting later** — the **Terrain** toolbar button opens the terrain drawer: tweak Start/Range (or seed/frequency on noise maps), replace the image, convert a noise map to a heightmap, or remove terrain entirely. **Apply & Reload** saves the def and reloads the map (a deliberate reload, not a live swap — streaming makes hot-swapping generators unreliable).
+
+**Known limits**: 8-bit precision (≈6 cm steps over a 16 m range — Transvoxel smoothing hides this well for organic terrain); no horizontal scaling (1 px is always 1 m — resize the image in your editor if you need a different footprint).
+
+**Hand-authoring variant** (shared, reusable defs): drop a PNG next to your defs in `data/terrain/` — its import must be **Lossless** (VRAM compression destroys pixel data) — and reference it from a `TerrainGenDef`'s `heightmap` field. `data/terrain/heightmap_valley.tres` + `heightmap_valley.png` ship as a worked example.
+
+---
+
+## 6. Map Metadata Editing
 
 Click the **Metadata** button in the top-right toolbar to open the metadata drawer:
 
@@ -113,7 +135,7 @@ Metadata edits are automatically saved to `map_def.tres` when saving.
 
 ---
 
-## 6. Saving and Persistence
+## 7. Saving and Persistence
 
 - Press **`Ctrl + S`** or click the **Save** button in the top-right toolbar.
 - The editor will:
@@ -124,7 +146,7 @@ Metadata edits are automatically saved to `map_def.tres` when saving.
 
 ---
 
-## 7. Testing In-Game
+## 8. Testing In-Game
 
 1. Launch the game normally via `res://subsystems/core/main.tscn`.
 2. From the main menu or debug console (`~`), start the map:

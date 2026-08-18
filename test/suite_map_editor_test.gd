@@ -571,9 +571,10 @@ func test_map_editor_spawn_markers_cache_and_place() -> void:
 		"position": Vector3i(5, 1, 5),
 		"normal": Vector3i(0, 1, 0),
 	}
+	var initial_colonists_count: int = editor._spawn_markers.get("colonists", []).size()
 	editor._do_spawn_place("colonist", hit_colonist)
 	var colonists: Array = editor._spawn_markers.get("colonists", [])
-	assert_int(colonists.size()).is_equal(1)
+	assert_int(colonists.size()).is_equal(initial_colonists_count + 1)
 	var col_marker: Marker3D = colonists[0]
 	assert_str(col_marker.name).contains("ColonistSpawn")
 	assert_object(col_marker.get_node_or_null("SpawnVisualizer")).is_not_null()
@@ -710,17 +711,21 @@ func test_editor_hud_save_button_emits_signal() -> void:
 
 
 func test_map_editor_save_button_triggers_save_map() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	# Throwaway map: save_map() repacks the scene and rewrites map_def.tres —
+	# never point that at committed content (base/dev).
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
 
 	editor._dirty = true
-	editor._hud.set_map_info("base", true)
+	editor._hud.set_map_info(TEST_HEIGHTMAP_MAP, true)
 	assert_str(editor._hud._map_info_label.text).contains("*")
 
 	editor._hud._save_button.pressed.emit()
 	assert_bool(editor._dirty).is_false()
 	assert_bool(editor._hud._map_info_label.text.contains("*")).is_false()
+	await _dispose_test_editor(editor)
 
 
 func test_editor_grid_overlay_create_and_toggle() -> void:
@@ -766,9 +771,12 @@ func test_map_editor_coordinate_readout() -> void:
 
 
 func test_map_editor_metadata_editing_and_save() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	# Throwaway map: this test SAVES, which rewrites map_def.tres — pointing it
+	# at base used to dirty committed content on every suite run.
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
 
 	assert_object(editor._hud._metadata_panel).is_not_null()
 	assert_bool(editor._hud._metadata_panel.visible).is_false()
@@ -795,6 +803,7 @@ func test_map_editor_metadata_editing_and_save() -> void:
 	assert_str(editor._map_def.description).is_equal("Custom description for testing")
 	assert_int(editor._map_def.map_type).is_equal(1)
 	assert_int(editor._map_def.difficulty).is_equal(4)
+	await _dispose_test_editor(editor)
 
 
 func test_map_editor_block_undo() -> void:
@@ -1141,3 +1150,219 @@ func test_map_editor_lmb_spawn_input_dispatches_spawns() -> void:
 	editor._do_spawn_place("colonist", hit_col)
 	var colonists: Array = editor._spawn_markers.get("colonists", [])
 	assert_bool(colonists.size() > 0).is_true()
+
+
+# --- Heightmap terrain (phase 2: launcher setup + terrain drawer) ---------------
+
+## Throwaway map id for creation tests; removed before AND after each test so a
+## crashed run never leaves committed-looking content behind.
+const TEST_HEIGHTMAP_MAP := "test_heightmap_map"
+
+
+func _remove_test_map(map_id: String) -> void:
+	var dir := DirAccess.open("res://data/maps/" + map_id)
+	if dir == null:
+		return
+	for entry in dir.get_files():
+		dir.remove(entry)
+	DirAccess.open("res://data/maps/").remove(map_id)
+
+
+## Unload + drain in-flight streaming tasks BEFORE deleting the throwaway
+## folder — without the frames, async block-load workers hit a deleted sqlite
+## file and spam errors into the log.
+func _dispose_test_editor(editor: MapEditor) -> void:
+	editor.unload_map()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+
+
+func _heightmap_payload(map_id: String) -> Dictionary:
+	var image := Image.create(32, 32, false, Image.FORMAT_RGB8)
+	image.fill(Color(0.75, 0.75, 0.75))
+	return {
+		"map_id": map_id,
+		"map_type": MapDef.MapType.POI,
+		"terrain_mode": EditorLauncherClass.TerrainMode.HEIGHTMAP,
+		"noise_def_path": "",
+		"image": image,
+		"height_start": -7.0,
+		"height_range": 21.0,
+	}
+
+
+## HEIGHTMAP mode refuses to create without a picked image, and a picked image
+## rides the payload with the span fields.
+func test_editor_launcher_heightmap_payload_validation() -> void:
+	var launcher: EditorLauncher = auto_free(EditorLauncherClass.new())
+	add_child(launcher)
+	var received: Array = []
+	launcher.new_map_requested.connect(func(payload: Dictionary) -> void:
+		received.append(payload)
+	)
+
+	launcher._new_name_input.text = TEST_HEIGHTMAP_MAP
+	launcher._terrain_mode_select.selected = EditorLauncherClass.TerrainMode.HEIGHTMAP
+	launcher._on_terrain_mode_selected(EditorLauncherClass.TerrainMode.HEIGHTMAP)
+	assert_bool(launcher._heightmap_box.visible).is_true()
+	assert_bool(launcher._noise_def_select.visible).is_false()
+
+	launcher._on_create_pressed()
+	assert_int(received.size()).is_zero()
+	assert_bool(launcher._error_label.visible).is_true()
+
+	var image := Image.create(16, 16, false, Image.FORMAT_L8)
+	image.fill(Color(0.5, 0.5, 0.5))
+	launcher._heightmap_image = image
+	launcher._height_start_spin.value = -8.0
+	launcher._height_range_spin.value = 24.0
+	launcher._on_create_pressed()
+	assert_int(received.size()).is_equal(1)
+	var payload: Dictionary = received[0]
+	assert_int(payload["terrain_mode"]).is_equal(EditorLauncherClass.TerrainMode.HEIGHTMAP)
+	assert_object(payload["image"]).is_same(image)
+	assert_float(payload["height_start"]).is_equal(-8.0)
+	assert_float(payload["height_range"]).is_equal(24.0)
+
+
+## The launcher's noise dropdown lists shared defs but excludes heightmap-driven
+## ones (those are per-map content), with the default preselected.
+func test_editor_launcher_noise_def_dropdown_excludes_heightmap_defs() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var select: OptionButton = editor._launcher._noise_def_select
+	assert_int(select.item_count).is_greater(0)
+	var has_default := false
+	var has_heightmap_def := false
+	for i in range(select.item_count):
+		if select.get_item_text(i) == "ground_default":
+			has_default = true
+		if select.get_item_text(i) == "heightmap_valley":
+			has_heightmap_def = true
+	assert_bool(has_default).is_true()
+	assert_bool(has_heightmap_def).is_false()
+	assert_str(editor._launcher._selected_noise_def_path()).is_equal(
+		"res://data/terrain/default_ground.tres"
+	)
+
+
+## load_heightmap_image: the committed example loads as L8; bad paths and
+## too-small images are rejected.
+func test_editor_launcher_load_heightmap_image() -> void:
+	var image := EditorLauncherClass.load_heightmap_image("res://data/terrain/heightmap_valley.png")
+	assert_object(image).is_not_null()
+	assert_int(image.get_format()).is_equal(Image.FORMAT_L8)
+	assert_vector(image.get_size()).is_equal(Vector2i(128, 128))
+
+	assert_object(EditorLauncherClass.load_heightmap_image("res://data/terrain/does_not_exist.png")).is_null()
+
+	var tiny_path := "res://.godot/tiny_heightmap_test.png"
+	var tiny := Image.create(8, 8, false, Image.FORMAT_L8)
+	tiny.fill(Color(0.5, 0.5, 0.5))
+	tiny.save_png(tiny_path)
+	assert_object(EditorLauncherClass.load_heightmap_image(tiny_path)).is_null()
+	DirAccess.open("res://.godot").remove(tiny_path.get_file())
+
+
+## Creating a heightmap map writes the per-map terrain_gen.tres (embedded L8
+## texture, payload span), wires MapDef.terrain_gen at it, and the loaded map
+## builds a VoxelGeneratorImage.
+func test_map_editor_heightmap_creation_writes_per_map_def() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
+
+	var terrain_path := "res://data/maps/%s/terrain_gen.tres" % TEST_HEIGHTMAP_MAP
+	assert_bool(ResourceLoader.exists(terrain_path)).is_true()
+	var terrain_def := load(terrain_path) as TerrainGenDef
+	assert_str(terrain_def.id).is_equal(TEST_HEIGHTMAP_MAP + "_terrain")
+	assert_float(terrain_def.height_start).is_equal(-7.0)
+	assert_float(terrain_def.height_range).is_equal(21.0)
+	assert_object(terrain_def.heightmap).is_not_null()
+	var embedded: Image = terrain_def.heightmap.get_image()
+	assert_vector(embedded.get_size()).is_equal(Vector2i(32, 32))
+	assert_int(embedded.get_format()).is_equal(Image.FORMAT_L8)
+
+	assert_object(editor._map_def.terrain_gen).is_not_null()
+	assert_str(editor._map_def.terrain_gen.id).is_equal(TEST_HEIGHTMAP_MAP + "_terrain")
+	var generator = editor._map_root.get_smooth_grid().get_terrain().get("generator")
+	assert_bool(generator is VoxelGeneratorImage).is_true()
+
+	await _dispose_test_editor(editor)
+
+
+## Drawer state mirrors the loaded def (mode, span, minimap source) for all
+## three def shapes, pending images flip to heightmap mode, and the drawer is
+## mutually exclusive with the metadata panel.
+func test_editor_hud_terrain_drawer_state_reflects_def() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	var noise_def := TerrainGenDef.new()
+	noise_def.id = "noise_def_test"
+	hud.set_terrain_drawer_state(noise_def)
+	assert_str(hud._terrain_mode_label.text).contains("Procedural (noise)")
+	assert_bool(hud._terrain_heightmap_section.visible).is_false()
+	assert_bool(hud._terrain_noise_section.visible).is_true()
+	assert_str(hud._terrain_pick_button.text).contains("Convert")
+
+	var hm_def := TerrainGenDef.new()
+	hm_def.id = "hm_def_test"
+	hm_def.height_start = -5.0
+	hm_def.height_range = 11.0
+	var img := Image.create(16, 16, false, Image.FORMAT_L8)
+	img.fill(Color.BLACK)
+	hm_def.heightmap = ImageTexture.create_from_image(img)
+	hud.set_terrain_drawer_state(hm_def)
+	assert_str(hud._terrain_mode_label.text).contains("Heightmap")
+	assert_bool(hud._terrain_heightmap_section.visible).is_true()
+	assert_float(hud._terrain_start_spin.value).is_equal(-5.0)
+	assert_float(hud._terrain_range_spin.value).is_equal(11.0)
+	assert_object(hud._terrain_minimap.texture).is_not_null()
+
+	hud.set_terrain_drawer_state(null)
+	assert_str(hud._terrain_mode_label.text).contains("None")
+	assert_bool(hud._terrain_remove_button.visible).is_false()
+	assert_str(hud._terrain_pick_button.text).contains("Add Heightmap")
+
+	hud.set_pending_heightmap_image(img)
+	assert_bool(hud._terrain_heightmap_section.visible).is_true()
+	assert_object(hud.get_terrain_drawer_edits().get("pending_image")).is_same(img)
+
+	hud.toggle_terrain_drawer()
+	assert_bool(hud.is_terrain_drawer_visible()).is_true()
+	hud.toggle_metadata_panel()
+	assert_bool(hud._metadata_panel.visible).is_true()
+	assert_bool(hud.is_terrain_drawer_visible()).is_false()
+	assert_bool(hud.is_terrain_drawer_focused()).is_false()
+
+
+## Apply on a heightmap map persists span edits to the per-map def and reloads
+## the map with them; the remove toggle strips terrain_gen entirely.
+func test_map_editor_terrain_drawer_edits_apply_and_reload() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
+
+	editor._hud.toggle_terrain_drawer()
+	editor._hud._terrain_start_spin.value = -9.0
+	editor._hud._terrain_range_spin.value = 30.0
+	editor._on_terrain_apply()
+
+	assert_float(editor._map_def.terrain_gen.height_start).is_equal(-9.0)
+	assert_float(editor._map_def.terrain_gen.height_range).is_equal(30.0)
+	assert_float(editor._hud._terrain_start_spin.value).is_equal(-9.0)
+	var generator = editor._map_root.get_smooth_grid().get_terrain().get("generator")
+	assert_bool(generator is VoxelGeneratorImage).is_true()
+
+	editor._hud._on_terrain_remove_toggled()
+	assert_str(editor._hud._terrain_remove_button.text).contains("Keep Terrain")
+	editor._on_terrain_apply()
+	assert_object(editor._map_def.terrain_gen).is_null()
+	assert_str(editor._hud._terrain_mode_label.text).contains("None")
+
+	await _dispose_test_editor(editor)

@@ -13,6 +13,10 @@ const EditorPalettePanelClass = preload("res://tools/map_editor/editor_palette_p
 signal block_selected(index: int)
 signal furniture_selected(index: int)
 signal save_requested()
+## Terrain drawer: the editor writes def params / image, then reloads the map.
+signal terrain_apply_requested()
+## The user asked for a heightmap image file — the editor owns the FileDialog.
+signal terrain_pick_image_requested()
 
 var _mode_badge: PanelContainer
 var _mode_label: Label
@@ -53,6 +57,25 @@ var _meta_display_name_input: LineEdit
 var _meta_desc_input: TextEdit
 var _meta_type_option: OptionButton
 var _meta_difficulty_spin: SpinBox
+
+var _terrain_button: Button
+var _terrain_drawer: PanelContainer
+var _terrain_mode_label: Label
+var _terrain_def_label: Label
+var _terrain_minimap: TextureRect
+var _terrain_start_spin: SpinBox
+var _terrain_range_spin: SpinBox
+var _terrain_seed_spin: SpinBox
+var _terrain_freq_spin: SpinBox
+var _terrain_span_label: Label
+var _terrain_pick_button: Button
+var _terrain_remove_button: Button
+var _terrain_heightmap_section: Control = null
+var _terrain_noise_section: Control = null
+var _pending_heightmap: Image = null
+var _terrain_remove_pending := false
+var _drawer_is_heightmap := false
+var _drawer_has_terrain := false
 
 const MODE_NAMES: Array[String] = [
 	"NAVIGATE",
@@ -309,6 +332,14 @@ func _build_ui() -> void:
 	_meta_button.pressed.connect(toggle_metadata_panel)
 	info_hbox.add_child(_meta_button)
 
+	_terrain_button = Button.new()
+	_terrain_button.name = "TerrainButton"
+	_terrain_button.text = "Terrain"
+	_terrain_button.tooltip_text = "Toggle terrain generator drawer"
+	_terrain_button.add_theme_font_size_override("font_size", 12)
+	_terrain_button.pressed.connect(toggle_terrain_drawer)
+	info_hbox.add_child(_terrain_button)
+
 	_map_info_label = Label.new()
 	_map_info_label.name = "MapInfoLabel"
 	_map_info_label.text = "Map: none"
@@ -406,6 +437,181 @@ func _build_ui() -> void:
 	meta_vbox.add_child(_meta_difficulty_spin)
 
 	root.add_child(_metadata_panel)
+
+	# --- Terrain Drawer (Top Right; mutually exclusive with the Metadata panel) ---
+	_terrain_drawer = PanelContainer.new()
+	_terrain_drawer.name = "TerrainDrawer"
+	_terrain_drawer.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_terrain_drawer.offset_left = -340.0
+	_terrain_drawer.offset_top = 56.0
+	_terrain_drawer.offset_right = -16.0
+	_terrain_drawer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_terrain_drawer.visible = false
+
+	var drawer_style := StyleBoxFlat.new()
+	drawer_style.bg_color = Color(0.08, 0.1, 0.14, 0.92)
+	drawer_style.border_color = Color(0.3, 0.5, 0.4, 0.85)
+	drawer_style.set_border_width_all(1)
+	drawer_style.set_corner_radius_all(6)
+	drawer_style.set_content_margin_all(10)
+	_terrain_drawer.add_theme_stylebox_override("panel", drawer_style)
+
+	var drawer_vbox := VBoxContainer.new()
+	drawer_vbox.name = "TerrainDrawerVBox"
+	drawer_vbox.add_theme_constant_override("separation", 6)
+	_terrain_drawer.add_child(drawer_vbox)
+
+	var drawer_title := Label.new()
+	drawer_title.text = "TERRAIN GENERATOR"
+	drawer_title.add_theme_font_size_override("font_size", 13)
+	drawer_title.add_theme_color_override("font_color", Color(0.7, 0.95, 0.8))
+	drawer_vbox.add_child(drawer_title)
+
+	_terrain_mode_label = Label.new()
+	_terrain_mode_label.name = "TerrainModeLabel"
+	_terrain_mode_label.text = "Mode: —"
+	_terrain_mode_label.add_theme_font_size_override("font_size", 12)
+	_terrain_mode_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	drawer_vbox.add_child(_terrain_mode_label)
+
+	_terrain_def_label = Label.new()
+	_terrain_def_label.name = "TerrainDefLabel"
+	_terrain_def_label.text = "Def: —"
+	_terrain_def_label.add_theme_font_size_override("font_size", 11)
+	_terrain_def_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.72))
+	drawer_vbox.add_child(_terrain_def_label)
+
+	# Heightmap section: minimap + span fields.
+	_terrain_heightmap_section = VBoxContainer.new()
+	_terrain_heightmap_section.name = "TerrainHeightmapSection"
+	_terrain_heightmap_section.add_theme_constant_override("separation", 6)
+	drawer_vbox.add_child(_terrain_heightmap_section)
+
+	var preview_hbox := HBoxContainer.new()
+	preview_hbox.add_theme_constant_override("separation", 10)
+	_terrain_heightmap_section.add_child(preview_hbox)
+
+	_terrain_minimap = TextureRect.new()
+	_terrain_minimap.name = "TerrainMinimap"
+	_terrain_minimap.custom_minimum_size = Vector2(96, 96)
+	_terrain_minimap.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_terrain_minimap.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview_hbox.add_child(_terrain_minimap)
+
+	var axis_caption := Label.new()
+	axis_caption.text = "image +x → world +x\nimage +y → world +z\n(1 px = 1 m)"
+	axis_caption.add_theme_font_size_override("font_size", 10)
+	axis_caption.add_theme_color_override("font_color", Color(0.55, 0.62, 0.72))
+	axis_caption.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	preview_hbox.add_child(axis_caption)
+
+	var span_row := HBoxContainer.new()
+	span_row.add_theme_constant_override("separation", 8)
+	_terrain_heightmap_section.add_child(span_row)
+
+	var start_lbl := Label.new()
+	start_lbl.text = "Start:"
+	start_lbl.add_theme_font_size_override("font_size", 11)
+	span_row.add_child(start_lbl)
+
+	_terrain_start_spin = SpinBox.new()
+	_terrain_start_spin.min_value = -100.0
+	_terrain_start_spin.max_value = 100.0
+	_terrain_start_spin.step = 0.5
+	_terrain_start_spin.value_changed.connect(_update_terrain_span_label)
+	span_row.add_child(_terrain_start_spin)
+
+	var range_lbl := Label.new()
+	range_lbl.text = "Range:"
+	range_lbl.add_theme_font_size_override("font_size", 11)
+	span_row.add_child(range_lbl)
+
+	_terrain_range_spin = SpinBox.new()
+	_terrain_range_spin.min_value = 1.0
+	_terrain_range_spin.max_value = 200.0
+	_terrain_range_spin.step = 0.5
+	_terrain_range_spin.value_changed.connect(_update_terrain_span_label)
+	span_row.add_child(_terrain_range_spin)
+
+	_terrain_span_label = Label.new()
+	_terrain_span_label.text = ""
+	_terrain_span_label.add_theme_font_size_override("font_size", 11)
+	_terrain_span_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	_terrain_heightmap_section.add_child(_terrain_span_label)
+
+	# Noise section: seed + frequency fields.
+	_terrain_noise_section = VBoxContainer.new()
+	_terrain_noise_section.name = "TerrainNoiseSection"
+	_terrain_noise_section.add_theme_constant_override("separation", 6)
+	drawer_vbox.add_child(_terrain_noise_section)
+
+	var seed_row := HBoxContainer.new()
+	seed_row.add_theme_constant_override("separation", 8)
+	_terrain_noise_section.add_child(seed_row)
+
+	var seed_lbl := Label.new()
+	seed_lbl.text = "Seed:"
+	seed_lbl.add_theme_font_size_override("font_size", 11)
+	seed_row.add_child(seed_lbl)
+
+	_terrain_seed_spin = SpinBox.new()
+	_terrain_seed_spin.min_value = 0.0
+	_terrain_seed_spin.max_value = 999999.0
+	_terrain_seed_spin.step = 1.0
+	seed_row.add_child(_terrain_seed_spin)
+
+	var freq_row := HBoxContainer.new()
+	freq_row.add_theme_constant_override("separation", 8)
+	_terrain_noise_section.add_child(freq_row)
+
+	var freq_lbl := Label.new()
+	freq_lbl.text = "Frequency:"
+	freq_lbl.add_theme_font_size_override("font_size", 11)
+	freq_row.add_child(freq_lbl)
+
+	_terrain_freq_spin = SpinBox.new()
+	_terrain_freq_spin.min_value = 0.001
+	_terrain_freq_spin.max_value = 0.2
+	_terrain_freq_spin.step = 0.001
+	_terrain_freq_spin.value = 0.012
+	freq_row.add_child(_terrain_freq_spin)
+
+	# Image / removal actions + apply.
+	var drawer_buttons := HBoxContainer.new()
+	drawer_buttons.add_theme_constant_override("separation", 8)
+	drawer_vbox.add_child(drawer_buttons)
+
+	_terrain_pick_button = Button.new()
+	_terrain_pick_button.name = "TerrainPickButton"
+	_terrain_pick_button.text = "Convert to Heightmap…"
+	_terrain_pick_button.tooltip_text = "Pick a grayscale heightmap image"
+	_terrain_pick_button.add_theme_font_size_override("font_size", 11)
+	_terrain_pick_button.pressed.connect(func() -> void: terrain_pick_image_requested.emit())
+	drawer_buttons.add_child(_terrain_pick_button)
+
+	_terrain_remove_button = Button.new()
+	_terrain_remove_button.name = "TerrainRemoveButton"
+	_terrain_remove_button.text = "Remove Terrain"
+	_terrain_remove_button.tooltip_text = "Strip terrain_gen from the map — the smooth grid disappears on apply"
+	_terrain_remove_button.add_theme_font_size_override("font_size", 11)
+	_terrain_remove_button.pressed.connect(_on_terrain_remove_toggled)
+	drawer_buttons.add_child(_terrain_remove_button)
+
+	var terrain_warning := Label.new()
+	terrain_warning.text = "Sculpted edits keep their absolute heights — changing the base may float or bury them."
+	terrain_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	terrain_warning.add_theme_font_size_override("font_size", 10)
+	terrain_warning.add_theme_color_override("font_color", Color(0.9, 0.7, 0.35))
+	drawer_vbox.add_child(terrain_warning)
+
+	var apply_btn := Button.new()
+	apply_btn.text = "Apply & Reload"
+	apply_btn.tooltip_text = "Save the terrain def and reload the map"
+	apply_btn.add_theme_font_size_override("font_size", 12)
+	apply_btn.pressed.connect(func() -> void: terrain_apply_requested.emit())
+	drawer_vbox.add_child(apply_btn)
+
+	root.add_child(_terrain_drawer)
 
 	# --- Hotkey Strip (Bottom Center) ---
 	var hotkey_panel := PanelContainer.new()
@@ -635,7 +841,7 @@ func is_metadata_focused() -> bool:
 
 
 func is_any_input_focused() -> bool:
-	return is_search_focused() or is_metadata_focused()
+	return is_search_focused() or is_metadata_focused() or is_terrain_drawer_focused()
 
 
 # --- Information display helpers ---
@@ -713,6 +919,132 @@ func get_metadata_edits() -> Dictionary:
 func toggle_metadata_panel() -> void:
 	if _metadata_panel != null:
 		_metadata_panel.visible = not _metadata_panel.visible
+		if _metadata_panel.visible and _terrain_drawer != null:
+			_terrain_drawer.visible = false
+
+
+# --- Terrain drawer API ---------------------------------------------------------
+
+## Refresh the drawer from the map's terrain def; resets any pending image /
+## removal state. Called on every map load (and after apply-triggered reloads).
+func set_terrain_drawer_state(terrain_def: TerrainGenDef) -> void:
+	if _terrain_drawer == null:
+		return
+	_drawer_has_terrain = terrain_def != null
+	_drawer_is_heightmap = terrain_def != null and terrain_def.heightmap != null
+	_pending_heightmap = null
+	_terrain_remove_pending = false
+	_update_remove_button()
+	_terrain_mode_label.text = "Mode: " + (
+		"Heightmap (image)" if _drawer_is_heightmap
+		else ("Procedural (noise)" if _drawer_has_terrain else "None (blocky only)")
+	)
+	if terrain_def == null:
+		_terrain_def_label.text = "Def: —"
+	else:
+		var def_name := terrain_def.resource_path.get_file()
+		_terrain_def_label.text = "Def: " + (def_name if not def_name.is_empty() else terrain_def.id)
+	_terrain_heightmap_section.visible = _drawer_is_heightmap
+	_terrain_noise_section.visible = _drawer_has_terrain and not _drawer_is_heightmap
+	_terrain_pick_button.text = (
+		"Replace Image…" if _drawer_is_heightmap
+		else ("Convert to Heightmap…" if _drawer_has_terrain else "Add Heightmap…")
+	)
+	_terrain_remove_button.visible = _drawer_has_terrain
+	if _drawer_is_heightmap:
+		_terrain_start_spin.value = terrain_def.height_start
+		_terrain_range_spin.value = terrain_def.height_range
+		_terrain_minimap.texture = _minimap_from_texture(terrain_def.heightmap)
+		_update_terrain_span_label()
+	elif _drawer_has_terrain:
+		_terrain_seed_spin.value = terrain_def.noise_seed
+		_terrain_freq_spin.value = terrain_def.noise_frequency
+		_terrain_minimap.texture = null
+
+
+## Minimap preview of a def's heightmap texture — uncompressed L8, mirroring
+## what the generator will consume.
+func _minimap_from_texture(tex: Texture2D) -> ImageTexture:
+	if tex == null:
+		return null
+	var image := tex.get_image()
+	if image == null:
+		return null
+	if image.is_compressed():
+		image.decompress()
+	image.convert(Image.FORMAT_L8)
+	return ImageTexture.create_from_image(image)
+
+
+## Current drawer values for the editor's apply handler: span fields, noise
+## fields, a picked-but-unapplied image, and the removal toggle.
+func get_terrain_drawer_edits() -> Dictionary:
+	if _terrain_start_spin == null:
+		return {}
+	return {
+		"height_start": _terrain_start_spin.value,
+		"height_range": _terrain_range_spin.value,
+		"noise_seed": int(_terrain_seed_spin.value),
+		"noise_frequency": _terrain_freq_spin.value,
+		"pending_image": _pending_heightmap,
+		"remove": _terrain_remove_pending,
+	}
+
+
+## Preview a picked image before Apply commits it: minimap + heightmap fields.
+func set_pending_heightmap_image(image: Image) -> void:
+	_pending_heightmap = image
+	if image != null:
+		_terrain_minimap.texture = ImageTexture.create_from_image(image)
+	# Picking an image implies heightmap mode on apply; flip the visible section
+	# so the span fields match what will be written.
+	_drawer_is_heightmap = true
+	_terrain_heightmap_section.visible = true
+	_terrain_noise_section.visible = false
+	_terrain_mode_label.text = "Mode: Heightmap (image)*"
+	_terrain_pick_button.text = "Replace Image…"
+
+
+func is_terrain_drawer_visible() -> bool:
+	return _terrain_drawer != null and _terrain_drawer.visible
+
+
+func toggle_terrain_drawer() -> void:
+	if _terrain_drawer == null:
+		return
+	_terrain_drawer.visible = not _terrain_drawer.visible
+	if _terrain_drawer.visible and _metadata_panel != null:
+		_metadata_panel.visible = false
+
+
+func close_terrain_drawer() -> void:
+	if _terrain_drawer != null:
+		_terrain_drawer.visible = false
+
+
+func is_terrain_drawer_focused() -> bool:
+	for spin: SpinBox in [_terrain_start_spin, _terrain_range_spin, _terrain_seed_spin, _terrain_freq_spin]:
+		if spin != null and spin.get_line_edit() != null and spin.get_line_edit().has_focus():
+			return true
+	return false
+
+
+func _update_terrain_span_label(_value: float = 0.0) -> void:
+	if _terrain_span_label == null or _terrain_start_spin == null:
+		return
+	var start := _terrain_start_spin.value
+	_terrain_span_label.text = "→ %.1f m … %.1f m" % [start, start + _terrain_range_spin.value]
+
+
+func _on_terrain_remove_toggled() -> void:
+	_terrain_remove_pending = not _terrain_remove_pending
+	_update_remove_button()
+
+
+func _update_remove_button() -> void:
+	if _terrain_remove_button == null:
+		return
+	_terrain_remove_button.text = "Keep Terrain (undo)" if _terrain_remove_pending else "Remove Terrain"
 
 
 func set_mode(mode: int) -> void:

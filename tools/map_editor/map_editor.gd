@@ -13,6 +13,7 @@ const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overl
 const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_authoring.gd")
 
 const MAPS_DIR: String = "res://data/maps/"
+const TERRAIN_DIR: String = "res://data/terrain/"
 const TEMPLATE_PATH: String = "res://subsystems/maps/map_template.tscn"
 const DEFAULT_TERRAIN_GEN: String = "res://data/terrain/default_ground.tres"
 
@@ -48,6 +49,7 @@ var _hud: EditorHUD = null
 var _launcher: EditorLauncher = null
 var _grid_overlay: MeshInstance3D = null
 var _exit_dialog: ConfirmationDialog = null
+var _drawer_file_dialog: FileDialog = null
 var _dirty: bool = false
 var _undo_stack: Array[Dictionary] = []
 
@@ -93,16 +95,19 @@ func _ready() -> void:
 	_hud.block_selected.connect(_on_hud_block_selected)
 	_hud.furniture_selected.connect(_on_hud_furniture_selected)
 	_hud.save_requested.connect(save_map)
+	_hud.terrain_apply_requested.connect(_on_terrain_apply)
+	_hud.terrain_pick_image_requested.connect(_on_terrain_pick_image)
 	_hud.set_mode(_mode)
 	_hud.hide()
 
 	_launcher = EditorLauncherClass.new()
 	add_child(_launcher)
 	_launcher.map_selected.connect(load_map)
-	_launcher.new_map_requested.connect(func(name_str: String, type_int: int) -> void:
-		create_new_map(name_str, type_int)
+	_launcher.new_map_requested.connect(func(payload: Dictionary) -> void:
+		create_new_map(payload)
 	)
 	_launcher.setup(_scan_maps())
+	_launcher.setup_noise_defs(_scan_noise_defs(), DEFAULT_TERRAIN_GEN)
 	_launcher.show_launcher()
 
 	_setup_exit_dialog()
@@ -247,7 +252,10 @@ func _input(event: InputEvent) -> void:
 		var k := event as InputEventKey
 		if k.pressed:
 			if k.keycode == KEY_ESCAPE:
-				if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+				if _hud != null and _hud.is_terrain_drawer_visible():
+					_hud.close_terrain_drawer()
+					get_viewport().set_input_as_handled()
+				elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 					Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 				else:
 					_request_exit()
@@ -443,6 +451,7 @@ func load_map(map_id: String) -> void:
 		_hud.set_map_info(map_id, _dirty)
 		_hud.set_metadata(def.display_name, def.description, def.map_type, def.difficulty)
 		_hud.set_terrain_available(_smooth_grid != null)
+		_hud.set_terrain_drawer_state(_map_def.terrain_gen)
 		_hud.show()
 		_update_hud_info()
 
@@ -452,7 +461,10 @@ func load_map(map_id: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-func create_new_map(map_name: String, map_type: int = MapDef.MapType.POI) -> String:
+## Create + open a new map under data/maps/<map_id>/. `payload` is the
+## launcher's create-form Dictionary (shape: EditorLauncher.new_map_requested).
+func create_new_map(payload: Dictionary) -> String:
+	var map_name := payload.get("map_id", "") as String
 	if map_name.is_empty():
 		push_warning("MapEditor: empty map name")
 		return ""
@@ -473,7 +485,7 @@ func create_new_map(map_name: String, map_type: int = MapDef.MapType.POI) -> Str
 	var tscn_path := folder_path + "map.tscn"
 	var db_path := folder_path + "map.sqlite"
 	_stamp_map_scene(TEMPLATE_PATH, tscn_path, db_path)
-	_create_map_def(map_name, folder_path, tscn_path, map_type)
+	_create_map_def(payload, folder_path, tscn_path)
 
 	if _launcher != null:
 		_launcher.setup(_scan_maps())
@@ -645,7 +657,9 @@ func _stamp_map_scene(template_path: String, tscn_dest_path: String, db_dest_pat
 	instance.free()
 
 
-func _create_map_def(map_name: String, folder_path: String, tscn_path: String, map_type: int) -> void:
+func _create_map_def(payload: Dictionary, folder_path: String, tscn_path: String) -> void:
+	var map_name := payload.get("map_id", "") as String
+	var map_type := int(payload.get("map_type", MapDef.MapType.POI))
 	var def := MapDef.new()
 	def.id = map_name
 	def.display_name = map_name.capitalize()
@@ -656,13 +670,157 @@ func _create_map_def(map_name: String, folder_path: String, tscn_path: String, m
 	def.unlock_condition = ""
 	def.difficulty = 1
 
-	if ResourceLoader.exists(DEFAULT_TERRAIN_GEN):
-		def.terrain_gen = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
+	var terrain_mode := int(payload.get("terrain_mode", EditorLauncherClass.TerrainMode.NOISE))
+	if terrain_mode == EditorLauncherClass.TerrainMode.HEIGHTMAP:
+		def.terrain_gen = _write_heightmap_terrain_def(payload, folder_path, map_name)
+	elif terrain_mode == EditorLauncherClass.TerrainMode.NONE:
+		# No terrain_gen: the SmoothGrid frees itself — a blocky-only map.
+		def.terrain_gen = null
+	else:
+		var noise_path := payload.get("noise_def_path", "") as String
+		if ResourceLoader.exists(noise_path):
+			def.terrain_gen = load(noise_path) as TerrainGenDef
+		elif ResourceLoader.exists(DEFAULT_TERRAIN_GEN):
+			def.terrain_gen = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
 
 	var def_path := folder_path + "map_def.tres"
 	var err := ResourceSaver.save(def, def_path)
 	if err != OK:
 		push_error("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err])
+
+
+## Shared-def scan for the launcher's noise dropdown: data/terrain/*.tres minus
+## heightmap-driven defs (those are per-map content, not shared baselines).
+func _scan_noise_defs() -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	var dir := DirAccess.open(TERRAIN_DIR)
+	if dir == null:
+		return results
+	dir.list_dir_begin()
+	var entry := dir.get_next()
+	while not entry.is_empty():
+		if entry.ends_with(".tres"):
+			var path := TERRAIN_DIR + entry
+			var terrain_def := load(path) as TerrainGenDef
+			if terrain_def != null and terrain_def.heightmap == null:
+				var def_id := terrain_def.id if not terrain_def.id.is_empty() else entry.get_basename()
+				results.append({"id": def_id, "path": path})
+		entry = dir.get_next()
+	dir.list_dir_end()
+	results.sort_custom(func(a: Dictionary, b: Dictionary): return a["id"] < b["id"])
+	return results
+
+
+## Write the per-map heightmap TerrainGenDef with an EMBEDDED ImageTexture: the
+## editor is a runtime process and cannot run Godot's import pipeline, so a bare
+## PNG copied into the project wouldn't load via ResourceLoader — embedding
+## keeps the map folder self-contained and export-safe.
+func _write_heightmap_terrain_def(payload: Dictionary, folder_path: String, map_name: String) -> TerrainGenDef:
+	var image: Image = payload.get("image", null)
+	if image == null:
+		push_error("MapEditor: heightmap map '%s' requested without an image — no terrain def written" % map_name)
+		return null
+	# Normalize before embedding: the generator reads L8 anyway, and an RGB(A)
+	# source would bloat the .tres for nothing.
+	if image.is_compressed():
+		image.decompress()
+	image.convert(Image.FORMAT_L8)
+	var terrain_def := TerrainGenDef.new()
+	terrain_def.id = map_name + "_terrain"
+	terrain_def.display_name = map_name.capitalize() + " Terrain"
+	terrain_def.height_start = float(payload.get("height_start", -6.0))
+	terrain_def.height_range = float(payload.get("height_range", 16.0))
+	terrain_def.heightmap = ImageTexture.create_from_image(image)
+	var terrain_path := folder_path + "terrain_gen.tres"
+	var err := ResourceSaver.save(terrain_def, terrain_path)
+	if err != OK:
+		push_warning("MapEditor: failed to save terrain def to '%s' (error %d)" % [terrain_path, err])
+		return terrain_def
+	return load(terrain_path) as TerrainGenDef
+
+
+# --- terrain drawer -------------------------------------------------------------
+
+## Apply = write def(s) + reload the map. Deliberately not a live generator
+## hot-swap: already-streamed blocks keep stale generated data under a swap,
+## while the reload path (re-attach streams, re-inject def) is known-consistent
+## and cheap in the editor. Streams flush first so pending sculpts survive.
+func _on_terrain_apply() -> void:
+	if _map_def == null or _hud == null:
+		return
+	var edits := _hud.get_terrain_drawer_edits()
+	var map_id := _map_def.id
+
+	if edits.get("remove", false):
+		_map_def.terrain_gen = null
+		_save_map_def()
+		_reload_current_map()
+		return
+
+	var pending_image: Image = edits.get("pending_image", null)
+	if pending_image != null:
+		# Replace/convert: always writes the per-map def, then repoints MapDef.
+		var payload := {
+			"map_id": map_id,
+			"image": pending_image,
+			"height_start": float(edits.get("height_start", -6.0)),
+			"height_range": float(edits.get("height_range", 16.0)),
+		}
+		_map_def.terrain_gen = _write_heightmap_terrain_def(payload, MAPS_DIR + map_id + "/", map_id)
+		_save_map_def()
+		_reload_current_map()
+		return
+
+	var terrain_def := _map_def.terrain_gen
+	if terrain_def == null:
+		return
+	if terrain_def.heightmap != null:
+		terrain_def.height_start = float(edits.get("height_start", terrain_def.height_start))
+		terrain_def.height_range = float(edits.get("height_range", terrain_def.height_range))
+	else:
+		terrain_def.noise_seed = int(edits.get("noise_seed", terrain_def.noise_seed))
+		terrain_def.noise_frequency = float(edits.get("noise_frequency", terrain_def.noise_frequency))
+	if not terrain_def.resource_path.is_empty():
+		var err := ResourceSaver.save(terrain_def, terrain_def.resource_path)
+		if err != OK:
+			push_warning("MapEditor: failed to save terrain def to '%s' (error %d)" % [terrain_def.resource_path, err])
+	_reload_current_map()
+
+
+func _on_terrain_pick_image() -> void:
+	if _drawer_file_dialog == null:
+		_drawer_file_dialog = EditorLauncherClass.create_image_file_dialog()
+		_drawer_file_dialog.file_selected.connect(_on_drawer_image_selected)
+	if _drawer_file_dialog.get_parent() == null:
+		add_child(_drawer_file_dialog)
+	_drawer_file_dialog.popup_centered(Vector2i(900, 600))
+
+
+func _on_drawer_image_selected(path: String) -> void:
+	if _hud == null:
+		return
+	var image := EditorLauncherClass.load_heightmap_image(path)
+	if image == null:
+		push_warning("MapEditor: could not use '%s' as a heightmap" % path)
+		return
+	_hud.set_pending_heightmap_image(image)
+
+
+func _save_map_def() -> void:
+	if _map_def == null:
+		return
+	var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
+	var err := ResourceSaver.save(_map_def, def_path)
+	if err != OK:
+		push_warning("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err])
+
+
+func _reload_current_map() -> void:
+	if _map_def == null:
+		return
+	if _map_root != null:
+		_map_root.flush_voxel_streams()
+	load_map(_map_def.id)
 
 
 func _inject_terrain_gen(map: Node, def: MapDef) -> void:

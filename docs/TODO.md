@@ -98,6 +98,33 @@ GDExtension properties (template text-patch pattern, retired 2026-08-18 with the
 
 ---
 
+## Blocky-grid generation from images — design note (2026-08-18, not started)
+
+Follow-on to heightmap-driven smooth terrain (feat: `TerrainGenDef.heightmap`
+→ `VoxelGeneratorImage`): authoring **blocky** structures (walls, building
+footprints) from images too. Viable; deliberately not built yet — the
+heightmap work kept its bolt-on points clean instead:
+
+- **Model**: per-layer images, layer N = world Y = N (a Krita/GIMP layer stack
+  *is* a building). Non-empty pixels write that column's block at that height.
+- **Color → block**: exact RGB keys survive Godot's indexed-PNG flattening, so
+  a sidecar mapping resource (`color → block id`) works; grayscale
+  value-equals-index against `BlockLibrary`'s stable table (0 air, 1 terrain,
+  2 metal, …) is the no-sidecar alternative.
+- **Implementation route**: `VoxelGeneratorScript` subclass in
+  `subsystems/voxel/` + its own def resource + a `BlockyGrid._ready()` branch —
+  the native image generator can't paint block ids. GDScript generation is
+  slower per block (~4k writes per 16³ block); acceptable for map-load
+  streaming on colony-sized maps, and a Map Editor bake into `map.sqlite` (F3
+  streaming-traversal cost) remains the fallback for bigger maps.
+- **Bolt-on points kept clean**: `BlockyGrid`/its def were untouched by the
+  heightmap work; `SmoothGrid._prepare_heightmap_image` is a static,
+  subsystem-local helper promotable to shared by moving; the launcher's
+  `new_map_requested` payload is an extensible Dictionary (a `structures` key
+  slots in without another signature change).
+
+---
+
 ## Core subsystem — skeleton scope (next implementation pass)
 
 Build the structural skeleton so the architecture is loadable + testable. Real
