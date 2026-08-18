@@ -27,6 +27,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `blocky_grid.gd` | Script | The structures half. Implements `IBlockGrid` (in `build/`); wraps `voxel_tool` get/set + the surface-tagged Godot-physics raycast (see `docs/VOXEL-TOOL-NOTES.md`). Owns block get/set, per-cell HP, the damage surface, and the blocky terrain's collision layer (2). Does NOT own placement UX (that's Build). |
 | `smooth_grid.gd` | Script | The natural-terrain half — BlockyGrid's mirror, different mesher/generator. `carve`/`add_material` sphere primitives (F8 semantics), cached `height_at` with D4 invalidation, `raycast_to_surface` masked to TerrainSmooth. Opt-in: a `MapDef` without `terrain_gen` makes the node free itself at `_ready` (SceneManager injects the def pre-tree). |
 | `block_library.gd` | Script (Resource) | Owns the `VoxelBlockyLibrary` the blocky mesher renders with; maps string block_id ↔ integer library index, and id → `BlockDef`. Enforces the index convention (0 = air, terrain = 1) and bakes the library from `data/blocks/`. |
+| `voxel_block_encoder.gd` | Script | Static utility class for encoding and decoding 16-bit packed voxel integers (11-bit Block Type ID + 5-bit 3D Orthogonal Rotation Index). |
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, terrain). See [Data Schemas](data-schemas.md). |
 | `../data/terrain/` | Data | `TerrainGenDef` (generator params + walk slope gate; optional `heightmap: Texture2D` switches generation from noise to image — brightness maps across `height_start`..`height_start+height_range`, 1 px = 1 m, Lossless import required) and `materials/TerrainMaterialDef` (identity + hardness + dig `yields` — no visual refs, see F8). `data/mining/dig_tool.tres` carries the dig action's stats. See [Data Schemas](data-schemas.md). |
 
@@ -127,6 +128,12 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `get_library() -> BlockLibrary` | The block library (id↔index + def lookup). |
 | `get_terrain() -> VoxelTerrain` / `get_voxel_tool() -> VoxelTool` | Accessors for consumers that need the raw handles. |
 | `serialize() -> Dictionary` / `deserialize(data)` | SaveSystem contract — buildable-block HP only; block types persist via the sqlite stream. |
+| `get_raw_voxel(pos: Vector3i) -> int` | Returns the raw 16-bit packed voxel integer at position. |
+| `set_raw_voxel(pos: Vector3i, raw_val: int) -> void` | Sets the raw 16-bit packed voxel integer at position. |
+| `get_block_type(pos: Vector3i) -> int` | Decodes and returns the 11-bit block type ID at position. |
+| `get_block_rotation(pos: Vector3i) -> int` | Decodes and returns the 5-bit rotation index (0..23) at position. |
+| `get_block_basis(pos: Vector3i) -> Basis` | Decodes and returns the 3D Basis corresponding to the block rotation at position. |
+| `set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void` | Encodes and sets block type ID and rotation index at position. |
 
 ### Class: SmoothGrid
 
@@ -183,3 +190,82 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `get_id(index: int) -> String` | Inverse: index → block_id (0 → `""`). |
 | `has_id(block_id) -> bool` / `get_all_defs() -> Array` | Membership + full def list. |
 | `get_voxel_library() -> VoxelBlockyLibrary` | The baked mesher library. |
+
+### Class: VoxelBlockEncoder
+
+**Extends:** RefCounted
+**Script:** `subsystems/voxel/voxel_block_encoder.gd`
+**Description:** Static utility class for encoding and decoding 16-bit packed voxel integers. Raw 16-bit voxel values pack both an 11-bit Block Type ID (0..2047) and a 5-bit 3D Orthogonal Rotation Index (0..23, matching Godot's Basis orthogonal index).
+
+**Constants:**
+- `ROTATION_BITS = 5`
+- `ROTATION_MASK = 0x1F`
+- `MAX_ORTHO_ROTATIONS = 24`
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `encode(type_id: int, rot_index: int = 0) -> int` | Packs type ID and rotation index into a 16-bit integer. |
+| `decode_type(raw_val: int) -> int` | Extracts the 11-bit block type ID from a raw voxel value. |
+| `decode_rotation(raw_val: int) -> int` | Extracts the 5-bit rotation index (0..23) from a raw voxel value. |
+| `basis_to_rot_index(basis: Basis) -> int` | Maps a 3D Basis orientation to its closest orthogonal rotation index. |
+| `rot_index_to_basis(rot_index: int) -> Basis` | Retrieves the 3D Basis orientation corresponding to the given rotation index. |
+| `rotate_around_axis(current_rot_index: int, axis: Vector3, step_angle_rad: float = PI / 2.0) -> int` | Performs an in-place rotation on the given index around a specified axis, returning the new orthogonal rotation index. |
+
+### Class: VoxelLibraryGenerator
+
+**Extends:** RefCounted
+**Script:** `tools/voxel_library_generator.gd`
+**Description:** Editor tool utility that automates generation of rotated `VoxelBlockyModelMesh` variants from a single base mesh. These model variants are registered into a `VoxelBlockyLibrary` so Zylann's blocky mesher can render the block in all necessary rotations.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `generate_block_models(block_def: BlockDef) -> Array[VoxelBlockyModelMesh]` | Generates the mesh rotations (1 for NONE, 4 for YAW_ONLY, or 24 for FULL_3D) for the given BlockDef. |
+| `register_block_in_library(block_def: BlockDef, library: VoxelBlockyLibrary) -> void` | Bakes and registers the generated rotated models at indices starting at `block_def.base_library_id` in the library. |
+
+---
+
+## Voxel Rotation Load & Save Flow
+
+### 1. Map Saving Flow (Serialization)
+```mermaid
+sequenceDiagram
+    participant Editor as MapEditor / BuildController
+    participant Adapter as VoxelGridAdapter
+    participant Grid as BlockyGrid
+    participant VTool as VoxelTool
+    participant DB as SQLite Stream (map.sqlite)
+
+    Editor->>Adapter: set_block(pos, type_id, rot_index)
+    Adapter->>Grid: set_block(pos, type_id, rot_index)
+    Grid->>Grid: VoxelBlockEncoder.encode(type_id, rot_index)
+    Grid->>VTool: set_voxel(pos, packed_16bit_val)
+    Note over Editor,VTool: Voxel change is cached in VoxelTerrain memory
+    Editor->>Grid: flush_voxel_streams()
+    Grid->>DB: Write modified voxel blocks (packed 16-bit values) to database
+```
+
+### 2. Map Loading Flow (Deserialization & Rendering)
+```mermaid
+sequenceDiagram
+    participant DB as SQLite Stream (map.sqlite)
+    participant Terrain as VoxelTerrain
+    participant Mesher as VoxelMesherBlocky
+    participant Lib as VoxelBlockyLibrary
+    participant Adapter as VoxelGridAdapter
+
+    DB->>Terrain: Load blocky voxel data (packed 16-bit integers)
+    Terrain->>Mesher: Request block mesh at position
+    Note over Mesher,Lib: Packed voxel ID maps directly to library index
+    Mesher->>Lib: Get model at index (base_library_id + rot_index)
+    Lib-->>Mesher: Return pre-rotated VoxelBlockyModelMesh
+    Mesher->>Mesher: Generate chunk mesh with correct orientation
+    
+    Note over Adapter: Reading block data programmatically
+    Adapter->>Terrain: get_voxel(pos) -> packed_val
+    Adapter->>Adapter: VoxelBlockEncoder.decode_type(packed_val) -> type_id
+    Adapter->>Adapter: VoxelBlockEncoder.decode_rotation(packed_val) -> rot_index
+```
