@@ -75,3 +75,15 @@ func test_is_steppable_at_short_and_tall_furniture() -> void:
 	assert_bool(layer.is_steppable_at(Vector3i(0, 0, 0), 0.2)).is_false()
 	assert_bool(layer.is_steppable_at(Vector3i(2, 0, 0), 0.5)).is_false()
 	assert_bool(layer.is_steppable_at(Vector3i(5, 0, 0), 0.5)).is_false()
+
+
+func test_shelf1_and_storage_crate_unlocked_by_default() -> void:
+	assert_bool(BuildLibrary.has_def("shelf1")).is_true()
+	var shelf_def := BuildLibrary.get_def("shelf1")
+	assert_bool(shelf_def.unlocked_by_default).is_true()
+	assert_bool(BuildLibrary.is_unlocked("shelf1")).is_true()
+
+	assert_bool(BuildLibrary.has_def("storage_crate")).is_true()
+	var crate_def := BuildLibrary.get_def("storage_crate")
+	assert_bool(crate_def.unlocked_by_default).is_true()
+	assert_bool(BuildLibrary.is_unlocked("storage_crate")).is_true()

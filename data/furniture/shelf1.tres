@@ -22,4 +22,5 @@ display_name = "Shelf"
 hp = 100
 mesh = ExtResource("3_2seyd")
 texture = ExtResource("6_pwcpm")
+unlocked_by_default = true
 metadata/_custom_type_script = "uid://d1d6mt2bi578n"
