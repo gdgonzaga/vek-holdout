@@ -1,0 +1,133 @@
+# How To: Author Maps
+
+> Complete guide for creating and authoring dual-voxel maps in *Vek: Holdout* using the standalone **Map Editor** (`tools/map_editor/map_editor.tscn`).
+>
+> Covers end-to-end map authoring: smooth terrain sculpting, block construction, furniture placement, spawn point configuration, metadata editing, and runtime testing.
+
+---
+
+## 1. Overview and Architecture
+
+Every map in *Vek: Holdout* lives under `res://data/maps/<map_id>/` and is composed of:
+
+| File | Purpose |
+|---|---|
+| `map_def.tres` | `MapDef` resource catalog entry (id, display name, scene path, map type, player spawn, difficulty). |
+| `map.tscn` | Stamped scene holding the blocky terrain, smooth terrain, and `SpawnPoints` container with marker nodes. |
+| `map.sqlite` | Authored blocky voxel database (copied to `user://maps/<map_id>/` at runtime). |
+| `terrain.sqlite` | Optional authored Transvoxel smooth terrain database (copied to `user://maps/<map_id>/` at runtime). |
+
+The **Map Editor** is an in-engine authoring tool that runs the actual game voxel engine, giving you true WYSIWYG rendering of dual-voxel terrain (smooth Transvoxel SDF hills + blocky voxel structures).
+
+---
+
+## 2. Launching the Map Editor
+
+1. In the Godot editor, navigate to `tools/map_editor/map_editor.tscn`.
+2. Press **F6** (or click *Play Current Scene*).
+3. The **Map Launcher** modal will open with a list of all detected maps in `res://data/maps/`.
+
+### Creating a New Map
+
+1. In the Map Launcher, click **Create New Map**.
+2. Enter a unique map name (lowercase `snake_case`, no spaces).
+3. Select the map type (`BASE`, `POI`, `BUILDING`, or `TOWN`).
+4. Click **Create & Edit**. The editor will:
+   - Create `res://data/maps/<map_id>/`
+   - Stamp a fresh `map.tscn` with a dedicated SQLite voxel stream
+   - Initialize `map_def.tres` with default terrain generation
+   - Load the new map directly into the editing viewport.
+
+### Opening an Existing Map
+
+Click any map entry in the list (e.g. `base`) to load it.
+
+---
+
+## 3. Navigation and Camera Controls
+
+When a map is loaded, mouse look is automatically captured.
+
+| Input | Action |
+|---|---|
+| `Mouse Move` | Look around (pitch / yaw) |
+| `WASD` | Fly horizontally relative to camera facing |
+| `Space / C` | Fly vertically Up / Down |
+| `Shift` (Hold) | Fast fly speed boost |
+| `G` | Toggle y=0 reference wireframe grid |
+| `Esc` | Release mouse cursor. Pressing `Esc` again opens the exit confirmation prompt |
+
+---
+
+## 4. Modes and Tool Workflows
+
+Switch between modes using **F1** through **F5**:
+
+### Mode 1: Navigate (`F1`)
+Free camera inspection mode. Crosshair reads out exact world-space coordinates without performing edits.
+
+### Mode 2: Block Mode (`F2`)
+Build or destroy blocky voxel structures.
+
+- **`LMB`**: Paint block at the targeted cell (uses the surface normal to place against walls/floors).
+- **`Shift + LMB`**: Erase targeted block.
+- **`[` / `]`**: Cycle selected block type (Wood, Stone, Metal, Dirt, etc.).
+- **`B + Mouse Wheel`**: Adjust brush footprint diameter ($1\times1\times1$, $3\times3\times3$, etc.).
+- **`Ctrl + Z`**: Undo block paint or erase stroke.
+
+### Mode 3: Terrain Mode (`F3`)
+Sculpt continuous Transvoxel SDF terrain.
+
+- **`LMB`**: Add terrain material at the crosshair point.
+- **`Shift + LMB`**: Carve away smooth terrain.
+- **`[` / `]`** or **`B + Mouse Wheel`**: Increase or decrease brush sculpt radius ($0.5\,\text{m}$ to $5.0\,\text{m}$).
+- **`Ctrl + Z`**: Undo terrain sculpt operation.
+
+### Mode 4: Furniture Mode (`F4`)
+Place interactive furniture and appliances (beds, workbenches, crates, doors, lights).
+
+- **Furniture Palette Sidebar**: Lists all `FurnitureDef` resources in `res://data/furniture/`. Filter by typing in the search box.
+- **`Tab` / `Shift + Tab`**: Cycle through filtered furniture items.
+- **`R`**: Rotate selected furniture by $90^\circ$ yaw.
+- **`LMB`**: Place furniture at target anchor position.
+- **`Shift + LMB`**: Remove targeted furniture.
+
+### Mode 5: Spawn Mode (`F5`)
+Place player and colonist spawn markers.
+
+- **`LMB`**: Place `PlayerSpawn` marker at target surface position.
+- **`Shift + LMB`**: Add a new `ColonistSpawn` marker at target surface position.
+
+---
+
+## 5. Map Metadata Editing
+
+Click the **Metadata** button in the top-right toolbar to open the metadata drawer:
+
+- **Display Name**: User-friendly title displayed in UI and menus.
+- **Description**: Summary text shown in expedition selectors and map logs.
+- **Map Type**: `BASE` (colony headquarters), `POI` (expedition destination), `BUILDING`, or `TOWN`.
+- **Difficulty**: Target difficulty tier ($1$ to $10$).
+
+Metadata edits are automatically saved to `map_def.tres` when saving.
+
+---
+
+## 6. Saving and Persistence
+
+- Press **`Ctrl + S`** or click the **Save** button in the top-right toolbar.
+- The editor will:
+  1. Flush all pending voxel edits to `map.sqlite` and `terrain.sqlite`.
+  2. Pack the updated map scene hierarchy (including `SpawnPoints` markers) to `map.tscn`.
+  3. Save `map_def.tres` with updated spawn coordinates and metadata.
+  4. Clear the dirty flag (`*`).
+
+---
+
+## 7. Testing In-Game
+
+1. Launch the game normally via `res://subsystems/core/main.tscn`.
+2. From the main menu or debug console (`~`), start the map:
+   - For `base`: Click **Start Game** or run `map_load base`.
+   - For POI / Expedition maps: Target the map through the expedition console or debug command `expedition_start <map_id>`.
+3. Verify that the player spawns at `PlayerSpawn`, colonists spawn at their markers, furniture has correct collisions, and voxel terrain matches the authored state.
