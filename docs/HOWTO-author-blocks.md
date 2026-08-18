@@ -57,6 +57,54 @@ We recommend exporting as **GLTF / GLB (`.glb`)** or **Wavefront OBJ (`.obj`)**:
 
 ---
 
+## 1.1 Guidelines for Non-Cubic Shapes (Wedges, Corners, Arcs, Stairs, Slabs)
+
+While standard blocks are solid $1.0	ext{ m}^3$ cubes, non-cubic blocks (wedges, slopes, stairs, corner blocks, arches, and half-slabs) have unique geometry and face-culling requirements.
+
+### A. Cell Envelope & Vertex Snapping
+- **$1.0	ext{ m}^3$ Envelope**: Non-cubic meshes MUST still fit entirely inside the $1.0	ext{ m} 	imes 1.0	ext{ m} 	imes 1.0	ext{ m}$ bounding cube $[0, 1]^3$.
+- **Origin Alignment**: The Object Origin MUST remain at `(0, 0, 0)` (bottom-left-back corner).
+- **Boundary Vertex Snapping**: Vertices that touch the cell boundaries MUST snap exactly to $0.0$ or $1.0$ on the corresponding axis plane:
+  - Bottom vertices: $Y = 0.0$
+  - Top vertices: $Y = 1.0$
+  - Back vertices: $Z = 1.0$
+  - Front vertices: $Z = 0.0$
+  - Left / Right vertices: $X = 0.0$ / $X = 1.0$
+  *Snapping ensures seamless alignment without micro-gaps when non-cubic blocks meet standard full-cube walls.*
+
+### B. Geometry Specifications per Shape Type
+
+#### 1. Wedges / Ramps (`FULL_3D`)
+- **Slope Orientation**: Low edge at $Z = 0.0$ ($Y = 0.0$); High edge at $Z = 1.0$ ($Y = 1.0$).
+- **Side Faces**: Vertical triangular faces at $X = 0.0$ and $X = 1.0$.
+- **Bottom & Back**: Fully flat faces covering $Y = 0.0$ and $Z = 1.0$.
+
+#### 2. Stairs & Steps (`YAW_ONLY` or `FULL_3D`)
+- **Step Footprint**:
+  - Lower Step: $Y \in [0.0, 0.5]$, $Z \in [0.0, 0.5]$
+  - Upper Step: $Y \in [0.5, 1.0]$, $Z \in [0.5, 1.0]$
+- **Back & Bottom**: Fully flat faces at $Z = 1.0$ and $Y = 0.0$.
+- **Smooth Collision**: Keep riser and tread geometry clean (quads) so kinematic character step-up physics functions smoothly.
+
+#### 3. Corner Slopes (`FULL_3D`)
+- **Outer Corner Slope**: Slopes down toward two adjacent edges ($X = 0.0$ and $Z = 0.0$), forming a pyramid-like corner.
+- **Inner Corner Slope**: Valley slope joining two perpendicular wedge slopes.
+
+#### 4. Arcs / Tunnels (`YAW_ONLY` or `FULL_3D`)
+- **Arch Opening**: Vaulted opening aligned along the $Z$-axis (through-tunnel along $Z$).
+- **Outer Bounds**: Surrounding top and side edges sit at $Y = 1.0$, $X = 0.0$, and $X = 1.0$.
+
+#### 5. Slabs / Half-Blocks (`FULL_3D` or `NONE`)
+- **Bottom Half-Slab**: Occupies $Y \in [0.0, 0.5]$, $X \in [0.0, 1.0]$, $Z \in [0.0, 1.0]$.
+- *Note*: With 3-axis rotation (`FULL_3D`), a single bottom half-slab mesh can be rotated in-game into a top slab or vertical side slab without creating separate assets.
+
+### C. Neighbor Face Culling & Transparency Note
+In Zylann's voxel mesher (`VoxelMesherBlocky`), adjacent opaque cubes cull touching faces to optimize rendering.
+- Because non-cubic meshes leave parts of their $1	ext{ m}^3$ cell open, `VoxelLibraryGenerator` sets model transparency/cull masks so that adjacent solid blocks do **not** mistakenly cull their visible faces when touching sloped or recessed sides of a non-cubic block.
+- **Blender Rule**: Do NOT create interior faces inside the mesh (e.g. inside a hollow arch). Delete all internal, invisible geometry before exporting.
+
+---
+
 ## 2. Textures & Shaders
 
 Block textures are stored in `assets/blocks/` (or `assets/art/`).
