@@ -210,6 +210,28 @@ copies, wipes, or repoints a `VoxelStreamSQLite` database needs:
   compression/key-cache options on the stream) but per the first bullet its
   return is not a durability barrier — treat journal clearance as the real one.
 
+### F10 — VoxelGeneratorImage REPEATS its image out of bounds (2026-08-18, probed)
+
+`VoxelGeneratorImage` tiles its image **periodically across the infinite
+plane** — it neither clamps edge pixels nor falls back to `height_start`
+beyond the image. Probed through the real pipeline (VoxelTerrain + teleported
+VoxelViewer, `tmp/heightmap_bounds_probe2.gd`): a 32-px black/white image with
+height 0/10 surfaces at world x=1000 (=1000 % 32 = 8, black → 0) and x=1017
+(=25, white → 10), matching the periodic pattern and ruling out clamp (tall at
+both) and flat (low at both). Consequences:
+
+- The image is the texture of an endless tiled world, not a one-shot footprint:
+  any discontinuity between opposite image edges becomes a visible cliff seam
+  repeating at every image-width interval. Authors who care about far terrain
+  must make the heightmap seamless (GIMP workflow: `tmp/HOWTO-heightmap-gimp.md`).
+- A seam-free map edge is impossible to "fix in engine" without swapping
+  generators — `VoxelGeneratorImage` has no wrap/clamp property in this build
+  (property surface probed: image, height_start, height_range, blur_enabled,
+  channel, iso_scale — see F-image-probe reference in
+  `subsystems/voxel/smooth_grid.gd`).
+- Note `VoxelGeneratorHeightmap` is ClassDB-registered but NOT instantiable in
+  this build — it is not an available alternative.
+
 ---
 
 ## Raycast & hit-detection

@@ -107,7 +107,7 @@ Place player and colonist spawn markers.
 
 You can author the natural terrain's base shape in any external image editor (Krita, GIMP, Photoshop) and import it at map creation:
 
-1. **Paint a grayscale heightmap**: bright pixels are high ground, dark pixels are low. One pixel = one world meter, and the image's top-left corner sits at world origin (image +x → world +x, image +y → world +z). PNG/JPG/BMP/WebP/TGA are accepted; keep it at least 16 px and preferably under 1024×1024 (a 512×512 image is a 512×512 m map).
+1. **Paint a grayscale heightmap**: bright pixels are high ground, dark pixels are low. One pixel = one world meter, centered on the world origin (image center sits at world (0,0); image +x → world +x, image +y → world +z). PNG/JPG/BMP/WebP/TGA are accepted; keep it at least 16 px and preferably under 1024×1024 (a 512×512 image is a 512×512 m map).
 2. In the launcher's create form, set **Terrain** to **Heightmap (image)** and click **Browse…** to pick the file. The form previews the image and its footprint (`512×512 px → 512×512 m`).
 3. Set **Start** / **Range**: pixel brightness 0–1 maps to `Start … Start + Range` meters (e.g. start −6, range 16 → the floor sits at −6 m and the brightest peaks at +10 m).
 4. **Create & Open** — the editor writes a self-contained `terrain_gen.tres` (image embedded) into the map folder and loads the map with the terrain already generated.
@@ -116,7 +116,7 @@ You can author the natural terrain's base shape in any external image editor (Kr
 
 **Adjusting later** — the **Terrain** toolbar button opens the terrain drawer: tweak Start/Range (or seed/frequency on noise maps), replace the image, convert a noise map to a heightmap, or remove terrain entirely. **Apply & Reload** saves the def and reloads the map (a deliberate reload, not a live swap — streaming makes hot-swapping generators unreliable).
 
-**Known limits**: 8-bit precision (≈6 cm steps over a 16 m range — Transvoxel smoothing hides this well for organic terrain); no horizontal scaling (1 px is always 1 m — resize the image in your editor if you need a different footprint).
+**Known limits**: 8-bit precision (≈6 cm steps over a 16 m range — Transvoxel smoothing hides this well for organic terrain); no horizontal scaling (1 px is always 1 m — resize the image in your editor if you need a different footprint); the image **repeats periodically** across the infinite plane (F10 in VOXEL-TOOL-NOTES) — mismatched image edges become a cliff seam at every repetition, so keep the heightmap seamless if the far terrain matters (GIMP workflow: `tmp/HOWTO-heightmap-gimp.md`).
 
 **Hand-authoring variant** (shared, reusable defs): drop a PNG next to your defs in `data/terrain/` — its import must be **Lossless** (VRAM compression destroys pixel data) — and reference it from a `TerrainGenDef`'s `heightmap` field. `data/terrain/heightmap_valley.tres` + `heightmap_valley.png` ship as a worked example.
 
