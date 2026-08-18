@@ -263,6 +263,7 @@ func test_heightmap_def_builds_image_generator() -> void:
 	assert_bool(generator is VoxelGeneratorImage).is_true()
 	assert_float(float(generator.get("height_start"))).is_equal_approx(-6.0, 0.001)
 	assert_float(float(generator.get("height_range"))).is_equal_approx(20.0, 0.001)
+	assert_that(generator.get("offset")).is_equal(Vector2i(8, 8))
 	var image: Image = generator.get("image")
 	assert_that(image).is_not_null()
 	assert_that(image.get_size()).is_equal(Vector2i(16, 16))

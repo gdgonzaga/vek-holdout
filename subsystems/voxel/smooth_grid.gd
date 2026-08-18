@@ -119,7 +119,9 @@ func _build_noise_generator(def: TerrainGenDef) -> Resource:
 	return generator
 
 ## Heightmap path — external-tool authoring. Property names probed in this
-## addon build (tmp/heightmap_gen_probe.gd): image, height_start, height_range.
+## addon build (tmp/heightmap_gen_probe.gd): image, height_start, height_range, offset.
+## Center the heightmap image on the world origin (0,0) by offsetting by half size,
+## preventing wrapping seams along the X=0 and Z=0 axes.
 func _build_heightmap_generator(def: TerrainGenDef, heightmap: Image) -> Resource:
 	var generator := VoxelGeneratorImage.new()
 	# Same guarded-set contract as the noise builder.
@@ -129,6 +131,8 @@ func _build_heightmap_generator(def: TerrainGenDef, heightmap: Image) -> Resourc
 		generator.set("height_start", def.height_start)
 	if "height_range" in generator:
 		generator.set("height_range", def.height_range)
+	if "offset" in generator:
+		generator.set("offset", heightmap.get_size() / 2)
 	return generator
 
 ## Heightmap pixels as the generator wants them: uncompressed L8 so the value
