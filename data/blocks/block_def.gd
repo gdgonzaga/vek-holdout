@@ -29,6 +29,9 @@ const YAW_INDICES: Array[int] = [3, 23, 7, 19]
 ## The base Model ID in VoxelBlockyLibrary.
 @export var base_library_id: int = 0
 
+## The 11-bit Block Type ID in the voxel library.
+@export var type_id: int = 0
+
 
 func is_rotatable() -> bool:
 	return rotation_mode != RotationMode.NONE

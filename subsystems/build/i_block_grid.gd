@@ -1,4 +1,5 @@
 class_name IBlockGrid
+extends RefCounted
 ## Voxel-agnostic block-grid contract (docs/ARCHITECTURE.md, Build subsystem).
 ##
 ## The Build subsystem talks to the map through this interface only — it never

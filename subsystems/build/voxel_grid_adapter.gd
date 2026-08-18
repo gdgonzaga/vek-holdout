@@ -1,5 +1,5 @@
 class_name VoxelGridAdapter
-extends RefCounted
+extends IBlockGrid
 ## IBlockGrid implementation wrapping voxel/blocky_grid.gd (ARCH "Build").
 ## Keeps BuildController voxel-agnostic: it talks to this adapter, never to
 ## voxel_tool or BlockyGrid directly. Holds a BlockyGrid reference set at wiring
