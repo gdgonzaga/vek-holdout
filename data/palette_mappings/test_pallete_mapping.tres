@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="VoxPaletteMapping" format=3 uid="uid://2c0k8sfno8i6"]
+
+[ext_resource type="Script" uid="uid://c8loxe4ccw5ew" path="res://data/palette_mappings/vox_palette_entry.gd" id="1_oa5r2"]
+[ext_resource type="Script" uid="uid://c8at7t1xgrw3s" path="res://data/palette_mappings/vox_palette_mapping.gd" id="2_l5a8x"]
+
+[sub_resource type="Resource" id="Resource_chbqu"]
+script = ExtResource("1_oa5r2")
+source_hex = "888888"
+block_id = "dirt"
+metadata/_custom_type_script = "uid://c8loxe4ccw5ew"
+
+[sub_resource type="Resource" id="Resource_oa5r2"]
+script = ExtResource("1_oa5r2")
+source_hex = "aaaaaa"
+block_id = "wood"
+metadata/_custom_type_script = "uid://c8loxe4ccw5ew"
+
+[sub_resource type="Resource" id="Resource_l5a8x"]
+script = ExtResource("1_oa5r2")
+source_hex = "777777"
+block_id = "wood"
+metadata/_custom_type_script = "uid://c8loxe4ccw5ew"
+
+[resource]
+script = ExtResource("2_l5a8x")
+id = "mapping1"
+display_name = "Mapping 1"
+entries = Array[ExtResource("1_oa5r2")]([SubResource("Resource_chbqu"), SubResource("Resource_oa5r2"), SubResource("Resource_l5a8x")])
+metadata/_custom_type_script = "uid://c8at7t1xgrw3s"

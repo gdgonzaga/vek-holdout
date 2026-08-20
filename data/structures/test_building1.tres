@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="StructureDef" format=3 uid="uid://b723qahnrv7jk"]
+
+[ext_resource type="Resource" uid="uid://2c0k8sfno8i6" path="res://data/palette_mappings/test_pallete_mapping.tres" id="1_ft28h"]
+[ext_resource type="Script" uid="uid://bphefa8jcw0f6" path="res://data/structures/structure_def.gd" id="1_n72wt"]
+
+[resource]
+script = ExtResource("1_n72wt")
+id = "test_building1"
+display_name = "Test Building 1"
+vox_file_path = "res://data/structures/test_building1.vox"
+palette_mapping = ExtResource("1_ft28h")
+metadata/_custom_type_script = "uid://bphefa8jcw0f6"

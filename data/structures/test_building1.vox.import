@@ -1,0 +1,14 @@
+[remap]
+
+importer="VoxelVoxSceneImporter"
+type="PackedScene"
+uid="uid://dsxdykny3nv7t"
+path="res://.godot/imported/test_building1.vox-2056ceef7ac34083100fa5d319c9d12a.tscn"
+
+[deps]
+
+source_file="res://data/structures/test_building1.vox"
+dest_files=["res://.godot/imported/test_building1.vox-2056ceef7ac34083100fa5d319c9d12a.tscn"]
+
+[params]
+

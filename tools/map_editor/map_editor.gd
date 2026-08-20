@@ -184,6 +184,30 @@ func _undo_last() -> void:
 			if _hud != null and _map_def != null:
 				_hud.set_map_info(_map_def.id, _dirty)
 
+	elif entry_type == "structure":
+		var ops: Array = entry.get("ops", [])
+		for i in range(ops.size() - 1, -1, -1):
+			var op: Dictionary = ops[i]
+			var op_type: String = op.get("type", "")
+			var p: Vector3i = op.get("pos", Vector3i.ZERO)
+			if op_type == "block" or op_type == "air":
+				var old_raw: int = op.get("old_raw", 0)
+				if _block_vt != null:
+					_block_vt.set_voxel(p, old_raw)
+			elif op_type == "terrain":
+				if _smooth_grid != null:
+					var world_center := Vector3(float(p.x) + 0.5, float(p.y) + 0.5, float(p.z) + 0.5)
+					_smooth_grid.carve(world_center, StructureStamper.SMOOTH_TERRAIN_ADD_RADIUS)
+		var blocky_terrain := _map_root.get_blocky_terrain()
+		if blocky_terrain != null:
+			blocky_terrain.save_modified_blocks()
+		var smooth_terrain := _map_root.get_smooth_terrain()
+		if smooth_terrain != null:
+			smooth_terrain.save_modified_blocks()
+		_dirty = true
+		if _hud != null and _map_def != null:
+			_hud.set_map_info(_map_def.id, _dirty)
+
 
 func _input(event: InputEvent) -> void:
 	# If launcher is open, ignore camera/edit input
@@ -267,6 +291,10 @@ func _input(event: InputEvent) -> void:
 							_do_spawn_place("colonist", hit)
 						else:
 							_do_spawn_place("player", hit)
+						get_viewport().set_input_as_handled()
+					elif _mode == Mode.STRUCTURE:
+						var hit := _raycast_from_camera()
+						_do_structure_stamp(hit)
 						get_viewport().set_input_as_handled()
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				if Input.is_key_pressed(KEY_B):
@@ -445,6 +473,14 @@ func _process(delta: float) -> void:
 				_hud.set_coordinates(_get_surface_hit_point(hit))
 			else:
 				_hud.clear_coordinates()
+	elif _mode == Mode.STRUCTURE:
+		var hit := _raycast_from_camera()
+		_update_ghost(hit)
+		if _hud != null:
+			if hit.get("hit", false):
+				_hud.set_coordinates(_get_surface_hit_point(hit))
+			else:
+				_hud.clear_coordinates()
 	else:
 		if _ghost != null:
 			_ghost.visible = false
@@ -592,6 +628,8 @@ func unload_map() -> void:
 
 	if _furniture_auth != null:
 		_furniture_auth.unbind()
+	if _structure_tool != null:
+		_structure_tool.hide_ghost()
 	_spawn_markers = {"player": null, "colonists": []}
 
 	if _map_root != null:
@@ -1116,6 +1154,19 @@ func _update_ghost(hit: Dictionary) -> void:
 		_ghost_mat.albedo_color = Color(0.2, 0.5, 1.0, 0.5) if is_colonist else Color(0.2, 1.0, 0.2, 0.5)
 		_ghost.visible = true
 
+	elif _mode == Mode.STRUCTURE:
+		_ghost.visible = false
+		if not hit.get("hit", false) or _structure_tool == null or _structure_tool.get_active_structure() == null:
+			if _structure_tool != null:
+				_structure_tool.hide_ghost()
+			return
+		var cell := _target_cell(hit, false)
+		if cell == Vector3i.MIN:
+			if _structure_tool != null:
+				_structure_tool.hide_ghost()
+			return
+		_structure_tool.update_ghost_position(cell)
+
 	else:
 		_ghost.visible = false
 
@@ -1393,6 +1444,40 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 		_spawn_markers["colonists"] = col_list
 		_dirty = true
 
+	if _hud != null and _map_def != null:
+		_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _do_structure_stamp(hit: Dictionary) -> void:
+	if _map_root == null or _blocky_grid == null or not hit.get("hit", false):
+		return
+	if _structure_tool == null or _structure_tool.get_active_structure() == null:
+		return
+	var cell := _target_cell(hit, false)
+	if cell == Vector3i.MIN:
+		return
+
+	var adapter := VoxelGridAdapter.new()
+	adapter.set_grid(_blocky_grid)
+	adapter.set_smooth_grid(_smooth_grid)
+
+	var ops := _structure_tool.stamp(adapter, cell)
+	if ops.is_empty():
+		return
+
+	_push_undo({
+		"type": "structure",
+		"ops": ops,
+	})
+
+	var blocky_terrain := _map_root.get_blocky_terrain()
+	if blocky_terrain != null:
+		blocky_terrain.save_modified_blocks()
+	var smooth_terrain := _map_root.get_smooth_terrain()
+	if smooth_terrain != null:
+		smooth_terrain.save_modified_blocks()
+
+	_dirty = true
 	if _hud != null and _map_def != null:
 		_hud.set_map_info(_map_def.id, _dirty)
 

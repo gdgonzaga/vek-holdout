@@ -28,12 +28,15 @@ MapEditor (Node3D, tools/map_editor/map_editor.gd)
 ├── EditorCamera (Camera3D)
 │   └── VoxelViewer
 ├── GhostMesh (MeshInstance3D)
+├── StructureTool (Node, tools/map_editor/structure_tool.gd)
+│   └── StructureGhostMesh (MeshInstance3D, from GhostPreviewBuilder)
 ├── GridOverlay (MeshInstance3D, from EditorGridOverlay)
 ├── EditorHUD (CanvasLayer, tools/map_editor/editor_hud.gd)
 │   └── HUDContainer (Control)
 │       ├── BlockPalettePanel (Searchable ItemList via EditorPalettePanel)
 │       ├── TerrainInfoPanel
 │       ├── FurnitureInfoPanel (Searchable ItemList via EditorPalettePanel)
+│       ├── StructureBrowser (tools/map_editor/structure_browser.gd)
 │       ├── SpawnInfoPanel
 │       ├── ModeBadge
 │       ├── MapInfoPanel
@@ -112,6 +115,13 @@ Every modification records its reverse operation in a bounded undo buffer (`_und
   2. Pushes `{ "type": "terrain", "point": Vector3, "radius": float, "was_add": bool }` to `_undo_stack`.
   3. Executes `SmoothGrid.add_material()` or `SmoothGrid.carve()` and flushes changes to `terrain.sqlite`.
   4. Reversing: Inverts the operation (adds if previously carved, carves if previously added).
+
+- **Structure Stamps (`_do_structure_stamp`)**:
+  1. Computes placement origin with Y-offset, quarter-turn Y rotation, and horizontal nudge offset.
+  2. Previews the 3D volume via `GhostPreviewBuilder` (optimized `ArrayMesh` with vertex colors and internal face culling).
+  3. Stamps `BLOCK`, `SMOOTH_TERRAIN`, and `AIR` operations via `StructureStamper` through `VoxelGridAdapter`.
+  4. Pushes `{ "type": "structure", "ops": Array[Dictionary] }` containing the recorded changes to `_undo_stack`.
+  5. Reversing: Restores previous block IDs / raw values and carves/restores terrain modifications in reverse order.
 
 ### C. Save Flow
 
