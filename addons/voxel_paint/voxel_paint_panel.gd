@@ -386,26 +386,25 @@ func _build_ui() -> void:
 
 
 func _populate_blocks() -> void:
-	var lib: VoxelBlockyLibrary = load("res://data/blocks/voxel_library.tres") as VoxelBlockyLibrary
-	if lib == null:
-		push_warning("VoxelPaintPanel: could not load voxel_library.tres")
-		return
-	var block_names := {
-		1: "terrain",
-		2: "metal",
-		3: "reinforced",
-		4: "scrap",
-		5: "stone",
-		6: "wood",
-	}
+	# BlockLibrary assembles the same deterministic table the runtime and the
+	# baked voxel_library.tres use (0 = air, base blocks alphabetically), so
+	# the dropdown can't drift from the block set the way the old hardcoded
+	# index map did.
+	var library: BlockLibrary = BlockLibrary.new()
 	_block_select.clear()
 	var idx := 0
-	for lib_idx in range(1, 7):
-		var name: String = block_names.get(lib_idx, "block_%d" % lib_idx)
-		_block_select.add_item(name.capitalize())
+	var selected := 0
+	for lib_idx in library.get_base_indices():
+		var def: BlockDef = library.get_def_by_index(lib_idx)
+		if def == null:
+			continue
+		var label: String = def.display_name if def.display_name != "" else def.id.capitalize()
+		_block_select.add_item(label)
 		_block_select.set_item_metadata(idx, lib_idx)
+		if def.id == "wood":
+			selected = idx
 		idx += 1
-	_block_select.selected = 5  # default: wood
+	_block_select.selected = selected  # default: wood
 
 
 ## Scan res://data/furniture/ directly for .tres FurnitureDef resources.

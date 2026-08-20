@@ -10,5 +10,4 @@ display_name = "Reinforced Block"
 hp = 1200
 mesh = ExtResource("2_mesh")
 unlocked_by_default = true
-is_terrain = false
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

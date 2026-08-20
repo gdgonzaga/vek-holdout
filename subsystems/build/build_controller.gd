@@ -385,11 +385,10 @@ func _try_commit_smooth() -> void:
 
 
 ## Validity for smooth-material placement: no character body inside the sphere
-## (player or colonist — don't entomb anyone), no furniture footprint and no
-## blueprint in any cell the blob's AABB touches, and no BUILT blocky block
-## engulfed. Natural plate ground is exempt — hills already bury the plate, and
-## shaping ground over it is exactly what the tool is for (BlockDef.is_terrain
-## distinguishes generated ground from built blocks).
+## (player or colonist — don't entomb anyone), no furniture footprint, no
+## blueprint in any cell the blob's AABB touches, and no blocky block engulfed.
+## The blocky grid is built structures only (natural ground is the smooth
+## grid), so burying ANY blocky cell with a terrain blob is never valid.
 func _is_smooth_placement_valid(center: Vector3, radius: float) -> bool:
 	var min_c := Vector3i(int(floor(center.x - radius)), int(floor(center.y - radius)), int(floor(center.z - radius)))
 	var max_c := Vector3i(int(floor(center.x + radius)), int(floor(center.y + radius)), int(floor(center.z + radius)))
@@ -397,11 +396,8 @@ func _is_smooth_placement_valid(center: Vector3, radius: float) -> bool:
 		for y: int in range(min_c.y, max_c.y + 1):
 			for z: int in range(min_c.z, max_c.z + 1):
 				var cell := Vector3i(x, y, z)
-				var id := grid_adapter.get_block_at(cell)
-				if id != "":
-					var block_def := BuildLibrary.get_def(id) as BlockDef
-					if block_def == null or not block_def.is_terrain:
-						return false
+				if grid_adapter.get_block_at(cell) != "":
+					return false
 				if furniture_layer != null and furniture_layer.has_at(cell):
 					return false
 				if blueprint_layer != null and blueprint_layer.has_at(cell):

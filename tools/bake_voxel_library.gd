@@ -14,9 +14,11 @@ extends EditorScript
 ## this script open. It is safe to re-run: output is deterministic and the file
 ## is overwritten in place.
 ##
-## Result: res://data/blocks/voxel_library.tres — a VoxelBlockyLibrary with 7
-## models (0 air + 6 blocks). Index table is stable (see BlockLibrary docs):
-##   0 air, 1 terrain, 2 metal, 3 reinforced, 4 scrap, 5 stone, 6 wood.
+## Result: res://data/blocks/voxel_library.tres — a VoxelBlockyLibrary whose
+## model table mirrors BlockLibrary's deterministic convention (its class doc
+## is the authority): 0 air, base blocks alphabetically, rotation variants
+## appended after the base table. Currently 30 models: air + 6 base
+## (metal/reinforced/scrap/stone/wood/wood_stairs) + 23 wood_stairs variants.
 
 const _OUTPUT_PATH := "res://data/blocks/voxel_library.tres"
 

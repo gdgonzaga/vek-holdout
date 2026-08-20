@@ -101,14 +101,11 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 
 ## `data/blocks/<type>.tres` (Resource: `block_def.gd`)
 
-`BlockDef` `extends BuildableDef` — voxel blocks. Inherits `id` / `display_name` / `icon` / `hp` / `mesh` / `texture` / `texture_variation` / `material_cost` / `unlocked_by_default` from `BuildableDef`. The string id is also referred to as "block_id" throughout the voxel subsystem (`BlockyGrid`, `BlockLibrary`).
+`BlockDef` `extends BuildableDef` — voxel blocks. Inherits `id` / `display_name` / `icon` / `hp` / `mesh` / `texture` / `texture_variation` / `material_cost` / `unlocked_by_default` from `BuildableDef`. The string id is also referred to as "block_id" throughout the voxel subsystem (`BlockyGrid`, `BlockLibrary`). Natural ground is **not** a block — it belongs to the mirrored `TerrainMaterialDef` family (below); the blocky vocabulary is built structures only (the def-level counterpart of D1's mirrored grids). No library-index fields live on the def: `BlockLibrary` owns the id↔index mapping, and stored voxel values are its plain indices.
 
 | Field | Type | Description |
 |---|---|---|
-| `is_terrain` | `bool` | `[export default false]` BlockDef's own field. True for the indestructible terrain block (forced to voxel-tool library index 1 by `BlockLibrary`). |
 | `rotation_mode` | `RotationMode` | `[export default NONE]` Rotational symmetry mode (NONE = 1, YAW_ONLY = 4, FULL_3D = 24). Non-NONE makes `BlockLibrary` bake variant models at runtime (all share this def's mesh) — authors ship one unrotated mesh, never rotated copies. |
-| `base_library_id` | `int` | `[export default 0]` Informational: the def's base index in the assembled `VoxelBlockyLibrary` (assigned by `BlockLibrary`; used by `VoxelLibraryGenerator` when registering into a baked editor library). |
-| `type_id` | `int` | `[export default 0]` Base library index used by `BlockPlacementController.commit_placement` (0 = air — unset content stamps air). |
 | `id` | `String` | *(inherited)* e.g. `"wood"`, `"scrap"`, `"stone"`. |
 | `hp` | `int` | *(inherited)* Block HP (50/100/300/600/1200). |
 | `mesh` | `Mesh` | *(inherited)* Blocky-mode mesh (unit cube). |
@@ -120,7 +117,7 @@ Dual-voxel natural-terrain generator params (conversion D2/D4). A `MapDef.terrai
 
 ## `data/terrain/materials/<id>.tres` (Resource: `terrain_material_def.gd`) — `TerrainMaterialDef`
 
-Identity/stats for a natural material. F8 verdict: `VoxelMesherTransvoxel` has **no material API** in this build — voxel values are pure SDF density, so there is deliberately **no mesh/material reference** here (the terrain has one fixed visual appearance). Fields: `id`, `display_name`, `hardness` (relative dig-effort multiplier for the mining dig action), `yields: Array[ItemAmount]` (what one completed dig drops into the digger's inventory — v1 caveat: every dig reports the map's `default_material`, so yields are effectively per-map until real material representation lands), `place_radius` (the sphere one placement adds — also the blob ghost's radius), and `icon: Texture2D` (optional build-palette icon; entries fall back to the menu default). `BuildLibrary` catalogs these separately from BuildableDefs (`is_terrain_material` / `get_terrain_material` / `get_terrain_materials` — not unlock-gated; natural materials are ambient content).
+Identity/stats for a natural material — the smooth-terrain mirror of `BlockDef` (natural ground is exclusively this vocabulary; the blocky grid is structures only). F8 verdict: `VoxelMesherTransvoxel` has **no material API** in this build — voxel values are pure SDF density, so there is deliberately **no mesh/material reference** here (the terrain has one fixed visual appearance). Fields: `id`, `display_name`, `hardness` (relative dig-effort multiplier for the mining dig action), `yields: Array[ItemAmount]` (what one completed dig drops into the digger's inventory — v1 caveat: every dig reports the map's `default_material`, so yields are effectively per-map until real material representation lands), `place_radius` (the sphere one placement adds — also the blob ghost's radius), and `icon: Texture2D` (optional build-palette icon; entries fall back to the menu default). `BuildLibrary` catalogs these separately from BuildableDefs (`is_terrain_material` / `get_terrain_material` / `get_terrain_materials` — not unlock-gated; natural materials are ambient content).
 
 ## `data/mining/dig_tool.tres` (Resource: `dig_tool_params.gd`) — `DigToolParams`
 

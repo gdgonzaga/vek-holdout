@@ -6,17 +6,17 @@ func test_vox_palette_entry_defaults_and_properties() -> void:
 	assert_str(entry.source_hex).is_equal("")
 	assert_int(entry.target_type).is_equal(VoxPaletteEntry.TargetType.BLOCK)
 	assert_str(entry.block_id).is_equal("")
-	assert_int(entry.terrain_material_id).is_equal(0)
+	assert_str(entry.terrain_material_id).is_equal("")
 
 	entry.source_index = 1
 	entry.source_hex = "#FF5500"
 	entry.target_type = VoxPaletteEntry.TargetType.SMOOTH_TERRAIN
-	entry.terrain_material_id = 3
+	entry.terrain_material_id = "rock"
 
 	assert_int(entry.source_index).is_equal(1)
 	assert_str(entry.source_hex).is_equal("#FF5500")
 	assert_int(entry.target_type).is_equal(VoxPaletteEntry.TargetType.SMOOTH_TERRAIN)
-	assert_int(entry.terrain_material_id).is_equal(3)
+	assert_str(entry.terrain_material_id).is_equal("rock")
 
 
 func test_vox_palette_mapping_lookup_by_index() -> void:

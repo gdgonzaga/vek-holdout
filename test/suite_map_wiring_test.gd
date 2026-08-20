@@ -12,11 +12,11 @@ func _probe_from(cells: Dictionary) -> Callable:
 
 func test_blocky_probe_ground_rules() -> void:
 	var cells := {
-		Vector3i(0, 0, 0): "terrain",  # floor
+		Vector3i(0, 0, 0): "wood",    # floor
 		Vector3i(5, 0, 0): "",         # no floor under the stand cell
-		Vector3i(9, 0, 0): "terrain",
-		Vector3i(9, 1, 0): "terrain",  # solid stand cell
-		Vector3i(20, 0, 0): "terrain",
+		Vector3i(9, 0, 0): "wood",
+		Vector3i(9, 1, 0): "wood",    # solid stand cell
+		Vector3i(20, 0, 0): "wood",
 		Vector3i(20, 2, 0): "stone",   # no head clearance above the stand cell
 	}
 	var probe := _probe_from(cells)

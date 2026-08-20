@@ -3,12 +3,13 @@
 [ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_map"]
 [ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/blocky_grid.gd" id="2_voxel_grid"]
 [ext_resource type="PackedScene" uid="uid://ccqgqi0j6yvnj" path="res://subsystems/build/build.tscn" id="3_build_scene"]
-
-[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_terrain"]
-channel = 0
-voxel_type = 1
+[ext_resource type="Script" uid="uid://dlfyay1we36om" path="res://subsystems/voxel/smooth_grid.gd" id="4_smooth"]
+[ext_resource type="Resource" uid="uid://bdeepgr0und50" path="res://data/terrain/default_ground.tres" id="5_terrain_gen"]
+[ext_resource type="Resource" uid="uid://5s4y52q3vbc3" path="res://data/terrain/materials/ground.tres" id="6_ground"]
 
 [sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_default"]
+
+[sub_resource type="VoxelMesherTransvoxel" id="VoxelMesherTransvoxel_smooth"]
 
 [node name="Map" type="Node3D" unique_id=378224630]
 script = ExtResource("1_map")
@@ -17,8 +18,15 @@ script = ExtResource("1_map")
 script = ExtResource("2_voxel_grid")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid" unique_id=256541527]
-generator = SubResource("VoxelGeneratorFlat_terrain")
 mesher = SubResource("VoxelMesherBlocky_default")
+
+[node name="SmoothGrid" type="Node" parent="."]
+script = ExtResource("4_smooth")
+terrain_gen = ExtResource("5_terrain_gen")
+default_material = ExtResource("6_ground")
+
+[node name="VoxelTerrain" type="VoxelTerrain" parent="SmoothGrid"]
+mesher = SubResource("VoxelMesherTransvoxel_smooth")
 
 [node name="ColonistContainer" type="Node3D" parent="." unique_id=545713349]
 

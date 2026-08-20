@@ -4,11 +4,10 @@ class_name BlockLibrary
 ## index, and owns the VoxelBlockyLibrary the mesher renders with.
 ##
 ## Index convention (two tiers, see docs/VOXEL-TOOL-NOTES.md):
-## - Base table: 0 is always air (VoxelBlockyModelEmpty); terrain is forced to
-##   index 1 (what VoxelGeneratorFlat emits); the rest load alphabetically.
-##   Stable order — saved maps store these indices, so inserting a block
-##   .tres that sorts before an existing one re-orders the table and
-##   invalidates saves.
+## - Base table: 0 is always air (VoxelBlockyModelEmpty); the rest load
+##   alphabetically. Stable order — saved maps store these indices, so
+##   inserting a block .tres that sorts before an existing one re-orders the
+##   table and invalidates saves.
 ## - Variant appendix: for defs with rotation_mode != NONE, one variant model
 ##   per orientation is baked AFTER the whole base table (sharing the def's
 ##   mesh, differing only in mesh_ortho_rotation_index). Base indices are
@@ -19,9 +18,6 @@ class_name BlockLibrary
 ## renders value N as model N. Rotation rides in WHICH index is stored, never
 ## in bits packed into the value (BlockyGrid.set_block resolves base+rotation
 ## to a variant index via get_stored_index()).
-
-## Terrain must occupy index 1 because VoxelGeneratorFlat emits voxel_type = 1.
-const TERRAIN_ID := "terrain"
 
 ## Overridable scan dir (tests point it at fixture .tres dirs).
 var _blocks_dir := "res://data/blocks/"
@@ -41,7 +37,7 @@ func _init(blocks_dir: String = "") -> void:
 
 ## Load every BlockDef in the blocks dir and assemble the VoxelBlockyLibrary,
 ## baking rotation variants after the base table. Deterministic order:
-## terrain first (-> index 1), then the rest alphabetically.
+## alphabetical (0 = air first).
 func _build() -> void:
 	var paths := _scan_block_defs()
 	paths.sort()
@@ -51,21 +47,7 @@ func _build() -> void:
 	_voxel_library.add_model(VoxelBlockyModelEmpty.new())
 	_next_index = 1
 
-	# Terrain must be index 1 (matches VoxelGeneratorFlat voxel_type).
-	var ordered: Array[String] = []
-	var terrain_path := _blocks_dir + TERRAIN_ID + ".tres"
-	var has_terrain := false
-	for p in paths:
-		if p == terrain_path:
-			has_terrain = true
-			break
-	if has_terrain:
-		ordered.append(terrain_path)
-	for p in paths:
-		if p != terrain_path:
-			ordered.append(p)
-
-	for path in ordered:
+	for path in paths:
 		# the blocks dir holds the baked VoxelBlockyLibrary alongside the
 		# BlockDefs; only the latter are models we add to our own library. Skip
 		# anything that isn't a BlockDef (a typed load would throw on the
@@ -82,8 +64,8 @@ func _build() -> void:
 
 	_voxel_library.bake()
 
-## The def's base model (unrotated). Index assignment is sequential and
-## terrain-first — see the class doc's index convention.
+## The def's base model (unrotated). Index assignment is sequential — see the
+## class doc's index convention.
 func _add_base_model(def: BlockDef) -> int:
 	# We track the next index ourselves rather than reading get_model_count():
 	# the GDExtension return type isn't statically known to the parser, which

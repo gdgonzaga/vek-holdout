@@ -65,7 +65,7 @@ func _create_sample_mapping() -> VoxPaletteMapping:
 	var e2: VoxPaletteEntry = auto_free(VoxPaletteEntry.new())
 	e2.source_index = 2
 	e2.target_type = VoxPaletteEntry.TargetType.SMOOTH_TERRAIN
-	e2.terrain_material_id = 42
+	e2.terrain_material_id = "rock42"
 
 	var e3: VoxPaletteEntry = auto_free(VoxPaletteEntry.new())
 	e3.source_index = 3
@@ -162,7 +162,7 @@ func test_get_transformed_voxels() -> void:
 
 	# Corner (0, 0, 0) rel_pos (-1, 0, -1) -> world (9, 20, 29)
 	assert_vector(world_map[Vector3i(0, 0, 0)]["world_pos"]).is_equal(Vector3i(9, 20, 29))
-	assert_int(world_map[Vector3i(0, 0, 0)]["target_entry"].terrain_material_id).is_equal(42)
+	assert_str(world_map[Vector3i(0, 0, 0)]["target_entry"].terrain_material_id).is_equal("rock42")
 
 	# Rotated 90 degrees (1 step)
 	var transformed_rot := StructureStamper.get_transformed_voxels(structure, vox_data, origin, 1)
@@ -198,7 +198,7 @@ func test_stamp_structure_all_types() -> void:
 	# 2. SMOOTH_TERRAIN: Green voxel at (0, 0, 0) -> world (9, 20, 29) -> smooth_grid.adds
 	assert_int(smooth_grid.adds.size()).is_equal(1)
 	assert_that(smooth_grid.adds[0]["pos"]).is_equal(Vector3(9.5, 20.5, 29.5))
-	assert_str(smooth_grid.adds[0]["material_id"]).is_equal("42")
+	assert_str(smooth_grid.adds[0]["material_id"]).is_equal("rock42")
 
 	# 3. AIR: Blue voxel at (1, 1, 1) -> world (10, 21, 30) -> removed from grid and carved smooth terrain
 	assert_str(grid.get_block_at(Vector3i(10, 21, 30))).is_equal("")

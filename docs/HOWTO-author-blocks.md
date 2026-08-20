@@ -235,9 +235,16 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
 Maps store **raw voxel values = library model indices** (`map.sqlite`), so old
 maps keep loading correctly only as long as the library's index layout stays
 compatible with what was saved. `BlockLibrary` builds the layout as:
-**base table** (0 = air, 1 = terrain, remaining blocks alphabetically) followed
-by a **variant appendix** (rotation variants of rotatable blocks, in base-table
-order). The rules below follow from that layout.
+**base table** (0 = air, then all blocks alphabetically — there is no terrain
+block; natural ground is the smooth grid's `TerrainMaterialDef` vocabulary)
+followed by a **variant appendix** (rotation variants of rotatable blocks, in
+base-table order). The rules below follow from that layout.
+
+> One-time breakage (2026-08-21): removing the blocky terrain block shifted
+> every base index down by one. Authored map data stored no terrain-block
+> cells, but older `map.sqlite`s (and `user://` save copies) may render stone
+> cells as scrap, etc. — re-author affected maps or clear `user://maps`. No
+> migration: pre-release, ~130 affected cells.
 
 ### Safe: adding rotation to a previously single-variant block
 
@@ -271,12 +278,12 @@ in saved maps.
 
 ### Conditional: adding a new block type
 
-The base table is alphabetical (after air and terrain). A new `BlockDef` whose
-id sorts **after every existing one** (currently: after `wood` — e.g. `zinc`)
-is appended and is fully safe. One that sorts **before** an existing block
-(`brick` < `metal`) shifts that block's base index — every saved voxel of it
-in old maps then misidentifies (wrong block, still renders). Rule: **new block
-ids must sort alphabetically after all existing ids**.
+The base table is alphabetical (after air). A new `BlockDef` whose
+id sorts **after every existing one** (currently: after `wood_stairs` — e.g.
+`zinc`) is appended and is fully safe. One that sorts **before** an existing
+block (`brick` < `metal`) shifts that block's base index — every saved voxel
+of it in old maps then misidentifies (wrong block, still renders). Rule: **new
+block ids must sort alphabetically after all existing ids**.
 
 ### Quick reference
 

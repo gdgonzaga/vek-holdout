@@ -239,7 +239,8 @@ func test_map_editor_block_editing_init() -> void:
 	add_child(editor)
 
 	assert_object(editor._block_library).is_not_null()
-	assert_int(editor._selected_block_index).is_equal(6)
+	# Default selection resolves by id (wood), not a hardcoded index.
+	assert_int(editor._selected_block_index).is_equal(editor._block_library.get_index("wood"))
 	assert_int(editor._brush_diameter).is_equal(1)
 	assert_object(editor._ghost).is_not_null()
 	assert_bool(editor._ghost.visible).is_false()
@@ -334,6 +335,34 @@ func test_map_editor_terrain_brush_hotkeys() -> void:
 	key_event_down.keycode = KEY_BRACKETLEFT
 	editor._input(key_event_down)
 	assert_float(editor._sculpt_radius).is_equal_approx(2.0, 0.001)
+
+
+## M cycles BuildLibrary's terrain materials into _terrain_material_id (the
+## Terrain-mode mirror of the block palette); an unknown current id snaps into
+## range; the HUD display shows position feedback. BuildLibrary state is
+## swapped and restored (autoloads persist across suites).
+func test_map_editor_terrain_material_cycling() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor._launcher.hide_launcher()
+
+	var extra: TerrainMaterialDef = auto_free(TerrainMaterialDef.new())
+	extra.id = "rock_cycler"
+	extra.display_name = "Rock Cycler"
+	var saved_materials: Dictionary = BuildLibrary._materials_by_id.duplicate()
+	BuildLibrary._materials_by_id["rock_cycler"] = extra
+
+	editor._terrain_material_id = "ground"
+	editor._cycle_terrain_material(1)
+	assert_str(editor._terrain_material_id).is_equal("rock_cycler")
+	editor._cycle_terrain_material(1)
+	assert_str(editor._terrain_material_id).is_equal("ground")
+	assert_str(editor._terrain_material_display()).is_equal("ground (1/2)")
+	editor._terrain_material_id = "bogus"
+	editor._cycle_terrain_material(1)
+	assert_str(editor._terrain_material_id).is_equal("ground")
+
+	BuildLibrary._materials_by_id = saved_materials
 
 
 func test_editor_hud_furniture_and_spawn_info() -> void:
@@ -1583,19 +1612,19 @@ func test_editor_hud_block_palette_contains_only_base_defs() -> void:
 	hud.populate_block_library(lib)
 
 	var filtered := hud.get_filtered_block_indices()
-	# Should contain only base block indices (7 items, excluding the 23 rotation variants)
+	# Should contain only base block indices (6 items, excluding the 23 rotation variants)
 	assert_int(filtered.size()).is_equal(lib.get_base_indices().size())
-	assert_int(filtered.size()).is_equal(7)
-	assert_array(filtered).contains_exactly([1, 2, 3, 4, 5, 6, 7])
+	assert_int(filtered.size()).is_equal(6)
+	assert_array(filtered).contains_exactly([1, 2, 3, 4, 5, 6])
 
 
 func test_map_editor_ghost_preview_renders_custom_mesh_with_rotation() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
 
-	# Stairs block index is 7
+	# Stairs block index is 6
 	var stairs_idx: int = editor._block_library.get_index("wood_stairs")
-	assert_int(stairs_idx).is_equal(7)
+	assert_int(stairs_idx).is_equal(6)
 	editor._selected_block_index = stairs_idx
 	editor._mode = 1 # Mode.BLOCK
 	editor._brush_diameter = 1

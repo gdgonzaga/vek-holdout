@@ -5,7 +5,12 @@ class_name BlockDef
 ## Schema: docs/ARCHITECTURE.md "data/blocks/<type>.tres".
 ##
 ## Inherits id/display_name/hp/mesh/material_cost/unlocked_by_default from
-## BuildableDef. Adds rotational symmetry options and base library properties.
+## BuildableDef. Adds rotational symmetry options. Natural ground is NOT a
+## block: it lives in the smooth terrain vocabulary (TerrainMaterialDef) —
+## this schema is built structures only (the D1 def-level mirror).
+##
+## No library-index fields here on purpose: BlockLibrary owns the id<->index
+## mapping, and stored voxel values are its plain indices (never def data).
 
 enum RotationMode {
 	NONE = 1,       # Standard cubic block (1 model ID)
@@ -19,24 +24,10 @@ enum RotationMode {
 ## sanitize_rotation also accepts a quarter-turn count 0..3 by indexing here.
 const YAW_INDICES: Array[int] = [0, 22, 10, 16]
 
-## True for the non-buildable world ground (VoxelGeneratorFlat output). Skips
-## build-cost validation and is not a valid build target.
-@export var is_terrain: bool = false
-
 ## Rotational symmetry mode. Non-NONE modes make BlockLibrary bake one variant
 ## model per orientation at runtime (variants share this def's mesh) — authors
 ## never hand-make rotated meshes.
 @export var rotation_mode: RotationMode = RotationMode.NONE
-
-## The def's base index in the assembled VoxelBlockyLibrary. Informational:
-## BlockLibrary assigns it deterministically at build (see its index
-## convention); VoxelLibraryGenerator uses it when registering into a baked
-## editor library.
-@export var base_library_id: int = 0
-
-## Base library index used by BlockPlacementController.commit_placement. Must
-## be the def's BlockLibrary index (0 = air — unset content stamps air).
-@export var type_id: int = 0
 
 
 func is_rotatable() -> bool:

@@ -137,8 +137,8 @@ static func stamp_structure(
 			VoxPaletteEntry.TargetType.SMOOTH_TERRAIN:
 				if smooth_grid != null:
 					var world_center := Vector3(world_pos.x + 0.5, world_pos.y + 0.5, world_pos.z + 0.5)
-					var mat_id := str(entry.terrain_material_id)
-					if entry.terrain_material_id == 0 and smooth_grid.default_material != null:
+					var mat_id := entry.terrain_material_id
+					if mat_id.is_empty() and smooth_grid.default_material != null:
 						mat_id = smooth_grid.default_material.id
 					smooth_grid.add_material(world_center, mat_id, SMOOTH_TERRAIN_ADD_RADIUS)
 					ops.append({

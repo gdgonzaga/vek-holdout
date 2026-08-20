@@ -10,10 +10,6 @@
 [sub_resource type="VoxelStreamSQLite" id="VoxelStreamSQLite_blocky"]
 database_path = "res://data/maps/dev/map.sqlite"
 
-[sub_resource type="VoxelGeneratorFlat" id="VoxelGeneratorFlat_dr4yq"]
-channel = 0
-
-voxel_type = 1
 [sub_resource type="VoxelMesherBlocky" id="VoxelMesherBlocky_be0qe"]
 library = ExtResource("3_lib")
 
@@ -30,7 +26,6 @@ script = ExtResource("2_blocky")
 
 [node name="VoxelTerrain" type="VoxelTerrain" parent="BlockyGrid"]
 stream = SubResource("VoxelStreamSQLite_blocky")
-generator = SubResource("VoxelGeneratorFlat_dr4yq")
 mesher = SubResource("VoxelMesherBlocky_be0qe")
 
 [node name="SmoothGrid" type="Node" parent="."]

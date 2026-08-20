@@ -22,5 +22,6 @@ enum TargetType {
 ## BlockDef id (e.g. "stone_wall", "wood_planks") if target_type is TargetType.BLOCK.
 @export var block_id: String = ""
 
-## Terrain voxel material id if target_type is TargetType.SMOOTH_TERRAIN.
-@export var terrain_material_id: int = 0
+## TerrainMaterialDef id (e.g. "ground") if target_type is TargetType.SMOOTH_TERRAIN.
+## Empty = the smooth grid's default_material.
+@export var terrain_material_id: String = ""

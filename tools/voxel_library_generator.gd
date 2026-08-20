@@ -59,16 +59,17 @@ static func generate_block_models(block_def: BlockDef) -> Array[VoxelBlockyModel
 	return out
 
 
-static func register_block_in_library(block_def: BlockDef, library: VoxelBlockyLibrary) -> void:
+## Register the def's models into a baked editor library starting at
+## `start_index` (padding with empties when the library is shorter).
+static func register_block_in_library(block_def: BlockDef, library: VoxelBlockyLibrary, start_index: int) -> void:
 	if block_def == null or library == null:
 		return
 	var new_models: Array[VoxelBlockyModelMesh] = generate_block_models(block_def)
-	var start_id: int = block_def.base_library_id
 	var existing: Array = library.get_models()
-	while existing.size() < start_id:
+	while existing.size() < start_index:
 		existing.append(VoxelBlockyModelEmpty.new())
 	for i in range(new_models.size()):
-		var target_idx: int = start_id + i
+		var target_idx: int = start_index + i
 		if target_idx < existing.size():
 			existing[target_idx] = new_models[i]
 		else:

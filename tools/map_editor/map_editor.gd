@@ -60,7 +60,7 @@ var _undo_stack: Array[Dictionary] = []
 var _blocky_grid: BlockyGrid = null
 var _block_vt: VoxelTool = null
 var _block_library: BlockLibrary = null
-var _selected_block_index: int = 6 # Default 6 = wood
+var _selected_block_index: int = -1 # Resolved by id in _ready; indices shift with the block set
 var _active_rotation_index: int = 0
 var _brush_diameter: int = 1 # Brush edge length in blocks (B+scroll)
 
@@ -103,6 +103,7 @@ func _ready() -> void:
 	_build_ghost()
 	_build_grid_overlay()
 	_block_library = BlockLibrary.new()
+	_selected_block_index = _default_block_index()
 	_furniture_defs = _load_furniture_defs()
 	_furniture_auth = FurnitureAuthoringClass.new()
 	_structure_defs = _load_structure_defs()
@@ -137,6 +138,17 @@ func _ready() -> void:
 
 	_setup_exit_dialog()
 	_setup_delete_dialog()
+
+
+## Default palette selection: wood (the ubiquitous authoring block), falling
+## back to the first base block when absent. Indices shift whenever the block
+## set changes, so the default resolves by id — never a hardcoded number.
+func _default_block_index() -> int:
+	var wood := _block_library.get_index("wood")
+	if wood > 0:
+		return wood
+	var base := _block_library.get_base_indices()
+	return base[0] if not base.is_empty() else 0
 
 
 func _build_grid_overlay() -> void:
@@ -412,6 +424,9 @@ func _input(event: InputEvent) -> void:
 			elif k.keycode == KEY_I and _mode == Mode.BLOCK:
 				var hit := _raycast_from_camera()
 				_do_block_pick(hit)
+				get_viewport().set_input_as_handled()
+			elif k.keycode == KEY_M and _mode == Mode.TERRAIN:
+				_cycle_terrain_material(-1 if k.shift_pressed else 1)
 				get_viewport().set_input_as_handled()
 			elif _mode == Mode.STRUCTURE and (k.keycode == KEY_UP or k.keycode == KEY_DOWN or k.keycode == KEY_LEFT or k.keycode == KEY_RIGHT):
 				var step := 5 if k.shift_pressed else 1
@@ -1656,6 +1671,42 @@ func _on_hud_block_selected(idx: int) -> void:
 			_update_ghost(hit)
 
 
+## Terrain-mode material cycling — the mirror of BLOCK mode's block palette:
+## M (Shift+M) cycles BuildLibrary's terrain materials into
+## _terrain_material_id. The id rides the material_placed signal only (F8:
+## the smooth grid has no per-voxel material channel), so this is authoring
+## metadata for the dig action's hardness/yields, not a visual change.
+func _cycle_terrain_material(dir: int) -> void:
+	var mats: Array = BuildLibrary.get_terrain_materials()
+	if mats.is_empty():
+		return
+	var ids: Array[String] = []
+	for m in mats:
+		var mat := m as TerrainMaterialDef
+		if mat != null and not mat.id.is_empty():
+			ids.append(mat.id)
+	if ids.is_empty():
+		return
+	var idx: int = ids.find(_terrain_material_id)
+	if idx < 0:
+		_terrain_material_id = ids[0]
+	else:
+		_terrain_material_id = ids[(idx + dir + ids.size()) % ids.size()]
+	_update_hud_info()
+
+
+## HUD label for the active terrain material: "Display Name (i/N)" so cycling
+## gives position feedback like the block palette's "[#idx]" labels.
+func _terrain_material_display() -> String:
+	var mats: Array = BuildLibrary.get_terrain_materials()
+	for i in mats.size():
+		var mat := mats[i] as TerrainMaterialDef
+		if mat != null and mat.id == _terrain_material_id:
+			var name: String = mat.display_name if not mat.display_name.is_empty() else mat.id
+			return "%s (%d/%d)" % [name, i + 1, mats.size()]
+	return _terrain_material_id
+
+
 func _update_hud_info() -> void:
 	if _hud == null:
 		return
@@ -1665,7 +1716,7 @@ func _update_hud_info() -> void:
 		var block_name := def.display_name if def != null and not def.display_name.is_empty() else (def.id if def != null else "Unknown")
 		var block_id := def.id if def != null else ""
 		_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index, _active_rotation_index, axis_name)
-	_hud.set_terrain_info(_terrain_material_id, _sculpt_radius)
+	_hud.set_terrain_info(_terrain_material_display(), _sculpt_radius)
 	if not _furniture_defs.is_empty() and _selected_furniture_idx >= 0 and _selected_furniture_idx < _furniture_defs.size():
 		var fdef: FurnitureDef = _furniture_defs[_selected_furniture_idx]
 		var fname := fdef.display_name if fdef != null and not fdef.display_name.is_empty() else (fdef.id if fdef != null else "Unknown")

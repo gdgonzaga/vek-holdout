@@ -58,3 +58,28 @@ func test_strategy_fails_safe_unknown_material() -> void:
 	strategy.set_smooth_grid(grid)
 	assert_bool(strategy.commit(Transform3D.IDENTITY, null, "not_a_material")).is_false()
 	assert_int(grid.adds.size()).is_equal(0)
+
+
+## BuildController._is_smooth_placement_valid after the terrain-block removal:
+## ANY blocky block inside the blob's AABB invalidates — the blocky grid is
+## built structures only (natural ground is the smooth grid), so a terrain
+## blob never buries a block. Empty area stays valid (no bodies headless).
+## Adapter stub keeps this a pure validity-logic test (voxel writes need a
+## VoxelViewer to stick); build.tscn is instantiated because BuildController's
+## _ready expects its scene children.
+func test_blob_over_blocky_block_is_invalid() -> void:
+	var ctrl: BuildController = auto_free(preload("res://subsystems/build/build.tscn").instantiate())
+	add_child(ctrl)
+	ctrl.grid_adapter = BlobProbeAdapter.new()
+	auto_free(ctrl.grid_adapter)
+
+	assert_bool(ctrl._is_smooth_placement_valid(Vector3(10.5, 4.5, 10.5), 1.0)).is_false()
+	assert_bool(ctrl._is_smooth_placement_valid(Vector3(30.5, 4.5, 30.5), 1.0)).is_true()
+
+
+## VoxelGridAdapter stand-in reporting one solid block: (10, 4, 10) is wood.
+class BlobProbeAdapter:
+	extends VoxelGridAdapter
+
+	func get_block_at(_pos: Vector3i) -> String:
+		return "wood" if _pos == Vector3i(10, 4, 10) else ""

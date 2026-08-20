@@ -64,7 +64,7 @@ When a map is loaded, mouse look is automatically captured.
 
 ## 4. Modes and Tool Workflows
 
-Switch between modes using **F1** through **F5**:
+Switch between modes using **F1** through **F6**:
 
 ### Mode 1: Navigate (`F1`)
 Free camera inspection mode. Crosshair reads out exact world-space coordinates without performing edits.
@@ -84,6 +84,7 @@ Sculpt continuous Transvoxel SDF terrain.
 - **`LMB`**: Add terrain material at the crosshair point.
 - **`Shift + LMB`**: Carve away smooth terrain.
 - **`[` / `]`** or **`B + Mouse Wheel`**: Increase or decrease brush sculpt radius ($0.5\,\text{m}$ to $5.0\,\text{m}$).
+- **`M` / `Shift + M`**: Cycle the terrain material added by `LMB` (from `data/terrain/materials/`; the HUD shows `name (i/N)`). Authoring metadata for dig hardness/yields — the smooth grid has one visual appearance (F8), so blobs don't change color.
 - **`Ctrl + Z`**: Undo terrain sculpt operation.
 
 ### Mode 4: Furniture Mode (`F4`)
@@ -100,6 +101,12 @@ Place player and colonist spawn markers.
 
 - **`LMB`**: Place `PlayerSpawn` marker at target surface position.
 - **`Shift + LMB`**: Add a new `ColonistSpawn` marker at target surface position.
+
+### Mode 6: Structure Mode (`F6`)
+Stamp pre-authored `StructureDef` structures (`.vox` imports with palette mappings).
+
+- **`[` / `]`** or **`Tab`**: Cycle structure. **`R` / Mouse Wheel**: Rotate. **`Ctrl + Mouse Wheel`**: Y-offset. **Arrows**: Nudge (**`Shift`** = 5 m).
+- **`LMB`**: Stamp the structure at the ghost position (blocks via `set_block_at`, smooth-terrain palette targets as material blobs).
 
 ---
 

@@ -75,10 +75,9 @@ func test_register_block_in_library() -> void:
 	var lib: VoxelBlockyLibrary = auto_free(VoxelBlockyLibrary.new())
 	var def: BlockDef = auto_free(BlockDef.new())
 	def.id = "ramp"
-	def.base_library_id = 3
 	def.rotation_mode = BlockDef.RotationMode.YAW_ONLY
-	
-	VoxelLibraryGenerator.register_block_in_library(def, lib)
+
+	VoxelLibraryGenerator.register_block_in_library(def, lib, 3)
 	var models: Array = lib.get_models()
 	assert_int(models.size()).is_equal(7)
 	assert_str(models[3].resource_name).is_equal("ramp_%d" % BlockDef.YAW_INDICES[0])

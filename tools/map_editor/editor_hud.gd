@@ -718,7 +718,7 @@ func _build_ui() -> void:
 
 # --- Block Palette API ---
 
-func populate_block_library(library: BlockLibrary, selected_idx: int = 6) -> void:
+func populate_block_library(library: BlockLibrary, selected_idx: int = -1) -> void:
 	if library == null or _block_palette == null:
 		return
 	var items: Array[EditorPalettePanel.Item] = []
@@ -734,19 +734,18 @@ func populate_block_library(library: BlockLibrary, selected_idx: int = 6) -> voi
 		item.display_name = def.display_name if not def.display_name.is_empty() else def.id.capitalize()
 		item.label = "%s  [#%d]" % [item.display_name, idx]
 		item.icon = def.icon if def.icon != null else def.texture
-		item.tooltip = "%s (%s)\nVoxel Index: %d\nHP: %d%s" % [
+		item.tooltip = "%s (%s)\nVoxel Index: %d\nHP: %d" % [
 			item.display_name,
 			def.id,
 			idx,
 			def.hp,
-			"\nType: Ground/Terrain" if def.is_terrain else "",
 		]
 		items.append(item)
 
 	_block_palette.populate(items, selected_idx)
 
 
-func populate_block_list(defs_by_index: Dictionary, selected_idx: int = 6) -> void:
+func populate_block_list(defs_by_index: Dictionary, selected_idx: int = -1) -> void:
 	if _block_palette == null:
 		return
 	var items: Array[EditorPalettePanel.Item] = []
@@ -768,12 +767,11 @@ func populate_block_list(defs_by_index: Dictionary, selected_idx: int = 6) -> vo
 		item.display_name = def.display_name if not def.display_name.is_empty() else def.id.capitalize()
 		item.label = "%s  [#%d]" % [item.display_name, idx]
 		item.icon = def.icon if def.icon != null else def.texture
-		item.tooltip = "%s (%s)\nVoxel Index: %d\nHP: %d%s" % [
+		item.tooltip = "%s (%s)\nVoxel Index: %d\nHP: %d" % [
 			item.display_name,
 			def.id,
 			idx,
 			def.hp,
-			"\nType: Ground/Terrain" if def.is_terrain else "",
 		]
 		items.append(item)
 

@@ -62,7 +62,7 @@ func _create_sample_mapping() -> VoxPaletteMapping:
 	var e2: VoxPaletteEntry = auto_free(VoxPaletteEntry.new())
 	e2.source_index = 2
 	e2.target_type = VoxPaletteEntry.TargetType.SMOOTH_TERRAIN
-	e2.terrain_material_id = 42
+	e2.terrain_material_id = "rock42"
 
 	var e3: VoxPaletteEntry = auto_free(VoxPaletteEntry.new())
 	e3.source_index = 3
