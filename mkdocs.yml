@@ -1,7 +1,7 @@
 site_name: "Vek: Holdout — Architecture"
 site_description: "Architecture docs for Vek: Holdout, a Godot voxel base-building game"
 site_author: gdgonzaga
-docs_dir: docs/architecture
+docs_dir: docs/
 site_dir: site
 use_directory_urls: true
 
@@ -21,44 +21,50 @@ theme:
     repo: fontawesome/brands/github
 
 nav:
-  - "Architecture — Vek: Holdout": index.md
-  - Overview: overview.md
+  - "Architecture — Vek: Holdout": architecture/index.md
+  - Overview: architecture/overview.md
   - Subsystems:
-    - Core: core.md
-    - "Save / Load": save.md
-    - "Voxel / World": voxel-world.md
-    - Player: player.md
-    - Build: build.md
-    - "Actions & Interaction": actions.md
-    - "Functional Rooms": functional-rooms.md
-    - Colonists: colonists.md
-    - Jobs: jobs.md
-    - Skills: skills.md
-    - Maps: maps.md
-    - "Map Editor": map-editor.md
-    - Expeditions: expeditions.md
-    - Inventory: inventory.md
-    - Crafting: crafting.md
-    - Farming: farming.md
-    - UI: ui.md
-    - "Game Log": game-log.md
+    - Core: architecture/core.md
+    - "Save / Load": architecture/save.md
+    - "Voxel / World": architecture/voxel-world.md
+    - Player: architecture/player.md
+    - Build: architecture/build.md
+    - "Actions & Interaction": architecture/actions.md
+    - "Functional Rooms": architecture/functional-rooms.md
+    - Colonists: architecture/colonists.md
+    - Jobs: architecture/jobs.md
+    - Skills: architecture/skills.md
+    - Maps: architecture/maps.md
+    - "Map Editor": architecture/map-editor.md
+    - Expeditions: architecture/expeditions.md
+    - Inventory: architecture/inventory.md
+    - Crafting: architecture/crafting.md
+    - Farming: architecture/farming.md
+    - UI: architecture/ui.md
+    - "Game Log": architecture/game-log.md
   - Reference:
-    - "Data Schemas": data-schemas.md
+    - "Data Schemas": architecture/data-schemas.md
   - Tracking:
-    - "Tech Debt & Unimplemented": tech-debt.md
+    - "Tech Debt & Unimplemented": architecture/tech-debt.md
   - Planned:
-    - Combat: combat.md
-    - "Equipment & Loadouts": equipment.md
-    - Energy: energy.md
-    - "Permadeath & Memorial": permadeath-memorial.md
-    - Raids: raids.md
-    - Loot: loot.md
-    - "Debug Console": debug-console.md
-    - "Debug Commands": debug-commands.md
-    - "Open world": open-world.md
-    - "Job system extensions": job-extensions.md
+    - Combat: architecture/combat.md
+    - "Equipment & Loadouts": architecture/equipment.md
+    - Energy: architecture/energy.md
+    - "Permadeath & Memorial": architecture/permadeath-memorial.md
+    - Raids: architecture/raids.md
+    - Loot: architecture/loot.md
+    - "Debug Console": architecture/debug-console.md
+    - "Debug Commands": architecture/debug-commands.md
+    - "Open world": architecture/open-world.md
+    - "Job system extensions": architecture/job-extensions.md
+  - How tos:
+    - "Authoring Blocks": HOWTO-author-blocks.md
+    - "Authoring Crops": HOWTO-author-crops.md
+    - "Authoring Interactions": HOWTO-author-interactions.md
+    - "Authoring Maps": HOWTO-author-maps.md
+    - "Transferring Animpic models": HOWTO-transfer-animpic-models.md
   - About:
-    - "Adding a page": contributing.md
+    - "Adding a page": architecture/contributing.md
 
 plugins:
   - search
