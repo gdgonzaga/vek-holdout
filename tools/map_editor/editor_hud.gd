@@ -93,9 +93,9 @@ const MODE_NAMES: Array[String] = [
 
 const MODE_HOTKEYS: Array[String] = [
 	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [G] Grid   [Esc] Menu   [F1-F6] Modes",
-	"[LMB] Paint   [Shift+LMB] Erase   [Tab/List] Select   [B+Scroll] Size   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
-	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Scroll] Radius   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
-	"[LMB] Place   [Shift+LMB] Remove   [Tab/List] Select   [R] Rotate   [Ctrl+S] Save   [G] Grid",
+	"[LMB] Paint   [Shift+LMB] Erase   [Wheel] Rotate   [R] Axis   [I] Pick   [B+Wheel] Size   [Ctrl+Z] Undo   [G] Grid",
+	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Wheel] Radius   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
+	"[LMB] Place   [Shift+LMB] Remove   [Wheel] Rotate   [R] Axis   [Tab/List] Select   [Ctrl+S] Save   [G] Grid",
 	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [G] Grid   [F1-F6] Modes",
 	"[LMB] Stamp   [Wheel] Rotate   [Ctrl+Wheel] Y-Offset   [Arrows] Nudge   [Tab/List] Select   [Ctrl+Z] Undo   [G] Grid",
 ]
@@ -722,13 +722,9 @@ func populate_block_library(library: BlockLibrary, selected_idx: int = 6) -> voi
 	if library == null or _block_palette == null:
 		return
 	var items: Array[EditorPalettePanel.Item] = []
-	var indices: Array = []
-	for idx in library._defs_by_index.keys():
-		indices.append(idx)
-	indices.sort()
+	var indices: Array[int] = library.get_base_indices()
 
-	for idx_val in indices:
-		var idx: int = int(idx_val)
+	for idx in indices:
 		var def: BlockDef = library.get_def_by_index(idx)
 		if def == null:
 			continue
@@ -755,6 +751,7 @@ func populate_block_list(defs_by_index: Dictionary, selected_idx: int = 6) -> vo
 		return
 	var items: Array[EditorPalettePanel.Item] = []
 	var indices: Array = []
+	var seen_ids: Dictionary = {}
 	for idx in defs_by_index.keys():
 		indices.append(idx)
 	indices.sort()
@@ -762,8 +759,9 @@ func populate_block_list(defs_by_index: Dictionary, selected_idx: int = 6) -> vo
 	for idx_val in indices:
 		var idx: int = int(idx_val)
 		var def: BlockDef = defs_by_index.get(idx)
-		if def == null:
+		if def == null or seen_ids.has(def.id):
 			continue
+		seen_ids[def.id] = true
 		var item := EditorPalettePanelClass.Item.new()
 		item.index = idx
 		item.id = def.id
@@ -900,24 +898,24 @@ func is_any_input_focused() -> bool:
 
 # --- Information display helpers ---
 
-func set_rotation_info(rot_index: int) -> void:
+func set_rotation_info(rot_index: int, axis_name: String = "Y [Yaw]") -> void:
 	if _orientation_label != null:
 		var b := VoxelBlockEncoder.rot_index_to_basis(rot_index)
 		var euler := b.get_euler()
 		var yaw_deg := roundi(rad_to_deg(euler.y))
 		var pitch_deg := roundi(rad_to_deg(euler.x))
-		_orientation_label.text = "Rot: #%d [Yaw %d°, Pitch %d°]" % [rot_index, yaw_deg, pitch_deg]
+		_orientation_label.text = "Rot: #%d [Y %d°, X %d°] | Axis: %s [R]" % [rot_index, yaw_deg, pitch_deg, axis_name]
 
 
-func set_block_info(block_name: String, diameter: int, id_str: String = "", voxel_idx: int = -1, rot_idx: int = 0) -> void:
+func set_block_info(block_name: String, diameter: int, id_str: String = "", voxel_idx: int = -1, rot_idx: int = 0, axis_name: String = "Y [Yaw]") -> void:
 	if _block_palette != null:
 		var display_id := id_str
 		if voxel_idx > 0:
 			display_id = "%s (Voxel #%d)" % [id_str if not id_str.is_empty() else "-", voxel_idx]
 		_block_palette.set_selected_info(block_name, display_id)
 	if _brush_label != null:
-		_brush_label.text = "Brush: %dx%dx%d [B+Scroll]" % [diameter, diameter, diameter]
-	set_rotation_info(rot_idx)
+		_brush_label.text = "Brush: %dx%dx%d [B+Wheel]" % [diameter, diameter, diameter]
+	set_rotation_info(rot_idx, axis_name)
 
 
 func set_sculpt_info(radius: float) -> void:
@@ -931,12 +929,12 @@ func set_terrain_info(material_name: String, radius: float) -> void:
 	set_sculpt_info(radius)
 
 
-func set_furniture_info(name: String, yaw_quarters: int, dims: Vector3i = Vector3i.ONE, id_str: String = "") -> void:
+func set_furniture_info(name: String, yaw_quarters: int = 0, dims: Vector3i = Vector3i.ONE, id_str: String = "", axis_name: String = "Y [Yaw]") -> void:
 	if _furniture_palette != null:
 		_furniture_palette.set_selected_info(name, id_str)
 	if _yaw_label != null:
 		var deg := (yaw_quarters % 4) * 90
-		_yaw_label.text = "Rotation: %d° [R]" % deg
+		_yaw_label.text = "Rotation: %d° | Axis: %s [R: Axis, Wheel: Rot]" % [deg, axis_name]
 	if _furniture_dims_label != null:
 		_furniture_dims_label.text = "Size: %dx%dx%d (WxHxD)" % [dims.x, dims.y, dims.z]
 

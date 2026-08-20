@@ -161,6 +161,18 @@ func has_id(block_id: String) -> bool:
 func get_all_defs() -> Array:
 	return _defs_by_id.values()
 
+## Sorted list of base block indices in the library (excluding air 0 and variant appendix).
+func get_base_indices() -> Array[int]:
+	var indices: Array[int] = []
+	for idx in _index_by_id.values():
+		indices.append(idx)
+	indices.sort()
+	return indices
+
+## True if the given stored/library index is a base block index.
+func is_base_index(index: int) -> bool:
+	return index > 0 and get_base_index(index) == index
+
 func get_voxel_library() -> VoxelBlockyLibrary:
 	return _voxel_library
 

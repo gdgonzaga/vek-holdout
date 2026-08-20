@@ -469,15 +469,22 @@ func test_map_editor_furniture_cycle_and_rotate() -> void:
 	editor._input(shift_tab_event)
 	assert_int(editor._selected_furniture_idx).is_equal(initial_idx)
 
-	# R rotates furniture
+	# Mouse wheel rotates furniture
+	var wheel_event := InputEventMouseButton.new()
+	wheel_event.pressed = true
+	wheel_event.button_index = MOUSE_BUTTON_WHEEL_UP
+	editor._input(wheel_event)
+	assert_int(editor._yaw).is_equal(1)
+
+	editor._input(wheel_event)
+	assert_int(editor._yaw).is_equal(2)
+
+	# R cycles rotation axis
 	var r_event := InputEventKey.new()
 	r_event.pressed = true
 	r_event.keycode = KEY_R
 	editor._input(r_event)
-	assert_int(editor._yaw).is_equal(1)
-
-	editor._input(r_event)
-	assert_int(editor._yaw).is_equal(2)
+	assert_int(editor._active_rotation_axis).is_equal(1) # RotationAxis.X
 
 
 func test_map_editor_furniture_cycle_filtered() -> void:
@@ -1469,35 +1476,75 @@ func test_editor_hud_rotation_indicator() -> void:
 	var hud: EditorHUD = auto_free(EditorHUDClass.new())
 	hud.setup()
 
-	hud.set_rotation_info(0)
+	hud.set_rotation_info(0, "Y [Yaw]")
 	var orientation_lbl: Label = hud.find_child("OrientationLabel", true, false)
 	assert_object(orientation_lbl).is_not_null()
 	assert_str(orientation_lbl.text).contains("Rot: #0")
+	assert_str(orientation_lbl.text).contains("Axis: Y [Yaw]")
 
-	hud.set_rotation_info(5)
+	hud.set_rotation_info(5, "X [Pitch]")
 	assert_str(orientation_lbl.text).contains("Rot: #5")
+	assert_str(orientation_lbl.text).contains("Axis: X [Pitch]")
 
 
 func test_map_editor_rotation_hotkeys_and_reset() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor._selected_block_index = 1
+	if editor._launcher != null:
+		editor._launcher.hide()
+	editor._selected_block_index = 7 # wood_stairs (rotatable)
+	editor._mode = 1 # Mode.BLOCK
 
-	# Default rotation is 0
+	# Default rotation is 0 and axis is Y (0)
 	assert_int(editor._active_rotation_index).is_equal(0)
+	assert_int(editor._active_rotation_axis).is_equal(0) # RotationAxis.Y
 
-	# Cycle Yaw (UP)
-	editor._rotate_block_brush(Vector3.UP)
+	# Wheel up rotates along current axis (Y / Yaw)
+	var ev_wheel_up := InputEventMouseButton.new()
+	ev_wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
+	ev_wheel_up.pressed = true
+	editor._input(ev_wheel_up)
 	assert_int(editor._active_rotation_index).is_not_equal(0)
 	var yaw_rot := editor._active_rotation_index
 
-	# Cycle Pitch (RIGHT)
-	editor._rotate_block_brush(Vector3.RIGHT)
+	# R key cycles axis to X [Pitch] (1)
+	var ev_r := InputEventKey.new()
+	ev_r.keycode = KEY_R
+	ev_r.pressed = true
+	editor._input(ev_r)
+	assert_int(editor._active_rotation_axis).is_equal(1) # RotationAxis.X
+
+	# Wheel up now rotates along X [Pitch]
+	editor._input(ev_wheel_up)
 	assert_int(editor._active_rotation_index).is_not_equal(yaw_rot)
 
-	# Reset rotation
-	editor._reset_block_rotation()
+	# R key cycles axis to Z [Roll] (2)
+	editor._input(ev_r)
+	assert_int(editor._active_rotation_axis).is_equal(2) # RotationAxis.Z
+
+	# R key cycles axis back to Y [Yaw] (0)
+	editor._input(ev_r)
+	assert_int(editor._active_rotation_axis).is_equal(0) # RotationAxis.Y
+
+	# Reset rotation via Z key
+	var ev_z := InputEventKey.new()
+	ev_z.keycode = KEY_Z
+	ev_z.pressed = true
+	editor._input(ev_z)
 	assert_int(editor._active_rotation_index).is_equal(0)
+	assert_int(editor._active_rotation_axis).is_equal(0)
+
+	# Test Furniture mode wheel rotation
+	editor._mode = 3 # Mode.FURNITURE
+	assert_int(editor._yaw).is_equal(0)
+	editor._input(ev_wheel_up)
+	assert_int(editor._yaw).is_equal(1)
+
+	var ev_wheel_down := InputEventMouseButton.new()
+	ev_wheel_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	ev_wheel_down.pressed = true
+	editor._input(ev_wheel_down)
+	assert_int(editor._yaw).is_equal(0)
 
 	await _dispose_test_editor(editor)
 
@@ -1524,5 +1571,75 @@ func test_map_editor_eyedropper_reads_stored_block_index() -> void:
 
 	assert_int(editor._selected_block_index).is_equal(4)
 	assert_int(editor._active_rotation_index).is_equal(0)
+
+	await _dispose_test_editor(editor)
+
+
+func test_editor_hud_block_palette_contains_only_base_defs() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	var lib := BlockLibrary.new()
+	hud.populate_block_library(lib)
+
+	var filtered := hud.get_filtered_block_indices()
+	# Should contain only base block indices (7 items, excluding the 23 rotation variants)
+	assert_int(filtered.size()).is_equal(lib.get_base_indices().size())
+	assert_int(filtered.size()).is_equal(7)
+	assert_array(filtered).contains_exactly([1, 2, 3, 4, 5, 6, 7])
+
+
+func test_map_editor_ghost_preview_renders_custom_mesh_with_rotation() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	# Stairs block index is 7
+	var stairs_idx: int = editor._block_library.get_index("wood_stairs")
+	assert_int(stairs_idx).is_equal(7)
+	editor._selected_block_index = stairs_idx
+	editor._mode = 1 # Mode.BLOCK
+	editor._brush_diameter = 1
+	editor._active_rotation_index = 0
+
+	var stairs_def: BlockDef = editor._block_library.get_def_by_index(stairs_idx)
+	assert_object(stairs_def.mesh).is_not_null()
+
+	var dummy_hit := {
+		"hit": true,
+		"position": Vector3i(5, 5, 5),
+		"normal": Vector3i.UP,
+		"surface": "blocky"
+	}
+
+	editor._update_ghost(dummy_hit)
+
+	# Ghost mesh should use the custom stairs mesh, not _box_mesh
+	assert_object(editor._ghost.mesh).is_equal(stairs_def.mesh)
+	assert_bool(editor._ghost.transform.basis.is_equal_approx(Basis.IDENTITY)).is_true()
+	assert_object(editor._axis_line).is_not_null()
+	assert_bool(editor._axis_line.visible).is_true()
+
+	# Rotate block brush and verify basis updates
+	editor._rotate_block_brush(Vector3.UP)
+	editor._update_ghost(dummy_hit)
+	assert_int(editor._active_rotation_index).is_not_equal(0)
+	var expected_basis := VoxelBlockEncoder.rot_index_to_basis(editor._active_rotation_index)
+	assert_bool(editor._ghost.transform.basis.is_equal_approx(expected_basis)).is_true()
+	assert_bool(editor._axis_line.visible).is_true()
+
+	# Multi-block brush diameter > 1 uses _box_mesh
+	editor._brush_diameter = 2
+	editor._update_ghost(dummy_hit)
+	assert_object(editor._ghost.mesh).is_equal(editor._box_mesh)
+
+	# Single block def without mesh uses _box_mesh
+	editor._brush_diameter = 1
+	var custom_def := BlockDef.new()
+	custom_def.id = "no_mesh_block"
+	custom_def.mesh = null
+	editor._block_library._defs_by_index[99] = custom_def
+	editor._selected_block_index = 99
+	editor._update_ghost(dummy_hit)
+	assert_object(editor._ghost.mesh).is_equal(editor._box_mesh)
 
 	await _dispose_test_editor(editor)

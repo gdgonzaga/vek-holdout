@@ -64,6 +64,13 @@ var _selected_block_index: int = 6 # Default 6 = wood
 var _active_rotation_index: int = 0
 var _brush_diameter: int = 1 # Brush edge length in blocks (B+scroll)
 
+enum RotationAxis {
+	Y = 0, # Yaw (Vector3.UP)
+	X = 1, # Pitch (Vector3.RIGHT)
+	Z = 2, # Roll (Vector3.FORWARD)
+}
+var _active_rotation_axis: int = RotationAxis.Y
+
 var _smooth_grid: SmoothGrid = null
 var _smooth_vt: VoxelTool = null
 var _sculpt_radius: float = 2.0
@@ -83,6 +90,8 @@ var _ghost_mat: StandardMaterial3D = null
 var _box_mesh: BoxMesh = null
 var _sphere_mesh: SphereMesh = null
 var _capsule_mesh: CapsuleMesh = null
+var _axis_line: MeshInstance3D = null
+var _axis_line_mat: StandardMaterial3D = null
 
 var _cam_yaw: float = 0.0
 var _cam_pitch: float = -30.0
@@ -297,16 +306,21 @@ func _input(event: InputEvent) -> void:
 						_do_structure_stamp(hit)
 						get_viewport().set_input_as_handled()
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				var wheel_dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
 				if Input.is_key_pressed(KEY_B):
-					var dir := 1.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
 					if _mode == Mode.BLOCK:
-						_brush_diameter = clampi(_brush_diameter + int(dir), 1, MAX_BRUSH_DIAMETER)
+						_brush_diameter = clampi(_brush_diameter + wheel_dir, 1, MAX_BRUSH_DIAMETER)
 					elif _mode == Mode.TERRAIN:
-						_sculpt_radius = clampf(_sculpt_radius + dir * 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
+						_sculpt_radius = clampf(_sculpt_radius + float(wheel_dir) * 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
 					_update_hud_info()
 					get_viewport().set_input_as_handled()
+				elif _mode == Mode.BLOCK:
+					_rotate_block_brush(_get_rotation_axis_vector(), (PI / 2.0) * float(wheel_dir))
+					get_viewport().set_input_as_handled()
+				elif _mode == Mode.FURNITURE:
+					_do_furniture_rotate_step(wheel_dir)
+					get_viewport().set_input_as_handled()
 				elif _mode == Mode.STRUCTURE:
-					var wheel_dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
 					if mb.ctrl_pressed:
 						var step := 5 if mb.shift_pressed else 1
 						if _structure_tool != null:
@@ -382,16 +396,9 @@ func _input(event: InputEvent) -> void:
 					_cycle_structure(dir)
 					get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_R:
-				if _mode == Mode.BLOCK:
-					if k.shift_pressed:
-						_rotate_block_brush(Vector3.RIGHT)
-					elif k.ctrl_pressed or k.command_pressed:
-						_rotate_block_brush(Vector3.FORWARD)
-					else:
-						_rotate_block_brush(Vector3.UP)
+				if _mode == Mode.BLOCK or _mode == Mode.FURNITURE:
+					_cycle_rotation_axis()
 					get_viewport().set_input_as_handled()
-				elif _mode == Mode.FURNITURE:
-					_do_furniture_rotate()
 				elif _mode == Mode.STRUCTURE:
 					if _structure_tool != null:
 						_structure_tool.rotate_clockwise()
@@ -816,6 +823,25 @@ func _build_ghost() -> void:
 	_ghost.visible = false
 	add_child(_ghost)
 
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 0.025
+	cylinder.bottom_radius = 0.025
+	cylinder.height = 1.8
+	cylinder.radial_segments = 12
+
+	_axis_line_mat = StandardMaterial3D.new()
+	_axis_line_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_axis_line_mat.no_depth_test = true
+	_axis_line_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.95)
+
+	_axis_line = MeshInstance3D.new()
+	_axis_line.name = "AxisLineVisualizer"
+	_axis_line.mesh = cylinder
+	_axis_line.material_override = _axis_line_mat
+	_axis_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_axis_line.visible = false
+	add_child(_axis_line)
+
 
 func _position_camera_at_spawn() -> void:
 	if _map_def != null:
@@ -1085,6 +1111,7 @@ func _set_mode(mode: Mode) -> void:
 
 	if _ghost != null:
 		_ghost.visible = false
+	_hide_axis_line()
 
 
 func _update_ghost(hit: Dictionary) -> void:
@@ -1096,20 +1123,36 @@ func _update_ghost(hit: Dictionary) -> void:
 	if _mode == Mode.BLOCK:
 		if not hit.get("hit", false):
 			_ghost.visible = false
+			_hide_axis_line()
 			return
 		var cell := _target_cell(hit, is_erase)
 		if cell == Vector3i.MIN:
 			_ghost.visible = false
+			_hide_axis_line()
 			return
-		_ghost.mesh = _box_mesh
-		var bounds := _brush_box(cell)
-		_ghost.global_position = _box_center(bounds)
+		var cell_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
 		var rot_basis := VoxelBlockEncoder.rot_index_to_basis(_active_rotation_index)
-		_ghost.transform.basis = rot_basis.scaled(Vector3(_brush_diameter, _brush_diameter, _brush_diameter))
+		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index) if _block_library != null else null
+		if not is_erase and def != null and def.mesh != null and _brush_diameter == 1:
+			_ghost.mesh = def.mesh
+			var mesh_aabb := def.mesh.get_aabb()
+			var local_center := mesh_aabb.get_center()
+			_ghost.global_position = cell_center - rot_basis * local_center
+			_ghost.transform.basis = rot_basis
+		else:
+			_ghost.mesh = _box_mesh
+			var bounds := _brush_box(cell)
+			_ghost.global_position = _box_center(bounds)
+			_ghost.transform.basis = rot_basis.scaled(Vector3(_brush_diameter, _brush_diameter, _brush_diameter))
 		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.2, 0.8, 0.2, 0.5)
 		_ghost.visible = true
+		if not is_erase:
+			_update_axis_line(cell_center)
+		else:
+			_hide_axis_line()
 
 	elif _mode == Mode.TERRAIN:
+		_hide_axis_line()
 		if not hit.get("hit", false):
 			_ghost.visible = false
 			return
@@ -1123,14 +1166,17 @@ func _update_ghost(hit: Dictionary) -> void:
 	elif _mode == Mode.FURNITURE:
 		if _furniture_defs.is_empty() or _selected_furniture_idx < 0 or _selected_furniture_idx >= _furniture_defs.size():
 			_ghost.visible = false
+			_hide_axis_line()
 			return
 		var def := _furniture_defs[_selected_furniture_idx]
 		if def == null or def.mesh == null or not hit.get("hit", false):
 			_ghost.visible = false
+			_hide_axis_line()
 			return
 		var anchor := _target_cell(hit, false)
 		if anchor == Vector3i.MIN:
 			_ghost.visible = false
+			_hide_axis_line()
 			return
 		_ghost.mesh = def.mesh
 		_ghost.scale = Vector3.ONE
@@ -1140,8 +1186,13 @@ func _update_ghost(hit: Dictionary) -> void:
 		_ghost.global_rotation = Vector3(0, deg_to_rad(_yaw * 90), 0)
 		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.4, 0.8, 1.0, 0.5)
 		_ghost.visible = true
+		if not is_erase:
+			_update_axis_line(origin + Vector3(0, float(dims.y) * 0.5, 0))
+		else:
+			_hide_axis_line()
 
 	elif _mode == Mode.SPAWN:
+		_hide_axis_line()
 		if not hit.get("hit", false):
 			_ghost.visible = false
 			return
@@ -1155,6 +1206,7 @@ func _update_ghost(hit: Dictionary) -> void:
 		_ghost.visible = true
 
 	elif _mode == Mode.STRUCTURE:
+		_hide_axis_line()
 		_ghost.visible = false
 		if not hit.get("hit", false) or _structure_tool == null or _structure_tool.get_active_structure() == null:
 			if _structure_tool != null:
@@ -1168,6 +1220,7 @@ func _update_ghost(hit: Dictionary) -> void:
 		_structure_tool.update_ghost_position(cell)
 
 	else:
+		_hide_axis_line()
 		_ghost.visible = false
 
 
@@ -1366,9 +1419,15 @@ func _do_furniture_remove(hit: Dictionary) -> void:
 			_hud.set_map_info(_map_def.id, _dirty)
 
 
-func _do_furniture_rotate() -> void:
-	_yaw = (_yaw + 1) % 4
+func _do_furniture_rotate_step(dir: int = 1) -> void:
+	if dir > 0:
+		_yaw = (_yaw + 1) % 4
+	else:
+		_yaw = (_yaw - 1 + 4) % 4
 	_update_hud_info()
+	if _camera != null and _ghost != null and _mode == Mode.FURNITURE:
+		var hit := _raycast_from_camera()
+		_update_ghost(hit)
 
 
 func _cycle_furniture(dir: int) -> void:
@@ -1557,9 +1616,7 @@ func _cycle_block(dir: int) -> void:
 		return
 	var filtered: Array[int] = _hud.get_filtered_block_indices() if _hud != null else []
 	if filtered.is_empty():
-		for idx in _block_library._defs_by_index.keys():
-			filtered.append(idx)
-		filtered.sort()
+		filtered = _block_library.get_base_indices()
 	if filtered.is_empty():
 		return
 	var cur_pos := filtered.find(_selected_block_index)
@@ -1570,14 +1627,27 @@ func _cycle_block(dir: int) -> void:
 		if cur_pos < 0:
 			cur_pos += filtered.size()
 	_selected_block_index = filtered[cur_pos]
+	var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
+	if def != null and def.is_rotatable():
+		_active_rotation_index = def.sanitize_rotation(_active_rotation_index)
+	elif def != null and not def.is_rotatable():
+		_active_rotation_index = 0
 	if _hud != null:
 		_hud.select_block_by_index(_selected_block_index)
 	_update_hud_info()
+	if _camera != null and _ghost != null and _mode == Mode.BLOCK:
+		var hit := _raycast_from_camera()
+		_update_ghost(hit)
 
 
 func _on_hud_block_selected(idx: int) -> void:
 	if _block_library != null and _block_library.get_def_by_index(idx) != null:
 		_selected_block_index = idx
+		var def: BlockDef = _block_library.get_def_by_index(idx)
+		if def != null and def.is_rotatable():
+			_active_rotation_index = def.sanitize_rotation(_active_rotation_index)
+		elif def != null and not def.is_rotatable():
+			_active_rotation_index = 0
 		_update_hud_info()
 		if _camera != null and _ghost != null and _mode == Mode.BLOCK:
 			var hit := _raycast_from_camera()
@@ -1587,20 +1657,21 @@ func _on_hud_block_selected(idx: int) -> void:
 func _update_hud_info() -> void:
 	if _hud == null:
 		return
+	var axis_name := _get_rotation_axis_name()
 	if _block_library != null:
 		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
 		var block_name := def.display_name if def != null and not def.display_name.is_empty() else (def.id if def != null else "Unknown")
 		var block_id := def.id if def != null else ""
-		_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index, _active_rotation_index)
+		_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index, _active_rotation_index, axis_name)
 	_hud.set_terrain_info(_terrain_material_id, _sculpt_radius)
 	if not _furniture_defs.is_empty() and _selected_furniture_idx >= 0 and _selected_furniture_idx < _furniture_defs.size():
 		var fdef: FurnitureDef = _furniture_defs[_selected_furniture_idx]
 		var fname := fdef.display_name if fdef != null and not fdef.display_name.is_empty() else (fdef.id if fdef != null else "Unknown")
 		var dims := fdef.dimensions if fdef != null else Vector3i.ONE
 		var fid := fdef.id if fdef != null else ""
-		_hud.set_furniture_info(fname, _yaw, dims, fid)
+		_hud.set_furniture_info(fname, _yaw, dims, fid, axis_name)
 	else:
-		_hud.set_furniture_info("None", _yaw)
+		_hud.set_furniture_info("None", _yaw, Vector3i.ONE, "", axis_name)
 
 
 func save_map() -> void:
@@ -1642,8 +1713,54 @@ func save_map() -> void:
 			_hud.set_map_info(_map_def.id, _dirty)
 
 
-func _rotate_block_brush(axis: Vector3) -> void:
-	_active_rotation_index = VoxelBlockEncoder.rotate_around_axis(_active_rotation_index, axis, PI / 2.0)
+func _get_rotation_axis_vector() -> Vector3:
+	match _active_rotation_axis:
+		RotationAxis.X: return Vector3.RIGHT
+		RotationAxis.Y: return Vector3.UP
+		RotationAxis.Z: return Vector3.FORWARD
+		_: return Vector3.UP
+
+
+func _get_rotation_axis_name() -> String:
+	match _active_rotation_axis:
+		RotationAxis.X: return "X [Pitch]"
+		RotationAxis.Y: return "Y [Yaw]"
+		RotationAxis.Z: return "Z [Roll]"
+		_: return "Y [Yaw]"
+
+
+func _cycle_rotation_axis() -> void:
+	_active_rotation_axis = (_active_rotation_axis + 1) % 3
+	_update_hud_info()
+	if _camera != null and _ghost != null and (_mode == Mode.BLOCK or _mode == Mode.FURNITURE):
+		var hit := _raycast_from_camera()
+		_update_ghost(hit)
+
+
+func _update_axis_line(pos: Vector3) -> void:
+	if _axis_line == null or _axis_line_mat == null:
+		return
+	_axis_line.global_position = pos
+	match _active_rotation_axis:
+		RotationAxis.Y:
+			_axis_line.transform.basis = Basis.IDENTITY
+			_axis_line_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.95)
+		RotationAxis.X:
+			_axis_line.transform.basis = Basis(Vector3.FORWARD, deg_to_rad(90))
+			_axis_line_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.95)
+		RotationAxis.Z:
+			_axis_line.transform.basis = Basis(Vector3.RIGHT, deg_to_rad(90))
+			_axis_line_mat.albedo_color = Color(0.2, 0.6, 1.0, 0.95)
+	_axis_line.visible = true
+
+
+func _hide_axis_line() -> void:
+	if _axis_line != null:
+		_axis_line.visible = false
+
+
+func _rotate_block_brush(axis: Vector3, step_angle_rad: float = PI / 2.0) -> void:
+	_active_rotation_index = VoxelBlockEncoder.rotate_around_axis(_active_rotation_index, axis, step_angle_rad)
 	if _block_library != null:
 		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
 		if def != null and def.is_rotatable():
@@ -1655,6 +1772,8 @@ func _rotate_block_brush(axis: Vector3) -> void:
 
 func _reset_block_rotation() -> void:
 	_active_rotation_index = 0
+	_active_rotation_axis = RotationAxis.Y
+	_yaw = 0
 	_update_hud_info()
 	var hit := _raycast_from_camera()
 	_update_ghost(hit)

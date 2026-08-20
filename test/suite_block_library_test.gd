@@ -126,3 +126,19 @@ func _render_vertex_set(mesher: VoxelMesherBlocky, value: int) -> Array:
 				var rel := v - Vector3(4, 4, 4)
 				seen[Vector3(round(rel.x * 100.0) / 100.0, round(rel.y * 100.0) / 100.0, round(rel.z * 100.0) / 100.0)] = true
 	return seen.keys()
+
+func test_base_indices_contain_only_base_defs() -> void:
+	var lib := BlockLibrary.new()
+	var base_indices := lib.get_base_indices()
+	# 7 shipped base definitions (terrain, metal, reinforced, scrap, stone, wood, wood_stairs)
+	assert_int(base_indices.size()).is_equal(7)
+	assert_array(base_indices).contains_exactly([1, 2, 3, 4, 5, 6, 7])
+
+	# Base index check
+	for idx in base_indices:
+		assert_bool(lib.is_base_index(idx)).is_true()
+
+	# Variants and air are not base indices
+	assert_bool(lib.is_base_index(0)).is_false()
+	for variant_idx in range(8, lib.get_voxel_library().get_models().size()):
+		assert_bool(lib.is_base_index(variant_idx)).is_false()
