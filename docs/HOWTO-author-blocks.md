@@ -156,12 +156,19 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
 | `id` | `"wedge_wood"` | Unique string key (matches filename). |
 | `display_name` | `"Wooden Wedge"` | UI label in Map Editor & Build Menu. |
 | `rotation_mode` | `FULL_3D` (`24`) | `NONE` (1), `YAW_ONLY` (4), or `FULL_3D` (24). Triggers automatic variant baking. |
-| `base_mesh` | `res://assets/blocks/wedge_wood.obj` | Unrotated base source mesh variants are baked from (falls back to `mesh`). |
+| `mesh` | `res://assets/blocks/wedge_wood.obj` | Unrotated base source mesh in `[0, 1]³` bounding box (variants are baked from this). |
 | `texture` | `res://assets/blocks/wood_albedo.png` | Albedo texture map. |
 | `texture_variation` | `true` | Enables UV/brightness shader variation. |
 | `hp` | `100` | Block durability. |
 | `material_cost` | `[10 x wood_block]` | Crafting/building cost (Array of `ItemAmount`). |
 | `type_id` / `base_library_id` | *(leave defaults)* | Informational fields — library indices are assigned automatically by `BlockLibrary` at startup; you never allocate them. |
+
+### Step 3: Bake Voxel Library (`voxel_library.tres`)
+1. In Godot's Script Editor, open `tools/bake_voxel_library.gd`.
+2. Go to **File** → **Run** (or click **Run** on the EditorScript toolbar).
+3. Confirm the Godot Output panel prints: `bake_voxel_library: wrote res://data/blocks/voxel_library.tres (N models)`.
+
+*Why this step is required*: Game runtime dynamically scans `data/blocks/*.tres` and builds the library in memory, but Godot Editor viewports and `.tscn` map scenes (`subsystems/maps/map_template.tscn`, `data/maps/dev/map.tscn`) require `voxel_library.tres` baked on disk so block meshes render in the editor.
 
 ---
 

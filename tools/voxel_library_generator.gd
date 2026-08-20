@@ -15,8 +15,7 @@ extends RefCounted
 ## One variant model for the def at the given orthogonal orientation.
 static func create_block_model(block_def: BlockDef, ortho_index: int) -> VoxelBlockyModelMesh:
 	var model := VoxelBlockyModelMesh.new()
-	var mesh_to_use: Mesh = block_def.base_mesh if block_def.base_mesh != null else block_def.mesh
-	model.mesh = mesh_to_use
+	model.mesh = block_def.mesh
 	if "mesh_ortho_rotation_index" in model:
 		model.mesh_ortho_rotation_index = ortho_index
 	elif "mesh_ortho_rotation" in model:

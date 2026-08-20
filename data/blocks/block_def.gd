@@ -28,10 +28,6 @@ const YAW_INDICES: Array[int] = [0, 22, 10, 16]
 ## never hand-make rotated meshes.
 @export var rotation_mode: RotationMode = RotationMode.NONE
 
-## Unrotated source mesh for custom shapes. Variant models are baked from this
-## (falls back to `mesh` when null).
-@export var base_mesh: Mesh = null
-
 ## The def's base index in the assembled VoxelBlockyLibrary. Informational:
 ## BlockLibrary assigns it deterministically at build (see its index
 ## convention); VoxelLibraryGenerator uses it when registering into a baked

@@ -107,7 +107,6 @@ Global Energy values (shared across all characters). Per-character rates (Stamin
 |---|---|---|
 | `is_terrain` | `bool` | `[export default false]` BlockDef's own field. True for the indestructible terrain block (forced to voxel-tool library index 1 by `BlockLibrary`). |
 | `rotation_mode` | `RotationMode` | `[export default NONE]` Rotational symmetry mode (NONE = 1, YAW_ONLY = 4, FULL_3D = 24). Non-NONE makes `BlockLibrary` bake variant models at runtime (all share this def's mesh) — authors ship one unrotated mesh, never rotated copies. |
-| `base_mesh` | `Mesh` | `[export default null]` Unrotated source mesh variants are baked from (falls back to `mesh` when null). |
 | `base_library_id` | `int` | `[export default 0]` Informational: the def's base index in the assembled `VoxelBlockyLibrary` (assigned by `BlockLibrary`; used by `VoxelLibraryGenerator` when registering into a baked editor library). |
 | `type_id` | `int` | `[export default 0]` Base library index used by `BlockPlacementController.commit_placement` (0 = air — unset content stamps air). |
 | `id` | `String` | *(inherited)* e.g. `"wood"`, `"scrap"`, `"stone"`. |
