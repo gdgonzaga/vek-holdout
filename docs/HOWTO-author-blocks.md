@@ -182,3 +182,69 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
    - Press `I` or `Alt + LMB` / `MMB` on a placed block.
    - Verify that both the block type ID and the rotation index are correctly picked up by the brush.
 8. Save (`Ctrl + S`) and reload the map to confirm full rotation persistence.
+
+---
+
+## 6. Save Compatibility: What Breaks Old Maps (and What Doesn't)
+
+Maps store **raw voxel values = library model indices** (`map.sqlite`), so old
+maps keep loading correctly only as long as the library's index layout stays
+compatible with what was saved. `BlockLibrary` builds the layout as:
+**base table** (0 = air, 1 = terrain, remaining blocks alphabetically) followed
+by a **variant appendix** (rotation variants of rotatable blocks, in base-table
+order). The rules below follow from that layout.
+
+### Safe: adding rotation to a previously single-variant block
+
+Old maps only contain **base** indices for that block (it couldn't rotate when
+they were saved). Base indices never move when a def becomes rotatable, and the
+base model *is* the rotation-0 variant — so every stored value resolves to the
+same block, same orientation, same mesh. Existing maps load unchanged. Go
+ahead and add `rotation_mode` to any existing block.
+
+### Hazard: making an *earlier-sorting* block rotatable later
+
+Variant indices in the appendix depend on **which** blocks are rotatable. If
+map A was saved with rotated `wood` voxels (variant index 7, say) and you then
+make `metal` rotatable too, `metal` sorts before `wood` — metal's variants now
+occupy 7–9 and wood's shift to 10–12. Map A's stored `7` silently renders as
+rotated **metal**. The voxels still render and collide (every in-range value is
+a real model), but they are the wrong block. Rule: once maps with rotated
+voxels of a block are in circulation, don't make any *alphabetically earlier*
+block rotatable (and re-save those maps only in the same content configuration
+they were painted in).
+
+### Dangerous: *removing* rotation from a block
+
+If a map was saved while the block was rotatable, it may store variant indices
+from the larger library. Removing the rotation shrinks the library, and stored
+values beyond the new model count render **nothing** — invisible, non-colliding
+voxels that still persist across saves (the same failure class as the
+2026-08-20 stamping bug, but caused by content drift instead of packed values).
+Rule: never un-mark `rotation_mode` on a block whose rotated voxels may exist
+in saved maps.
+
+### Conditional: adding a new block type
+
+The base table is alphabetical (after air and terrain). A new `BlockDef` whose
+id sorts **after every existing one** (currently: after `wood` — e.g. `zinc`)
+is appended and is fully safe. One that sorts **before** an existing block
+(`brick` < `metal`) shifts that block's base index — every saved voxel of it
+in old maps then misidentifies (wrong block, still renders). Rule: **new block
+ids must sort alphabetically after all existing ids**.
+
+### Quick reference
+
+| Change | Old maps… |
+|---|---|
+| Add `rotation_mode` to an existing block | load unchanged — safe |
+| Make an earlier-sorting block rotatable (after rotated saves exist) | re-interpret its variant indices as the wrong block |
+| Remove `rotation_mode` from a block | may contain out-of-range values → invisible voxels |
+| Add a block id sorting after `wood` | load unchanged — safe |
+| Add a block id sorting before an existing block | shift that block's indices → wrong block |
+
+If these rules ever become real friction, the durable fix is a per-map library
+manifest (record the index layout a map was saved against and remap on load) —
+see `docs/architecture/tech-debt.md` before designing one. The full layout
+convention lives in `docs/architecture/voxel-world.md` (BlockLibrary) and
+`docs/VOXEL-TOOL-NOTES.md`.

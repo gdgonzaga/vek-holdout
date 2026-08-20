@@ -66,6 +66,8 @@ Brawlers attack the lowest-HP block in range; Shooters path through the lowest-r
 
 **Player input map data file** — GDD §4 has a full key map; ARCH has no corresponding `data/input_map.tres` or similar. **Partially resolved:** player input reading is now centralized in `InputComponent` (`subsystems/player/input_component.gd`), but the action bindings themselves are still defined in `project.godot`'s `[input]` section. A data file would allow runtime rebinding.
 
+**Block library index manifest for map saves** — maps store raw voxel values = `BlockLibrary` model indices (`map.sqlite`), so a map is only guaranteed to load correctly against the layout it was saved with. The base table is alphabetical (after air/terrain) and the rotation-variant appendix depends on which defs are rotatable, so adding an earlier-sorting block id, making an earlier-sorting def rotatable, or removing rotation can shift/reinterpret saved indices (full hazard table in `docs/HOWTO-author-blocks.md` §6). **Missing:** a per-map manifest recording the library layout at save time (ids → indices, variant layout) and a remap-on-load pass. Authoring discipline (append-only ids, rotation only ever added, never removed) is the interim mitigation.
+
 ### Data schemas still missing (C-items)
 
 These data folders are *referenced* in Files tables but have no formal schema in the Data Schemas section. Low-decision work; mostly mechanical once the owning subsystem is settled:
