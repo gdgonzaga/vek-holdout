@@ -12,27 +12,65 @@
 
 Voxel blocks in *Vek: Holdout* are discrete 1-meter cubic units rendered by Zylann's blocky voxel mesher (`VoxelMesherBlocky`). To ensure clean face-stitching and alignment across chunk boundaries, every authored 3D mesh MUST adhere strictly to the following rules:
 
-### A. Block Sizing & Scale
+### A. Block Sizing & Bounding Box
 - **Dimensions**: Exactly **1.0 m × 1.0 m × 1.0 m**.
-- **Bounding Box**: The mesh geometry must span from `(0, 0, 0)` to `(1, 1, 1)` in 3D space.
+- **Bounding Box**: All vertices MUST span strictly from `(0.0, 0.0, 0.0)` to `(1.0, 1.0, 1.0)`:
+  - `X` in `[0.0, 1.0]` (Left = 0.0, Right = 1.0)
+  - `Y` in `[0.0, 1.0]` (Bottom = 0.0, Top = 1.0)
+  - `Z` in `[0.0, 1.0]` (Front = 0.0, Back = 1.0)
 - **Blender Units**: Set Scene Units to **Metric** with Unit Scale **1.0** (Length: Meters).
 
-> [!IMPORTANT]
-> **Do NOT center the mesh at (0, 0, 0)!**  
-> In Godot's voxel coordinate convention, cell origins sit at the minimum corner. A centered mesh spanning `(-0.5, -0.5, -0.5) → (0.5, 0.5, 0.5)` will render shifted by half a block. Always align the bottom-left-back vertex/corner to `(0, 0, 0)`.
+> [!CAUTION]
+> **CRITICAL: Mesh Coordinates MUST Be in Positive [0, 1]³ Space!**  
+> `VoxelMesherBlocky` in the voxel engine generates rotation variants and collision shapes by rotating the source mesh around the unit cell center `(0.5, 0.5, 0.5)`.  
+> - **Never center the mesh around (0, 0, 0)**: Centered geometry spanning `[-0.5, 0.5]³` renders half a block off-grid.
+> - **Never export with negative Z space `[-1.0, 0.0]`**: In Blender, if the model extends toward negative Z or is exported with inverted Z, rotating the block in-game will shift the rendered block and collision mesh by **1 to 2 cells away from the ghost preview**!
+> - Verify in Godot after import: `mesh.get_aabb()` MUST be `[P: (0.0, 0.0, 0.0), S: (1.0, 1.0, 1.0)]`.
 
-### B. Origin Positioning
-- Place the Object Origin at **`(0.0, 0.0, 0.0)`** (the minimum corner).
-- In Blender:
-  1. Move the 3D Cursor to World Origin (`Shift + C` or `Shift + S` → **Cursor to World Origin**).
-  2. Select your mesh object in Object Mode.
-  3. Go to **Object → Set Origin → Origin to 3D Cursor**.
+### B. Visual Origin & Pivot Placement in Blender
+
+For a 3D artist authoring a block, the simplest way to position the origin is by **visual reference**:
+
+When you look directly at the **front** of your block (e.g. standing at the bottom of the stairs looking up the steps, or at the base of a ramp looking up the slope):
+
+- **The Origin (Blender's orange dot) must be located at the REAR-RIGHT corner on the floor.**
+- From that origin dot, the entire 1.0 m × 1.0 m × 1.0 m block body extends:
+  - **Forward** (towards you)
+  - **To your Left**
+  - **Upward** from the floor
+
+```
+                    TOP (High Step / Top of Ramp)
+                   +-----------------------+
+                  /                       /|
+                 /                       / |
+                /                       /  |
+               +-----------------------+   |
+               |                       |   |
+               |                       |   | 📍 ORIGIN DOT (0, 0, 0)
+               |                       |   |   (Rear-Right Corner on Floor)
+               |                       |   +
+               |                       |  /
+               |                       | /
+               +-----------------------+/
+             FRONT (Low Step / Entrance)
+            ▲
+      Looking from front
+```
+
+#### Step-by-Step in Blender:
+1. In Edit Mode, position the object so that when viewing its front, its **rear-right-bottom corner** sits at the 3D Cursor / World Origin `(0, 0, 0)`.
+2. The entire 1m³ geometry should sit in front of and to the left of the origin point, resting on the floor grid.
+3. In Object Mode, press `Ctrl + A` → **Apply All Transforms** (or **Object → Set Origin → Origin to 3D Cursor**).
+4. Verify that the orange Origin dot sits at the **rear-right corner on the floor**.
 
 ### C. Orientation & Facing Convention
-- Author non-symmetric shapes (e.g. wedges, stairs, slopes) in their **default unrotated orientation**:
-  - **Front/Facing Direction**: `+Z` (Forward)
-  - **Top/Up Direction**: `+Y` (Up)
-  - **Side Direction**: `+X` (Right)
+Author non-symmetric shapes (e.g. wedges, stairs, slopes) in their **default unrotated orientation**:
+- **Front / Low Edge**: `Z = 0.0`
+- **Back / High Edge**: `Z = 1.0`
+- **Bottom / Base**: `Y = 0.0`
+- **Top**: `Y = 1.0`
+- **Side Faces**: `X = 0.0` (Left) and `X = 1.0` (Right)
 
 ### D. Geometry & Normals
 - **Face Normals**: Ensure all face normals point outward (`Shift + N` in Edit Mode).
@@ -43,14 +81,14 @@ Voxel blocks in *Vek: Holdout* are discrete 1-meter cubic units rendered by Zyla
 We recommend exporting as **GLTF / GLB (`.glb`)** or **Wavefront OBJ (`.obj`)**:
 
 #### Exporting as GLTF/GLB (`.glb`):
-1. **File Format**: `gTF Binary (.glb)`
+1. **File Format**: `glTF Binary (.glb)`
 2. **Transform**:
-   - `+Y` Up
+   - `+Y Up`
    - **Apply Modifiers**: Checked
 3. **Include**: Selected Objects only
 
 #### Exporting as OBJ (`.obj`):
-1. **Forward**: `-Z Forward`
+1. **Forward**: `+Z Forward` (or ensure exported vertex lines `v x y z` have `z >= 0.0`)
 2. **Up**: `Y Up`
 3. **Scale**: `1.0`
 4. **Triangulate Faces**: Optional (Godot automatically handles quad triangulation).
@@ -178,12 +216,12 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
 1. Open and run the Map Editor scene (`tools/map_editor/map_editor.tscn` or press `F6`).
 2. Press `F2` to switch to **Block Mode**.
 3. Select your new block in the **Block Palette** panel on the left.
-4. Test **3-Axis Rotation Hotkeys**:
-   - `R`: Cycle **Yaw** (`Y`-axis, horizontal turn).
-   - `Shift + R`: Cycle **Pitch** (`X`-axis, vertical tilt).
-   - `Ctrl + R` / `Cmd + R`: Cycle **Roll** (`Z`-axis, lateral twist).
-   - `Z` / `~`: Reset rotation to default (`0`).
-5. Observe the `%OrientationLabel` in the HUD updating `Rot: #<index> [Yaw <deg>°, Pitch <deg>°]`.
+4. Test **Unified Rotation Inputs**:
+   - **Mouse Wheel Up / Down**: Rotate **±90°** along the active rotation axis.
+   - **`R` Key**: Cycle the active rotation axis (**Y [Yaw] → X [Pitch] → Z [Roll] → Y [Yaw]**).
+   - **3D Axis Visualizer**: A colored line through the preview center indicates the active axis (🟢 **Green** = Y, 🔴 **Red** = X, 🔵 **Blue** = Z).
+   - **`Z` or `~` Key**: Reset rotation orientation to identity (`0`) and axis to **Y [Yaw]**.
+5. Observe the `%OrientationLabel` in the HUD updating `Rot: #<index> [Y <deg>°, X <deg>°] | Axis: <axis> [R]`.
 6. Click to place the rotated block into the terrain.
 7. Test the **Eyedropper / Pick Tool**:
    - Press `I` or `Alt + LMB` / `MMB` on a placed block.
