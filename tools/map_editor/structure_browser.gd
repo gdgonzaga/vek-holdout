@@ -107,6 +107,7 @@ func setup(
 	# ItemList
 	_item_list = ItemList.new()
 	_item_list.name = "ItemList"
+	_item_list.focus_mode = Control.FOCUS_NONE
 	_item_list.select_mode = ItemList.SELECT_SINGLE
 	_item_list.allow_reselect = true
 	_item_list.size_flags_vertical = Control.SIZE_EXPAND_FILL

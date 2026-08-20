@@ -306,6 +306,8 @@ func _input(event: InputEvent) -> void:
 						_do_structure_stamp(hit)
 						get_viewport().set_input_as_handled()
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				if not mb.pressed:
+					return
 				var wheel_dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
 				if Input.is_key_pressed(KEY_B):
 					if _mode == Mode.BLOCK:
