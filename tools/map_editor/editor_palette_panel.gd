@@ -131,6 +131,7 @@ func _filter_items(query: String) -> void:
 	if _item_list == null:
 		return
 	_item_list.clear()
+	_item_list.fixed_icon_size =  Vector2i(64, 64)
 	_filtered_indices.clear()
 
 	var q := query.strip_edges().to_lower()
