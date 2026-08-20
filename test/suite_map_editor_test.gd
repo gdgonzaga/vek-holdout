@@ -27,6 +27,10 @@ func test_editor_hud_modes_and_info() -> void:
 	hud.set_mode(MapEditorClass.Mode.SPAWN)
 	assert_str(hud._mode_label.text).contains("SPAWN")
 
+	hud.set_mode(MapEditorClass.Mode.STRUCTURE)
+	assert_str(hud._mode_label.text).contains("STRUCTURE")
+	assert_bool(hud._structure_browser.visible).is_true()
+
 	hud.set_map_info("test_map", false)
 	assert_str(hud._map_info_label.text).is_equal("Map: test_map")
 

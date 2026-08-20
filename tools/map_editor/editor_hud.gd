@@ -9,9 +9,11 @@ extends CanvasLayer
 ## Owned by MapEditor. Built procedurally in code.
 
 const EditorPalettePanelClass = preload("res://tools/map_editor/editor_palette_panel.gd")
+const StructureBrowserClass = preload("res://tools/map_editor/structure_browser.gd")
 
 signal block_selected(index: int)
 signal furniture_selected(index: int)
+signal structure_selected(index: int)
 signal save_requested()
 ## Terrain drawer: the editor writes def params / image, then reloads the map.
 signal terrain_apply_requested()
@@ -48,6 +50,8 @@ var _furniture_item_list: ItemList         # Alias for backward compatibility
 var _furniture_label: Label               # Alias for backward compatibility
 var _furniture_id_label: Label            # Alias for backward compatibility
 var _furniture_defs: Array[FurnitureDef] = []
+
+var _structure_browser: StructureBrowserClass
 var _selected_global_idx: int = 0
 
 var _spawn_info_panel: PanelContainer
@@ -84,14 +88,16 @@ const MODE_NAMES: Array[String] = [
 	"TERRAIN",
 	"FURNITURE",
 	"SPAWN",
+	"STRUCTURE",
 ]
 
 const MODE_HOTKEYS: Array[String] = [
-	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [G] Grid   [Esc] Menu   [F1-F5] Modes",
+	"[LMB] Look   [WASD/Space/C] Fly   [Shift] Fast   [G] Grid   [Esc] Menu   [F1-F6] Modes",
 	"[LMB] Paint   [Shift+LMB] Erase   [Tab/List] Select   [B+Scroll] Size   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
 	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Scroll] Radius   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
 	"[LMB] Place   [Shift+LMB] Remove   [Tab/List] Select   [R] Rotate   [Ctrl+S] Save   [G] Grid",
-	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [G] Grid   [F1-F5] Modes",
+	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [G] Grid   [F1-F6] Modes",
+	"[LMB] Stamp   [Wheel] Rotate   [Ctrl+Wheel] Y-Offset   [Arrows] Nudge   [Tab/List] Select   [Ctrl+Z] Undo   [G] Grid",
 ]
 
 
@@ -241,6 +247,22 @@ func _build_ui() -> void:
 	_furniture_id_label = _furniture_palette._id_label
 
 	root.add_child(_furniture_palette)
+
+	# --- Structure Browser Sidebar (Top Left) ---
+	_structure_browser = StructureBrowserClass.new()
+	_structure_browser.name = "StructureBrowserPanel"
+	_structure_browser.setup(
+		"STRUCTURES",
+		"Filter structures... (Esc to unfocus)",
+		Color(0.65, 0.4, 0.85, 0.85),
+		Color(0.9, 0.85, 0.98)
+	)
+	_structure_browser.item_selected.connect(func(idx: int) -> void:
+		_selected_global_idx = idx
+		structure_selected.emit(idx)
+	)
+	_structure_browser.visible = false
+	root.add_child(_structure_browser)
 
 	# --- Spawn Info (Top Left) ---
 	_spawn_info_panel = PanelContainer.new()
@@ -820,9 +842,30 @@ func get_filtered_furniture_indices() -> Array[int]:
 	return _furniture_palette.get_filtered_indices() if _furniture_palette != null else []
 
 
+func populate_structure_list(defs: Array[StructureDef], selected_idx: int = 0) -> void:
+	if _structure_browser != null:
+		_structure_browser.populate(defs, selected_idx)
+
+
+func select_structure_by_index(global_idx: int) -> void:
+	if _structure_browser != null:
+		_structure_browser.select_by_index(global_idx)
+
+
+func get_filtered_structure_indices() -> Array[int]:
+	return _structure_browser.get_filtered_indices() if _structure_browser != null else []
+
+
+func set_structure_info(def: StructureDef) -> void:
+	if _structure_browser != null:
+		_structure_browser.set_selected_info(def)
+
+
 # --- Focus and Mode API ---
 
 func is_search_focused() -> bool:
+	if _structure_browser != null and _structure_browser.is_search_focused():
+		return true
 	if _furniture_palette != null and _furniture_palette.is_search_focused():
 		return true
 	if _block_palette != null and _block_palette.is_search_focused():
@@ -831,6 +874,8 @@ func is_search_focused() -> bool:
 
 
 func unfocus_search() -> void:
+	if _structure_browser != null and _structure_browser.is_search_focused():
+		_structure_browser.unfocus_search()
 	if _furniture_palette != null and _furniture_palette.is_search_focused():
 		_furniture_palette.unfocus_search()
 	if _block_palette != null and _block_palette.is_search_focused():
@@ -1081,6 +1126,8 @@ func set_mode(mode: int) -> void:
 		_furniture_palette.visible = (mode == 3) # Mode.FURNITURE
 	if _spawn_info_panel != null:
 		_spawn_info_panel.visible = (mode == 4) # Mode.SPAWN
+	if _structure_browser != null:
+		_structure_browser.visible = (mode == 5) # Mode.STRUCTURE
 
 	# Color the mode badge
 	var badge_style := _mode_badge.get_theme_stylebox("panel") as StyleBoxFlat
@@ -1096,6 +1143,8 @@ func set_mode(mode: int) -> void:
 				badge_style.border_color = Color(0.7, 0.3, 0.8, 0.9)
 			4: # SPAWN
 				badge_style.border_color = Color(0.9, 0.3, 0.3, 0.9)
+			5: # STRUCTURE
+				badge_style.border_color = Color(0.65, 0.4, 0.85, 0.9)
 
 
 func _on_save_pressed() -> void:

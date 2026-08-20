@@ -11,6 +11,7 @@ const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
 const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
 const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
 const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_authoring.gd")
+const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
 
 const MAPS_DIR: String = "res://data/maps/"
 const TERRAIN_DIR: String = "res://data/terrain/"
@@ -36,6 +37,7 @@ enum Mode {
 	TERRAIN,
 	FURNITURE,
 	SPAWN,
+	STRUCTURE,
 }
 
 var _mode: Mode = Mode.NAVIGATE
@@ -70,6 +72,9 @@ var _terrain_material_id: String = "ground"
 var _furniture_auth: FurnitureAuthoring = null
 var _furniture_defs: Array[FurnitureDef] = []
 var _selected_furniture_idx: int = 0
+var _structure_defs: Array[StructureDef] = []
+var _selected_structure_idx: int = 0
+var _structure_tool: StructureToolClass = null
 var _yaw: int = 0 # Quarter turns (0..3)
 var _spawn_markers: Dictionary = {"player": null, "colonists": []}
 
@@ -91,12 +96,19 @@ func _ready() -> void:
 	_block_library = BlockLibrary.new()
 	_furniture_defs = _load_furniture_defs()
 	_furniture_auth = FurnitureAuthoringClass.new()
+	_structure_defs = _load_structure_defs()
+	_structure_tool = StructureToolClass.new()
+	_structure_tool.name = "StructureTool"
+	add_child(_structure_tool)
+	if not _structure_defs.is_empty():
+		_structure_tool.set_active_structure(_structure_defs[0])
 
 	_hud = EditorHUDClass.new()
 	add_child(_hud)
 	_hud.setup(self)
 	_hud.block_selected.connect(_on_hud_block_selected)
 	_hud.furniture_selected.connect(_on_hud_furniture_selected)
+	_hud.structure_selected.connect(_on_hud_structure_selected)
 	_hud.save_requested.connect(save_map)
 	_hud.terrain_apply_requested.connect(_on_terrain_apply)
 	_hud.terrain_pick_image_requested.connect(_on_terrain_pick_image)
@@ -205,6 +217,9 @@ func _input(event: InputEvent) -> void:
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(dir)
 					get_viewport().set_input_as_handled()
+				elif _mode == Mode.STRUCTURE:
+					_cycle_structure(dir)
+					get_viewport().set_input_as_handled()
 					return
 		return
 
@@ -262,6 +277,21 @@ func _input(event: InputEvent) -> void:
 						_sculpt_radius = clampf(_sculpt_radius + dir * 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
 					_update_hud_info()
 					get_viewport().set_input_as_handled()
+				elif _mode == Mode.STRUCTURE:
+					var wheel_dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
+					if mb.ctrl_pressed:
+						var step := 5 if mb.shift_pressed else 1
+						if _structure_tool != null:
+							_structure_tool.adjust_y_offset(wheel_dir * step)
+							_update_structure_info()
+					else:
+						if _structure_tool != null:
+							if wheel_dir > 0:
+								_structure_tool.rotate_clockwise()
+							else:
+								_structure_tool.rotate_counter_clockwise()
+							_update_structure_info()
+					get_viewport().set_input_as_handled()
 
 	elif event is InputEventKey:
 		var k := event as InputEventKey
@@ -284,6 +314,8 @@ func _input(event: InputEvent) -> void:
 				_set_mode(Mode.FURNITURE)
 			elif k.keycode == KEY_F5:
 				_set_mode(Mode.SPAWN)
+			elif k.keycode == KEY_F6:
+				_set_mode(Mode.STRUCTURE)
 			elif k.keycode == KEY_G:
 				_toggle_grid()
 				get_viewport().set_input_as_handled()
@@ -298,6 +330,8 @@ func _input(event: InputEvent) -> void:
 					_update_hud_info()
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(-1)
+				elif _mode == Mode.STRUCTURE:
+					_cycle_structure(-1)
 			elif k.keycode == KEY_BRACKETRIGHT:
 				if _mode == Mode.BLOCK:
 					_cycle_block(1)
@@ -306,6 +340,8 @@ func _input(event: InputEvent) -> void:
 					_update_hud_info()
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(1)
+				elif _mode == Mode.STRUCTURE:
+					_cycle_structure(1)
 			elif k.keycode == KEY_TAB:
 				var dir := -1 if k.shift_pressed else 1
 				if _mode == Mode.BLOCK:
@@ -313,6 +349,9 @@ func _input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(dir)
+					get_viewport().set_input_as_handled()
+				elif _mode == Mode.STRUCTURE:
+					_cycle_structure(dir)
 					get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_R:
 				if _mode == Mode.BLOCK:
@@ -325,12 +364,28 @@ func _input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 				elif _mode == Mode.FURNITURE:
 					_do_furniture_rotate()
+				elif _mode == Mode.STRUCTURE:
+					if _structure_tool != null:
+						_structure_tool.rotate_clockwise()
+						_update_structure_info()
+					get_viewport().set_input_as_handled()
 			elif (k.keycode == KEY_QUOTELEFT or k.keycode == KEY_SECTION or k.keycode == KEY_ASCIITILDE or (k.keycode == KEY_Z and not k.ctrl_pressed)) and _mode == Mode.BLOCK:
 				_reset_block_rotation()
 				get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_I and _mode == Mode.BLOCK:
 				var hit := _raycast_from_camera()
 				_do_block_pick(hit)
+				get_viewport().set_input_as_handled()
+			elif _mode == Mode.STRUCTURE and (k.keycode == KEY_UP or k.keycode == KEY_DOWN or k.keycode == KEY_LEFT or k.keycode == KEY_RIGHT):
+				var step := 5 if k.shift_pressed else 1
+				var offset := Vector3i.ZERO
+				if k.keycode == KEY_UP: offset.z -= step
+				elif k.keycode == KEY_DOWN: offset.z += step
+				elif k.keycode == KEY_LEFT: offset.x -= step
+				elif k.keycode == KEY_RIGHT: offset.x += step
+				if _structure_tool != null:
+					_structure_tool.nudge(offset)
+					_update_structure_info()
 				get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_S and k.ctrl_pressed:
 				save_map()
@@ -479,6 +534,7 @@ func load_map(map_id: String) -> void:
 	if _hud != null:
 		_hud.populate_block_library(_block_library, _selected_block_index)
 		_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
+		_hud.populate_structure_list(_structure_defs, _selected_structure_idx)
 		_hud.set_map_info(map_id, _dirty)
 		_hud.set_metadata(def.display_name, def.description, def.map_type, def.difficulty)
 		_hud.set_terrain_available(_smooth_grid != null)
@@ -976,7 +1032,19 @@ func _set_mode(mode: Mode) -> void:
 			_hud.populate_block_library(_block_library, _selected_block_index)
 		elif _mode == Mode.FURNITURE:
 			_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
+		elif _mode == Mode.STRUCTURE:
+			_hud.populate_structure_list(_structure_defs, _selected_structure_idx)
+			if not _structure_defs.is_empty() and _selected_structure_idx >= 0 and _selected_structure_idx < _structure_defs.size():
+				if _structure_tool != null:
+					_structure_tool.set_active_structure(_structure_defs[_selected_structure_idx])
 		_update_hud_info()
+
+	if _structure_tool != null:
+		if _mode == Mode.STRUCTURE:
+			_structure_tool.activate()
+		else:
+			_structure_tool.deactivate()
+
 	if _ghost != null:
 		_ghost.visible = false
 
@@ -1515,3 +1583,65 @@ func _do_block_pick(hit: Dictionary) -> void:
 		_hud.select_block_by_index(_selected_block_index)
 	_update_hud_info()
 	_update_ghost(hit)
+
+
+func _load_structure_defs() -> Array[StructureDef]:
+	var out: Array[StructureDef] = []
+	var dir_path := "res://data/structures/"
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		push_warning("MapEditor: could not open " + dir_path)
+		return out
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and (fname.ends_with(".tres") or fname.ends_with(".res")):
+			var res = load(dir_path + fname)
+			if res is StructureDef:
+				out.append(res as StructureDef)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	out.sort_custom(func(a: StructureDef, b: StructureDef) -> bool:
+		var name_a := a.display_name if not a.display_name.is_empty() else a.id
+		var name_b := b.display_name if not b.display_name.is_empty() else b.id
+		return name_a < name_b
+	)
+	return out
+
+
+func _cycle_structure(dir: int) -> void:
+	if _structure_defs.is_empty():
+		return
+	var filtered: Array[int] = _hud.get_filtered_structure_indices() if _hud != null else []
+	if filtered.is_empty():
+		for i in range(_structure_defs.size()):
+			filtered.append(i)
+	var cur_pos := filtered.find(_selected_structure_idx)
+	if cur_pos == -1:
+		cur_pos = 0
+	else:
+		cur_pos = (cur_pos + dir + filtered.size()) % filtered.size()
+	_selected_structure_idx = filtered[cur_pos]
+	if _structure_tool != null and _selected_structure_idx >= 0 and _selected_structure_idx < _structure_defs.size():
+		_structure_tool.set_active_structure(_structure_defs[_selected_structure_idx])
+	if _hud != null:
+		_hud.select_structure_by_index(_selected_structure_idx)
+		_update_structure_info()
+
+
+func _on_hud_structure_selected(idx: int) -> void:
+	if idx >= 0 and idx < _structure_defs.size():
+		_selected_structure_idx = idx
+		if _structure_tool != null:
+			_structure_tool.set_active_structure(_structure_defs[idx])
+		_update_structure_info()
+
+
+func _update_structure_info() -> void:
+	if _hud == null:
+		return
+	if not _structure_defs.is_empty() and _selected_structure_idx >= 0 and _selected_structure_idx < _structure_defs.size():
+		var sdef: StructureDef = _structure_defs[_selected_structure_idx]
+		_hud.set_structure_info(sdef)
+	else:
+		_hud.set_structure_info(null)
