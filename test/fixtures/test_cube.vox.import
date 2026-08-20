@@ -1,0 +1,14 @@
+[remap]
+
+importer="VoxelVoxSceneImporter"
+type="PackedScene"
+uid="uid://dscyswf14rljg"
+path="res://.godot/imported/test_cube.vox-f3405779b0213bc39bb299d24aeb4900.tscn"
+
+[deps]
+
+source_file="res://test/fixtures/test_cube.vox"
+dest_files=["res://.godot/imported/test_cube.vox-f3405779b0213bc39bb299d24aeb4900.tscn"]
+
+[params]
+
