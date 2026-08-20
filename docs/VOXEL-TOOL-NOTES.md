@@ -324,10 +324,46 @@ library index — e.g. packing 11 type bits + 5 rotation bits
 the 2026-08-20 "stamped structures stay ghost-only" bug: the stamper, the block
 brush, and in-game placement all wrote packed values (wood = 6<<5 = 192).
 Verified by driving `VoxelMesherBlocky.build_mesh` directly: value 6 → 24-vert
-cube, value 192 → no mesh. Per-voxel rotation, when needed, is more library
-models (`VoxelLibraryGenerator` bakes rotated variants at
-`base_library_id + slot`), never bit packing. The editor brush and eyedropper
-write/read plain indices; `VoxelBlockEncoder` remains rotation-state math only.
+cube, value 192 → no mesh. The packing functions were removed from
+`VoxelBlockEncoder` — it is rotation-state math only.
+
+### How per-voxel rotation works: baked variant models
+Rotation rides in **which library index is stored**, never in bits of the
+value. The mechanism, end to end:
+
+1. **Authoring** — one unrotated mesh per block plus `rotation_mode` on the
+   `BlockDef` (`NONE`/`YAW_ONLY`/`FULL_3D`). Authors never hand-make rotated
+   meshes.
+2. **Baking** — `BlockLibrary._bake_variants()` appends one `VoxelBlockyModelMesh`
+   per orientation AFTER the whole base table (3 extra for YAW_ONLY, 23 for
+   FULL_3D). Every variant **shares the def's mesh** and differs only in
+   `mesh_ortho_rotation_index`; the mesher rotates the geometry at bake time.
+   Because variants are appended, base indices never move — maps saved before
+   a def became rotatable keep loading unchanged.
+3. **Writing** — `BlockyGrid.set_block(pos, base_index, rot_index)` asks
+   `BlockLibrary.get_stored_index()`: sanitize `rot_index` against the def's
+   `rotation_mode` (`BlockDef.sanitize_rotation`), then store the variant's
+   plain index (the base index itself when unrotated).
+4. **Reading** — `get_block_type`/`get_block_rotation` decompose a stored
+   index via `get_base_index`/`get_rotation_index`; `get_block_basis` turns
+   the orientation into a `Basis` for previews.
+
+### The orientation-index convention (mesh_ortho_rotation_index)
+`VoxelBlockyModelMesh.mesh_ortho_rotation_index` selects one of 24 orthogonal
+orientations. The convention is **not** Godot 3's `Basis.get_orthogonal_index()`
+(removed in Godot 4) and does not follow any obvious math — it is a property
+of the addon build. `VoxelBlockEncoder._ORTHO_BASES` hardcodes the table,
+derived empirically: render an asymmetric probe mesh per index through
+`VoxelMesherBlocky.build_mesh` and recover the rotation (method preserved in
+`tmp/convention_derivation.gd`). Anchors: **index 0 = identity**; the four
+yaws (rotation about +Y) are **{0, 22, 10, 16}** for 0/90/180/270 degrees —
+this is `BlockDef.YAW_INDICES`, in quarter-turn order (so `sanitize_rotation`
+accepts either a raw orientation index or a quarter-turn count 0..3).
+`suite_voxel_block_encoder_test.test_ortho_table_matches_mesher_convention`
+re-derives the table through the real mesher for all 24 indices: if an addon
+update changes the convention, that test fails rather than content silently
+mis-rotating. Ghost previews use the same bases
+(`rot_index_to_basis`), so what you preview is what gets meshed.
 
 ### Painted voxels only render if the mesher library is set
 A terrain with no `VoxelMesherBlocky.library` writes data fine but renders

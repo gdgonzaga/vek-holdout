@@ -1276,7 +1276,12 @@ func _do_block_paint(hit: Dictionary) -> void:
 				ops.append({"pos": p, "old_value": _block_vt.get_voxel(p)})
 	_push_undo({"type": "block", "ops": ops})
 
-	_apply_block_brush(cell, _selected_block_index)
+	# Rotation-variant aware paint: resolve (base, rotation) to the renderable
+	# stored index (plain base index for NONE blocks — identical to before).
+	var stored: int = _selected_block_index
+	if _block_library != null:
+		stored = _block_library.get_stored_index(_selected_block_index, _active_rotation_index)
+	_apply_block_brush(cell, stored)
 
 
 func _do_block_erase(hit: Dictionary) -> void:
@@ -1662,7 +1667,9 @@ func _do_block_pick(hit: Dictionary) -> void:
 	var raw: int = _blocky_grid.get_raw_voxel(hovered_pos)
 	if raw <= 0:
 		return
-	_selected_block_index = raw
+	# The stored value may be a rotation-variant index; the palette selection
+	# and rotation state want the def's base index + the orientation.
+	_selected_block_index = _blocky_grid.get_block_type(hovered_pos)
 	_active_rotation_index = _blocky_grid.get_block_rotation(hovered_pos)
 	if _hud != null:
 		_hud.select_block_by_index(_selected_block_index)

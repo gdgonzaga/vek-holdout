@@ -5,6 +5,8 @@ extends GdUnitTestSuite
 ## asserted straight out of _ready, and height_at is exercised with plain
 ## StaticBody stand-ins placed on the right/wrong collision layers.
 
+const Fixtures := preload("res://test/helpers/rotation_fixtures.gd")
+
 ## Grid + bare VoxelTerrain in the scene tree. The terrain child is parented
 ## BEFORE the grid enters the tree so the grid's @onready terrain_path resolves.
 func _build_grid() -> BlockyGrid:
@@ -107,3 +109,61 @@ func test_set_block_at_stores_renderable_library_index() -> void:
 	assert_int(raw).is_less(lib.get_voxel_library().get_models().size())
 	assert_str(grid.get_block_at(Vector3i(3, 4, 3))).is_equal("wood")
 	assert_int(grid.get_block_rotation(Vector3i(3, 4, 3))).is_equal(0)
+
+
+## Grid fixture mount: overrides the library factory so rotation variants can
+## be exercised without touching data/blocks/ (whose order is save-stable).
+class FixtureBlockyGrid extends BlockyGrid:
+	var fixture_library: BlockLibrary = null
+
+	func _make_library() -> BlockLibrary:
+		return fixture_library
+
+
+## set_block with a rotation stores the baked VARIANT index (renderable,
+## within library bounds); type/rotation/id read back decomposed. Full
+## rotation round-trip through the real grid.
+func test_set_block_with_rotation_roundtrips_through_variant_index() -> void:
+	var lib := BlockLibrary.new(Fixtures.make_block_dir("grid_rt"))
+	var root: Node3D = auto_free(Node3D.new())
+	add_child(root)
+	var grid: FixtureBlockyGrid = auto_free(FixtureBlockyGrid.new())
+	grid.fixture_library = lib
+	var terrain := VoxelTerrain.new()
+	terrain.name = "VoxelTerrain"
+	grid.add_child(terrain)
+	root.add_child(grid)
+
+	# F3: writes need a streamed terrain + viewer to land.
+	DirAccess.make_dir_recursive_absolute("user://tmp_bg_test_rot")
+	DirAccess.remove_absolute("user://tmp_bg_test_rot/map.sqlite")
+	var stream := VoxelStreamSQLite.new()
+	stream.database_path = "user://tmp_bg_test_rot/map.sqlite"
+	grid.get_terrain().stream = stream
+	var viewer := VoxelViewer.new()
+	viewer.position = Vector3(3.5, 4.5, 3.5)
+	viewer.requires_visuals = false
+	viewer.requires_collisions = false
+	root.add_child(viewer)
+	for _i in range(20):
+		await get_tree().physics_frame
+
+	var yaw_base: int = grid.get_library().get_index("yawwedge")
+	var target := Vector3i(3, 4, 3)
+	grid.set_block(target, yaw_base, 22)  # 90-degree yaw
+	for _i in range(60):
+		if grid.get_raw_voxel(target) != 0:
+			break
+		await get_tree().physics_frame
+
+	var raw := grid.get_raw_voxel(target)
+	assert_int(raw).is_not_equal(yaw_base)
+	assert_int(raw).is_less(grid.get_library().get_voxel_library().get_models().size())
+	assert_int(grid.get_block_type(target)).is_equal(yaw_base)
+	assert_int(grid.get_block_rotation(target)).is_equal(22)
+	assert_str(grid.get_block_at(target)).is_equal("yawwedge")
+	assert_bool(grid.get_block_basis(target).is_equal_approx(Basis(Vector3.UP, PI / 2.0))).is_true()
+
+	# Rotation 0 keeps storing the plain base index.
+	grid.set_block(target, yaw_base, 0)
+	assert_int(grid.get_raw_voxel(target)).is_equal(yaw_base)

@@ -76,16 +76,17 @@ func set_raw_voxel(pos: Vector3i, raw_val: int) -> void:
 		vt.set_voxel(pos, raw_val)
 
 
-## The block type id at pos - the BlockLibrary model index stored in the voxel
-## (see BlockyGrid's class doc for why stored values are plain indices, not packed).
+## The block type id at pos - the def's BlockLibrary BASE index. The stored
+## voxel may be a rotation-variant index; the grid resolves it to its owning
+## def (see BlockyGrid's class doc for the variant storage convention).
 func get_block_type(pos: Vector3i) -> int:
 	if _grid == null:
 		return 0
 	return _grid.get_block_type(pos)
 
 
-## The rotation index (0..23) at pos. Stored voxels carry no rotation bits -
-## always 0 until the library bakes rotation models (BlockDef.RotationMode).
+## The orthogonal orientation (0..23) the block at pos renders at — the
+## variant's orientation, 0 for unrotated/NONE blocks.
 func get_block_rotation(pos: Vector3i) -> int:
 	if _grid == null:
 		return 0
@@ -97,8 +98,9 @@ func get_block_basis(pos: Vector3i) -> Basis:
 	return VoxelBlockEncoder.rot_index_to_basis(get_block_rotation(pos))
 
 
-## Sets the block at pos. type_id is the BlockLibrary model index; rot_index is
-## contract symmetry only (no rotation models exist in the library yet).
+## Sets the block at pos. type_id is the def's BlockLibrary base index;
+## rot_index (0..23) is sanitized against the def's rotation_mode and stored
+## as the baked variant index (plain base index when unrotated).
 func set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void:
 	if _grid == null:
 		return

@@ -14,16 +14,23 @@ func test_sanitize_rotation_yaw_only() -> void:
 	var def: BlockDef = auto_free(BlockDef.new())
 	def.rotation_mode = BlockDef.RotationMode.YAW_ONLY
 	assert_bool(def.is_rotatable()).is_true()
-	
+
 	# Direct orthogonal yaw indices should pass through unchanged
 	for idx in BlockDef.YAW_INDICES:
 		assert_int(def.sanitize_rotation(idx)).is_equal(idx)
-		
-	# Non-yaw orthogonal indices should map to nearest horizontal yaw state
-	assert_int(def.sanitize_rotation(0)).is_equal(3)
-	assert_int(def.sanitize_rotation(4)).is_equal(7)
-	assert_int(def.sanitize_rotation(8)).is_equal(19)
-	assert_int(def.sanitize_rotation(10)).is_equal(23)
+
+	# Small ints 0..3 are accepted as quarter-turn counts (0 is identity).
+	assert_int(def.sanitize_rotation(0)).is_equal(0)
+	assert_int(def.sanitize_rotation(1)).is_equal(BlockDef.YAW_INDICES[1])
+	assert_int(def.sanitize_rotation(2)).is_equal(BlockDef.YAW_INDICES[2])
+	assert_int(def.sanitize_rotation(3)).is_equal(BlockDef.YAW_INDICES[3])
+
+	# Tilted orthogonal indices snap to the nearest horizontal yaw state
+	# (basis dot against the yaw set — 4 is a pitch collapsing to 0 deg,
+	# 9 and 23 carry a yaw component of 180/90 deg respectively).
+	assert_int(def.sanitize_rotation(4)).is_equal(0)
+	assert_int(def.sanitize_rotation(9)).is_equal(BlockDef.YAW_INDICES[2])
+	assert_int(def.sanitize_rotation(23)).is_equal(BlockDef.YAW_INDICES[1])
 
 
 func test_sanitize_rotation_full_3d() -> void:

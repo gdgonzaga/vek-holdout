@@ -129,14 +129,14 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `get_library() -> BlockLibrary` | The block library (id↔index + def lookup). |
 | `get_terrain() -> VoxelTerrain` / `get_voxel_tool() -> VoxelTool` | Accessors for consumers that need the raw handles. |
 | `serialize() -> Dictionary` / `deserialize(data)` | SaveSystem contract — buildable-block HP only; block types persist via the sqlite stream. |
-| `get_raw_voxel(pos: Vector3i) -> int` | Returns the raw stored voxel integer at position — a `VoxelBlockyLibrary` model index. |
+| `get_raw_voxel(pos: Vector3i) -> int` | Returns the raw stored voxel integer at position — a `VoxelBlockyLibrary` model index (base or rotation variant). |
 | `set_raw_voxel(pos: Vector3i, raw_val: int) -> void` | Sets the raw stored voxel integer at position (a library model index). |
-| `get_block_type(pos: Vector3i) -> int` | The block type id at position — the BlockLibrary model index stored in the voxel. |
-| `get_block_rotation(pos: Vector3i) -> int` | The rotation index (0..23) at position. Always 0 today: stored voxels carry no rotation bits until the library bakes rotation models. |
+| `get_block_type(pos: Vector3i) -> int` | The block type id at position — the def's BlockLibrary **base** index (stored variant indices resolve to their owning def). |
+| `get_block_rotation(pos: Vector3i) -> int` | The orthogonal orientation (0..23) the block at position renders at — the baked variant's orientation, 0 for unrotated/NONE blocks. |
 | `get_block_basis(pos: Vector3i) -> Basis` | The 3D Basis corresponding to the block rotation at position. |
-| `set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void` | Sets the block at pos. `type_id` is the BlockLibrary model index; `rot_index` is contract symmetry only (no rotation models exist yet). |
+| `set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void` | Sets the block at pos. `type_id` is the def's base index; `rot_index` (0..23) is sanitized against the def's rotation_mode and stored as the baked variant index (plain base index when unrotated). |
 
-**Storage convention (why plain indices):** `VoxelMesherBlocky` addresses library models by the raw voxel value — value N renders as model N. Anything else stored in the channel (e.g. `VoxelBlockEncoder`-style packed type+rotation bits) persists to `map.sqlite` but produces **no mesh and no collision**: invisible voxels that survive save/load. This bit the structure stamper on 2026-08-20 (c802b19's packing). Per-voxel rotation, when content needs it, is baked rotation models in the library (`VoxelLibraryGenerator`, `BlockDef.base_library_id` + rotation slot), never bit packing in the stored value.
+**Storage convention (why plain indices):** `VoxelMesherBlocky` addresses library models by the raw voxel value — value N renders as model N. Anything else stored in the channel (e.g. `VoxelBlockEncoder`-style packed type+rotation bits) persists to `map.sqlite` but produces **no mesh and no collision**: invisible voxels that survive save/load. This bit the structure stamper on 2026-08-20 (c802b19's packing). Per-voxel rotation therefore rides in **which index is stored**: BlockLibrary bakes variant models for rotatable defs (variant appendix, see BlockLibrary below) and `set_block` resolves (type, rotation) to the matching variant index — see the "Rotation variant mechanism" section and `docs/VOXEL-TOOL-NOTES.md` for the full story.
 
 ### Class: SmoothGrid
 
@@ -180,38 +180,60 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 
 **Extends:** Resource
 **Script:** `block_library.gd`
-**Description:** Registry of block types. Owns the `VoxelBlockyLibrary` the mesher renders with, maps string `block_id` ↔ integer library index, and resolves id → `BlockDef`. Assembled from `data/blocks/` in `_init()`.
-**Used by:** `BlockyGrid` (mesher wiring, id↔index translation, def lookup for HP).
-**Index convention:** `0` = air (`VoxelBlockyModelEmpty`); **terrain is forced to index 1** (what `VoxelGeneratorFlat` emits, what legacy scenes and the paint tool's "terrain" brush expect); the rest load alphabetically. Deterministic across runs.
+**Description:** Registry of block types. Owns the `VoxelBlockyLibrary` the mesher renders with, maps string `block_id` ↔ integer base library index, and resolves id → `BlockDef`. Assembled from `data/blocks/` in `_init()` (scan dir overridable for test fixtures). For defs with `rotation_mode != NONE`, bakes rotation **variant models** — see the variant mechanism below.
+**Used by:** `BlockyGrid` (mesher wiring, id↔index translation, def lookup for HP, variant resolution).
+**Index convention (two tiers):**
+- **Base table** — `0` = air (`VoxelBlockyModelEmpty`); **terrain forced to index 1** (what `VoxelGeneratorFlat` emits, what legacy scenes and the paint tool's "terrain" brush expect); the rest load alphabetically. Deterministic across runs, and *stable by contract*: saved maps store these indices, so inserting a block `.tres` that sorts before an existing one re-orders the table and invalidates saves.
+- **Variant appendix** — for each rotatable def (in base order), one `VoxelBlockyModelMesh` per orientation is appended AFTER the whole base table: 3 extra for YAW_ONLY (orthos 22/10/16), 23 for FULL_3D (orthos 1..23). Variants share the def's mesh and differ only in `mesh_ortho_rotation_index`. Appending keeps base indices stable, so maps saved before a def became rotatable load unchanged.
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `get_def(block_id) -> BlockDef` / `get_def_by_index(index) -> BlockDef` | Def lookup either way. |
-| `get_index(block_id) -> int` | Library index; air (`""`) → 0, unknown → -1. |
-| `get_id(index: int) -> String` | Inverse: index → block_id (0 → `""`). |
+| `get_def(block_id) -> BlockDef` / `get_def_by_index(index) -> BlockDef` | Def lookup either way; variant indices resolve to their owning def. |
+| `get_index(block_id) -> int` | Base library index; air (`""`) → 0, unknown → -1. |
+| `get_id(index: int) -> String` | Inverse: stored index → block_id (0 → `""`); variants report their def's id. |
 | `has_id(block_id) -> bool` / `get_all_defs() -> Array` | Membership + full def list. |
 | `get_voxel_library() -> VoxelBlockyLibrary` | The baked mesher library. |
+| `get_stored_index(base_index: int, rot_index: int) -> int` | The renderable stored index for placing `base_index` at `rot_index`: sanitizes the rotation against the def's `rotation_mode` (`BlockDef.sanitize_rotation`), then resolves the baked variant (base index itself when unrotated / NONE / unknown base). |
+| `get_base_index(stored_index: int) -> int` | Inverse decomposition: variant → its def's base index; everything else passes through. |
+| `get_rotation_index(stored_index: int) -> int` | The orientation (0..23) a stored index renders at; 0 for base indices. |
+
+### Rotation variant mechanism
+
+Per-voxel rotation without hand-authoring rotated meshes, and without packing
+bits into stored values (the mesher addresses models by the raw value — see
+BlockyGrid's storage convention):
+
+1. **Author** one unrotated mesh + `rotation_mode` on the `BlockDef`.
+2. **Bake**: `BlockLibrary._bake_variants()` appends variant models after the
+   base table (they share the def's mesh; `mesh_ortho_rotation_index` selects
+   the orientation at mesher bake time).
+3. **Write**: `BlockyGrid.set_block(pos, base_index, rot_index)` stores
+   `get_stored_index(base_index, rot_index)` — a plain, renderable index.
+4. **Read**: `get_block_type`/`get_block_rotation` decompose the stored index
+   back to (base, orientation); `get_block_basis` yields the preview `Basis`.
+
+The orientation-index convention (index 0 = identity; yaws {0, 22, 10, 16} in
+quarter-turn order) is the mesher's own `mesh_ortho_rotation_index` convention,
+pinned against the addon by
+`suite_voxel_block_encoder_test.test_ortho_table_matches_mesher_convention` —
+full story in `docs/VOXEL-TOOL-NOTES.md`.
 
 ### Class: VoxelBlockEncoder
 
 **Extends:** RefCounted
 **Script:** `subsystems/voxel/voxel_block_encoder.gd`
-**Description:** Static rotation-state math: the 24 orthogonal orientation states (`Basis` ↔ index), axis-step rotations, and the historical type+rotation pack/unpack helpers. Used for rotation UI state and ghost-preview transforms (BlockPlacementController, map editor brush). **Never pack values for storage** — the mesher addresses models by the raw value (see BlockyGrid's storage convention).
+**Description:** Static rotation-state math: the 24 orthogonal orientation states (`Basis` ↔ index) **in the mesher's `mesh_ortho_rotation_index` convention** (index 0 = identity, yaws 0/22/10/16 — table derived empirically from the addon and pinned by `suite_voxel_block_encoder_test`), plus axis-step rotations. Used for rotation UI state and ghost-preview transforms (BlockPlacementController, map editor brush) — the same bases the mesher renders variants with, so previews match placed blocks. The type+rotation pack/unpack helpers were removed after the 2026-08-20 invisible-voxel bug: **stored values are never packed**.
 
 **Constants:**
-- `ROTATION_BITS = 5`
-- `ROTATION_MASK = 0x1F`
 - `MAX_ORTHO_ROTATIONS = 24`
+- `YAW_ORTHOS = [0, 22, 10, 16]` (quarter-turn order; mirrors `BlockDef.YAW_INDICES`)
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `encode(type_id: int, rot_index: int = 0) -> int` | Packs type ID and rotation index into a 16-bit integer. |
-| `decode_type(raw_val: int) -> int` | Extracts the 11-bit block type ID from a raw voxel value. |
-| `decode_rotation(raw_val: int) -> int` | Extracts the 5-bit rotation index (0..23) from a raw voxel value. |
 | `basis_to_rot_index(basis: Basis) -> int` | Maps a 3D Basis orientation to its closest orthogonal rotation index. |
 | `rot_index_to_basis(rot_index: int) -> Basis` | Retrieves the 3D Basis orientation corresponding to the given rotation index. |
 | `rotate_around_axis(current_rot_index: int, axis: Vector3, step_angle_rad: float = PI / 2.0) -> int` | Performs an in-place rotation on the given index around a specified axis, returning the new orthogonal rotation index. |
@@ -220,13 +242,14 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 
 **Extends:** RefCounted
 **Script:** `tools/voxel_library_generator.gd`
-**Description:** Editor tool utility that automates generation of rotated `VoxelBlockyModelMesh` variants from a single base mesh. These model variants are registered into a `VoxelBlockyLibrary` so Zylann's blocky mesher can render the block in all necessary rotations.
+**Description:** Bakes rotation-variant `VoxelBlockyModelMesh` entries for a BlockDef — every variant shares the def's mesh and differs only in `mesh_ortho_rotation_index`. `create_block_model()` is the single model-creation path, shared with `BlockLibrary`'s runtime variant baking; `generate_block_models()`/`register_block_in_library()` cover editor-tool registration into a baked `.tres` library (`data/blocks/voxel_library.tres`).
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `generate_block_models(block_def: BlockDef) -> Array[VoxelBlockyModelMesh]` | Generates the mesh rotations (1 for NONE, 4 for YAW_ONLY, or 24 for FULL_3D) for the given BlockDef. |
+| `create_block_model(block_def: BlockDef, ortho_index: int) -> VoxelBlockyModelMesh` | One variant model for the def at the given orientation (mesh + material + collision wiring). |
+| `generate_block_models(block_def: BlockDef) -> Array[VoxelBlockyModelMesh]` | Generates the variants (1 for NONE, 4 for YAW_ONLY, 24 for FULL_3D) for the given BlockDef. |
 | `register_block_in_library(block_def: BlockDef, library: VoxelBlockyLibrary) -> void` | Bakes and registers the generated rotated models at indices starting at `block_def.base_library_id` in the library. |
 
 ---
@@ -239,16 +262,20 @@ sequenceDiagram
     participant Editor as MapEditor / BuildController
     participant Adapter as VoxelGridAdapter
     participant Grid as BlockyGrid
+    participant Lib as BlockLibrary
     participant VTool as VoxelTool
     participant DB as SQLite Stream (map.sqlite)
 
-    Editor->>Adapter: set_block_at(pos, block_id)
-    Adapter->>Grid: set_block_at(pos, block_id)
-    Grid->>Grid: BlockLibrary.get_index(block_id)
-    Grid->>VTool: set_voxel(pos, library_model_index)
+    Editor->>Adapter: set_block(pos, base_index, rot_index)
+    Adapter->>Grid: set_block(pos, base_index, rot_index)
+    Grid->>Lib: BlockDef.sanitize_rotation(rot_index)
+    Lib-->>Grid: valid orientation (0..23)
+    Grid->>Lib: get_stored_index(base_index, orientation)
+    Lib-->>Grid: variant model index (base index when unrotated)
+    Grid->>VTool: set_voxel(pos, plain library model index)
     Note over Editor,VTool: Voxel change is cached in VoxelTerrain memory
     Editor->>Grid: flush_voxel_streams()
-    Grid->>DB: Write modified voxel blocks (library model indices) to database
+    Grid->>DB: Write modified voxel blocks (plain model indices) to database
 ```
 
 ### 2. Map Loading Flow (Deserialization & Rendering)
@@ -259,15 +286,17 @@ sequenceDiagram
     participant Mesher as VoxelMesherBlocky
     participant Lib as VoxelBlockyLibrary
     participant Adapter as VoxelGridAdapter
+    participant BLib as BlockLibrary
 
-    DB->>Terrain: Load blocky voxel data (library model indices)
+    DB->>Terrain: Load blocky voxel data (plain model indices)
     Terrain->>Mesher: Request block mesh at position
-    Note over Mesher,Lib: Raw voxel value IS the library model index
+    Note over Mesher,Lib: Raw voxel value IS the library model index<br/>(base or rotation variant)
     Mesher->>Lib: Get model at index
-    Lib-->>Mesher: Return VoxelBlockyModelMesh
-    Mesher->>Mesher: Generate chunk mesh (future rotations: more models, same addressing)
-    
+    Lib-->>Mesher: Return VoxelBlockyModelMesh<br/>(variants carry mesh_ortho_rotation_index)
+    Mesher->>Mesher: Generate chunk mesh with the model's baked orientation
+
     Note over Adapter: Reading block data programmatically
     Adapter->>Terrain: get_voxel(pos) -> model_index
-    Adapter->>Adapter: BlockLibrary id <-> index mapping -> block_id
+    Adapter->>BLib: get_base_index / get_rotation_index
+    BLib-->>Adapter: (def base index, orientation 0..23)
 ```

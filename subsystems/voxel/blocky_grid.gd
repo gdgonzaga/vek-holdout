@@ -8,12 +8,13 @@ extends Node
 ## SmoothGrid.
 ##
 ## Stored voxel values are plain VoxelBlockyLibrary model indices (0 = air,
-## then BlockLibrary's stable table — see docs/VOXEL-TOOL-NOTES.md). The mesher
-## indexes models by the raw value, so anything else (e.g. VoxelBlockEncoder's
-## packed type+rotation) silently produces no mesh and no collision while still
+## then BlockLibrary's base table + variant appendix — see docs/VOXEL-TOOL-NOTES.md).
+## The mesher indexes models by the raw value, so anything else (e.g. bit-packed
+## type+rotation) silently produces no mesh and no collision while still
 ## persisting to the sqlite stream — invisible, un-collidable voxels. Per-voxel
-## rotation, when content needs it, means baked rotation models in the library
-## (BlockDef.RotationMode slots), not bit packing in the stored value.
+## rotation is expressed by WHICH index is stored: BlockLibrary bakes variant
+## models for rotatable defs and set_block resolves (type, rotation) to the
+## matching variant index.
 
 signal block_placed(pos: Vector3i, block_id: String)
 signal block_destroyed(pos: Vector3i)
@@ -47,7 +48,7 @@ func _ready() -> void:
 		_terrain.set("collision_mask", TERRAIN_BODY_MASK)
 	else:
 		push_warning("BlockyGrid: VoxelTerrain lacks collision_layer; terrain stays on the default layer")
-	_library = BlockLibrary.new()
+	_library = _make_library()
 	# Wire the data-driven block library into the terrain's mesher. Kept in code
 	# (not the .tscn) because the VoxelBlockyLibrary is assembled from data/blocks/.
 	var mesher: VoxelMesherBlocky = _terrain.mesher
@@ -55,6 +56,11 @@ func _ready() -> void:
 		mesher.library = _library.get_voxel_library()
 	_voxel_tool = _terrain.get_voxel_tool()
 	_voxel_tool.mode = VoxelTool.MODE_SET
+
+## Library factory — overridable so tests can mount a fixture BlockLibrary
+## (fixture defs with rotation modes) without touching data/blocks/.
+func _make_library() -> BlockLibrary:
+	return BlockLibrary.new()
 
 # --- IBlockGrid ---------------------------------------------------------------
 
@@ -86,23 +92,31 @@ func set_raw_voxel(pos: Vector3i, raw_val: int) -> void:
 		return
 	_voxel_tool.set_voxel(pos, raw_val)
 
-## The stored model index IS the block type id (the BlockLibrary slot — one
-## stable id per block until rotation models land, see the class doc).
+## The block type id at pos: the def's BlockLibrary BASE index. Stored values
+## may be variant indices (rotated placements) — the library resolves them
+## back to their owning def's base. None-rotatable blocks store their base
+## index directly, so this passes those through unchanged.
 func get_block_type(pos: Vector3i) -> int:
-	return get_raw_voxel(pos)
+	if _library == null:
+		return 0
+	return _library.get_base_index(get_raw_voxel(pos))
 
-## Stored voxels carry no rotation bits: 0 until the library bakes rotation
-## models (BlockDef.RotationMode) and get_block_type grows per-variant slots.
+## The orthogonal orientation (0..23) the block at pos renders at. Variant
+## indices report their orientation; base indices (and NONE defs) report 0.
 func get_block_rotation(pos: Vector3i) -> int:
-	return 0
+	if _library == null:
+		return 0
+	return _library.get_rotation_index(get_raw_voxel(pos))
 
 func get_block_basis(pos: Vector3i) -> Basis:
 	return VoxelBlockEncoder.rot_index_to_basis(get_block_rotation(pos))
 
-## type_id is the BlockLibrary model index. rot_index is accepted for contract
-## symmetry but has no stored effect yet — no content ships rotation models.
+## type_id is the def's BlockLibrary base index; rot_index an orthogonal
+## orientation (0..23), sanitized against the def's rotation_mode and stored
+## as the matching baked variant index — plain and renderable, never packed
+## (see the class doc).
 func set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void:
-	set_raw_voxel(pos, type_id)
+	set_raw_voxel(pos, _library.get_stored_index(type_id, rot_index))
 
 ## Godot physics raycast, NOT VoxelTool.raycast (see gotchas/voxel_tool_raycast.md:
 ## VoxelTool.raycast returns null even on valid hits). We raycast against the

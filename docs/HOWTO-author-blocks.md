@@ -130,7 +130,14 @@ You **DO NOT** need to author 24 separate mesh files in Blender for rotatable sh
    - `NONE` (1 variant): Standard symmetric cubic blocks.
    - `YAW_ONLY` (4 variants): Horizontal-only rotation around Y-axis (stairs, logs, directional indicators).
    - `FULL_3D` (24 variants): 3-axis orthogonal rotation (wedges, corner slopes, diagonal ramps).
-3. At engine/tool startup, `VoxelLibraryGenerator.register_block_in_library()` automatically generates the 4 or 24 `VoxelBlockyModelMesh` rotational variants programmatically and registers them into Zylann's `VoxelBlockyLibrary`.
+3. That's it — at startup `BlockLibrary` bakes the 4 or 24 `VoxelBlockyModelMesh`
+   rotational variants itself and appends them to the voxel library. Every
+   variant **shares your one mesh** and differs only in
+   `mesh_ortho_rotation_index` (the mesher rotates geometry at bake time).
+   No manual ID/slot allocation: variant indices are assigned after the base
+   block table automatically, and placing a rotated block stores the matching
+   variant index. Full mechanism: `docs/architecture/voxel-world.md`
+   ("Rotation variant mechanism") and `docs/VOXEL-TOOL-NOTES.md`.
 
 ---
 
@@ -148,14 +155,13 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
 |---|---|---|
 | `id` | `"wedge_wood"` | Unique string key (matches filename). |
 | `display_name` | `"Wooden Wedge"` | UI label in Map Editor & Build Menu. |
-| `type_id` | `10` | Unique 11-bit integer voxel block type ID (`0..2047`). |
-| `base_library_id` | `240` | Base Model ID offset in `VoxelBlockyLibrary` (allocate 24 slots for `FULL_3D`). |
-| `rotation_mode` | `FULL_3D` (`24`) | `NONE` (1), `YAW_ONLY` (4), or `FULL_3D` (24). |
-| `base_mesh` | `res://assets/blocks/wedge_wood.obj` | Unrotated base source mesh. |
+| `rotation_mode` | `FULL_3D` (`24`) | `NONE` (1), `YAW_ONLY` (4), or `FULL_3D` (24). Triggers automatic variant baking. |
+| `base_mesh` | `res://assets/blocks/wedge_wood.obj` | Unrotated base source mesh variants are baked from (falls back to `mesh`). |
 | `texture` | `res://assets/blocks/wood_albedo.png` | Albedo texture map. |
 | `texture_variation` | `true` | Enables UV/brightness shader variation. |
 | `hp` | `100` | Block durability. |
 | `material_cost` | `[10 x wood_block]` | Crafting/building cost (Array of `ItemAmount`). |
+| `type_id` / `base_library_id` | *(leave defaults)* | Informational fields — library indices are assigned automatically by `BlockLibrary` at startup; you never allocate them. |
 
 ---
 

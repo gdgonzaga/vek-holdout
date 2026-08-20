@@ -13,23 +13,33 @@ enum RotationMode {
 	FULL_3D = 24    # All 24 orthogonal orientations (e.g. wedges, corner slopes)
 }
 
-## Orthogonal indices for 4 horizontal yaw states (0, 90, 180, 270 degrees around Y).
-const YAW_INDICES: Array[int] = [3, 23, 7, 19]
+## Orthogonal rotation indices for the 4 horizontal yaw states, in quarter-turn
+## order (0, 90, 180, 270 degrees around +Y). Values follow the mesher's
+## mesh_ortho_rotation_index convention (see VoxelBlockEncoder's class doc);
+## sanitize_rotation also accepts a quarter-turn count 0..3 by indexing here.
+const YAW_INDICES: Array[int] = [0, 22, 10, 16]
 
 ## True for the non-buildable world ground (VoxelGeneratorFlat output). Skips
 ## build-cost validation and is not a valid build target.
 @export var is_terrain: bool = false
 
-## Rotational symmetry mode for voxel block model generation.
+## Rotational symmetry mode. Non-NONE modes make BlockLibrary bake one variant
+## model per orientation at runtime (variants share this def's mesh) — authors
+## never hand-make rotated meshes.
 @export var rotation_mode: RotationMode = RotationMode.NONE
 
-## Unrotated source mesh for custom shapes.
+## Unrotated source mesh for custom shapes. Variant models are baked from this
+## (falls back to `mesh` when null).
 @export var base_mesh: Mesh = null
 
-## The base Model ID in VoxelBlockyLibrary.
+## The def's base index in the assembled VoxelBlockyLibrary. Informational:
+## BlockLibrary assigns it deterministically at build (see its index
+## convention); VoxelLibraryGenerator uses it when registering into a baked
+## editor library.
 @export var base_library_id: int = 0
 
-## The 11-bit Block Type ID in the voxel library.
+## Base library index used by BlockPlacementController.commit_placement. Must
+## be the def's BlockLibrary index (0 = air — unset content stamps air).
 @export var type_id: int = 0
 
 
