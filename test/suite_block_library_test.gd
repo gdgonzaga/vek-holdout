@@ -8,12 +8,12 @@ extends GdUnitTestSuite
 const Fixtures := preload("res://test/helpers/rotation_fixtures.gd")
 
 
-## Shipped content is all NONE-mode: the library must stay byte-compatible
-## with what saved maps store (0 air, 1 terrain, 2.. alphabetical).
+## Shipped content layout: base table (0 air, 1 terrain, 2.. alphabetical)
+## followed by variant appendix for rotatable blocks.
 func test_shipped_library_layout_is_unchanged() -> void:
 	var lib := BlockLibrary.new()
-	assert_int(lib.get_voxel_library().get_models().size()).is_equal(7)
-	var expected: Array = [["", 0], ["terrain", 1], ["metal", 2], ["reinforced", 3], ["scrap", 4], ["stone", 5], ["wood", 6]]
+	assert_int(lib.get_voxel_library().get_models().size()).is_equal(1 + 7 + 23)
+	var expected: Array = [["", 0], ["terrain", 1], ["metal", 2], ["reinforced", 3], ["scrap", 4], ["stone", 5], ["wood", 6], ["wood_stairs", 7]]
 	for pair: Array in expected:
 		assert_int(lib.get_index(pair[0])).is_equal(pair[1])
 		assert_str(lib.get_id(pair[1])).is_equal(pair[0])
