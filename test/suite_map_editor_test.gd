@@ -1502,15 +1502,16 @@ func test_map_editor_rotation_hotkeys_and_reset() -> void:
 	await _dispose_test_editor(editor)
 
 
-func test_map_editor_eyedropper_decodes_block_and_rotation() -> void:
+func test_map_editor_eyedropper_reads_stored_block_index() -> void:
 	_remove_test_map(TEST_HEIGHTMAP_MAP)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
 	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
 
+	# Stored voxels are plain library model indices (the mesher's addressing
+	# scheme — packed values render nothing, see BlockyGrid's class doc).
 	var target_pos := Vector3i(10, 5, 10)
-	var raw_val := VoxelBlockEncoder.encode(4, 7)
-	await editor._apply_block_brush(target_pos, raw_val)
+	await editor._apply_block_brush(target_pos, 4)
 
 	var hit := {
 		"hit": true,
@@ -1522,6 +1523,6 @@ func test_map_editor_eyedropper_decodes_block_and_rotation() -> void:
 	editor._do_block_pick(hit)
 
 	assert_int(editor._selected_block_index).is_equal(4)
-	assert_int(editor._active_rotation_index).is_equal(7)
+	assert_int(editor._active_rotation_index).is_equal(0)
 
 	await _dispose_test_editor(editor)

@@ -221,6 +221,7 @@ func stamp(grid: VoxelGridAdapter, base_pos: Vector3i) -> Array[Dictionary]:
 
 	var vox_data := get_cached_vox_data()
 	if vox_data == null:
+		push_warning("StructureTool.stamp: no vox data for structure=%s" % active_structure.vox_file_path)
 		return []
 
 	var origin := get_placement_origin(base_pos)

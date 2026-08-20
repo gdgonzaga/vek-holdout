@@ -29,11 +29,12 @@ func set_block_at(_pos: Vector3i, _block_id: String) -> void:
 func remove_block_at(_pos: Vector3i) -> void:
 	pass
 
-## Returns the 11-bit block type ID at pos (decoded from raw voxel).
+## The block type id at pos — the BlockLibrary model index stored in the voxel.
 func get_block_type(_pos: Vector3i) -> int:
 	return 0
 
-## Returns the 5-bit rotation index (0..23) at pos (decoded from raw voxel).
+## The rotation index (0..23) at pos. Stored voxels carry no rotation bits
+## until the voxel library bakes rotation models.
 func get_block_rotation(_pos: Vector3i) -> int:
 	return 0
 
@@ -41,15 +42,17 @@ func get_block_rotation(_pos: Vector3i) -> int:
 func get_block_basis(_pos: Vector3i) -> Basis:
 	return Basis()
 
-## Sets the block at pos with type_id (11-bit) and rot_index (5-bit rotation, 0..23).
+## Sets the block at pos. type_id is the BlockLibrary model index; rot_index is
+## symmetry with the rotation state API (no rotation models exist yet).
 func set_block(_pos: Vector3i, _type_id: int, _rot_index: int = 0) -> void:
 	pass
 
-## Returns the raw 16-bit packed voxel integer at pos.
+## Returns the raw stored voxel integer at pos — a VoxelBlockyLibrary model
+## index (the mesher's addressing scheme; see BlockyGrid's class doc).
 func get_raw_voxel(_pos: Vector3i) -> int:
 	return 0
 
-## Sets the raw 16-bit packed voxel integer at pos.
+## Sets the raw stored voxel integer at pos (a library model index).
 func set_raw_voxel(_pos: Vector3i, _raw_val: int) -> void:
 	pass
 

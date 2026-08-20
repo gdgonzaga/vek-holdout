@@ -1276,8 +1276,7 @@ func _do_block_paint(hit: Dictionary) -> void:
 				ops.append({"pos": p, "old_value": _block_vt.get_voxel(p)})
 	_push_undo({"type": "block", "ops": ops})
 
-	var raw_val := VoxelBlockEncoder.encode(_selected_block_index, _active_rotation_index)
-	_apply_block_brush(cell, raw_val)
+	_apply_block_brush(cell, _selected_block_index)
 
 
 func _do_block_erase(hit: Dictionary) -> void:
@@ -1463,6 +1462,7 @@ func _do_structure_stamp(hit: Dictionary) -> void:
 
 	var ops := _structure_tool.stamp(adapter, cell)
 	if ops.is_empty():
+		push_warning("MapEditor: structure stamp wrote nothing at %s — check palette mapping" % str(cell))
 		return
 
 	_push_undo({
@@ -1662,8 +1662,8 @@ func _do_block_pick(hit: Dictionary) -> void:
 	var raw: int = _blocky_grid.get_raw_voxel(hovered_pos)
 	if raw <= 0:
 		return
-	_selected_block_index = VoxelBlockEncoder.decode_type(raw)
-	_active_rotation_index = VoxelBlockEncoder.decode_rotation(raw)
+	_selected_block_index = raw
+	_active_rotation_index = _blocky_grid.get_block_rotation(hovered_pos)
 	if _hud != null:
 		_hud.select_block_by_index(_selected_block_index)
 	_update_hud_info()

@@ -68,3 +68,42 @@ func test_height_at_nan_without_blocky_ground() -> void:
 	_add_box(grid.get_parent(), 1, Vector3(0, 10, 0))  # wrong layer only
 	await _run_frames(2)
 	assert_bool(is_nan(grid.height_at(0, 0))).is_true()
+
+
+## Stored voxel values must be plain VoxelBlockyLibrary model indices — the
+## mesher renders value N as library model N, so anything else (e.g. packed
+## type+rotation bits) persists to the sqlite stream but never meshes or
+## collides. Regression for invisible stamped structures (2026-08-20).
+func test_set_block_at_stores_renderable_library_index() -> void:
+	var grid := _build_grid()
+	var lib: BlockLibrary = auto_free(BlockLibrary.new())
+	var wood_index := lib.get_index("wood")
+	assert_int(wood_index).is_greater(0)
+
+	# Writes only land where blocks are streamed in (F3) — a generator-less,
+	# stream-less terrain never materializes editable blocks, so attach a
+	# scratch sqlite stream + a viewer at the target cell.
+	DirAccess.make_dir_recursive_absolute("user://tmp_bg_test")
+	DirAccess.remove_absolute("user://tmp_bg_test/map.sqlite")
+	var stream := VoxelStreamSQLite.new()
+	stream.database_path = "user://tmp_bg_test/map.sqlite"
+	grid.get_terrain().stream = stream
+	var viewer := VoxelViewer.new()
+	viewer.position = Vector3(3.5, 4.5, 3.5)
+	viewer.requires_visuals = false
+	viewer.requires_collisions = false
+	grid.get_parent().add_child(viewer)
+	for _i in range(20):
+		await get_tree().physics_frame
+
+	grid.set_block_at(Vector3i(3, 4, 3), "wood")
+	for _i in range(60):
+		if grid.get_raw_voxel(Vector3i(3, 4, 3)) != 0:
+			break
+		await get_tree().physics_frame
+
+	var raw := grid.get_raw_voxel(Vector3i(3, 4, 3))
+	assert_int(raw).is_equal(wood_index)
+	assert_int(raw).is_less(lib.get_voxel_library().get_models().size())
+	assert_str(grid.get_block_at(Vector3i(3, 4, 3))).is_equal("wood")
+	assert_int(grid.get_block_rotation(Vector3i(3, 4, 3))).is_equal(0)

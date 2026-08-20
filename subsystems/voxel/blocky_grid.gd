@@ -7,8 +7,13 @@ extends Node
 ## retains this class for structure blocks; smooth natural terrain uses
 ## SmoothGrid.
 ##
-## All voxel read/write operations use 16-bit packed voxel integers (VoxelBlockEncoder):
-## 11 bits for Block Type ID (0..2047) and 5 bits for 3D Orthogonal Rotation Index (0..23).
+## Stored voxel values are plain VoxelBlockyLibrary model indices (0 = air,
+## then BlockLibrary's stable table — see docs/VOXEL-TOOL-NOTES.md). The mesher
+## indexes models by the raw value, so anything else (e.g. VoxelBlockEncoder's
+## packed type+rotation) silently produces no mesh and no collision while still
+## persisting to the sqlite stream — invisible, un-collidable voxels. Per-voxel
+## rotation, when content needs it, means baked rotation models in the library
+## (BlockDef.RotationMode slots), not bit packing in the stored value.
 
 signal block_placed(pos: Vector3i, block_id: String)
 signal block_destroyed(pos: Vector3i)
@@ -54,8 +59,7 @@ func _ready() -> void:
 # --- IBlockGrid ---------------------------------------------------------------
 
 func get_block_at(pos: Vector3i) -> String:
-	var type_id := get_block_type(pos)
-	return _library.get_id(type_id)
+	return _library.get_id(get_block_type(pos))
 
 func set_block_at(pos: Vector3i, block_id: String) -> void:
 	var index := _library.get_index(block_id)
@@ -82,20 +86,23 @@ func set_raw_voxel(pos: Vector3i, raw_val: int) -> void:
 		return
 	_voxel_tool.set_voxel(pos, raw_val)
 
+## The stored model index IS the block type id (the BlockLibrary slot — one
+## stable id per block until rotation models land, see the class doc).
 func get_block_type(pos: Vector3i) -> int:
-	var raw := get_raw_voxel(pos)
-	return VoxelBlockEncoder.decode_type(raw)
+	return get_raw_voxel(pos)
 
+## Stored voxels carry no rotation bits: 0 until the library bakes rotation
+## models (BlockDef.RotationMode) and get_block_type grows per-variant slots.
 func get_block_rotation(pos: Vector3i) -> int:
-	var raw := get_raw_voxel(pos)
-	return VoxelBlockEncoder.decode_rotation(raw)
+	return 0
 
 func get_block_basis(pos: Vector3i) -> Basis:
 	return VoxelBlockEncoder.rot_index_to_basis(get_block_rotation(pos))
 
+## type_id is the BlockLibrary model index. rot_index is accepted for contract
+## symmetry but has no stored effect yet — no content ships rotation models.
 func set_block(pos: Vector3i, type_id: int, rot_index: int = 0) -> void:
-	var raw := VoxelBlockEncoder.encode(type_id, rot_index)
-	set_raw_voxel(pos, raw)
+	set_raw_voxel(pos, type_id)
 
 ## Godot physics raycast, NOT VoxelTool.raycast (see gotchas/voxel_tool_raycast.md:
 ## VoxelTool.raycast returns null even on valid hits). We raycast against the

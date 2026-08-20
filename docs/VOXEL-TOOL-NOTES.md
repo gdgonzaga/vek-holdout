@@ -314,6 +314,21 @@ remapping), the rest load alphabetically. The baked library is
 | 5 | stone |
 | 6 | wood |
 
+### The stored voxel value IS the library index — never pack bits into it
+`VoxelMesherBlocky` addresses models by the raw voxel value: value N renders
+(and collides) as library model N; values outside the model range produce no
+mesh at all. There is no decoding step. So writing anything other than a plain
+library index — e.g. packing 11 type bits + 5 rotation bits
+(`VoxelBlockEncoder.encode`, c802b19) — yields voxels that **persist to
+`map.sqlite` but never render or collide**, across saves and reloads. That was
+the 2026-08-20 "stamped structures stay ghost-only" bug: the stamper, the block
+brush, and in-game placement all wrote packed values (wood = 6<<5 = 192).
+Verified by driving `VoxelMesherBlocky.build_mesh` directly: value 6 → 24-vert
+cube, value 192 → no mesh. Per-voxel rotation, when needed, is more library
+models (`VoxelLibraryGenerator` bakes rotated variants at
+`base_library_id + slot`), never bit packing. The editor brush and eyedropper
+write/read plain indices; `VoxelBlockEncoder` remains rotation-state math only.
+
 ### Painted voxels only render if the mesher library is set
 A terrain with no `VoxelMesherBlocky.library` writes data fine but renders
 nothing. The paint plugin's `_ensure_library()` handles this at activation;
