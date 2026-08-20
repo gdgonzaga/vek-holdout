@@ -1,11 +1,11 @@
-[gd_resource type="VoxelBlockyLibrary" format=3]
+[gd_resource type="VoxelBlockyLibrary" format=3 uid="uid://vprvaarm1w7w"]
 
-[ext_resource type="ArrayMesh" path="res://assets/blocks/dirt.obj" id="1_84u81"]
-[ext_resource type="Shader" path="res://assets/blocks/block_shader.gdshader" id="1_rvp8c"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground.png" id="2_rvp8c"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/wood.png" id="4_1xm2f"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks.png" id="5_mcmtk"]
-[ext_resource type="ArrayMesh" path="res://assets/custom_meshes/stairs.obj" id="6_s4abc"]
+[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="1_84u81"]
+[ext_resource type="Shader" uid="uid://bhg3shr4ys7pn" path="res://assets/blocks/block_shader.gdshader" id="1_rvp8c"]
+[ext_resource type="Texture2D" uid="uid://c6qmmviopv38w" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground.png" id="2_rvp8c"]
+[ext_resource type="Texture2D" uid="uid://bfu0588dkiia3" path="res://assets/realer_than_real_textures/wood.png" id="4_1xm2f"]
+[ext_resource type="Texture2D" uid="uid://ckeuk3wa5tsxn" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks.png" id="5_mcmtk"]
+[ext_resource type="ArrayMesh" uid="uid://c2bpkqv06me8d" path="res://assets/custom_meshes/stairs.obj" id="6_s4abc"]
 
 [sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_mcmtk"]
 
@@ -13,9 +13,9 @@
 render_priority = 0
 shader = ExtResource("1_rvp8c")
 shader_parameter/albedo_tex = ExtResource("2_rvp8c")
-shader_parameter/uv_offset_strength = null
-shader_parameter/color_variation = null
-shader_parameter/rotation_strength = null
+shader_parameter/uv_offset_strength = 0.16
+shader_parameter/color_variation = 0.08
+shader_parameter/rotation_strength = 0.16
 
 [sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ryyfx"]
 mesh = ExtResource("1_84u81")
