@@ -11,12 +11,12 @@ Digging the natural (smooth) terrain yields **position-dependent materials** —
 
 | File | Type | Responsibility |
 |---|---|---|
-| `subsystems/voxel/smooth_grid.gd` | Script | Identity representation: F12 sidecar writes/reads, `get_material_at` / `get_material_def_at` resolution chain, `set_material_catalog` injection, `_pristine_height` (the F13 generator mirror). Also the visuals: terrain shader + height bake on `material_override`, Decal markers for authored blobs. |
+| `subsystems/voxel/smooth_grid.gd` | Script | Identity representation: F12 sidecar writes/reads, `get_material_at` / `get_material_def_at` resolution chain, `set_material_catalog` injection, `_pristine_height` (the F13 generator mirror). The dig edit primitives: `carve` (SPHERE) and `carve_box` (hard per-sample air writes, F15). Also the visuals: terrain shader + height bake on `material_override`, Decal markers for authored blobs. |
 | `subsystems/voxel/terrain_strata.gd` | Script (RefCounted) | Deterministic natural-material selection: depth band + per-material coherent noise in a softmax with `spawn_weight`. No storage. |
 | `assets/terrain/terrain_shader.gdshader` | Shader | The one terrain look (F11/F14): triplanar ground/rock textures blended by depth below the pristine surface. Placeholder textures from `tools/terrain_texture_generator.gd`. |
 | `data/terrain/materials/*.tres` | Data | `TerrainMaterialDef` content: `ground` (dirt, band 0–3), `rock` (3+, weight 10, province-scale veins), `iron_ore` (12+), `gold_ore` (24+); `color` tints markers, band endpoints carry `texture`. |
 | `data/actions/dig_action.gd` | Script | The timed dig interaction: resolve-before-carve, hp-scaled gauge, yields to the digger's inventory, mining skill use. Trigger-agnostic `begin()` — the equipped-tool LMB later reuses it. |
-| `data/mining/dig_tool.tres` (`dig_tool_params.gd`) | Data | `DigToolParams`: `work_time`, `carve_radius`. Preloaded as `BuildLibrary.DIG_TOOL`. |
+| `data/mining/dig_tool.tres` (`dig_tool_params.gd`) | Data | `DigToolParams`: `work_time`, `shape` (BOX today / SPHERE), `box_size` (authored 1×1×1), `snap_grid`, `carve_radius` (SPHERE only). Preloaded as `BuildLibrary.DIG_TOOL`. |
 | `data/items/iron_ore.tres`, `data/items/gold_ore.tres` | Data | Ore drops (`ItemDef`). |
 | `subsystems/build/build_controller.gd` | Script | Tool routing: the `BuildLibrary.DIG_ID` sentinel, dig ghost, `_try_dig()`. |
 | `testing/zylann/voxel_metadata_spike.tscn`, `testing/zylann/voxel_texturing_spike.tscn` | Scenes (editor-run) | The F12/F13 and F14 probes. The texturing spike is the harness to re-run if a future addon bump should ever revive per-voxel texturing. |
@@ -36,10 +36,10 @@ Two load-bearing invariants keep the sources from disagreeing: `_pristine_height
 ## Flow Trace: player digs
 
 1. **B** opens the build menu; the **Dig** entry (`BuildLibrary.DIG_ID` sentinel, not a `BuildableDef`) arms dig mode.
-2. `_physics_process` raycasts; a smooth-surface hit shows the green sphere ghost of exactly the carve volume (half a radius sunk so it bites a bowl).
+2. `_physics_process` raycasts; a smooth-surface hit shows the green ghost of the dig volume. Today's BOX tool: a 1×1×1 cube snapped to the **struck cell's center** (`floor` of the hit nudged ~1 cm into the surface, +0.5) — WYSIWYG, because the carve clears exactly the terrain samples inside that box (F15). A SPHERE-tool dig shows the half-sunk sphere ghost instead.
 3. **LMB** → `BuildController._try_dig()` → `DigAction.begin(actor, grid, center, BuildLibrary.DIG_TOOL)`.
-4. The gauge duration is `work_time × hp(at center) / 100 ÷ mining-skill multiplier`; the label reads **"Digging <display_name>"** from the def at the dig position — the in-game oracle for the whole chain.
-5. On completion `_apply` resolves the def **before** carving (after the carve the center is air), carves the sphere, grants the def's `yields` to the digger's pocket inventory, and records a `mining` skill use.
+4. The gauge duration is `work_time × hp(at the dig position) / 100 ÷ mining-skill multiplier`; the label reads **"Digging <display_name>"** from the def at the dig position (a BOX resolves the first solid sample in its span) — the in-game oracle for the whole chain.
+5. On completion `_apply` resolves the def **before** carving (after the carve the position is air), carves the shape — BOX: `carve_box` hard-writes air (+2) to every sample in the ghost box, deliberately not a blended `do_box` (F15: blends leave "pyramid" fringe spikes, and a single-sample write misses surfaces held up by a different corner); SPHERE: `MODE_REMOVE do_sphere` — then grants the def's `yields` to the digger's pocket inventory and records a `mining` skill use.
 6. A cancelled dig banks nothing (v1 semantics — no partial-HP state on smooth terrain).
 
 ## Visuals: how a material becomes visible
@@ -59,7 +59,7 @@ The renderer can't carry material identity (F8/F14), so looks are indirect and r
 
 ## Authoring & verification
 
-- All tunables live in the defs — see [Data Schemas](data-schemas.md) `TerrainMaterialDef` row (hp, depth band, vein_size, spawn_weight, `color`, band `texture`) and `DigToolParams`. Note `rock`'s `vein_size` 60 is province-scale on purpose; minority ores occur as contiguous veins via the softmax scoring.
+- All tunables live in the defs — see [Data Schemas](data-schemas.md) `TerrainMaterialDef` row (hp, depth band, vein_size, spawn_weight, `color`, band `texture`) and `DigToolParams` (`work_time`, `shape`, `box_size`, `snap_grid`, `carve_radius`). Note `rock`'s `vein_size` 60 is province-scale on purpose; minority ores occur as contiguous veins via the softmax scoring.
 - The map editor's Terrain mode cycles materials with **M**; sculpted blobs carry the id persistently and show their colored marker immediately (see [Map Editor](map-editor.md)).
 - The generator pipeline that produces the ground mining digs into is documented in [Voxel World](voxel-world.md) "Terrain generation when a map opens".
 - Manual test recipe and the design history live in `terrain_mining/plan.md`; addon-behavior facts in `docs/VOXEL-TOOL-NOTES.md` (F12, F13, F14).

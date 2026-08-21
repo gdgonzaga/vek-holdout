@@ -302,14 +302,12 @@ func _try_dig() -> void:
 	var surface := _smooth_surface_hit(_cursor_ray())
 	if surface.is_empty():
 		return
-	# Bite half a radius into the surface so the sphere carves a bowl instead
-	# of shaving a lens — the ghost shows exactly this center and radius.
-	var center: Vector3 = surface["point"] - surface["normal"] * (BuildLibrary.DIG_TOOL.carve_radius * 0.5)
+	var target := _calculate_dig_target(surface)
 	var action := DigAction.new()
-	action.begin(player, smooth_grid, center, BuildLibrary.DIG_TOOL)
+	action.begin(player, smooth_grid, target, BuildLibrary.DIG_TOOL)
 
 
-## Dig tool ghost: a sphere of the carve radius over the aimed smooth surface,
+## Dig tool ghost: a box or sphere over the aimed smooth surface,
 ## hidden when the crosshair isn't on natural terrain. Always valid — any
 ## smooth hit is diggable (hp scales the duration, never blocks the dig).
 func _update_dig_ghost(hit: Dictionary) -> void:
@@ -317,8 +315,32 @@ func _update_dig_ghost(hit: Dictionary) -> void:
 	if surface.is_empty():
 		_ghost.hide_()
 		return
-	var center: Vector3 = surface["point"] - surface["normal"] * (BuildLibrary.DIG_TOOL.carve_radius * 0.5)
-	_ghost.show_sphere_at(center, BuildLibrary.DIG_TOOL.carve_radius, true)
+	var tool := BuildLibrary.DIG_TOOL
+	var target := _calculate_dig_target(surface)
+	if tool.shape == DigToolParams.Shape.BOX:
+		_ghost.show_box_at(target, tool.box_size, true)
+	else:
+		_ghost.show_sphere_at(target, tool.carve_radius, true)
+
+
+func _calculate_dig_target(surface: Dictionary) -> Vector3:
+	var tool := BuildLibrary.DIG_TOOL
+	if tool.shape == DigToolParams.Shape.BOX:
+		# Push a tiny epsilon into the surface to land inside the solid.
+		var hit_in: Vector3 = surface["point"] - surface["normal"] * 0.01
+		if tool.snap_grid:
+			# Snap to the CENTER of the struck cell (floor + 0.5), not the nearest
+			# lattice vertex (round): everything downstream — ghost box, carve_box's
+			# sample range, the material lookup — agrees on the struck cell, so
+			# the ghost outlines the dig's core. A vertex anchor straddles 8 cells
+			# and, on dirt edges, rounds to the air-side vertex so the whole
+			# removal range is already air (the silent no-op dig); a cell-center
+			# anchor makes carve_box clear that cell's full corner-sample set —
+			# incline edges and spike remnants included.
+			return hit_in.floor() + Vector3(0.5, 0.5, 0.5)
+		return surface["point"] - surface["normal"] * (tool.box_size.y * 0.5)
+	else:
+		return surface["point"] - surface["normal"] * (tool.carve_radius * 0.5)
 
 
 ## Smooth-hit filter shared by the dig tool (and smooth placement later): the

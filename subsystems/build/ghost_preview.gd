@@ -25,6 +25,8 @@ func _ready() -> void:
 	_material = StandardMaterial3D.new()
 	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_material.no_depth_test = true
+	_material.render_priority = 10
 	_material.albedo_color = _COLOR_VALID
 	material_override = _material
 	_default_mesh = mesh
@@ -82,6 +84,17 @@ func show_sphere_at(world_pos: Vector3, radius: float, valid: bool) -> void:
 	mesh = _sphere_mesh
 	global_position = world_pos
 	scale = Vector3.ONE * maxf(radius, 0.001)
+	rotation_degrees.y = 0.0
+	set_valid(valid)
+	show()
+
+
+## Box preview for cuboid terrain edits (box dig carve): a box of dimensions
+## `size`, CENTERED on world_pos.
+func show_box_at(world_pos: Vector3, size: Vector3, valid: bool) -> void:
+	mesh = _default_mesh
+	global_position = world_pos
+	scale = Vector3(maxf(size.x, 0.001), maxf(size.y, 0.001), maxf(size.z, 0.001))
 	rotation_degrees.y = 0.0
 	set_valid(valid)
 	show()

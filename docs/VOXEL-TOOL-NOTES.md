@@ -52,7 +52,7 @@
 
 ---
 
-## Verified facts (F1–F14)
+## Verified facts (F1–F15)
 
 ### F1 — No in-editor paint tool ships with zylann.voxel
 `VoxelTerrainEditorPlugin` auto-registers but provides only previews + a monitor
@@ -428,6 +428,34 @@ emits DEFAULT texture-0 data**, never the painted channels.
 - The F12 metadata sidecar remains the ONLY per-position material identity
   channel that fully works (data + persistence); the INDICES/WEIGHTS channels
   are safe to ignore entirely.
+
+### F15 — Smooth-terrain integer positions are LATTICE SAMPLES; box digs hard-write air per sample (2026-08-21, dig-tool fix)
+
+Established from the box-dig no-op bugs (two rounds of "the mound stays the
+same"), not a dedicated spike — the symptoms and the fix pin the model:
+
+- **A "voxel" on smooth terrain is a corner SAMPLE, not a cell.** The mesher
+  interpolates the SDF between integer-position values, so the visible surface
+  can pass through a region whose `floor(position)` sample is already air
+  (steep faces, incline edges — the solid sample is a *different* corner of
+  the struck cell). Any edit keyed on `floor(hit_point)` alone can therefore
+  write air over air and change nothing.
+- **Brush edits blend; direct writes stamp.** `MODE_REMOVE do_sphere` /
+  `do_box` blend the SDF (F8; the cratering fix 010f777), leaving
+  partial-density fringe samples at the cut — a lone partial sample meshes as
+  a "pyramid" spike remnant that later digs kept missing. A direct
+  `set_voxel_f(pos, v)` writes exactly that sample: no fringe, deterministic.
+- **What the dig tool encodes** (`SmoothGrid.carve_box` +
+  `BuildController._calculate_dig_target`): the BOX dig anchors on the struck
+  cell's CENTER (`floor(hit_in) + 0.5`, with `hit_in` nudged ~1 cm into the
+  surface along the hit normal) and hard-writes `AIR_DENSITY` (+2, the F8 air
+  mirror of `SOLID_DENSITY`) to every sample inside the ghost box
+  (`box_samples`: closed `ceil(min)..floor(max)` per axis). A snapped 1×1×1
+  dig therefore clears all 8 corners of the struck cell, so no surface can
+  survive inside it no matter which corner held it up. The visible hole is
+  the sample span dilated ~half a sample into the remaining solid (the mesher
+  puts the zero crossing between the last solid and first air sample) —
+  symmetric around the ghost box.
 
 ---
 

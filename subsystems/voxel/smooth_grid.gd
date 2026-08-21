@@ -47,6 +47,10 @@ const TERRAIN_LAYER_VALUE := 1 << (TERRAIN_LAYER - 1)
 ## deep-solid density (-1.999 probed, F8) so added ground is indistinguishable
 ## from generated ground in meshing and collision.
 const SOLID_DENSITY := 2
+## Direct-write value for carve_box: SDF +2, the mirror of SOLID_DENSITY and the
+## generator's air density (+1.999 probed, F8). Written per-cell with
+## set_voxel_f — a hard air stamp, never a blended brush (see carve_box).
+const AIR_DENSITY := 2.0
 
 ## One terrain look per map (F11), banded by depth (the F14 fallback path —
 ## per-voxel texturing is non-functional, so the shader is the whole visual).
@@ -253,6 +257,19 @@ func get_material_def_at(pos: Vector3i) -> TerrainMaterialDef:
 	return null
 
 
+## The def for the first solid sample in a box edit's range (null when the whole
+## range is air). DigAction's BOX entry point: the dig center is the struck
+## cell's center but a multi-sample box may straddle materials, so hp/yields
+## resolve from the first sample that actually answers — a center-sample lookup
+## would silently drop yields on edge digs whose center sample is air.
+func get_first_material_def_in_box(min_pos: Vector3, max_pos: Vector3) -> TerrainMaterialDef:
+	for sample: Vector3i in box_samples(min_pos, max_pos):
+		var def := get_material_def_at(sample)
+		if def != null:
+			return def
+	return null
+
+
 ## Injected where terrain_gen already flows (SceneManager at runtime, the map
 ## editor when authoring), sourced from BuildLibrary.get_terrain_materials() —
 ## this subsystem reads no catalogs itself (AGENTS.md rule 3). No injection
@@ -306,6 +323,44 @@ func carve(pos: Vector3, radius: float) -> void:
 	_voxel_tool.do_sphere(pos, radius)
 	_evict_columns_near(pos, radius)
 	material_carved.emit(pos)
+
+
+## Carve a box of terrain away: every SAMPLE inside [min_pos, max_pos] gets a
+## HARD air write. Samples, not "cells" — on smooth terrain an integer
+## coordinate is a lattice corner value, and the mesh surface between solid
+## and air samples can pass through cells whose own min-corner sample is
+## already air (incline edges, steep faces). Clearing just one sample leaves
+## those surfaces standing; clearing every sample in the box guarantees no
+## surface can survive inside it. Also deliberately not `do_box` — the
+## box/sphere brushes are SDF blends that leave partial-density fringe cells
+## at the cut, and a lone partial cell meshes as an unremovable "pyramid"
+## spike. The visible hole is the sample span dilated ~half a sample into the
+## remaining solid (the mesher interpolates between the last solid and first
+## air sample), symmetric around the ghost box. Carved cells keep stale
+## sidecar entries (F12, inert via the air-first read); writes outside the
+## streamed area are silent no-ops (F3, same as any brush).
+func carve_box(min_pos: Vector3, max_pos: Vector3) -> void:
+	if _voxel_tool == null:
+		return
+	for sample: Vector3i in box_samples(min_pos, max_pos):
+		_voxel_tool.set_voxel_f(sample, AIR_DENSITY)
+	_evict_columns_in_box(min_pos, max_pos)
+	material_carved.emit((min_pos + max_pos) * 0.5)
+
+
+## The samples a box edit covers: integer positions are LATTICE SAMPLES, so a
+## sample counts when it lies inside the CLOSED box — ceil(min_pos) through
+## floor(max_pos) per axis. A snapped 1x1x1 dig (bounds exactly on cell edges)
+## therefore clears all 8 corners of the struck cell; a snapped 3x3x3 clears
+## the 4x4x4 sample span matching the ghost's world extent. Static and
+## side-effect-free so suites can pin the math.
+static func box_samples(min_pos: Vector3, max_pos: Vector3) -> Array[Vector3i]:
+	var samples: Array[Vector3i] = []
+	for x: int in range(int(ceil(min_pos.x)), int(floor(max_pos.x)) + 1):
+		for y: int in range(int(ceil(min_pos.y)), int(floor(max_pos.y)) + 1):
+			for z: int in range(int(ceil(min_pos.z)), int(floor(max_pos.z)) + 1):
+				samples.append(Vector3i(x, y, z))
+	return samples
 
 
 # --- F12 material sidecar --------------------------------------------------------
@@ -630,6 +685,15 @@ func _evict_columns_near(pos: Vector3, radius: float) -> void:
 	var reach := radius + 1.5
 	var min_col := Vector2i(int(floor(pos.x - reach)), int(floor(pos.z - reach)))
 	var max_col := Vector2i(int(floor(pos.x + reach)), int(floor(pos.z + reach)))
+	for col: Vector2i in _height_cache.keys():
+		if col.x >= min_col.x and col.x <= max_col.x and col.y >= min_col.y and col.y <= max_col.y:
+			_height_cache.erase(col)
+
+
+func _evict_columns_in_box(min_pos: Vector3, max_pos: Vector3) -> void:
+	var reach := 1.5
+	var min_col := Vector2i(int(floor(min_pos.x - reach)), int(floor(min_pos.z - reach)))
+	var max_col := Vector2i(int(floor(max_pos.x + reach)), int(floor(max_pos.z + reach)))
 	for col: Vector2i in _height_cache.keys():
 		if col.x >= min_col.x and col.x <= max_col.x and col.y >= min_col.y and col.y <= max_col.y:
 			_height_cache.erase(col)

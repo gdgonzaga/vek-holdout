@@ -50,15 +50,22 @@ class MockStorageInventory extends StorageInventory:
 ## material_def is what the per-position get_material_def_at answers (null =
 ## "no stats at this position").
 class RecordingSmoothGrid extends SmoothGrid:
-	var carves: Array = []   # [{pos: Vector3, radius: float}]
-	var adds: Array = []     # [{pos: Vector3, material_id: String, radius: float}]
+	var carves: Array = []       # [{pos: Vector3, radius: float}]
+	var box_carves: Array = []   # [{min: Vector3, max: Vector3}]
+	var adds: Array = []         # [{pos: Vector3, material_id: String, radius: float}]
 	var material_def: TerrainMaterialDef = null
 
 	func carve(pos: Vector3, radius: float) -> void:
 		carves.append({"pos": pos, "radius": radius})
 
+	func carve_box(min_pos: Vector3, max_pos: Vector3) -> void:
+		box_carves.append({"min": min_pos, "max": max_pos})
+
 	func add_material(pos: Vector3, material_id: String, radius: float) -> void:
 		adds.append({"pos": pos, "material_id": material_id, "radius": radius})
 
 	func get_material_def_at(_pos: Vector3i) -> TerrainMaterialDef:
+		return material_def
+
+	func get_first_material_def_in_box(_min_pos: Vector3, _max_pos: Vector3) -> TerrainMaterialDef:
 		return material_def

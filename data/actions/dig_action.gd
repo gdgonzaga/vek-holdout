@@ -1,7 +1,7 @@
 class_name DigAction
 extends GameAction
-## The mining dig (docs/TODO.md Phase 5): a timed action that carves a sphere
-## out of the natural (smooth) terrain on completion, then grants the material's
+## The mining dig (docs/TODO.md Phase 5): a timed action that carves a box or
+## sphere out of the natural (smooth) terrain on completion, then grants the material's
 ## yields to the digger — the harvesting pattern (HarvestAction) applied to
 ## terrain instead of a furniture node.
 ##
@@ -29,14 +29,14 @@ const HP_SCALE := 100.0
 
 
 ## Start a dig by `actor` (the Player today) at world-space `center` (the
-## already-nudged sphere center the ghost showed) on `grid`, using `tool`'s
-## work time / carve radius. Material stats come from the grid AT THE DIG
-## POSITION — F12 sidecar for authored ground, strata depth rules for natural
+## already-resolved dig center the ghost showed) on `grid`, using `tool`'s
+## work time / shape. Material stats come from the grid AT THE DIG POSITION
+## — F12 sidecar for authored ground, strata depth rules for natural
 ## ground, default_material when neither answers.
 func begin(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams) -> void:
 	if actor == null or grid == null or tool == null:
 		return
-	var material := grid.get_material_def_at(Vector3i(center.round()))
+	var material := _resolve_material(grid, center, tool)
 	var duration: float = tool.work_time * (float(material.hp) / HP_SCALE if material != null else 1.0)
 	var player := actor as Player
 	if player != null and player.skill_set != null:
@@ -63,10 +63,14 @@ func begin(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams) 
 ## The completion path, kept separate so tests can run it without the gauge
 ## (the HarvestAction._apply testing seam).
 func _apply(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams) -> void:
-	# Resolve the def BEFORE carving — after the sphere removal the center is
+	# Resolve the def BEFORE carving — after the removal the center is
 	# air and the sidecar answer would be "".
-	var material := grid.get_material_def_at(Vector3i(center.round()))
-	grid.carve(center, tool.carve_radius)
+	var material := _resolve_material(grid, center, tool)
+	if tool.shape == DigToolParams.Shape.BOX:
+		var half_box := tool.box_size * 0.5
+		grid.carve_box(center - half_box, center + half_box)
+	else:
+		grid.carve(center, tool.carve_radius)
 	if material != null:
 		var pocket := _pocket_of(actor)
 		if pocket != null:
@@ -75,6 +79,17 @@ func _apply(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams)
 	var skill_set := _skills_of(actor)
 	if skill_set != null:
 		skill_set.record_use_for_labor("mining")
+
+
+## The def the dig answers for, per shape: a BOX scans the samples its carve
+## clears (the struck cell's min sample can be air on incline edges — and
+## round(4.5)=5 would even sample the wrong position entirely), a SPHERE
+## samples its center as before.
+func _resolve_material(grid: SmoothGrid, center: Vector3, tool: DigToolParams) -> TerrainMaterialDef:
+	if tool.shape == DigToolParams.Shape.BOX:
+		var half_box := tool.box_size * 0.5
+		return grid.get_first_material_def_in_box(center - half_box, center + half_box)
+	return grid.get_material_def_at(Vector3i(center.round()))
 
 
 func _pocket_of(actor: Node) -> Inventory:
