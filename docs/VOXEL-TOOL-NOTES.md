@@ -37,12 +37,14 @@
 7. **Smooth terrain is editable + persistent at runtime** — `do_sphere`
    carve/remove and add/set both move the collision surface, and a
    `VoxelStreamSQLite` flush survives full terrain teardown/rebuild with saved
-   blocks overriding the generator. The mesher has **no material API** (one
-   fixed appearance; voxel values are pure SDF density). (See F8.)
+   blocks overriding the generator. The **mesher** has **no material API**
+   (voxel values are pure SDF density), but the **terrain node** takes
+   `material_override` — the look is settable per map; per-voxel *painted*
+   visuals are not achievable with the stock mesher. (See F8, F11.)
 
 ---
 
-## Verified facts (F1–F8)
+## Verified facts (F1–F11)
 
 ### F1 — No in-editor paint tool ships with zylann.voxel
 `VoxelTerrainEditorPlugin` auto-registers but provides only previews + a monitor
@@ -165,7 +167,9 @@ green light for `smooth_grid.gd` (dual-voxel conversion Phase 2, docs/TODO.md):
   under the terrain; server-side). Voxel values are pure density — they cannot
   carry material identity. Consequence (D2): terrain material defs carry
   identity/hardness only; the smooth terrain has ONE fixed visual appearance
-  in v1. No per-material rendering to design around.
+  in v1. No per-material rendering to design around. *(Scope later narrowed by
+  F11: this verdict is mesher-level — the terrain **node** does accept
+  `material_override`.)*
 - **Block-streaming signals (D4 heightfield-cache invalidation hooks), exact
   signatures:** `block_loaded(position: Vector3i)`,
   `block_unloaded(position: Vector3i)`,
@@ -231,6 +235,52 @@ both) and flat (low at both). Consequences:
   `subsystems/voxel/smooth_grid.gd`).
 - Note `VoxelGeneratorHeightmap` is ClassDB-registered but NOT instantiable in
   this build — it is not an available alternative.
+
+### F11 — The terrain NODE takes a material: `VoxelTerrain.material_override` (2026-08-21, probed)
+
+F8's "no material API" was scoped to the **mesher**; the terrain **node** was
+never probed. ClassDB class-level probes (`class_get_property_list` /
+`class_has_method` / parent-chain walk, headless) now fill that gap:
+
+- **`VoxelTerrain` registers `material_override`** — OBJECT-typed, hint classes
+  `BaseMaterial3D,ShaderMaterial` — plus a `set_material_override()` method.
+  The class chain is `VoxelTerrain < VoxelNode < Node3D < Node < Object`;
+  `VoxelNode` itself has **no** material property, so the property is
+  deliberate on the terrain classes: the addon reads `get_material_override`
+  (string present in the extension binary) and applies it to the server-side
+  mesh instances it owns (F8: those are not node children). Our smooth terrain
+  is a `VoxelTerrain`, so this is the hook.
+- **`VoxelLodTerrain` exposes the same thing under the property name
+  `material`** (it has no `set_material_override`) — don't confuse the two if
+  a scene ever switches terrain classes.
+- **`VoxelMesherTransvoxel` is confirmed clean** — its only texture-ish
+  property is `textures_ignore_air_voxels`; F8's mesher verdict stands.
+
+Consequences:
+
+- **The terrain look is resource-settable per map.** Assign a
+  `StandardMaterial3D` (flat albedo) or a `ShaderMaterial` to the
+  `VoxelTerrain` node's `material_override` — authorable in the map's
+  `.tscn`/`.tres`, no code required. Natural home for the reference once
+  wired: `TerrainMaterialDef` (or `MapDef`) → pushed onto
+  `_terrain.material_override` by `SmoothGrid`.
+- **Visual variety within one terrain = shader rules, not voxel data.**
+  Smooth meshes have no UVs and no per-vertex material data (voxel values are
+  density-only), so "different terrain materials" visually means a shader
+  shading by world position/normal — triplanar texturing, grass-on-flat /
+  rock-on-steep / deeper-darker blending. This is the standard zylann.voxel
+  approach and composes fine with the one-look-per-map material above.
+- **The honest ceiling: no per-voxel *painted* visuals.** True 7DtD-style
+  "each dug cell visibly is clay/sand/stone" needs the mesher to bake a
+  material channel into vertex data; the stock transvoxel mesher doesn't, and
+  forking the C++ addon is off-project (GDScript-only). Gameplay material
+  identity is unaffected — it lives in `TerrainMaterialDef` + signals
+  (dig-time resolution by depth or authored metadata), not in the renderer.
+- **Headless probe gotcha:** instantiating `VoxelTerrain`/`VoxelLodTerrain` in
+  a `--headless` `--script` run **hangs** (the terrain's internal thread pool
+  never exits; one instantiation probe timed out with zero output). Probe
+  class surfaces with `ClassDB.class_get_property_list("VoxelTerrain")` etc.
+  instead of `ClassDB.instantiate` — same answers, no threads.
 
 ---
 
