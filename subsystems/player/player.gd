@@ -11,7 +11,7 @@ extends CharacterBody3D
 ## data/characters/player.tres instead of these exports (ARCH: no hardcoded
 ## content values). Exported for now so they're editor-tunable.
 
-enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT}
+enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT, DIG_BOX_DESIGNATION}
 enum State {IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD}
 
 @export var walk_speed := 3.5
@@ -137,6 +137,7 @@ func _ready() -> void:
 	_input.primary_action_pressed.connect(_on_primary_action)
 	_input.recapture_requested.connect(_recapture_mouse)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
+	_input.dig_box_toggle_pressed.connect(_on_dig_box_toggle_pressed)
 
 
 ## Blueprint key routing (GDD §4 controls table):
@@ -214,6 +215,10 @@ func _on_ui_cancel() -> void:
 		get_viewport().set_input_as_handled()
 		mode = Mode.NORMAL
 		EventBus.build_placement_toggled.emit(false)
+	elif mode == Mode.DIG_BOX_DESIGNATION:
+		get_viewport().set_input_as_handled()
+		mode = Mode.NORMAL
+		EventBus.dig_box_toggled.emit(false)
 
 
 ## Leave placement and reopen the build menu (B in placement — quick item swap).
@@ -452,3 +457,14 @@ func _on_primary_action() -> void:
 			if harvestable != null:
 				var action := HarvestAction.new()
 				action.execute(self, target)
+
+
+func _on_dig_box_toggle_pressed() -> void:
+	if _busy:
+		return
+	if mode == Mode.DIG_BOX_DESIGNATION:
+		mode = Mode.NORMAL
+		EventBus.dig_box_toggled.emit(false)
+	elif mode == Mode.NORMAL:
+		mode = Mode.DIG_BOX_DESIGNATION
+		EventBus.dig_box_toggled.emit(true)

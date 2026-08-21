@@ -32,6 +32,8 @@ signal game_over() # GameState -> SceneManager
 
 # --- Player / build / inventory ---
 signal build_placement_toggled(active: bool) # player -> BuildController, HUD
+signal dig_box_toggled(active: bool) # player -> DigBoxController, HUD
+signal dig_box_dimensions_changed(width: int, height: int, depth: int) # DigBoxController -> HUD
 signal build_menu_toggled(open: bool) # player -> HUD (build menu visibility for the Instructions label)
 signal buildable_selected(id: String) # player -> BuildController (sets selected_id)
 signal furniture_placed(def_id: String, anchor: Vector3i) # FurnitureLayer -> Colony (Functional Rooms, later)

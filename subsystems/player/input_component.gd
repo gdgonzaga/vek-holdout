@@ -11,6 +11,9 @@ extends Node
 ## Emitted when the player presses the build toggle key (B).
 signal build_toggle_pressed()
 
+## Emitted when the player presses the dig box toggle key (Shift+G).
+signal dig_box_toggle_pressed()
+
 ## Emitted when the player clicks the primary action button (LMB) during gameplay.
 signal primary_action_pressed()
 
@@ -43,6 +46,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("build_toggle"):
 		build_toggle_pressed.emit()
+		return
+	if event.is_action_pressed("dig_box_toggle"):
+		dig_box_toggle_pressed.emit()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		primary_action_pressed.emit()

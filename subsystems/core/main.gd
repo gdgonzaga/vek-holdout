@@ -33,6 +33,9 @@ func _ready() -> void:
 	# Mount the persistent game-log tail on the HUDLayer.
 	var log_feed: Control = preload("res://ui/log_feed/log_feed.tscn").instantiate()
 	_hud_layer.add_child(log_feed)
+	# Mount the persistent dig box HUD overlay on the HUDLayer.
+	var dig_box_hud: Control = preload("res://ui/dig_box_hud/dig_box_hud.tscn").instantiate()
+	_hud_layer.add_child(dig_box_hud)
 	# No map is loaded here — the Main Menu's New Game button drives the base
 	# load (see ui/main_menu/main_menu.gd). base_colony + POI discovery moved
 	# behind the menu so the menu gates gameplay.
