@@ -31,6 +31,7 @@ Last updated: 2026-08-17 (doc-vs-code audit: as-built pages synced with the code
 | [Inventory](inventory.md) | Weight-based inventory, ItemDef, ItemDB autoload | §4.5, §7.3 |
 | [Crafting](crafting.md) | Recipes, Workbench/Forge, craft Jobs | §7.9 |
 | [Farming](farming.md) | Farm plots, hydration, tending, crop growth & yields | §6 |
+| [Mining](mining.md) | Voxel digging, strata materials, dig box designation, markers | §7.5 |
 | [UI](ui.md) | HUD + all full-screen screens | §12 |
 | [Game Log](game-log.md) | On-screen message feed, history buffer | §12 |
 

@@ -111,7 +111,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `gravity` | `float` | `[export default 9.8]` Gravity acceleration. |
 | `jump_force` | `float` | `[export default 5.0]` Vertical impulse on jump. |
 | `jump_move_speed` | `float` | `[export default 0.5]` Mid-air nudge speed for axis braking. |
-| `mode` | `Mode` enum | `NORMAL`, `BUILD_MENU`, or `BUILD_PLACEMENT`. |
+| `mode` | `Mode` enum | `NORMAL`, `BUILD_MENU`, `BUILD_PLACEMENT`, or `DIG_BOX_DESIGNATION`. |
 | `state` | `State` enum | Movement/action state (`IDLE`, `WALK`, `SPRINT`, `ATTACK`, `INTERACT`, `SLEEP`, `DEAD`). Only `IDLE`/`WALK`/`SPRINT` are actively assigned at runtime; the rest are placeholders. |
 | `interact_distance` | `float` | `[export default 8.0]` Max range for the interaction crosshair raycast. |
 | `_current_interactable` | `InteractionComponent` | The component currently under the crosshair (or `null`). Refreshed every tick by `_update_interaction_target`. |
