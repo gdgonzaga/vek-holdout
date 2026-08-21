@@ -211,6 +211,7 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 		push_error("SceneManager: scene '%s' root is not a Map" % map_def.scene_path)
 		return
 	var furniture_layer: FurnitureLayer = MapWiring.wire_build(m)
+	MapWiring.wire_mining(m)
 
 	# Read spawns once — used for both furniture replay and player positioning.
 	var spawns: Dictionary = SpawnHelpers.read_spawns(m)

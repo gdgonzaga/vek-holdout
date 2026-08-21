@@ -52,15 +52,33 @@ static func wire_build(map: Map) -> FurnitureLayer:
 	smooth_strategy.set_smooth_grid(_live_smooth_grid(map))
 	ctrl.smooth_strategy = smooth_strategy
 
-	# DigBoxController: wire or mount dynamically into the map.
+
+	return fl
+
+
+## Wire mining execution (MiningSystem) and player designation tool (DigBoxController).
+## Injects the VoxelGridAdapter into both.
+static func wire_mining(map: Map) -> void:
+	var grid: BlockyGrid = map.get_blocky_grid()
+	var adapter := VoxelGridAdapter.new()
+	adapter.set_grid(grid)
+	adapter.set_smooth_grid(_live_smooth_grid(map))
+
+	# MiningSystem: map-level simulation node for marker management and terrain carving
+	var mining_sys := map.find_child("MiningSystem", true, false) as MiningSystem
+	if mining_sys == null:
+		mining_sys = MiningSystem.new()
+		mining_sys.name = "MiningSystem"
+		map.add_child(mining_sys)
+	mining_sys.grid_adapter = adapter
+
+	# DigBoxController: player UI tool for dig box designation
 	var dig_ctrl := map.find_child("DigBoxController", true, false) as DigBoxController
 	if dig_ctrl == null:
 		dig_ctrl = preload("res://subsystems/mining/dig_box.tscn").instantiate()
 		dig_ctrl.name = "DigBoxController"
 		map.add_child(dig_ctrl)
 	dig_ctrl.grid_adapter = adapter
-
-	return fl
 
 
 ## Attach the player to the map and wire its camera into BuildController.
