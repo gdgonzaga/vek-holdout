@@ -162,3 +162,16 @@ func height_at(x: float, z: float, normal_out: Array = []) -> float:
 	if _grid == null:
 		return NAN
 	return _grid.height_at(x, z, normal_out)
+
+
+## True if pos contains solid natural smooth terrain meeting the height / SDF threshold.
+func is_terrain_at(pos: Vector3i, threshold: float = 0.5) -> bool:
+	if _smooth == null:
+		return false
+	var h: float = _smooth.height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
+	if not is_nan(h):
+		return h >= (float(pos.y) + threshold)
+	var vt: VoxelTool = _smooth.get_voxel_tool()
+	if vt != null:
+		return vt.get_voxel_f(pos) <= -threshold
+	return false

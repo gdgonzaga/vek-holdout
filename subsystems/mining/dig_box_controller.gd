@@ -330,28 +330,11 @@ func _try_commit_designation() -> void:
 		EventBus.dig_box_designated.emit(terrain_coords)
 
 
-## Returns true if cell contains solid terrain (either blocky voxel or smooth terrain meeting the height threshold).
+## Returns true if cell contains natural smooth terrain meeting the height threshold.
 func is_terrain_at(cell: Vector3i) -> bool:
 	if grid_adapter == null:
 		return false
-	
-	# 1. Check blocky grid
-	if grid_adapter.get_block_at(cell) != "":
-		return true
-	
-	# 2. Check smooth terrain grid with height threshold
-	var smooth: SmoothGrid = grid_adapter.get_smooth_grid()
-	if smooth != null:
-		var h: float = smooth.height_at(float(cell.x) + 0.5, float(cell.z) + 0.5)
-		if not is_nan(h):
-			return h >= (float(cell.y) + terrain_solidity_threshold)
-		
-		# Fallback if height_at returns NaN: check VoxelTool SDF value
-		var vt: VoxelTool = smooth.get_voxel_tool()
-		if vt != null:
-			return vt.get_voxel_f(cell) <= -terrain_solidity_threshold
-	
-	return false
+	return grid_adapter.is_terrain_at(cell, terrain_solidity_threshold)
 
 
 ## Filters an array of voxel coordinates to return only those containing actual terrain.
