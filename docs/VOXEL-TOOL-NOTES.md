@@ -40,7 +40,9 @@
    blocks overriding the generator. The **mesher** has **no material API**
    (voxel values are pure SDF density), but the **terrain node** takes
    `material_override` — the look is settable per map; per-voxel *painted*
-   visuals are not achievable with the stock mesher. (See F8, F11.)
+   visuals are not achievable with the stock mesher, and its advertised
+   `texturing_mode` system is API-present but non-functional (default-0
+   emission only). (See F8, F11, F14.)
 8. **Voxel metadata persists as ONE entry per block — the lowest position.**
    Per-voxel tags silently lose N-1 entries per block on save; the durable
    pattern is a single Dictionary value anchored at the block origin
@@ -50,7 +52,7 @@
 
 ---
 
-## Verified facts (F1–F13)
+## Verified facts (F1–F14)
 
 ### F1 — No in-editor paint tool ships with zylann.voxel
 `VoxelTerrainEditorPlugin` auto-registers but provides only previews + a monitor
@@ -278,10 +280,12 @@ Consequences:
   approach and composes fine with the one-look-per-map material above.
 - **The honest ceiling: no per-voxel *painted* visuals.** True 7DtD-style
   "each dug cell visibly is clay/sand/stone" needs the mesher to bake a
-  material channel into vertex data; the stock transvoxel mesher doesn't, and
-  forking the C++ addon is off-project (GDScript-only). Gameplay material
-  identity is unaffected — it lives in `TerrainMaterialDef` + signals
-  (dig-time resolution by depth or authored metadata), not in the renderer.
+  material channel into vertex data; the stock transvoxel mesher doesn't —
+  and its advertised `texturing_mode` alternative is verified non-functional
+  (F14) — while forking the C++ addon is off-project (GDScript-only).
+  Gameplay material identity is unaffected — it lives in
+  `TerrainMaterialDef` + signals (dig-time resolution by depth or authored
+  metadata), not in the renderer.
 - **Headless probe gotcha:** instantiating `VoxelTerrain`/`VoxelLodTerrain` in
   a `--headless` `--script` run **hangs** (the terrain's internal thread pool
   never exits; one instantiation probe timed out with zero output). Probe
@@ -338,6 +342,86 @@ Rejected candidates: `start + n * range` (MAE 6.04), double-frequency sampling
 original surface − y, the mining strata basis) without touching the C++
 generator; editor heightmap regeneration stays in lockstep because both the
 generator and the pristine-height math read the same saved `TerrainGenDef`.
+
+### F14 — The transvoxel texturing system is API-present but NON-FUNCTIONAL (2026-08-21, probed)
+
+Validated by `testing/zylann/voxel_texturing_spike.tscn` (windowed, 9 runs —
+visual verdicts by viewport pixel sampling, data verdicts by channel readback,
+mesher verdicts by direct `build_mesh` on hand-built `VoxelBuffer`s). Upstream
+docs describe `VoxelMesherTransvoxel.texturing_mode` + per-voxel texture
+indices reaching shaders via `CUSTOM1`; the API is fully present in this build
+(and the implementation strings are in the binary) — but the mesher **always
+emits DEFAULT texture-0 data**, never the painted channels.
+
+**What WORKS (all verified):**
+
+- `texturing_mode` enum: `TEXTURES_NONE=0`, `TEXTURES_MIXEL4_S4=1` (legacy
+  alias `TEXTURES_BLEND_4_OVER_16`), `TEXTURES_SINGLE_S4=2`; property
+  round-trips and survives on the live terrain node.
+- Painting APIs: **Mixel4** = `VoxelTool.mode = MODE_TEXTURE_PAINT (3)` +
+  `texture_index` + `texture_opacity` (max weight) + `texture_falloff`
+  (lower = sharper; 1.0 leaves the old texture dominant in the sphere fringe,
+  0.15 gives weight 1.0) + `do_sphere`; **Single** = `channel =
+  CHANNEL_INDICES` + `MODE_SET` + `value` + `do_sphere`. Both write
+  CHANNEL_INDICES (3) / CHANNEL_WEIGHTS (4) and leave the SDF untouched.
+- **Persistence**: painted channel data round-trips through
+  `save_modified_blocks()` + full terrain teardown/rebuild on the same db —
+  two cycles, byte-identical packed u16s, in BOTH modes. Even Single index 7
+  survives despite the "2 bits" format warning (see below).
+- Encodings (ground truth via `VoxelTool.vec4i_to_u16_indices` /
+  `color_to_u16_weights`): indices `(0,1,2,3)` → `0x3210`; weights
+  `(1,0,0,0)` → `0x000F`, texture-1 full → `0x00F0` (slot i = nibble i,
+  little-endian). Unpainted voxels read `(0x3210, 0x000F)` — texture 0.
+- `CUSTOM1` itself: emitted and readable in shaders (`floatBitsToUint` byte
+  unpacking; RG-float custom attribute). A `ShaderMaterial` on
+  `VoxelTerrain.material_override` receives it fine.
+
+**What DOESN'T — the falsified hypothesis matrix:**
+
+- The mesher's emission is always the uniform-0 default branch — Mixel4
+  `(indices 0,1,2,3, weights ≈(240,0,0,0))`, Single the analogous
+  `(0,1,2,3)/(255,0,0,0)` — regardless of: mode; indices in channel 3, 5, 6
+  or 7; 8-bit vs 16-bit depths (verified via `get_channel_depth` +
+  non-uniform readbacks); uniform vs non-uniform channel data;
+  `textures_ignore_air_voxels` true/false; isolation (`build_mesh` on a
+  controlled `VoxelBuffer`) vs live streaming terrain; freshly painted vs
+  save/reloaded blocks. Painting indices over a wider radius than the SDF
+  sphere (covering the air shell) makes no difference.
+- **The official v1.7x GDExtension binary (released 2026-08-20) behaves
+    byte-identically** — this is current upstream, not a stale vendoring.
+  Re-test on any future addon bump with the spike (`--isolation-only`).
+
+**Corollary facts worth keeping:**
+
+- `VoxelTerrain.format` takes a `VoxelFormat` (`indices_depth` wants
+  `DEPTH_8_BIT` for Single, 16-bit for Mixel4); assigning one silences the
+  misleading `check_texturing_mode` warning ("Indices channel is set to 2
+  bits…", which appears with the DEFAULT format in Single mode). Depth enum:
+  `DEPTH_8_BIT=0, DEPTH_16_BIT=1, …`. `VoxelStreamSQLite` has
+  `preferred_coordinate_format`.
+- Raw `VoxelBuffer.set_voxel` quirk: writing the SAME value into a
+  uniform-compressed channel leaves it uniform (reads "bleed" the value to
+  unwritten positions, `is_uniform` stays true) — write at least two distinct
+  values when constructing probe buffers.
+- Channels-only edits (INDICES/WEIGHTS paint with no SDF change) do NOT
+  trigger a re-mesh of the live terrain; blocks save and re-mesh on reload,
+  which is how the persistence path was verified.
+- Upstream `single_s4` emits the SAME 2-float `(packed 4 indices, packed 4
+  weights)` CUSTOM1 layout as Mixel4 — per-vertex weights are the geometric
+  lerp of the two edge corners' materials. Any future shader for this system
+  decodes both floats; there is no 1-float layout in practice.
+
+**Consequences:**
+
+- **Per-material terrain visuals cannot ride voxel data.** F11's shader-rules
+  ceiling stands as the only renderer path: one `ShaderMaterial` on
+  `material_override`, variety by world position/normal/height (triplanar,
+  depth bands). Authored blobs need non-voxel visual markers (decals, crystal
+  meshes, or similar spawned from `SmoothGrid.add_material`) if they must be
+  distinguishable at a glance.
+- The F12 metadata sidecar remains the ONLY per-position material identity
+  channel that fully works (data + persistence); the INDICES/WEIGHTS channels
+  are safe to ignore entirely.
 
 ---
 
