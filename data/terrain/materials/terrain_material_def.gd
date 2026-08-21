@@ -1,26 +1,47 @@
 extends Resource
 class_name TerrainMaterialDef
-## Identity/stats for a placeable natural material (dirt, rock, ...). One of the
-## mirrored BlockyGrid/SmoothGrid vocabularies (docs/TODO.md D1/D2).
+## Identity + mining stats for a natural material of the smooth terrain (dirt,
+## rock, ores). One of the mirrored BlockyGrid/SmoothGrid vocabularies
+## (docs/TODO.md D1/D2).
 ##
-## F8 verdict: VoxelMesherTransvoxel exposes NO material API in this build —
-## voxel values are pure SDF density and the terrain has ONE fixed visual
-## appearance. So unlike BlockDef there is no mesh/material here: the def
-## carries identity + gameplay stats only. `hardness` is the relative mining
-## cost multiplier for the Phase 5 dig action.
+## Identity is per-position at runtime: authored blobs (editor sculpts, smooth
+## placement, structure stamps) carry their material id in per-block voxel
+## metadata (F12 — one Dictionary per 16^3 block anchored at the block origin);
+## natural ground resolves through TerrainStrata's deterministic depth rules.
+## F8/F11 remain the MESHER ceiling — the terrain has one visual look per map —
+## so unlike BlockDef there is no mesh/material here; `texture` is reserved
+## data, not a render hook. Equipment gating (later) matches on `id`.
 
 @export var id: String
 @export var display_name: String
 
-## Relative dig-effort multiplier (1 = baseline dirt). Higher = more swings.
-@export var hardness: int = 1
+## Break pool. Today it scales dig time (work_time * hp / 100 — hp 100 keeps
+## the old hardness-1 feel, 300 the old hardness-3); the future tool-damage
+## model consumes it per swing.
+@export var hp: int = 100
 
 ## What one completed dig of this material drops into the digger's inventory
-## (the HarvestParams.yields shape). v1 ceiling: the smooth terrain has no
-## per-position material channel (F8), so every dig reports the map's default
-## material and yields its drops — authoring per-material yields is ready for
-## the day real material representation lands.
+## (the HarvestParams.yields shape).
 @export var yields: Array[ItemAmount] = []
+
+## Inclusive depth band in voxel rows below the PRISTINE generated surface
+## (surface row = depth 0; F13 supplies the pristine height, stable under
+## digging). Materials whose band contains the dig depth are strata
+## candidates; depth above the surface (authored mounds) matches no band.
+@export var min_depth: int = 0
+@export var max_depth: int = 0x7FFFFFFF
+
+## Approximate blocks per vein cluster -> TerrainStrata noise wavelength.
+@export var vein_size: int = 8
+
+## Relative frequency within the depth band, normalized across the band's
+## candidates at query time. Any non-negative scale (10:2:1 reads as a mix
+## ratio); 0 = never generates.
+@export var spawn_weight: float = 1.0
+
+## Reserved (F8/F11 ceiling): NOT rendered on the terrain in v1 — future
+## dig-UI feedback swatch and per-material visuals if a custom mesher lands.
+@export var texture: Texture2D = null
 
 ## Radius of the sphere one placement of this material adds (also the blob
 ## ghost's radius — the preview shows exactly the volume). Fixed size in v1,
