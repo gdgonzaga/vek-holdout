@@ -51,6 +51,15 @@ static func wire_build(map: Map) -> FurnitureLayer:
 	var smooth_strategy := SmoothPlacementStrategy.new()
 	smooth_strategy.set_smooth_grid(_live_smooth_grid(map))
 	ctrl.smooth_strategy = smooth_strategy
+
+	# DigBoxController: wire or mount dynamically into the map.
+	var dig_ctrl := map.find_child("DigBoxController", true, false) as DigBoxController
+	if dig_ctrl == null:
+		dig_ctrl = preload("res://subsystems/build/dig_box.tscn").instantiate()
+		dig_ctrl.name = "DigBoxController"
+		map.add_child(dig_ctrl)
+	dig_ctrl.grid_adapter = adapter
+
 	return fl
 
 
@@ -80,6 +89,10 @@ static func wire_player(map: Map, player: Player) -> void:
 		ctrl.add_exclude_body(player)
 		# The dig tool's timed action acts on the player (busy/yields/skill).
 		ctrl.set_player(player)
+	var dig_ctrl := map.find_child("DigBoxController", true, false) as DigBoxController
+	if dig_ctrl != null:
+		dig_ctrl.set_camera(player.get_camera())
+		dig_ctrl.add_exclude_body(player)
 
 
 ## Hand the map's ColonistContainer + authored ColonistSpawn* positions to Colony

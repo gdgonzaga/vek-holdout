@@ -12,13 +12,13 @@ func _ready() -> void:
 	visible = false
 	EventBus.dig_box_toggled.connect(_on_dig_box_toggled)
 	EventBus.dig_box_dimensions_changed.connect(_on_dimensions_changed)
-	_update_dimensions(1, 3, 1)
+	_update_dimensions(1, 3, 3)
 
 
 func _on_dig_box_toggled(active: bool) -> void:
 	visible = active
 	if active:
-		_update_dimensions(1, 3, 1)
+		_update_dimensions(1, 3, 3)
 
 
 func _on_dimensions_changed(width: int, height: int, depth: int) -> void:

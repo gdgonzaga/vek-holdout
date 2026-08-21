@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://d3m_dig_box_ctrl_001"]
+
+[ext_resource type="Script" path="res://subsystems/build/dig_box_controller.gd" id="1_controller"]
+[ext_resource type="Script" path="res://subsystems/build/ghost_preview.gd" id="2_ghost"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ghost"]
+
+[node name="DigBoxController" type="Node3D"]
+script = ExtResource("1_controller")
+
+[node name="GhostPreview" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_ghost")
+script = ExtResource("2_ghost")
