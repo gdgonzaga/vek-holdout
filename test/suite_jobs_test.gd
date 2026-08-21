@@ -269,6 +269,47 @@ func test_furniture_deserialize_without_state_key() -> void:
 	assert_bool(furniture.state.is_empty()).is_true()
 
 
+# ── Failure & Cooldown ────────────────────────────────────────────────────────
+
+func test_job_failure_cooldown_and_backoff() -> void:
+	var board := JobBoard.new()
+	auto_free(board)
+	var job := Job.new()
+	board.add_job(job)
+	
+	for i in range(3):
+		board.fail(job.id, "unreachable")
+	assert_bool(job.is_available()).is_true()
+	
+	board.fail(job.id, "unreachable")
+	assert_bool(job.is_available()).is_false()
+	assert_int(job.sleep_until_msec).is_greater(Time.get_ticks_msec())
+	
+	job.sleep_until_msec = 0
+	job.failure_count = 5
+	board.fail(job.id, "unreachable")
+	assert_bool(job.is_available()).is_false()
+	assert_int(job.sleep_until_msec - Time.get_ticks_msec()).is_greater(55000)
+	
+	job.failure_count = 9
+	board.fail(job.id, "unreachable")
+	assert_bool(job.is_available()).is_false()
+	assert_int(job.sleep_until_msec - Time.get_ticks_msec()).is_greater(295000)
+
+
+func test_world_changed_wakes_sleeping_jobs() -> void:
+	var board := JobBoard.new()
+	auto_free(board)
+	var job := Job.new()
+	job.sleep_until_msec = Time.get_ticks_msec() + 60000
+	board.add_job(job)
+	
+	assert_bool(job.is_available()).is_false()
+	board._on_world_changed()
+	assert_bool(job.is_available()).is_true()
+	assert_int(job.sleep_until_msec).is_equal(0)
+
+
 # ── Test doubles ──────────────────────────────────────────────────────────────
 
 ## Minimal non-Blueprint MaterialSink: owes 3 planks until `satisfied` flips

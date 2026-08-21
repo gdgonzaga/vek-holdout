@@ -18,12 +18,24 @@ class_name JobBoard
 
 signal job_failed(job_id: String, reason: String)
 
-## After this many failures a job is auto-removed from the board (early-MVP
-## policy, ARCH "Job failure handling"). The blueprint stays placed if construction.
-const _MAX_FAILURES := 3
-
 # job.id (String) -> Job.
 var _jobs: Dictionary = {}
+
+
+func _ready() -> void:
+	EventBus.dig_job_completed.connect(_on_world_changed.unbind(1))
+	EventBus.furniture_placed.connect(_on_world_changed.unbind(2))
+	EventBus.furniture_removed.connect(_on_world_changed.unbind(2))
+	EventBus.blueprint_placed.connect(_on_world_changed.unbind(3))
+	EventBus.blueprint_removed.connect(_on_world_changed.unbind(2))
+
+
+func _on_world_changed() -> void:
+	var now := Time.get_ticks_msec()
+	for job_id in _jobs:
+		var job: Job = _jobs[job_id]
+		if job.sleep_until_msec > now:
+			job.sleep_until_msec = 0
 
 
 func add_job(job: Job) -> void:
@@ -110,10 +122,9 @@ func _prune_dead_jobs() -> void:
 
 
 ## Record a failure: increment the count, release any assignees, emit job_failed
-## locally, and relay a job_logged entry through EventBus. Auto-removes the job
-## once it hits _MAX_FAILURES. Called by ColonistAI on aborts (freed leg target,
-## unreachable leg) — a stalled-but-alive job (a haul drought waiting for
-## restock) deliberately does not route here: fail counts toward removal.
+## locally, and relay a job_logged entry through EventBus. Applies an exponential
+## backoff cooldown (sleep_until_msec) instead of auto-removing the job. Called
+## by ColonistAI on aborts (freed leg target, unreachable leg).
 func fail(job_id: String, reason: String) -> void:
 	var job: Job = _jobs.get(job_id)
 	if job == null:
@@ -128,5 +139,15 @@ func fail(job_id: String, reason: String) -> void:
 		"reason": reason,
 		"failure_count": job.failure_count,
 	})
-	if job.failure_count >= _MAX_FAILURES:
-		_jobs.erase(job_id)
+	var delay_ms := 0
+	if job.failure_count <= 3:
+		delay_ms = 0
+	elif job.failure_count < 6:
+		delay_ms = 10_000
+	elif job.failure_count < 10:
+		delay_ms = 60_000
+	else:
+		delay_ms = 300_000
+
+	if delay_ms > 0:
+		job.sleep_until_msec = Time.get_ticks_msec() + delay_ms

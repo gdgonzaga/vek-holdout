@@ -58,8 +58,10 @@ var max_assignees: int = 1
 ## check in should_close.
 var _assigned_colonists: Array[String] = []
 
-## Times this job has failed (JobBoard.fail increments). At >= 3 the board
-## auto-removes it (early-MVP policy, ARCH "Job failure handling").
+## Timestamp (msec) until which this job is asleep/cooldown following failures.
+var sleep_until_msec: int = 0
+
+## Times this job has failed (JobBoard.fail increments).
 var failure_count: int = 0
 
 
@@ -115,6 +117,8 @@ func clear_assigned() -> void:
 ## the def's labour-specific gate (e.g. blueprint still unsatisfied + source in
 ## stock for hauling). Drives get_best_job_for's filter and the dead-job prune.
 func is_available() -> bool:
+	if Time.get_ticks_msec() < sleep_until_msec:
+		return false
 	return _assigned_colonists.size() < max_assignees and (def == null or def.is_available(self))
 
 
