@@ -350,7 +350,9 @@ func test_map_editor_terrain_material_cycling() -> void:
 	extra.id = "rock_cycler"
 	extra.display_name = "Rock Cycler"
 	var saved_materials: Dictionary = BuildLibrary._materials_by_id.duplicate()
-	BuildLibrary._materials_by_id["rock_cycler"] = extra
+	# Hermetic two-material catalog — the real one now ships rock/iron/gold
+	# defs whose scan order and count would make the cycle assertions brittle.
+	BuildLibrary._materials_by_id = {"ground": saved_materials["ground"], "rock_cycler": extra}
 
 	editor._terrain_material_id = "ground"
 	editor._cycle_terrain_material(1)

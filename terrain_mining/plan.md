@@ -1,7 +1,9 @@
-# Terrain Mining — Per-Position Material Identity
+# Terrain Mining — Per-Position Material Identity (Rev 2)
 
-Status: planned (2026-08-21). Companion notes: `docs/VOXEL-TOOL-NOTES.md` (F3, F8, F9, F10, F11),
-`docs/architecture/voxel-world.md`, `docs/architecture/data-schemas.md`.
+Status: planned (2026-08-21). Rev 2 folds in external review: binary sidecar fallback,
+identity invariants, strata tuning pivot, metadata-write perf ceiling. Companion notes:
+`docs/VOXEL-TOOL-NOTES.md` (F3, F8, F9, F10, F11), `docs/architecture/voxel-world.md`,
+`docs/architecture/data-schemas.md`. Repo copy: `terrain_mining/plan.md` (rev 1).
 
 ## Goals
 
@@ -90,9 +92,12 @@ existed), `place_radius`, `icon`. Removed: `hardness`.
 
 **`TerrainStrata`** (new, `subsystems/voxel/terrain_strata.gd`, `RefCounted`, pure/headless-testable):
 `material_id_at(pos)` = pick from band candidates by per-material coherent 3D noise
-(`FastNoiseLite`, seed + index, frequency ≈ `1/vein_size`) biased by normalized weight share,
-argmax wins. Coherent noise makes adjacent cells correlate → veins of ≈ `vein_size`; weights tune
-the mix. Deterministic heuristic, tunable — documented as such, not exact share math.
+(`FastNoiseLite`, seed + index, frequency ≈ `1/vein_size`) biased by normalized weight share
+(additive), argmax wins. Coherent noise makes adjacent cells correlate → veins of ≈ `vein_size`;
+weights tune the mix. Deterministic heuristic, tunable — documented as such, not exact share math.
+Tuning pivot if playtesting shows high-frequency fields fracturing big low-frequency veins: switch
+to a single shared noise field partitioned into weight-proportional ranges (clean contiguous
+boundaries) — at the cost of one shared vein scale, i.e. losing per-material `vein_size`.
 
 **Resolution order** in `SmoothGrid.get_material_at(pos)` / new `get_material_def_at(pos)`:
 
@@ -102,6 +107,18 @@ voxel metadata set          → authored/placed material id
 strata band + noise         → natural material id
 no candidate                → default_material (today's behavior)
 ```
+
+**Why the two identity sources can't disagree** (load-bearing invariants):
+
+- `_pristine_height` is derived from the *same saved `TerrainGenDef`* the generator consumes —
+  when the map editor regenerates terrain from an edited heightmap/seed, def and pristine height
+  move together, so strata always describes exactly the ground the generator produces. It can
+  never describe editor-painted terrain, because…
+- …every smooth terrain add in the codebase routes through `add_material(material_id)` — editor
+  sculpts, `SmoothPlacementStrategy`, `StructureStamper` — so non-generated terrain always carries
+  authored metadata and depth rules are never consulted for it. A painted mountain is never
+  "misread" by depth rules (it sits above the pristine surface anyway: negative depth matches no
+  band). Preserve the invariant: no rogue `do_sphere` adds outside `add_material`.
 
 ## Implementation steps
 
@@ -137,6 +154,9 @@ Per Design above. `setup(materials, seed, pristine_height: Callable)` — compos
 - `add_material`: after `do_sphere`, write `set_voxel_metadata(p, material_id)` for every solid
   voxel in the sphere's integer bbox (≈65 voxels at r 2.5). Editor sculpts,
   `SmoothPlacementStrategy`, `StructureStamper` inherit persistence free — they all call this.
+  Perf ceiling (review): the editor brush is clamped to r 5.0 (~523 voxels) today, so the
+  GDScript bbox pass stays trivial; revisit only if brush maxes grow — this build exposes no bulk
+  metadata setter. This method is also the single choke point for smooth adds (invariant above).
 - `carve`: unchanged (the air check makes stale metadata harmless; P1 decides whether a proactive
   bbox clear is worth it for tidiness).
 - `get_material_at` real per Design; new `get_material_def_at(pos) -> TerrainMaterialDef`
@@ -162,7 +182,7 @@ Per Design above. `setup(materials, seed, pristine_height: Callable)` — compos
 `get_material_at`, strata + catalog injection + pristine height, add_material persists identity),
 `build.md` (dig flow: per-position material, hp formula), `map-editor.md` (painted blobs now carry
 persistent identity), `VOXEL-TOOL-NOTES.md` (F12, F13, TL;DR rule 7 addendum), `docs/TODO.md`
-Phase 5 note.
+Phase 5 note; sync `terrain_mining/plan.md` to this rev.
 
 ### 7. Tests
 - New `test/suite_terrain_strata_test.gd`: band gating (depth 1 → dirt only; depth 30 → no dirt),
@@ -178,11 +198,13 @@ Phase 5 note.
 
 ## Risks & fallbacks
 
-- **P1 fails (metadata doesn't persist):** fallback = per-map JSON sidecar
-  `data/maps/<id>/terrain_materials.json`; SceneManager copy-on-load hook; append filename to
-  `Map.stream_dbs()` (`subsystems/voxel/map.gd:49-55`) so SaveSystem snapshot/restore covers it
-  automatically (journal quiescing F9 is sqlite-specific and not needed for JSON). Build only if
-  the probe fails.
+- **P1 fails (metadata doesn't persist):** fallback = per-map binary sidecar
+  `data/maps/<id>/terrain_materials.bin` written with `FileAccess.store_var()` (native Variant
+  serialization — real `Vector3i` keys, none of JSON's string-key bloat on heavily-modified maps);
+  SceneManager copy-on-load hook; append filename to `Map.stream_dbs()`
+  (`subsystems/voxel/map.gd:49-55`) so SaveSystem snapshot/restore covers it automatically
+  (journal quiescing F9 is sqlite-specific and not needed for the binary file). Build only if the
+  probe fails.
 - **P2 formula mismatch:** fall back to capturing pristine height on first `height_at` query per
   column (documented caveat: columns first queried after a nearby dig may read slightly low).
 - **Behavior change, accepted:** deep digs that used to yield ground now yield rock/ore — that is
@@ -204,3 +226,37 @@ Order: P1/P2 spikes (+F12/F13) → schema + content → TerrainStrata + suite �
 - Dig UI feedback showing the material being hit (uses the reserved `texture`).
 - Per-material terrain visuals — only via a custom/forked mesher; revisit if it ever becomes a
   hard requirement.
+
+## As-built outcomes (2026-08-21, implementation)
+
+Implemented on top of savepoint commits `52f06cb..13da92e`. Verdicts and deviations:
+
+- **P1/F12 — metadata persistence is one-entry-per-block, not per-voxel.** The
+  spike (`testing/zylann/voxel_metadata_spike.tscn`, 7 runs) proved only the
+  LOWEST-position entry per 16^3 block survives `save_modified_blocks()`
+  (set order irrelevant). As-built sidecar: ONE Dictionary per block, anchored
+  at the block origin (nothing in a block can outrank the origin), holding
+  `{Vector3i pos: String material_id}`; `add_material` read-modify-writes one
+  dict per touched block. The plan's per-voxel String tags would have silently
+  lost N-1 entries per block — the binary-file fallback was NOT needed.
+  Also pinned: `mesh_block_size` = 16 (runtime property), carve leaves stale
+  entries in air (readers air-check first), Variant values round-trip.
+- **P2/F13 — noise formula exact** (`start + (n×0.5+0.5)×range`, MAE 0.005);
+  **heightmap formula verified** too (`pixel(x + size/2)` wrapped, MAE 0.004 —
+  offset sign indistinguishable from minus since they coincide mod size).
+- **Strata scoring is a softmax, not additive/multiplicative.** Additive
+  noise + weight-share degenerates (a 10:2:1 bias dominates [0,1] noise —
+  heaviest material wins every cell, seed-invariant); multiplicative
+  argmax(n×w) needs noise RATIO > weight ratio, impossible for 10:1 with
+  OpenSimplex2's practical ±0.5 range. As-built:
+  `argmax(log(spawn_weight) + 4.0 × n)` with `n = clamp(raw + 0.5)` — a 10:1
+  upset needs only a ~0.57 noise gap; the long-run mix tracks the weights
+  (measured 87/11/2.5 for the 10:2:1 fixture band).
+- **Tests: 360/360 green** (from a 351 baseline; +8 `suite_terrain_strata_test`,
+  +1 per-position yields case in `suite_mining_test`; the map-editor cycling
+  test's catalog fixture made hermetic — the shipped rock/iron/gold defs
+  changed the cycle count).
+- Shipped bands: ground (dirt) 0-3, rock 3+ (w10, province-scale vein 60),
+  iron_ore 12+ (w2), gold_ore 24+ (w1); hp 100/300/400/400; ore items added to
+  `data/items/`. Equipment-gated HP damage, dig-UI texture feedback, and
+  per-material visuals remain future phases (unchanged).

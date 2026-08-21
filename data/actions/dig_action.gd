@@ -12,23 +12,32 @@ extends GameAction
 ## call the identical method (owner direction: mining converges on the harvest
 ## interaction model).
 ##
-## No partial progress: smooth terrain has no HP model and no node to bank work
-## on, so a cancelled dig simply aborts — the carve happens only on completion
+## Material stats are per-position (terrain_mining/plan.md): the def resolves
+## through the grid's sidecar/strata chain — dig a hilltop, get dirt; dig at
+## depth 30, get rock or ore. hp scales the duration (work_time * hp / 100;
+## the future tool-damage model consumes the same pool per swing).
+##
+## No partial progress: smooth terrain has no node to bank work on, so a
+## cancelled dig simply aborts — the carve happens only on completion
 ## (the documented v1 semantics, D1 asymmetry note).
 
 const _progress_scene: PackedScene = preload("res://ui/action_progress/action_progress.tscn")
 
+## hp that keeps today's baseline dig duration (work_time * 1.0) — the def's
+## hp is expressed against this scale (old hardness 3 == hp 300).
+const HP_SCALE := 100.0
+
 
 ## Start a dig by `actor` (the Player today) at world-space `center` (the
 ## already-nudged sphere center the ghost showed) on `grid`, using `tool`'s
-## work time / carve radius. Material stats come from the grid's default
-## material — F8: there is no per-position material channel, so every dig
-## reads the map's one material identity.
+## work time / carve radius. Material stats come from the grid AT THE DIG
+## POSITION — F12 sidecar for authored ground, strata depth rules for natural
+## ground, default_material when neither answers.
 func begin(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams) -> void:
 	if actor == null or grid == null or tool == null:
 		return
-	var material := grid.default_material
-	var duration: float = tool.work_time * (float(material.hardness) if material != null else 1.0)
+	var material := grid.get_material_def_at(Vector3i(center.round()))
+	var duration: float = tool.work_time * (float(material.hp) / HP_SCALE if material != null else 1.0)
 	var player := actor as Player
 	if player != null and player.skill_set != null:
 		duration = duration / player.skill_set.get_multiplier("mining")
@@ -54,8 +63,10 @@ func begin(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams) 
 ## The completion path, kept separate so tests can run it without the gauge
 ## (the HarvestAction._apply testing seam).
 func _apply(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams) -> void:
+	# Resolve the def BEFORE carving — after the sphere removal the center is
+	# air and the sidecar answer would be "".
+	var material := grid.get_material_def_at(Vector3i(center.round()))
 	grid.carve(center, tool.carve_radius)
-	var material := grid.default_material
 	if material != null:
 		var pocket := _pocket_of(actor)
 		if pocket != null:

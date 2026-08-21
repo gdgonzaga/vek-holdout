@@ -1067,6 +1067,10 @@ func _inject_terrain_gen(map: Node, def: MapDef) -> void:
 			smooth = map.find_child("SmoothGrid") as SmoothGrid
 		if smooth != null:
 			smooth.terrain_gen = def.terrain_gen
+			# Same catalog injection SceneManager does at runtime — authored
+			# blobs ride the F12 sidecar either way, but with strata active the
+			# editor's dig previews also match what players will hit.
+			smooth.set_material_catalog(BuildLibrary.get_terrain_materials())
 
 
 func _attach_streams(map: Node, map_id: String) -> void:
@@ -1673,9 +1677,9 @@ func _on_hud_block_selected(idx: int) -> void:
 
 ## Terrain-mode material cycling — the mirror of BLOCK mode's block palette:
 ## M (Shift+M) cycles BuildLibrary's terrain materials into
-## _terrain_material_id. The id rides the material_placed signal only (F8:
-## the smooth grid has no per-voxel material channel), so this is authoring
-## metadata for the dig action's hardness/yields, not a visual change.
+## _terrain_material_id. Sculpted blobs carry the id persistently in the F12
+## sidecar (per-block metadata dict); visually the terrain stays one look per
+## map (F8/F11) — the id is dig-action stats (hp/yields), not a paint job.
 func _cycle_terrain_material(dir: int) -> void:
 	var mats: Array = BuildLibrary.get_terrain_materials()
 	if mats.is_empty():

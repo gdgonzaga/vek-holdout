@@ -87,6 +87,11 @@ separated by collision layers. Feasibility is proven by the runtime spike
       `SmoothPlacementStrategy` + material palette + blob ghost with
       overlap validity; suites `suite_mining_test` / `suite_smooth_placement_test`;
       dig→yield→place→save→load smoke on dev 22/22 (226/226 tests).
+      Follow-up landed (terrain_mining/plan.md): per-position material
+      identity — F12 per-block metadata sidecar for authored blobs,
+      `TerrainStrata` depth/vein rules for natural ground (hp replaces
+      hardness, dirt/rock/iron/gold bands), `DigAction` resolves hp/yields
+      at the dig position (360/360 tests).
 - [ ] **6 Perf & docs**: `VoxelLodTerrain` trial, viewer/collision tuning,
       height-cache soak, HOWTO + arch sweep.
 

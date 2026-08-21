@@ -46,13 +46,19 @@ class MockStorageInventory extends StorageInventory:
 ## SmoothGrid double that records sphere edits instead of touching voxel_tool —
 ## dig/placement tests assert on the recorded calls. Never enters the tree, so
 ## the @onready terrain ref stays unresolved (the overrides never call super).
-## default_material is a plain export and is set directly by tests.
+## default_material is a plain export and is set directly by tests;
+## material_def is what the per-position get_material_def_at answers (null =
+## "no stats at this position").
 class RecordingSmoothGrid extends SmoothGrid:
 	var carves: Array = []   # [{pos: Vector3, radius: float}]
 	var adds: Array = []     # [{pos: Vector3, material_id: String, radius: float}]
+	var material_def: TerrainMaterialDef = null
 
 	func carve(pos: Vector3, radius: float) -> void:
 		carves.append({"pos": pos, "radius": radius})
 
 	func add_material(pos: Vector3, material_id: String, radius: float) -> void:
 		adds.append({"pos": pos, "material_id": material_id, "radius": radius})
+
+	func get_material_def_at(_pos: Vector3i) -> TerrainMaterialDef:
+		return material_def

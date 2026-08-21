@@ -71,7 +71,12 @@ func swap_map(scene_id: String) -> void:
 	# so SmoothGrid._ready builds from them. Null terrain_gen leaves the node to
 	# free itself — "no smooth grid at all" (dual-voxel conversion, docs/TODO.md).
 	if map_def.terrain_gen != null and map.get_node_or_null("SmoothGrid") != null:
-		(map.get_node("SmoothGrid") as SmoothGrid).terrain_gen = map_def.terrain_gen
+		var smooth := map.get_node("SmoothGrid") as SmoothGrid
+		smooth.terrain_gen = map_def.terrain_gen
+		# Per-position material identity (terrain_mining/plan.md): the strata
+		# catalog rides the same injection — BuildLibrary is this autoload's
+		# layer, not the voxel subsystem's (AGENTS.md rule 3).
+		smooth.set_material_catalog(BuildLibrary.get_terrain_materials())
 	_map_root_parent.add_child(map)
 	_current_map = map
 	_current_scene_id = scene_id

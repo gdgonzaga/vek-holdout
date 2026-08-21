@@ -14,7 +14,7 @@ func test_catalog_lists_ground_material() -> void:
 	assert_bool(BuildLibrary.is_terrain_material("wood_block")).is_false()
 	var mat := BuildLibrary.get_terrain_material("ground")
 	assert_object(mat).is_not_null()
-	assert_int(mat.hardness).is_greater_equal(1)
+	assert_int(mat.hp).is_greater_equal(1)
 	var found := false
 	for entry in BuildLibrary.get_terrain_materials():
 		if entry.id == "ground":

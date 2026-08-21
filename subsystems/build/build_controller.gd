@@ -311,7 +311,7 @@ func _try_dig() -> void:
 
 ## Dig tool ghost: a sphere of the carve radius over the aimed smooth surface,
 ## hidden when the crosshair isn't on natural terrain. Always valid — any
-## smooth hit is diggable (hardness scales the duration, never blocks the dig).
+## smooth hit is diggable (hp scales the duration, never blocks the dig).
 func _update_dig_ghost(hit: Dictionary) -> void:
 	var surface := _smooth_surface_hit(hit)
 	if surface.is_empty():

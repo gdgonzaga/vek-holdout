@@ -41,10 +41,16 @@
    (voxel values are pure SDF density), but the **terrain node** takes
    `material_override` — the look is settable per map; per-voxel *painted*
    visuals are not achievable with the stock mesher. (See F8, F11.)
+8. **Voxel metadata persists as ONE entry per block — the lowest position.**
+   Per-voxel tags silently lose N-1 entries per block on save; the durable
+   pattern is a single Dictionary value anchored at the block origin
+   (`mesh_block_size` = 16). And `VoxelGeneratorNoise2D`'s surface is exactly
+   reproducible in GDScript (`start + (n*0.5+0.5)*range`, MAE 0.005), so
+   pristine heights need no C++ query. (See F12, F13.)
 
 ---
 
-## Verified facts (F1–F11)
+## Verified facts (F1–F13)
 
 ### F1 — No in-editor paint tool ships with zylann.voxel
 `VoxelTerrainEditorPlugin` auto-registers but provides only previews + a monitor
@@ -281,6 +287,57 @@ Consequences:
   never exits; one instantiation probe timed out with zero output). Probe
   class surfaces with `ClassDB.class_get_property_list("VoxelTerrain")` etc.
   instead of `ClassDB.instantiate` — same answers, no threads.
+
+### F12 — Voxel metadata persists ONE entry per block: the lowest position (2026-08-21, probed)
+Validated by `testing/zylann/voxel_metadata_spike.tscn` (windowed, `--auto-quit`;
+six runs, two save/rebuild cycles each — every rule below is deterministic
+across all of them). This is the terrain material sidecar's persistence
+contract:
+
+- **The API is per-voxel and Variant-typed.** `VoxelTool.set_voxel_metadata(pos, value)` /
+  `get_voxel_metadata(pos)` exist; String, int, and Dictionary values all
+  round-trip **live** (readable until teardown). Metadata set on AIR voxels
+  works and persists (pre-burial tagging and carved cells both proved it).
+- **`save_modified_blocks()` collapses each 16³ block's metadata to ONE entry:
+  the one at the LOWEST position.** All other entries vanish on reload — live
+  reads still see them, so the loss is purely in the block serialization.
+  Set order is irrelevant (proved by tagging a column top-down: the lowest-y
+  value survived even though it was set last). This looks like an addon
+  serialization limitation, not a timing race — two save/reload cycles
+  reproduce it identically, and F9 journal-quiescing was respected.
+- **The workaround is official now: anchor one Dictionary per block at the
+  block ORIGIN.** Dictionary values survive intact, and the origin (lowest
+  corner) can never be outranked by another entry in its block. Verified: a
+  `{ "a": "gold", "b": 7 }` dict set at a computed origin persisted through
+  both cycles. `SmoothGrid` stores `{Vector3i pos: String material_id}` maps
+  this way; per-voxel String tags must NOT be used (they silently lose N-1
+  entries per block on save).
+- **Block size is readable at runtime:** `VoxelTerrain.mesh_block_size` (16 in
+  this build; cross-checked against the durability boundary — a y=-8/-9 pair
+  in one column resolved as same-block, only -9 surviving). Compute origins
+  with floor division (negative coordinates!), not truncating `/`.
+- **`MODE_REMOVE` does NOT clear metadata** — carved-out cells keep stale
+  entries (read them in air = you'll get the old value back). Metadata-only
+  writes (no density edit) DO get saved with the block.
+- **Map-editor relevance:** editor sculpts already call
+  `save_modified_blocks()` after each edit, so origin-anchored dicts persist
+  through authoring with no extra plumbing (same as F2/F8 edits).
+
+### F13 — VoxelGeneratorNoise2D's closed form (2026-08-21, probed)
+Same spike as F12. The generator's surface height is exactly reproducible in
+GDScript with the SAME `FastNoiseLite` instance params:
+
+```
+h(x, z) = height_start + (noise.get_noise_2d(x, z) * 0.5 + 0.5) * height_range
+```
+
+Mean absolute error vs 289 raycast columns: **0.005** (the meshed iso-surface
+sits on the generator's field; transvoxel interpolation is that good).
+Rejected candidates: `start + n * range` (MAE 6.04), double-frequency sampling
+(MAE 0.83). Consequence: `SmoothGrid` computes PRISTINE heights (depth =
+original surface − y, the mining strata basis) without touching the C++
+generator; editor heightmap regeneration stays in lockstep because both the
+generator and the pristine-height math read the same saved `TerrainGenDef`.
 
 ---
 

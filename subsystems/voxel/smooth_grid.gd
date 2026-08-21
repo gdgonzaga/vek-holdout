@@ -8,11 +8,14 @@ extends Node
 ## for Phase 5 mining, add_material for smooth placement) and the cached
 ## height_at that Phase 3's walkability composes with the blocky probe.
 ##
-## F8 (docs/VOXEL-TOOL-NOTES.md) is the authority on the edit semantics this
-## class encodes: channel 0 is float SDF (solid <= 0, air > 0); MODE_SET value v
-## writes SDF -v — so value 0 is still solid and carving MUST use MODE_REMOVE;
-## the mesher has no material API (one fixed appearance; identity lives in
-## TerrainMaterialDef, not in voxel values).
+## F8/F12/F13 (docs/VOXEL-TOOL-NOTES.md) are the authority on the semantics
+## this class encodes: channel 0 is float SDF (solid <= 0, air > 0); MODE_SET
+## value v writes SDF -v — value 0 is still solid and carving MUST use
+## MODE_REMOVE; the mesher has no material API (one fixed look per map), so
+## material IDENTITY is per-position instead: authored blobs carry it in
+## per-block voxel metadata (F12: one Dictionary per 16^3 block anchored at
+## the block origin), natural ground resolves through TerrainStrata's
+## deterministic depth rules against the pristine surface (F13).
 ##
 ## Lifecycle: absent by design. Maps opt in via MapDef.terrain_gen — SceneManager
 ## injects it into this node before the map enters the tree; a SmoothGrid that
@@ -47,9 +50,9 @@ const SOLID_DENSITY := 2
 ## the map enters the tree. Null at _ready = this map has no smooth terrain.
 @export var terrain_gen: TerrainGenDef = null
 
-## The identity get_material_at reports for solid ground. F8: voxel values are
-## pure density — there is no per-voxel material channel to read, so v1 reports
-## one def for any solid position (the D1-documented fallback, now the ceiling).
+## Fallback identity when neither the sidecar nor strata answers a solid
+## position (maps without an injected catalog behave exactly as before: one
+## def for all natural ground).
 @export var default_material: TerrainMaterialDef = null
 
 @onready var _terrain: VoxelTerrain = get_node(terrain_path)
@@ -60,6 +63,20 @@ var _default_material_warned := false
 ## Populated lazily by height_at; evicted on edits and block streaming so
 ## pathing never answers from stale ground ("edits keep pathing honest").
 var _height_cache: Dictionary = {}
+
+## Per-position identity state (terrain_mining/plan.md). The pristine cache
+## never evicts — the GENERATED surface cannot change, so depth stays stable
+## under digging; authored edits carry sidecar identity instead of moving it
+## (the load-bearing "two identity sources can't disagree" invariant).
+var _pristine_cache: Dictionary = {}
+var _strata: TerrainStrata = null
+var _catalog_by_id: Dictionary = {}
+## Generator-mirror inputs for _pristine_height: the def's own prepared image
+## (heightmap maps) or a noise sampler with the generator's exact params (F13).
+var _heightmap_image: Image = null
+var _noise_sampler: FastNoiseLite = null
+## F12 block size (from the terrain's mesh_block_size); 0 until first use.
+var _block_size := 0
 
 func _ready() -> void:
 	if terrain_gen == null:
@@ -75,8 +92,16 @@ func _ready() -> void:
 	else:
 		push_warning("SmoothGrid: VoxelTerrain lacks collision_layer; smooth terrain stays on the default layer")
 
+	# One prepared image feeds both the generator and _pristine_height — F13's
+	# lockstep rule: strata and generator must describe the same def. Noise
+	# maps mirror the generator's sampler the same way (F13 closed form).
+	_heightmap_image = _prepare_heightmap_image(terrain_gen.heightmap)
+	if _heightmap_image == null:
+		_noise_sampler = FastNoiseLite.new()
+		_noise_sampler.seed = terrain_gen.noise_seed
+		_noise_sampler.frequency = terrain_gen.noise_frequency
 	if "generator" in _terrain:
-		_terrain.set("generator", _build_generator(terrain_gen))
+		_terrain.set("generator", _build_generator(terrain_gen, _heightmap_image))
 	if "mesher" in _terrain:
 		_terrain.set("mesher", VoxelMesherTransvoxel.new())
 
@@ -95,9 +120,9 @@ func _ready() -> void:
 
 ## Generator for the def's terrain: heightmap-driven when the def carries a
 ## readable image, noise otherwise. Both paths write the same span fields, so a
-## def can switch modes without touching height_start/height_range.
-func _build_generator(def: TerrainGenDef) -> Resource:
-	var heightmap := _prepare_heightmap_image(def.heightmap)
+## def can switch modes without touching height_start/height_range. Takes the
+## ALREADY-prepared image so generator and _pristine_height share one source.
+func _build_generator(def: TerrainGenDef, heightmap: Image) -> Resource:
 	if heightmap != null:
 		return _build_heightmap_generator(def, heightmap)
 	return _build_noise_generator(def)
@@ -156,13 +181,24 @@ static func _prepare_heightmap_image(tex: Texture2D) -> Image:
 
 # --- read / edit surface (D1 mirror of BlockyGrid's block API) -----------------
 
-## Material id at pos, or "" for air. F8: values are pure density — no material
-## channel exists — so any solid position reports default_material's id.
+## Material id at pos, or "" for air. Resolution order (terrain_mining/plan.md):
+## authored sidecar (F12 per-block dict at the block origin) -> TerrainStrata's
+## deterministic natural material (F13 depth rules) -> default_material.
 func get_material_at(pos: Vector3i) -> String:
 	if _voxel_tool == null or not _voxel_tool.has_method("get_voxel_f"):
 		return ""
+	# Air first: F12 — carved cells keep stale metadata, so an air-checkless
+	# reader would resurrect material out of holes.
 	if _voxel_tool.get_voxel_f(pos) > 0.0:
 		return ""
+	if _voxel_tool.has_method("get_voxel_metadata"):
+		var block: Variant = _voxel_tool.get_voxel_metadata(_block_origin(pos))
+		if block is Dictionary and block.has(pos):
+			return String(block[pos])
+	if _strata != null:
+		var natural := _strata.material_id_at(pos)
+		if natural != "":
+			return natural
 	if default_material == null:
 		if not _default_material_warned:
 			push_warning("SmoothGrid: no default_material assigned — get_material_at returns \"\" for solid ground")
@@ -170,20 +206,53 @@ func get_material_at(pos: Vector3i) -> String:
 		return ""
 	return default_material.id
 
-## Add a sphere of solid ground (SDF -SOLID_DENSITY) at world pos. The smooth-
-## placement primitive (Phase 5 build mode); material_id rides the signal for
-## inventory/yields, not the voxels — F8: no identity channel exists.
+
+## The def for the material at pos (null for air) — DigAction's entry point:
+## hp/yields resolve per position, not per map. Ids absent from the catalog
+## (def deleted) answer null; callers treat that as "no stats, no yields".
+func get_material_def_at(pos: Vector3i) -> TerrainMaterialDef:
+	var id := get_material_at(pos)
+	if id == "":
+		return null
+	if _catalog_by_id.has(id):
+		return _catalog_by_id[id]
+	if default_material != null and default_material.id == id:
+		return default_material
+	return null
+
+
+## Injected where terrain_gen already flows (SceneManager at runtime, the map
+## editor when authoring), sourced from BuildLibrary.get_terrain_materials() —
+## this subsystem reads no catalogs itself (AGENTS.md rule 3). No injection
+## means no strata: natural ground answers default_material, exactly the
+## pre-mining behavior.
+func set_material_catalog(materials: Array) -> void:
+	_catalog_by_id = {}
+	for m: TerrainMaterialDef in materials:
+		if m != null and m.id != "":
+			_catalog_by_id[m.id] = m
+	_strata = TerrainStrata.new()
+	var seed := terrain_gen.noise_seed if terrain_gen != null else 0
+	_strata.setup(materials, seed, Callable(self, "_pristine_height"))
+
+## Add a sphere of solid ground (SDF -SOLID_DENSITY) at world pos, carrying
+## material_id in the F12 sidecar — the ONLY smooth-add path in the codebase
+## (editor sculpts, smooth placement, structure stamps all route here: the
+## "identity sources can't disagree" invariant).
 func add_material(pos: Vector3, material_id: String, radius: float) -> void:
 	if _voxel_tool == null:
 		return
 	_voxel_tool.mode = VoxelTool.MODE_ADD
 	_voxel_tool.value = SOLID_DENSITY
 	_voxel_tool.do_sphere(pos, radius)
+	_write_material_sidecar(pos, radius, material_id)
 	_evict_columns_near(pos, radius)
 	material_placed.emit(pos, material_id)
 
 ## Carve a sphere of terrain away at world pos. The mining primitive (Phase 5
 ## dig action). MODE_REMOVE, never MODE_SET — F8: value 0 is still solid.
+## Carved cells keep stale sidecar entries (F12); get_material_at's air-first
+## check makes them permanently inert.
 func carve(pos: Vector3, radius: float) -> void:
 	if _voxel_tool == null:
 		return
@@ -191,6 +260,90 @@ func carve(pos: Vector3, radius: float) -> void:
 	_voxel_tool.do_sphere(pos, radius)
 	_evict_columns_near(pos, radius)
 	material_carved.emit(pos)
+
+
+# --- F12 material sidecar --------------------------------------------------------
+
+## Origin of the voxel block containing pos (floor division — negative
+## coordinates truncate the wrong way with plain `/`). The origin is the
+## durable metadata slot: F12 proved only the lowest-position entry per block
+## survives save_modified_blocks().
+func _block_origin(pos: Vector3i) -> Vector3i:
+	if _block_size == 0:
+		_block_size = 16
+		if "mesh_block_size" in _terrain:
+			_block_size = maxi(1, int(_terrain.get("mesh_block_size")))
+	return Vector3i(
+		int(floor(float(pos.x) / _block_size)) * _block_size,
+		int(floor(float(pos.y) / _block_size)) * _block_size,
+		int(floor(float(pos.z) / _block_size)) * _block_size,
+	)
+
+
+## The sidecar dict for a block ({} when none was authored yet).
+func _block_materials(origin: Vector3i) -> Dictionary:
+	if _voxel_tool == null or not _voxel_tool.has_method("get_voxel_metadata"):
+		return {}
+	var block: Variant = _voxel_tool.get_voxel_metadata(origin)
+	return block if block is Dictionary else {}
+
+
+## Sidecar write for an add-sphere: read-modify-write ONE Dictionary per
+## touched block, anchored at the block origin, merging with prior authored
+## material. The solid check keeps air cells (sphere corners) untagged. Editor
+## sculpt + placement + stamper inherit persistence free — their existing
+## save_modified_blocks() calls carry the dicts into terrain.sqlite (F12).
+func _write_material_sidecar(center: Vector3, radius: float, material_id: String) -> void:
+	if material_id == "" or _voxel_tool == null or not _voxel_tool.has_method("set_voxel_metadata") \
+			or not _voxel_tool.has_method("get_voxel_f"):
+		return
+	var min_p := center - Vector3.ONE * radius
+	var max_p := center + Vector3.ONE * radius
+	var block_dicts := {}
+	for x: int in range(int(floor(min_p.x)), int(floor(max_p.x)) + 1):
+		for y: int in range(int(floor(min_p.y)), int(floor(max_p.y)) + 1):
+			for z: int in range(int(floor(min_p.z)), int(floor(max_p.z)) + 1):
+				var pos := Vector3i(x, y, z)
+				if _voxel_tool.get_voxel_f(pos) > 0.0:
+					continue
+				var origin := _block_origin(pos)
+				if not block_dicts.has(origin):
+					block_dicts[origin] = _block_materials(origin)
+				block_dicts[origin][pos] = material_id
+	for origin: Vector3i in block_dicts:
+		_voxel_tool.set_voxel_metadata(origin, block_dicts[origin])
+
+
+## Pristine (generator-only) surface height at column (x, z) — the depth basis
+## for strata: depth = pristine surface - y is stable under digging, so mining
+## deeper always exposes deeper materials. Mirrors the generator exactly (F13
+## closed form for noise; the def's own image for heightmaps, same repeat
+## semantics as F10) and never evicts: the generated surface cannot change.
+func _pristine_height(x: float, z: float) -> float:
+	var col := Vector2i(int(floor(x)), int(floor(z)))
+	if _pristine_cache.has(col):
+		return _pristine_cache[col]
+	var h := _compute_pristine(col.x, col.y)
+	if h == h:  # not NAN
+		_pristine_cache[col] = h
+	return h
+
+
+func _compute_pristine(x: int, z: int) -> float:
+	if terrain_gen == null:
+		return NAN
+	if _heightmap_image != null:
+		var size := _heightmap_image.get_size()
+		if size.x <= 0 or size.y <= 0:
+			return NAN
+		var px := wrapi(x + int(size.x) / 2, 0, int(size.x))
+		var pz := wrapi(z + int(size.y) / 2, 0, int(size.y))
+		var v := _heightmap_image.get_pixel(px, pz).r
+		return terrain_gen.height_start + v * terrain_gen.height_range
+	if _noise_sampler == null:
+		return NAN
+	var n := _noise_sampler.get_noise_2d(x, z)
+	return terrain_gen.height_start + (n * 0.5 + 0.5) * terrain_gen.height_range
 
 # --- queries --------------------------------------------------------------------
 
