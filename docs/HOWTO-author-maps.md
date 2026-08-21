@@ -84,7 +84,7 @@ Sculpt continuous Transvoxel SDF terrain.
 - **`LMB`**: Add terrain material at the crosshair point.
 - **`Shift + LMB`**: Carve away smooth terrain.
 - **`[` / `]`** or **`B + Mouse Wheel`**: Increase or decrease brush sculpt radius ($0.5\,\text{m}$ to $5.0\,\text{m}$).
-- **`M` / `Shift + M`**: Cycle the terrain material added by `LMB` (from `data/terrain/materials/`; the HUD shows `name (i/N)`). Authoring metadata for dig hardness/yields — the smooth grid has one visual appearance (F8), so blobs don't change color. The id persists in the voxel-metadata sidecar and drives mining (`architecture/mining.md`).
+- **`M` / `Shift + M`**: Cycle the terrain material added by `LMB` (from `data/terrain/materials/`; the HUD shows `name (i/N)`). The id persists in the voxel-metadata sidecar and drives mining (`architecture/mining.md`). Each blob shows a colored decal marker from the material's `color` (except the surface material, which matches the terrain's own top band) — iron reads rust, gold reads gold. The terrain itself is textured by depth, dirt fading into rock (a shader look — per-voxel texturing is a documented dead end, F14 in `docs/VOXEL-TOOL-NOTES.md`).
 - **`Ctrl + Z`**: Undo terrain sculpt operation.
 
 ### Mode 4: Furniture Mode (`F4`)

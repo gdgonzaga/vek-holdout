@@ -3,7 +3,7 @@
 Digging the natural (smooth) terrain yields **position-dependent materials** — a dirt cap, a rock body, iron and gold veins — driven entirely by authored `TerrainMaterialDef` defs in `data/terrain/materials/`. This page consolidates the feature; it is deliberately **not a subsystem** (see [Future work](#future-work-and-when-mining-becomes-a-subsystem)).
 
 > **Design notes**
-> - The mesher has no material API (F8/F11): the terrain has **one visual look per map**. Material *identity* lives outside the renderer — a per-block voxel-metadata sidecar for authored blobs (F12) and deterministic depth rules for natural ground (F13). See `docs/VOXEL-TOOL-NOTES.md`.
+> - The mesher has no material API (F8/F11) and its per-voxel texturing system is verified non-functional (F14) — so visuals are **indirect**: a terrain shader bands the two band endpoints' triplanar textures by depth (F11 shader rules), and authored blobs each get a Decal marker tinted `TerrainMaterialDef.color`. Material *identity* lives outside the renderer — a per-block voxel-metadata sidecar for authored blobs (F12) and deterministic depth rules for natural ground (F13). See `docs/VOXEL-TOOL-NOTES.md`.
 > - Equipment gating (planned) matches on the material's **`id`** — no type enum. Identity-is-id is the project's def convention; `ItemDef.tags` is the escape hatch if id-listing ever gets tedious.
 > - `hp` is one concept for two eras: today it scales dig duration (`work_time × hp / 100`); the future tool-damage model consumes the same pool per swing.
 
@@ -11,15 +11,16 @@ Digging the natural (smooth) terrain yields **position-dependent materials** —
 
 | File | Type | Responsibility |
 |---|---|---|
-| `subsystems/voxel/smooth_grid.gd` | Script | Identity representation: F12 sidecar writes/reads, `get_material_at` / `get_material_def_at` resolution chain, `set_material_catalog` injection, `_pristine_height` (the F13 generator mirror). |
+| `subsystems/voxel/smooth_grid.gd` | Script | Identity representation: F12 sidecar writes/reads, `get_material_at` / `get_material_def_at` resolution chain, `set_material_catalog` injection, `_pristine_height` (the F13 generator mirror). Also the visuals: terrain shader + height bake on `material_override`, Decal markers for authored blobs. |
 | `subsystems/voxel/terrain_strata.gd` | Script (RefCounted) | Deterministic natural-material selection: depth band + per-material coherent noise in a softmax with `spawn_weight`. No storage. |
-| `data/terrain/materials/*.tres` | Data | `TerrainMaterialDef` content: `ground` (dirt, band 0–3), `rock` (3+, weight 10, province-scale veins), `iron_ore` (12+), `gold_ore` (24+). |
+| `assets/terrain/terrain_shader.gdshader` | Shader | The one terrain look (F11/F14): triplanar ground/rock textures blended by depth below the pristine surface. Placeholder textures from `tools/terrain_texture_generator.gd`. |
+| `data/terrain/materials/*.tres` | Data | `TerrainMaterialDef` content: `ground` (dirt, band 0–3), `rock` (3+, weight 10, province-scale veins), `iron_ore` (12+), `gold_ore` (24+); `color` tints markers, band endpoints carry `texture`. |
 | `data/actions/dig_action.gd` | Script | The timed dig interaction: resolve-before-carve, hp-scaled gauge, yields to the digger's inventory, mining skill use. Trigger-agnostic `begin()` — the equipped-tool LMB later reuses it. |
 | `data/mining/dig_tool.tres` (`dig_tool_params.gd`) | Data | `DigToolParams`: `work_time`, `carve_radius`. Preloaded as `BuildLibrary.DIG_TOOL`. |
 | `data/items/iron_ore.tres`, `data/items/gold_ore.tres` | Data | Ore drops (`ItemDef`). |
 | `subsystems/build/build_controller.gd` | Script | Tool routing: the `BuildLibrary.DIG_ID` sentinel, dig ghost, `_try_dig()`. |
-| `testing/zylann/voxel_metadata_spike.tscn` | Scene (editor-run) | The F12/F13 probe: metadata persistence rules, block size, both height formulas. Run with `-- --auto-quit=2`. |
-| `test/suite_terrain_strata_test.gd`, `test/suite_mining_test.gd` | Tests | Bands, determinism, seed sensitivity, weight mix, vein coherence; per-position yields. |
+| `testing/zylann/voxel_metadata_spike.tscn`, `testing/zylann/voxel_texturing_spike.tscn` | Scenes (editor-run) | The F12/F13 and F14 probes. The texturing spike is the harness to re-run if a future addon bump should ever revive per-voxel texturing. |
+| `test/suite_terrain_strata_test.gd`, `test/suite_mining_test.gd`, `test/suite_terrain_visuals_test.gd` | Tests | Bands, determinism, seed sensitivity, weight mix, vein coherence; per-position yields; band picks, tint fallbacks, marker math. |
 
 ## Identity model: what material is this position?
 
@@ -41,6 +42,14 @@ Two load-bearing invariants keep the sources from disagreeing: `_pristine_height
 5. On completion `_apply` resolves the def **before** carving (after the carve the center is air), carves the sphere, grants the def's `yields` to the digger's pocket inventory, and records a `mining` skill use.
 6. A cancelled dig banks nothing (v1 semantics — no partial-HP state on smooth terrain).
 
+## Visuals: how a material becomes visible
+
+The renderer can't carry material identity (F8/F14), so looks are indirect and ride the identity system:
+
+- **Natural terrain** — `SmoothGrid._apply_visuals` puts one `ShaderMaterial` (`assets/terrain/terrain_shader.gdshader`) on `VoxelTerrain.material_override` (F11). The shader blends the two **band endpoints**' triplanar textures by depth below the pristine surface: `_pick_band_materials` picks the surface material (smallest `min_depth`) and the dominant deep material (highest `spawn_weight` starting at/below the surface material's `max_depth`) — today `ground` → `rock`, so the world reads dirt-over-stone exactly where the strata say it is. The depth basis is a 512² RF height bake written from `_pristine_height` (same F13 math as strata, no per-column cache).
+- **Authored blobs** — every smooth add through `add_material` spawns one **Decal** per (block, material), a radial disc tinted the def's `color` (iron rust, gold yellow), reconstructed from the F12 sidecar as blocks load — so markers survive reloads with zero extra save state. The surface material skips marking (its blobs match the terrain's own top band).
+- **Known limits (v1):** a marker goes stale if its blob is fully carved away, markers are projectors (a cap may be wanted for heavy editor painting), and the height bake repeats past ±256 m — far terrain band drift only.
+
 ## Signals
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
@@ -50,15 +59,15 @@ Two load-bearing invariants keep the sources from disagreeing: `_pristine_height
 
 ## Authoring & verification
 
-- All tunables live in the defs — see [Data Schemas](data-schemas.md) `TerrainMaterialDef` row (hp, depth band, vein_size, spawn_weight, reserved `texture`) and `DigToolParams`. Note `rock`'s `vein_size` 60 is province-scale on purpose; minority ores occur as contiguous veins via the softmax scoring.
-- The map editor's Terrain mode cycles materials with **M**; sculpted blobs carry the id persistently (see [Map Editor](map-editor.md)).
+- All tunables live in the defs — see [Data Schemas](data-schemas.md) `TerrainMaterialDef` row (hp, depth band, vein_size, spawn_weight, `color`, band `texture`) and `DigToolParams`. Note `rock`'s `vein_size` 60 is province-scale on purpose; minority ores occur as contiguous veins via the softmax scoring.
+- The map editor's Terrain mode cycles materials with **M**; sculpted blobs carry the id persistently and show their colored marker immediately (see [Map Editor](map-editor.md)).
 - The generator pipeline that produces the ground mining digs into is documented in [Voxel World](voxel-world.md) "Terrain generation when a map opens".
-- Manual test recipe and the design history live in `terrain_mining/plan.md`; addon-behavior facts in `docs/VOXEL-TOOL-NOTES.md` (F12, F13).
+- Manual test recipe and the design history live in `terrain_mining/plan.md`; addon-behavior facts in `docs/VOXEL-TOOL-NOTES.md` (F12, F13, F14).
 
 ## Future work — and when mining becomes a subsystem
 
 Mining is currently a **feature woven through three homes, each correct**: representation in `subsystems/voxel/` (hard rule 2 isolates `voxel_tool` there; strata is grid representation), the interaction in `data/actions/` (the GameAction pattern — same home as harvesting), tool routing in `subsystems/build/`. It owns no state, no autoload, no loop — nothing subsystem-shaped.
 
-Planned additions: **equipment gating** (tool damage per swing against `hp`, id-matched buffs/penalties, wrong-tool penalties, LMB-while-equipped trigger — `DigAction.begin` already accepts any actor/tool), **dig-UI feedback** using the reserved `texture`, **colonist mining jobs**, and **ore processing/smelting**.
+Planned additions: **equipment gating** (tool damage per swing against `hp`, id-matched buffs/penalties, wrong-tool penalties, LMB-while-equipped trigger — `DigAction.begin` already accepts any actor/tool), **colonist mining jobs**, and **ore processing/smelting**. Visual upgrades that would need the renderer (per-voxel textures, dig-UI texture feedback) wait on a working mesher — re-run `testing/zylann/voxel_texturing_spike.tscn` on any addon bump (F14).
 
 **Promotion threshold:** when the job/processing work lands — code with its own state and loops — a `subsystems/mining/` folder is created for it. `dig_action.gd` stays with the actions (trigger-agnostic by design), and representation stays in voxel; the move is additive, not a migration.
