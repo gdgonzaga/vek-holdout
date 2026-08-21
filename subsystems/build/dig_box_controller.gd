@@ -31,6 +31,10 @@ var height: int = 3
 var depth: int = 3
 var is_vertical: bool = false
 
+## Minimum fraction of a voxel cell's height (0.0 to 1.0) that must be solid ground to be marked.
+## 0.5 means the terrain surface must reach at least the middle of the cell (Y + 0.5).
+@export_range(0.0, 1.0, 0.05) var terrain_solidity_threshold: float = 0.5
+
 var _ghost: GhostPreview
 var _camera: Camera3D
 var _active: bool = false
@@ -329,7 +333,7 @@ func _try_commit_designation() -> void:
 		EventBus.dig_box_designated.emit(terrain_coords)
 
 
-## Returns true if cell contains solid terrain (either blocky voxel or smooth terrain).
+## Returns true if cell contains solid terrain (either blocky voxel or smooth terrain meeting the height threshold).
 func is_terrain_at(cell: Vector3i) -> bool:
 	if grid_adapter == null:
 		return false
@@ -338,18 +342,17 @@ func is_terrain_at(cell: Vector3i) -> bool:
 	if grid_adapter.get_block_at(cell) != "":
 		return true
 	
-	# 2. Check smooth terrain grid (if present on the map)
+	# 2. Check smooth terrain grid with height threshold
 	var smooth: SmoothGrid = grid_adapter.get_smooth_grid()
 	if smooth != null:
+		var h: float = smooth.height_at(float(cell.x) + 0.5, float(cell.z) + 0.5)
+		if not is_nan(h):
+			return h >= (float(cell.y) + terrain_solidity_threshold)
+		
+		# Fallback if height_at returns NaN: check VoxelTool SDF value
 		var vt: VoxelTool = smooth.get_voxel_tool()
 		if vt != null:
-			# In SDF, <= 0.0 is solid ground, > 0.0 is air
-			if vt.get_voxel_f(cell) <= 0.0:
-				return true
-		else:
-			var h: float = smooth.height_at(float(cell.x) + 0.5, float(cell.z) + 0.5)
-			if not is_nan(h) and float(cell.y) <= h:
-				return true
+			return vt.get_voxel_f(cell) <= -terrain_solidity_threshold
 	
 	return false
 
