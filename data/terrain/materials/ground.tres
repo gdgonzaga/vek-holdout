@@ -13,6 +13,6 @@ count = 2
 [resource]
 script = ExtResource("1_script")
 id = "ground"
-display_name = "Ground"
+display_name = "ground"
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_dirt_yield")])
 icon = ExtResource("4_icon")

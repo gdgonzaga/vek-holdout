@@ -1,13 +1,11 @@
 [gd_resource type="Resource" script_class="MapDef" format=3]
 
-[ext_resource type="Script" path="res://data/maps/map_def.gd" id="1_def"]
-[ext_resource type="Resource" path="res://data/terrain/forest_valley.tres" id="2_terrain"]
+[ext_resource type="Script" path="res://data/maps/map_def.gd" id="1_hadky"]
+[ext_resource type="Resource" path="res://data/maps/base/terrain_gen.tres" id="2_hadky"]
 
 [resource]
-script = ExtResource("1_def")
+script = ExtResource("1_hadky")
 id = "base"
-display_name = "Forest Valley Homestead"
-description = "A sheltered hollow ringed by wooded hills — the colony's first foothold."
+display_name = "Base"
 scene_path = "res://data/maps/base/map.tscn"
-player_spawn = Vector3(1.5, 2.1788635, 6)
-terrain_gen = ExtResource("2_terrain")
+terrain_gen = ExtResource("2_hadky")
