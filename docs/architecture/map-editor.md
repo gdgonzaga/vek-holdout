@@ -122,7 +122,7 @@ Every modification records its reverse operation in a bounded undo buffer (`_und
   3. Executes `SmoothGrid.add_material()` or `SmoothGrid.carve()` and flushes changes to `terrain.sqlite`.
   4. Reversing: Inverts the operation (adds if previously carved, carves if previously added).
 
-  `M` / `Shift+M` cycles the added material (`_cycle_terrain_material` — the Terrain-mode mirror of the block palette) through `BuildLibrary.get_terrain_materials()`; the HUD reads it back via `set_terrain_info` as `name (i/N)`. Sculpted blobs carry the id PERSISTENTLY in the F12 sidecar (a per-block metadata dict riding `terrain.sqlite`) — the dig action later resolves hp/yields per position from it. Visually the terrain stays one look per map (F8/F11 mesher ceiling): the id is mining authoring, not a paint job.
+  `M` / `Shift+M` cycles the added material (`_cycle_terrain_material` — the Terrain-mode mirror of the block palette) through `BuildLibrary.get_terrain_materials()`; the HUD reads it back via `set_terrain_info` as `name (i/N)`. Sculpted blobs carry the id PERSISTENTLY in the F12 sidecar (a per-block metadata dict riding `terrain.sqlite`) — the dig action later resolves hp/yields per position from it. Visually each blob gets a colored Decal marker from the material's `color` (surface-material blobs excepted — they match the terrain's top band), and the terrain itself carries the depth-banded shader look; per-voxel painting is a documented dead end (F14 — see [Mining](mining.md) §Visuals).
 
 - **Structure Stamps (`_do_structure_stamp`)**:
   1. Computes placement origin with Y-offset, quarter-turn Y rotation, and horizontal nudge offset.

@@ -410,6 +410,12 @@ emits DEFAULT texture-0 data**, never the painted channels.
   weights)` CUSTOM1 layout as Mixel4 — per-vertex weights are the geometric
   lerp of the two edge corners' materials. Any future shader for this system
   decodes both floats; there is no 1-float layout in practice.
+- **Workspace gotcha (found while A/B-testing v1.7x):** a second
+  `voxel.gdextension` anywhere under `res://` — e.g. an extracted release
+  copy parked in `tmp/` — double-registers the extension classes. Symptom:
+  `--import` spews "extension class already registered" and can segfault.
+  Keep exactly one under `addons/`; if it happens, delete the stray copy and
+  remove its line from `.godot/extension_list.cfg`.
 
 **Consequences:**
 

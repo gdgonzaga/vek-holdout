@@ -68,6 +68,9 @@ Brawlers attack the lowest-HP block in range; Shooters path through the lowest-r
 
 **Block library index manifest for map saves** — maps store raw voxel values = `BlockLibrary` model indices (`map.sqlite`), so a map is only guaranteed to load correctly against the layout it was saved with. The base table is alphabetical (after air/terrain) and the rotation-variant appendix depends on which defs are rotatable, so adding an earlier-sorting block id, making an earlier-sorting def rotatable, or removing rotation can shift/reinterpret saved indices (full hazard table in `docs/HOWTO-author-blocks.md` §6). **Missing:** a per-map manifest recording the library layout at save time (ids → indices, variant layout) and a remap-on-load pass. Authoring discipline (append-only ids, rotation only ever added, never removed) is the interim mitigation.
 
+**Terrain blob markers: staleness + unbounded count** — mining visuals (the F14 fallback)
+Authored-blob Decal markers (one per block × material, tinted `TerrainMaterialDef.color`) are what makes painted iron/gold distinguishable under the mesher ceiling (see [Mining](mining.md) §Visuals). **Missing:** markers never retire — carve a blob fully away and its decal stays — and there is no count cap or distance culling, so an editor session painting hundreds of blobs spawns hundreds of projectors. Bounded in practice by authored-blob counts per map; if markers ever cost frames, the fix shape is a lazy solidity check on reveal plus a cap/LRU eviction.
+
 ### Data schemas still missing (C-items)
 
 These data folders are *referenced* in Files tables but have no formal schema in the Data Schemas section. Low-decision work; mostly mechanical once the owning subsystem is settled:
