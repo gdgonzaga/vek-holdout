@@ -41,6 +41,7 @@ const HARVEST_DEF := preload("res://data/jobs/harvest.tres")
 const SOW_DEF := preload("res://data/jobs/sow.tres")
 const WATER_DEF := preload("res://data/jobs/water.tres")
 const TEND_DEF := preload("res://data/jobs/tend.tres")
+const DIG_DEF := preload("res://data/jobs/dig.tres")
 
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
@@ -80,6 +81,7 @@ func _ready() -> void:
 	EventBus.plot_needs_water.connect(_on_plot_needs_water)
 	EventBus.plot_needs_tending.connect(_on_plot_needs_tending)
 	EventBus.furniture_removed.connect(_on_furniture_removed)
+	EventBus.dig_box_designated.connect(_on_dig_box_designated)
 
 
 ## MapWiring.wire_colonists → here, on every map load. Empty roster + authored
@@ -400,3 +402,16 @@ func _spawn_harvest_job(furniture: Node, anchor: Vector3i) -> void:
 	var title := "Harvest %s" % (f.label if f != null else "resource")
 	var location := f.global_position if f != null else Vector3(anchor)
 	_spawn_job(HARVEST_DEF, title, anchor, location, furniture)
+
+
+# --- Mining (GDD §6.10, ARCH "Mining") ----------------------------------------
+
+func _on_dig_box_designated(cells: Array) -> void:
+	for cell_val in cells:
+		if cell_val is Vector3i:
+			_spawn_dig_job(cell_val)
+
+
+func _spawn_dig_job(anchor: Vector3i) -> void:
+	var location := Vector3(anchor) + Vector3(0.5, 0.5, 0.5)
+	_spawn_job(DIG_DEF, "Dig terrain", anchor, location, null)

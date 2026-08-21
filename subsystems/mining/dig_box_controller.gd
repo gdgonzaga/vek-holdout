@@ -54,6 +54,7 @@ func _ready() -> void:
 	if camera_path != ^"" and has_node(camera_path):
 		_camera = get_node(camera_path)
 	EventBus.dig_box_toggled.connect(_on_dig_box_toggled)
+	EventBus.dig_job_completed.connect(_on_dig_job_completed)
 	_update_activation()
 
 
@@ -417,3 +418,20 @@ static func get_dominant_cardinal(v: Vector3) -> Vector3i:
 		return Vector3i.RIGHT if v.x > 0.0 else Vector3i.LEFT
 	else:
 		return Vector3i.BACK if v.z > 0.0 else Vector3i.FORWARD
+
+
+
+## Called when a colonist completes a dig job at a cell: removes visual marker and carves terrain.
+func _on_dig_job_completed(cell: Vector3i) -> void:
+	var container := _get_or_create_marker_container()
+	if container != null:
+		var cell_name := "Marker_%d_%d_%d" % [cell.x, cell.y, cell.z]
+		var marker := container.get_node_or_null(cell_name)
+		if marker != null:
+			marker.queue_free()
+
+	if grid_adapter != null:
+		grid_adapter.remove_block_at(cell)
+		var smooth: SmoothGrid = grid_adapter.get_smooth_grid()
+		if smooth != null:
+			smooth.carve_box(Vector3(cell), Vector3(cell) + Vector3.ONE)
