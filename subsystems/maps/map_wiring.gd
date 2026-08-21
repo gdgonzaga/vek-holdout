@@ -55,7 +55,7 @@ static func wire_build(map: Map) -> FurnitureLayer:
 	# DigBoxController: wire or mount dynamically into the map.
 	var dig_ctrl := map.find_child("DigBoxController", true, false) as DigBoxController
 	if dig_ctrl == null:
-		dig_ctrl = preload("res://subsystems/build/dig_box.tscn").instantiate()
+		dig_ctrl = preload("res://subsystems/mining/dig_box.tscn").instantiate()
 		dig_ctrl.name = "DigBoxController"
 		map.add_child(dig_ctrl)
 	dig_ctrl.grid_adapter = adapter

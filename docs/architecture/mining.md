@@ -1,6 +1,6 @@
 # Mining
 
-Digging the natural (smooth) terrain yields **position-dependent materials** — a dirt cap, a rock body, iron and gold veins — driven entirely by authored `TerrainMaterialDef` defs in `data/terrain/materials/`. This page consolidates the feature; it is deliberately **not a subsystem** (see [Future work](#future-work-and-when-mining-becomes-a-subsystem)).
+Digging the natural (smooth) terrain yields **position-dependent materials** — a dirt cap, a rock body, iron and gold veins — driven entirely by authored `TerrainMaterialDef` defs in `data/terrain/materials/`. This page consolidates the feature and the `subsystems/mining/` subsystem.
 
 > **Design notes**
 > - The mesher has no material API (F8/F11) and its per-voxel texturing system is verified non-functional (F14) — so visuals are **indirect**: a terrain shader bands the two band endpoints' triplanar textures by depth (F11 shader rules), and authored blobs each get a Decal marker tinted `TerrainMaterialDef.color`. Material *identity* lives outside the renderer — a per-block voxel-metadata sidecar for authored blobs (F12) and deterministic depth rules for natural ground (F13). See `docs/VOXEL-TOOL-NOTES.md`.
@@ -19,6 +19,9 @@ Digging the natural (smooth) terrain yields **position-dependent materials** —
 | `data/mining/dig_tool.tres` (`dig_tool_params.gd`) | Data | `DigToolParams`: `work_time`, `shape` (BOX today / SPHERE), `box_size` (authored 1×1×1), `snap_grid`, `carve_radius` (SPHERE only). Preloaded as `BuildLibrary.DIG_TOOL`. |
 | `data/items/iron_ore.tres`, `data/items/gold_ore.tres` | Data | Ore drops (`ItemDef`). |
 | `subsystems/build/build_controller.gd` | Script | Tool routing: the `BuildLibrary.DIG_ID` sentinel, dig ghost, `_try_dig()`. |
+| `subsystems/mining/dig_box_controller.gd` | Script | Dig box designation controller: 6-way camera-look orientation math, preview ghost, RMB flip, mousewheel resizing ($1..11$), and terrain solidity filter. |
+| `subsystems/mining/dig_box.tscn` | Scene | Controller runtime scene and GhostPreview instance. |
+| `ui/dig_box_hud/` | UI | HUD overlay displaying controls legend and live box dimensions ($W \times H \times D$). |
 | `testing/zylann/voxel_metadata_spike.tscn`, `testing/zylann/voxel_texturing_spike.tscn` | Scenes (editor-run) | The F12/F13 and F14 probes. The texturing spike is the harness to re-run if a future addon bump should ever revive per-voxel texturing. |
 | `test/suite_terrain_strata_test.gd`, `test/suite_mining_test.gd`, `test/suite_terrain_visuals_test.gd` | Tests | Bands, determinism, seed sensitivity, weight mix, vein coherence; per-position yields; band picks, tint fallbacks, marker math. |
 

@@ -31,6 +31,7 @@ res://
 │   ├── crafting/       # Recipe model, station logic, craft-Job flow
 │   ├── farming/        # Growable component, CropLibrary — crop lifecycle on farm-plot furniture
 │   ├── harvesting/     # Harvestable component — work-time + yield resolution for marked resources
+│   ├── mining/         # Dig box designation controller, 3D orientation & preview, designation markers
 │   └── actions/        # Interaction runtime + data: InteractionComponent, GameAction, Condition, ActionOption
 ├── ui/                 # HUD + all full-screen UIs (kept at project root for now)
 │   ├── hud/
