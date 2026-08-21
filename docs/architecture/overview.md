@@ -12,7 +12,8 @@ res://
 │   ├── autoloads/      # Singleton scripts (GameState, EventBus, UiGate, GameLog, SceneManager,
 │   │                   #   SaveSystem, Colony, TimeSystem, RunProgress, Tools)
 │   ├── core/           # Main scene, shared utilities, global UI shell, save system
-│   ├── voxel/          # Voxel world, block grid, terrain (wraps Zylann's voxel_tool)
+│   ├── voxel/          # Voxel world, block grid, terrain (wraps Zylann's voxel_tool;
+│   │                   #   per-position material identity — see [Mining](mining.md))
 │   ├── player/         # Player controller, camera rig, state machine
 │   ├── build/          # Blueprint mode, BuildLibrary catalog, ghost preview, block placement
 │   │                   #   strategies, furniture layer, grid adapters
