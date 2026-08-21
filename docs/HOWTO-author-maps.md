@@ -117,7 +117,8 @@ You can author the natural terrain's base shape in any external image editor (Kr
 1. **Paint a grayscale heightmap**: bright pixels are high ground, dark pixels are low. One pixel = one world meter, centered on the world origin (image center sits at world (0,0); image +x → world +x, image +y → world +z). PNG/JPG/BMP/WebP/TGA are accepted; keep it at least 16 px and preferably under 1024×1024 (a 512×512 image is a 512×512 m map).
 2. In the launcher's create form, set **Terrain** to **Heightmap (image)** and click **Browse…** to pick the file. The form previews the image and its footprint (`512×512 px → 512×512 m`).
 3. Set **Start** / **Range**: pixel brightness 0–1 maps to `Start … Start + Range` meters (e.g. start −6, range 16 → the floor sits at −6 m and the brightest peaks at +10 m).
-4. **Create & Open** — the editor writes a self-contained `terrain_gen.tres` (image embedded) into the map folder and loads the map with the terrain already generated.
+4. Toggle **Snap to 1m Grid (Terraced)** (enabled by default): quantizes continuous elevations into discrete 1-meter integer steps ($Y \in \mathbb{Z}$). This creates flat plateaus and stepped terraces where building foundations, floors, and walls sit perfectly flush on the block grid without hovering or clipping.
+5. **Create & Open** — the editor writes a self-contained `terrain_gen.tres` (quantized image embedded) into the map folder and loads the map with the terrain already generated.
 
 **Sculpting on top still works**: F3 terrain brushes are overrides stored in `terrain.sqlite` — the heightmap stays the base that regenerates wherever you haven't sculpted. Changing the image or span later never rewrites existing sculpts, but they keep their *absolute* heights, so a lowered base may leave them floating (the terrain drawer warns about this).
 

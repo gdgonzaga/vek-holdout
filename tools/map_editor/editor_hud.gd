@@ -73,6 +73,7 @@ var _terrain_range_spin: SpinBox
 var _terrain_seed_spin: SpinBox
 var _terrain_freq_spin: SpinBox
 var _terrain_span_label: Label
+var _terrain_snap_check: CheckBox
 var _terrain_pick_button: Button
 var _terrain_remove_button: Button
 var _terrain_heightmap_section: Control = null
@@ -570,6 +571,19 @@ func _build_ui() -> void:
 	_terrain_span_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	_terrain_heightmap_section.add_child(_terrain_span_label)
 
+	var snap_row := HBoxContainer.new()
+	snap_row.add_theme_constant_override("separation", 8)
+	_terrain_heightmap_section.add_child(snap_row)
+
+	_terrain_snap_check = CheckBox.new()
+	_terrain_snap_check.name = "TerrainSnapCheck"
+	_terrain_snap_check.text = "Snap to 1m Grid"
+	_terrain_snap_check.tooltip_text = "Quantize elevations to 1m integer steps so flat plateaus sit flush on the block grid"
+	_terrain_snap_check.button_pressed = true
+	_terrain_snap_check.add_theme_font_size_override("font_size", 11)
+	_terrain_snap_check.toggled.connect(func(_toggled: bool) -> void: _update_terrain_span_label())
+	snap_row.add_child(_terrain_snap_check)
+
 	# Noise section: seed + frequency fields.
 	_terrain_noise_section = VBoxContainer.new()
 	_terrain_noise_section.name = "TerrainNoiseSection"
@@ -1048,6 +1062,7 @@ func get_terrain_drawer_edits() -> Dictionary:
 		"noise_frequency": _terrain_freq_spin.value,
 		"pending_image": _pending_heightmap,
 		"remove": _terrain_remove_pending,
+		"snap_to_grid": _terrain_snap_check.button_pressed if _terrain_snap_check != null else false,
 	}
 
 
@@ -1093,7 +1108,12 @@ func _update_terrain_span_label(_value: float = 0.0) -> void:
 	if _terrain_span_label == null or _terrain_start_spin == null:
 		return
 	var start := _terrain_start_spin.value
-	_terrain_span_label.text = "→ %.1f m … %.1f m" % [start, start + _terrain_range_spin.value]
+	var range_val := _terrain_range_spin.value
+	var tier_info := ""
+	if _terrain_snap_check != null and _terrain_snap_check.button_pressed:
+		var tiers := int(round(range_val)) + 1
+		tier_info = " (%d grid tiers)" % tiers
+	_terrain_span_label.text = "→ %.1f m … %.1f m%s" % [start, start + range_val, tier_info]
 
 
 func _on_terrain_remove_toggled() -> void:

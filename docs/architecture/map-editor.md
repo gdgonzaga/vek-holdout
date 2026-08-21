@@ -81,7 +81,7 @@ sequenceDiagram
     Editor->>Launcher: hide_launcher()
 ```
 
-**New maps** go through the launcher's create form, which emits `new_map_requested(payload: Dictionary)` — `map_id`, `map_type`, `terrain_mode` (`EditorLauncher.TerrainMode`: `NOISE`/`HEIGHTMAP`/`NONE`), `noise_def_path`, `image`, `height_start`, `height_range`. The payload is a Dictionary (not a class) so a future blocky-image authoring key extends it without another signature change.
+**New maps** go through the launcher's create form, which emits `new_map_requested(payload: Dictionary)` — `map_id`, `map_type`, `terrain_mode` (`EditorLauncher.TerrainMode`: `NOISE`/`HEIGHTMAP`/`NONE`), `noise_def_path`, `image`, `height_start`, `height_range`, `snap_to_grid`. The payload is a Dictionary (not a class) so a future blocky-image authoring key extends it without another signature change.
 
 **Terrain generation on open** — the two "Inject terrain_gen" / "Attach streams" diagram steps are the terrain workflow, in this order:
 
@@ -102,7 +102,7 @@ The create form's Terrain section picks how the new map's `SmoothGrid` generates
 A toolbar toggle opens the `TerrainDrawer` (top-right; mutually exclusive with the Metadata panel; Esc closes it). It mirrors the metadata panel's `set_…`/`get_…edits()` pattern:
 
 - Shows mode, def id, and for heightmap maps a read-only minimap with the axis contract (image +x → world +x, image +y → world +z, 1 px = 1 m).
-- Edits `height_start`/`height_range` (heightmap maps) or seed/frequency (noise maps); **Replace Image…/Convert to Heightmap…/Add Heightmap…** picks a new image (pending until Apply); **Remove Terrain** strips `terrain_gen`.
+- Edits `height_start`/`height_range` and `snap_to_grid` (heightmap maps) or seed/frequency (noise maps); **Replace Image…/Convert to Heightmap…/Add Heightmap…** picks a new image (pending until Apply); **Remove Terrain** strips `terrain_gen`.
 - **Apply = write def(s) + reload the map.** Deliberately not a live generator hot-swap — already-streamed blocks keep stale generated data under a swap, while the reload path (flush streams, re-attach, re-inject def) is known-consistent and cheap in the editor. Streams flush first so pending sculpts survive the reload. Standing warning in the drawer: sculpted edits keep their absolute heights, so changing the base may float or bury them (sqlite overrides are absolute, F2/F8).
 
 ### B. Dual-Voxel Editing & Undo Pipeline

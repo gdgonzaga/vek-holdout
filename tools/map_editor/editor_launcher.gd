@@ -48,6 +48,7 @@ var _heightmap_minimap: TextureRect
 var _heightmap_stats_label: Label
 var _height_start_spin: SpinBox
 var _height_range_spin: SpinBox
+var _snap_to_grid_check: CheckBox
 var _heightmap_image: Image = null
 var _heightmap_box: Control = null
 var _file_dialog: FileDialog = null
@@ -236,6 +237,18 @@ func _build_ui() -> void:
 	_height_range_spin.value_changed.connect(_update_heightmap_stats)
 	span_row.add_child(_height_range_spin)
 
+	var snap_row := HBoxContainer.new()
+	snap_row.add_theme_constant_override("separation", 8)
+	_heightmap_box.add_child(snap_row)
+
+	_snap_to_grid_check = CheckBox.new()
+	_snap_to_grid_check.text = "Snap to 1m Grid (Terraced)"
+	_snap_to_grid_check.tooltip_text = "Quantize elevations to 1m integer steps so flat plateaus sit flush on the block grid"
+	_snap_to_grid_check.button_pressed = true
+	_snap_to_grid_check.add_theme_font_size_override("font_size", 12)
+	_snap_to_grid_check.toggled.connect(func(_toggled: bool) -> void: _update_heightmap_stats())
+	snap_row.add_child(_snap_to_grid_check)
+
 	_error_label = Label.new()
 	_error_label.add_theme_font_size_override("font_size", 12)
 	_error_label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
@@ -336,8 +349,12 @@ func _update_heightmap_stats(_value: float = 0.0) -> void:
 	var size := _heightmap_image.get_size()
 	var start := _height_start_spin.value
 	var span := _height_range_spin.value
-	_heightmap_stats_label.text = "%d×%d px → %d×%d m\nspan %.1f m … %.1f m" % [
-		size.x, size.y, size.x, size.y, start, start + span,
+	var tier_info := ""
+	if _snap_to_grid_check != null and _snap_to_grid_check.button_pressed:
+		var tiers := int(round(span)) + 1
+		tier_info = " (%d grid tiers)" % tiers
+	_heightmap_stats_label.text = "%d×%d px → %d×%d m\nspan %.1f m … %.1f m%s" % [
+		int(size.x), int(size.y), int(size.x), int(size.y), start, start + span, tier_info,
 	]
 
 
@@ -370,6 +387,7 @@ func _on_create_pressed() -> void:
 		"image": _heightmap_image,
 		"height_start": _height_start_spin.value,
 		"height_range": _height_range_spin.value,
+		"snap_to_grid": _snap_to_grid_check.button_pressed if _snap_to_grid_check != null else false,
 	})
 
 
@@ -423,3 +441,28 @@ static func load_heightmap_image(path: String) -> Image:
 		image.decompress()
 	image.convert(Image.FORMAT_L8)
 	return image
+
+
+## Quantize an image's grayscale values so generated world heights snap to
+## discrete grid intervals (step meters, default 1.0 m integer grid).
+## Normalizes image to L8 and creates a quantized duplicate.
+static func quantize_heightmap_image(image: Image, height_start: float, height_range: float, step: float = 1.0) -> Image:
+	if image == null:
+		return null
+	if height_range <= 0.0 or step <= 0.0:
+		return image
+	var result := image.duplicate() as Image
+	if result.is_compressed():
+		result.decompress()
+	result.convert(Image.FORMAT_L8)
+	var width := result.get_width()
+	var height := result.get_height()
+	for y: int in range(height):
+		for x: int in range(width):
+			var v: float = result.get_pixel(x, y).r
+			var h: float = height_start + v * height_range
+			var snapped_h: float = roundf(h / step) * step
+			var clamped_h: float = clampf(snapped_h, height_start, height_start + height_range)
+			var new_v: float = (clamped_h - height_start) / height_range
+			result.set_pixel(x, y, Color(new_v, new_v, new_v, 1.0))
+	return result

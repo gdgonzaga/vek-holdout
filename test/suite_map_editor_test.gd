@@ -1674,3 +1674,110 @@ func test_map_editor_ghost_preview_renders_custom_mesh_with_rotation() -> void:
 	assert_object(editor._ghost.mesh).is_equal(editor._box_mesh)
 
 	await _dispose_test_editor(editor)
+
+
+## quantize_heightmap_image quantizes continuous float heights into integer grid steps.
+func test_editor_launcher_quantize_heightmap_image() -> void:
+	var img := Image.create(4, 1, false, Image.FORMAT_L8)
+	# span: start = -6.0, range = 16.0
+	# v = 0.0 -> h = -6.0 -> snapped -6.0 -> v = 0.0
+	# v = 0.5 -> h = 2.0 -> snapped 2.0 -> v = 0.5
+	# v = 0.52 -> h = 2.32 -> snapped 2.0 -> v = 0.5
+	# v = 0.56 -> h = 2.96 -> snapped 3.0 -> v = 9.0/16.0 = 0.5625
+	img.set_pixel(0, 0, Color(0.0, 0.0, 0.0, 1.0))
+	img.set_pixel(1, 0, Color(0.5, 0.5, 0.5, 1.0))
+	img.set_pixel(2, 0, Color(0.52, 0.52, 0.52, 1.0))
+	img.set_pixel(3, 0, Color(0.56, 0.56, 0.56, 1.0))
+
+	var q_img := EditorLauncherClass.quantize_heightmap_image(img, -6.0, 16.0, 1.0)
+	assert_object(q_img).is_not_null()
+	assert_int(q_img.get_format()).is_equal(Image.FORMAT_L8)
+
+	var p0: float = q_img.get_pixel(0, 0).r
+	var p1: float = q_img.get_pixel(1, 0).r
+	var p2: float = q_img.get_pixel(2, 0).r
+	var p3: float = q_img.get_pixel(3, 0).r
+
+	var h0: float = -6.0 + p0 * 16.0
+	var h1: float = -6.0 + p1 * 16.0
+	var h2: float = -6.0 + p2 * 16.0
+	var h3: float = -6.0 + p3 * 16.0
+
+	assert_float(h0).is_equal_approx(-6.0, 0.05)
+	assert_float(h1).is_equal_approx(2.0, 0.05)
+	assert_float(h2).is_equal_approx(2.0, 0.05)
+	assert_float(h3).is_equal_approx(3.0, 0.05)
+
+
+## Launcher snap_to_grid checkbox updates footprint stats and includes field in payload.
+func test_editor_launcher_snap_to_grid_toggle_and_payload() -> void:
+	var launcher: EditorLauncher = auto_free(EditorLauncherClass.new())
+	add_child(launcher)
+	var received: Array = []
+	launcher.new_map_requested.connect(func(payload: Dictionary) -> void:
+		received.append(payload)
+	)
+
+	launcher._new_name_input.text = TEST_HEIGHTMAP_MAP
+	launcher._terrain_mode_select.selected = EditorLauncherClass.TerrainMode.HEIGHTMAP
+	launcher._on_terrain_mode_selected(EditorLauncherClass.TerrainMode.HEIGHTMAP)
+
+	var image := Image.create(32, 32, false, Image.FORMAT_L8)
+	image.fill(Color(0.5, 0.5, 0.5))
+	launcher._heightmap_image = image
+	launcher._height_start_spin.value = -6.0
+	launcher._height_range_spin.value = 16.0
+
+	assert_object(launcher._snap_to_grid_check).is_not_null()
+	assert_bool(launcher._snap_to_grid_check.button_pressed).is_true()
+	launcher._update_heightmap_stats()
+	assert_str(launcher._heightmap_stats_label.text).contains("grid tiers")
+
+	launcher._on_create_pressed()
+	assert_int(received.size()).is_equal(1)
+	assert_bool(received[0]["snap_to_grid"]).is_true()
+
+
+## Terrain drawer includes snap_to_grid in edits and span label shows tier info.
+func test_editor_hud_terrain_drawer_snap_to_grid() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+
+	var hm_def := TerrainGenDef.new()
+	hm_def.id = "hm_snap_test"
+	hm_def.height_start = -4.0
+	hm_def.height_range = 10.0
+	var img := Image.create(16, 16, false, Image.FORMAT_L8)
+	img.fill(Color.BLACK)
+	hm_def.heightmap = ImageTexture.create_from_image(img)
+	hud.set_terrain_drawer_state(hm_def)
+
+	assert_object(hud._terrain_snap_check).is_not_null()
+	assert_bool(hud._terrain_snap_check.button_pressed).is_true()
+	assert_str(hud._terrain_span_label.text).contains("grid tiers")
+
+	var edits := hud.get_terrain_drawer_edits()
+	assert_bool(edits.get("snap_to_grid", false)).is_true()
+
+
+## Map editor creation with snap_to_grid quantizes the embedded texture.
+func test_map_editor_heightmap_creation_with_snapping() -> void:
+	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	var payload := _heightmap_payload(TEST_HEIGHTMAP_MAP)
+	payload["snap_to_grid"] = true
+	payload["height_start"] = -6.0
+	payload["height_range"] = 16.0
+	editor.create_new_map(payload)
+
+	var terrain_path := "res://data/maps/%s/terrain_gen.tres" % TEST_HEIGHTMAP_MAP
+	assert_bool(ResourceLoader.exists(terrain_path)).is_true()
+	var terrain_def := load(terrain_path) as TerrainGenDef
+	assert_object(terrain_def.heightmap).is_not_null()
+
+	var img := terrain_def.heightmap.get_image()
+	assert_int(img.get_format()).is_equal(Image.FORMAT_L8)
+
+	await _dispose_test_editor(editor)

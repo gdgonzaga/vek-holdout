@@ -1,12 +1,12 @@
 [gd_resource type="Resource" script_class="MapDef" format=3]
 
 [ext_resource type="Script" path="res://data/maps/map_def.gd" id="1_hadky"]
-[ext_resource type="Resource" path="res://data/maps/base/terrain_gen.tres" id="2_hadky"]
+[ext_resource type="Resource" path="res://data/maps/base/terrain_gen.tres" id="2_2lq4g"]
 
 [resource]
 script = ExtResource("1_hadky")
 id = "base"
 display_name = "Base"
 scene_path = "res://data/maps/base/map.tscn"
-player_spawn = Vector3(2.9969149, 13.125, -2.2396393)
-terrain_gen = ExtResource("2_hadky")
+player_spawn = Vector3(1.2760122, 12.75, -2.7614045)
+terrain_gen = ExtResource("2_2lq4g")

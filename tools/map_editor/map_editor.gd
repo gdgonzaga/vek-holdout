@@ -957,16 +957,20 @@ func _write_heightmap_terrain_def(payload: Dictionary, folder_path: String, map_
 	if image == null:
 		push_error("MapEditor: heightmap map '%s' requested without an image — no terrain def written" % map_name)
 		return null
-	# Normalize before embedding: the generator reads L8 anyway, and an RGB(A)
-	# source would bloat the .tres for nothing.
-	if image.is_compressed():
-		image.decompress()
-	image.convert(Image.FORMAT_L8)
+	var height_start := float(payload.get("height_start", -6.0))
+	var height_range := float(payload.get("height_range", 16.0))
+	var snap_to_grid := bool(payload.get("snap_to_grid", false))
+	if snap_to_grid:
+		image = EditorLauncherClass.quantize_heightmap_image(image, height_start, height_range, 1.0)
+	else:
+		if image.is_compressed():
+			image.decompress()
+		image.convert(Image.FORMAT_L8)
 	var terrain_def := TerrainGenDef.new()
 	terrain_def.id = map_name + "_terrain"
 	terrain_def.display_name = map_name.capitalize() + " Terrain"
-	terrain_def.height_start = float(payload.get("height_start", -6.0))
-	terrain_def.height_range = float(payload.get("height_range", 16.0))
+	terrain_def.height_start = height_start
+	terrain_def.height_range = height_range
 	terrain_def.heightmap = ImageTexture.create_from_image(image)
 	var terrain_path := folder_path + "terrain_gen.tres"
 	var err := ResourceSaver.save(terrain_def, terrain_path)
@@ -1002,6 +1006,7 @@ func _on_terrain_apply() -> void:
 			"image": pending_image,
 			"height_start": float(edits.get("height_start", -6.0)),
 			"height_range": float(edits.get("height_range", 16.0)),
+			"snap_to_grid": bool(edits.get("snap_to_grid", false)),
 		}
 		_map_def.terrain_gen = _write_heightmap_terrain_def(payload, MAPS_DIR + map_id + "/", map_id)
 		_save_map_def()
@@ -1012,8 +1017,16 @@ func _on_terrain_apply() -> void:
 	if terrain_def == null:
 		return
 	if terrain_def.heightmap != null:
-		terrain_def.height_start = float(edits.get("height_start", terrain_def.height_start))
-		terrain_def.height_range = float(edits.get("height_range", terrain_def.height_range))
+		var start := float(edits.get("height_start", terrain_def.height_start))
+		var range_val := float(edits.get("height_range", terrain_def.height_range))
+		var snap := bool(edits.get("snap_to_grid", false))
+		terrain_def.height_start = start
+		terrain_def.height_range = range_val
+		if snap and terrain_def.heightmap != null:
+			var raw_img := terrain_def.heightmap.get_image()
+			if raw_img != null:
+				var q_img := EditorLauncherClass.quantize_heightmap_image(raw_img, start, range_val, 1.0)
+				terrain_def.heightmap = ImageTexture.create_from_image(q_img)
 	else:
 		terrain_def.noise_seed = int(edits.get("noise_seed", terrain_def.noise_seed))
 		terrain_def.noise_frequency = float(edits.get("noise_frequency", terrain_def.noise_frequency))
