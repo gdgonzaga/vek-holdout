@@ -3,10 +3,11 @@ extends Node3D
 ## Controller for Dig Box Designation mode (ARCH "Mining / Designation").
 ##
 ## Active when Player.mode == DIG_BOX_DESIGNATION. Casts a screen-center raycast
-## onto natural smooth terrain or blocky terrain, calculates orthogonal 6-way
-## relative orientation derived from camera look direction (Depth forward into
-## view, Height screen-up, Width screen-right), and displays a GhostPreview
-## bounding box snapped to the struck voxel cell.
+## onto natural smooth terrain or blocky terrain.
+##
+## Orientation:
+##   - Default: Horizontal (Depth along ground plane N/S/E/W, Height +Y)
+##   - RMB Toggle: Vertical (Depth down -Y or up +Y, Height along ground plane)
 ##
 ## Resizing controls:
 ##   - Scroll Wheel (no modifiers): Width +/- 1 (clamped 1..11, alternating R/L)
@@ -24,6 +25,7 @@ var exclude_bodies: Array[PhysicsBody3D] = []
 var width: int = 1
 var height: int = 3
 var depth: int = 3
+var is_vertical: bool = false
 
 var _ghost: GhostPreview
 var _camera: Camera3D
@@ -76,6 +78,7 @@ func _on_dig_box_toggled(active: bool) -> void:
 		width = 1
 		height = 3
 		depth = 3
+		is_vertical = false
 		EventBus.dig_box_dimensions_changed.emit(width, height, depth)
 
 
@@ -88,6 +91,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		var mouse_event := event as InputEventMouseButton
 		var btn: int = mouse_event.button_index
+		
+		# Right-click toggles between Horizontal and Vertical orientation
+		if btn == MOUSE_BUTTON_RIGHT:
+			is_vertical = not is_vertical
+			get_viewport().set_input_as_handled()
+			return
+		
 		var is_wheel: bool = btn in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]
 		if not is_wheel:
 			return
@@ -195,29 +205,29 @@ func _update_preview_ghost(hit: Dictionary) -> void:
 	else:
 		cell = hit.get("position", Vector3i.ZERO)
 	
-	# Derive 6-way orientation from the player's camera look direction.
+	# Resolve horizontal facing on ground plane (XZ)
 	var cam_fwd: Vector3 = -_camera.global_transform.basis.z.normalized()
 	var cam_up: Vector3 = _camera.global_transform.basis.y.normalized()
-	var dominant_look: Vector3i = get_dominant_cardinal(cam_fwd)
+	var horiz_fwd := Vector3(cam_fwd.x, 0.0, cam_fwd.z)
+	if horiz_fwd.length_squared() < 0.001:
+		horiz_fwd = -Vector3(cam_up.x, 0.0, cam_up.z)
+		if horiz_fwd.length_squared() < 0.001:
+			horiz_fwd = Vector3.FORWARD
+	var dominant_horiz_look: Vector3i = get_dominant_cardinal(horiz_fwd.normalized())
 	
 	var depth_dir: Vector3
 	var height_dir: Vector3
 	var width_dir: Vector3
 	
-	if dominant_look == Vector3i.UP or dominant_look == Vector3i.DOWN:
-		# Vertical digging (shafts or ceilings)
-		depth_dir = Vector3(dominant_look)
-		var horiz_fwd := Vector3(cam_fwd.x, 0.0, cam_fwd.z)
-		if horiz_fwd.length_squared() < 0.001:
-			horiz_fwd = -Vector3(cam_up.x, 0.0, cam_up.z)
-			if horiz_fwd.length_squared() < 0.001:
-				horiz_fwd = Vector3.FORWARD
-		var height_cardinal := get_dominant_cardinal(horiz_fwd.normalized())
-		height_dir = Vector3(height_cardinal)
+	if is_vertical:
+		# Vertical mode: Depth extends vertically (-Y down or +Y up based on camera pitch)
+		var v_dir := Vector3.UP if cam_fwd.y > 0.0 else Vector3.DOWN
+		depth_dir = v_dir
+		height_dir = Vector3(dominant_horiz_look)
 		width_dir = depth_dir.cross(height_dir)
 	else:
-		# Horizontal digging (tunnels, rooms, hillside slices)
-		depth_dir = Vector3(dominant_look)
+		# Horizontal mode: Depth extends along ground plane in look direction, Height is +Y (Up)
+		depth_dir = Vector3(dominant_horiz_look)
 		height_dir = Vector3.UP
 		width_dir = depth_dir.cross(height_dir)
 	
@@ -228,12 +238,12 @@ func _update_preview_ghost(hit: Dictionary) -> void:
 		absf(float(width) * width_dir.z + float(height) * height_dir.z + float(depth) * depth_dir.z)
 	)
 	
-	# Alternating Right/Left width extension calculation (each scroll tick changes width by exactly +1 or -1).
+	# Alternating Right/Left width extension calculation.
 	var left_ext: float = float((width - 1) / 2)
 	var right_ext: float = float(width - 1) - left_ext
 	var width_offset: float = (right_ext - left_ext) * 0.5
 	
-	# Calculate Box Center (anchors: Depth extends forward, Height upward from cell, Width alternating R/L).
+	# Calculate Box Center.
 	var base_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
 	var box_center: Vector3 = base_center + depth_dir * ((float(depth) - 1.0) * 0.5) + height_dir * ((float(height) - 1.0) * 0.5) + width_dir * width_offset
 	
