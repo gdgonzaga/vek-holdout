@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Resource" uid="uid://cbbmspbau1te5" path="res://data/items/dirt_block.tres" id="3_dirt"]
 [ext_resource type="Texture2D" uid="uid://hwdw331xed34" path="res://assets/item_icons/dirt_block.png" id="4_icon"]
-[ext_resource type="Texture2D" path="res://assets/terrain/textures/ground.png" id="5_texture"]
+[ext_resource type="Texture2D" uid="uid://ca4xol6mify3s" path="res://assets/terrain/textures/ground.png" id="5_texture"]
 
 [sub_resource type="Resource" id="Resource_dirt_yield"]
 script = ExtResource("2_item_amount")
@@ -16,11 +16,8 @@ script = ExtResource("1_script")
 id = "ground"
 display_name = "ground"
 color = Color(0.545, 0.435, 0.278, 1)
-hp = 100
-min_depth = 0
+yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_dirt_yield")])
 max_depth = 3
 vein_size = 16
-spawn_weight = 1.0
-yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_dirt_yield")])
-icon = ExtResource("4_icon")
 texture = ExtResource("5_texture")
+icon = ExtResource("4_icon")

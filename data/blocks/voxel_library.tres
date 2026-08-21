@@ -1,9 +1,9 @@
-[gd_resource type="VoxelBlockyLibrary" format=3]
+[gd_resource type="VoxelBlockyLibrary" format=3 uid="uid://cduhcel8sq7ud"]
 
-[ext_resource type="ArrayMesh" path="res://assets/blocks/dirt.obj" id="1_84u81"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/wood.png" id="4_1xm2f"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks.png" id="5_mcmtk"]
-[ext_resource type="ArrayMesh" path="res://assets/custom_meshes/stairs.obj" id="6_s4abc"]
+[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="1_84u81"]
+[ext_resource type="Texture2D" uid="uid://bfu0588dkiia3" path="res://assets/realer_than_real_textures/wood.png" id="4_1xm2f"]
+[ext_resource type="Texture2D" uid="uid://ckeuk3wa5tsxn" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks.png" id="5_mcmtk"]
+[ext_resource type="ArrayMesh" uid="uid://c2bpkqv06me8d" path="res://assets/custom_meshes/stairs.obj" id="6_s4abc"]
 
 [sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_rvp8c"]
 
