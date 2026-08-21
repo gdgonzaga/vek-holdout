@@ -63,6 +63,9 @@ var _stand_cell_hint: Callable = Callable()
 ## surface (hill or plate) instead of trusting authored Y.
 var _ground_query: Callable = Callable()
 
+## Cached terrain presence predicate from the active map (VoxelGridAdapter.is_terrain_at).
+var _is_terrain_at: Callable = Callable()
+
 
 func _ready() -> void:
 	job_board = JobBoard.new()
@@ -120,6 +123,18 @@ func set_stand_cell_hint(hint: Callable) -> void:
 ## Store the active map's combined ground query (Map.ground_height_at).
 func set_ground_query(query: Callable) -> void:
 	_ground_query = query
+
+
+## Store the active map's terrain presence predicate (VoxelGridAdapter.is_terrain_at).
+func set_terrain_predicate(predicate: Callable) -> void:
+	_is_terrain_at = predicate
+
+
+## True if cell contains natural terrain according to the active map's terrain predicate (defaults to true if unbound).
+func is_terrain_at(cell: Vector3i) -> bool:
+	if _is_terrain_at.is_valid():
+		return _is_terrain_at.call(cell)
+	return true
 
 
 ## Instantiate, position, register, and wire a new colonist.

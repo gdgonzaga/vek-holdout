@@ -6,6 +6,7 @@ extends Node
 ## Listens to EventBus.dig_box_designated to instantiate persistent visual
 ## markers under a DesignationContainer, and listens to EventBus.dig_job_completed
 ## to free the corresponding marker and carve out the terrain.
+## Automatically cleans up visual markers when terrain is mined/carved to air.
 
 var grid_adapter: VoxelGridAdapter
 
@@ -13,6 +14,47 @@ var grid_adapter: VoxelGridAdapter
 func _ready() -> void:
 	EventBus.dig_box_designated.connect(_on_dig_box_designated)
 	EventBus.dig_job_completed.connect(_on_dig_job_completed)
+	if grid_adapter != null:
+		_bind_grid_signals()
+
+
+func set_grid_adapter(adapter: VoxelGridAdapter) -> void:
+	grid_adapter = adapter
+	if is_inside_tree() and grid_adapter != null:
+		_bind_grid_signals()
+
+
+func _bind_grid_signals() -> void:
+	if grid_adapter == null:
+		return
+	var smooth: SmoothGrid = grid_adapter.get_smooth_grid()
+	if smooth != null and not smooth.material_carved.is_connected(_on_material_carved):
+		smooth.material_carved.connect(_on_material_carved)
+
+
+func _on_material_carved(_pos: Vector3) -> void:
+	clean_air_markers()
+
+
+## Scans active designation markers and removes any whose voxel location is now air.
+func clean_air_markers() -> void:
+	if grid_adapter == null:
+		return
+	var container := _get_or_create_marker_container()
+	if container == null:
+		return
+	
+	for child in container.get_children():
+		var marker := child as Node3D
+		if marker == null or marker.is_queued_for_deletion():
+			continue
+		var cell: Vector3i = marker.get_meta("cell", Vector3i.MAX)
+		if cell == Vector3i.MAX:
+			var parts := marker.name.split("_")
+			if parts.size() == 4:
+				cell = Vector3i(int(parts[1]), int(parts[2]), int(parts[3]))
+		if cell != Vector3i.MAX and not grid_adapter.is_terrain_at(cell):
+			marker.queue_free()
 
 
 func _on_dig_box_designated(cells: Array) -> void:
@@ -44,6 +86,7 @@ func _spawn_designation_markers(cells: Array[Vector3i]) -> void:
 		
 		var marker := MeshInstance3D.new()
 		marker.name = cell_name
+		marker.set_meta("cell", cell)
 		marker.mesh = box_mesh
 		marker.position = Vector3(cell) + Vector3(0.5, 0.5, 0.5)
 		marker.material_override = mat
@@ -76,3 +119,5 @@ func _on_dig_job_completed(cell: Vector3i) -> void:
 		var smooth: SmoothGrid = grid_adapter.get_smooth_grid()
 		if smooth != null:
 			smooth.carve_box(Vector3(cell), Vector3(cell) + Vector3.ONE)
+	
+	clean_air_markers()

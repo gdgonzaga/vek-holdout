@@ -266,11 +266,7 @@ func test_dig_target_refines_from_the_hit_point() -> void:
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
 	var target := controller._dig_target(grid, {"point": Vector3(4.6, 2.3, 4.5), "normal": Vector3.UP})
-	# Vector3 components are 32-bit floats: widen-to-64-bit vs the literal
-	# makes exact is_equal fail on inexact values like 4.6 — compare approx.
-	assert_float(target.x).is_equal_approx(4.6, 0.001)
-	assert_float(target.y).is_equal_approx(2.29, 0.001)
-	assert_float(target.z).is_equal(4.5)
+	assert_vector(target).is_equal(Vector3(4.5, 2.5, 4.5))
 
 # ── Dig Box & MiningSystem Tests ──────────────────────────────────────────────
 
@@ -279,6 +275,7 @@ class MockVoxelGridAdapter extends VoxelGridAdapter:
 	var removed_blocks: Array[Vector3i] = []
 	var mock_blocks: Dictionary = {}
 	var _mock_smooth: Doubles.RecordingSmoothGrid
+	var mock_terrain: Dictionary = {}
 
 	func _init(smooth: Doubles.RecordingSmoothGrid = null) -> void:
 		_mock_smooth = smooth
@@ -292,6 +289,11 @@ class MockVoxelGridAdapter extends VoxelGridAdapter:
 
 	func get_smooth_grid() -> SmoothGrid:
 		return _mock_smooth
+
+	func is_terrain_at(cell: Vector3i, threshold: float = 0.5) -> bool:
+		if not mock_terrain.is_empty():
+			return mock_terrain.get(cell, false)
+		return super.is_terrain_at(cell, threshold)
 
 
 func test_mining_system_spawns_and_deduplicates_designation_markers() -> void:
@@ -398,3 +400,58 @@ func test_dig_box_controller_dominant_cardinal() -> void:
 	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.1, -0.9, 0.1))).is_equal(Vector3i(0, -1, 0))
 	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.1, 0.1, 0.9))).is_equal(Vector3i(0, 0, 1))
 	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.1, 0.1, -0.9))).is_equal(Vector3i(0, 0, -1))
+
+
+func test_mining_system_clean_air_markers_frees_markers_on_air_terrain() -> void:
+	var root := Node3D.new()
+	auto_free(root)
+	add_child(root)
+
+	var smooth: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(smooth)
+	var adapter := MockVoxelGridAdapter.new(smooth)
+	auto_free(adapter)
+	adapter.mock_terrain[Vector3i(1, 2, 3)] = true
+	adapter.mock_terrain[Vector3i(4, 5, 6)] = true
+
+	var mining_sys := MiningSystem.new()
+	auto_free(mining_sys)
+	mining_sys.set_grid_adapter(adapter)
+	root.add_child(mining_sys)
+
+	# Spawn markers
+	EventBus.dig_box_designated.emit([Vector3i(1, 2, 3), Vector3i(4, 5, 6)])
+	var container := root.get_node_or_null("DesignationContainer") as Node3D
+	assert_object(container.get_node_or_null("Marker_1_2_3")).is_not_null()
+	assert_object(container.get_node_or_null("Marker_4_5_6")).is_not_null()
+
+	# Simulate voxel (1, 2, 3) dug out to air
+	adapter.mock_terrain[Vector3i(1, 2, 3)] = false
+	mining_sys.clean_air_markers()
+	await get_tree().process_frame
+
+	var marker1 := container.get_node_or_null("Marker_1_2_3")
+	var marker2 := container.get_node_or_null("Marker_4_5_6")
+	assert_bool(marker1 == null or marker1.is_queued_for_deletion()).is_true()
+	assert_bool(marker2 != null and not marker2.is_queued_for_deletion()).is_true()
+
+
+func test_dig_job_def_checks_colony_is_terrain_at() -> void:
+	var dig_def: JobDef = preload("res://data/jobs/dig.tres")
+	var target_cell := Vector3i(8, 2, 8)
+	var job := Job.from_def(dig_def)
+	job.anchor_cell = target_cell
+	job.location = Vector3(target_cell) + Vector3(0.5, 0.5, 0.5)
+	var colonist := _sandbox.make_colonist()
+
+	# Initially terrain is present
+	Colony.set_terrain_predicate(func(c: Vector3i) -> bool: return c == target_cell)
+	assert_bool(dig_def.is_available(job)).is_true()
+	assert_bool(dig_def.should_close(job)).is_false()
+	assert_object(dig_def.get_next_leg(colonist, job)).is_not_null()
+
+	# Terrain is mined to air
+	Colony.set_terrain_predicate(func(_c: Vector3i) -> bool: return false)
+	assert_bool(dig_def.is_available(job)).is_false()
+	assert_bool(dig_def.should_close(job)).is_true()
+	assert_object(dig_def.get_next_leg(colonist, job)).is_null()

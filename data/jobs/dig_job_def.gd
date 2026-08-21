@@ -5,7 +5,7 @@ class_name DigJobDef
 ## so the voxel terrain removes the solid block and clears visual designation.
 ##
 ## Single-colonist (max_assignees=1, the JobDef default). A job is available
-## while its terrain cell is designated and not yet dug.
+## while its terrain cell is designated and not yet dug, and the cell still contains terrain.
 
 const BASE_DIG_TIME: float = 2.0
 
@@ -13,7 +13,7 @@ var _completed_job_ids: Dictionary = {}
 
 
 func get_next_leg(_actor: Node, job: Job) -> JobLeg:
-	if _completed_job_ids.has(job.id):
+	if _completed_job_ids.has(job.id) or not Colony.is_terrain_at(job.anchor_cell):
 		return null
 	var leg := JobLeg.new()
 	leg.location = job.location
@@ -34,11 +34,13 @@ func complete(_actor: Node, _leg: JobLeg, job: Job) -> void:
 
 
 func is_available(job: Job) -> bool:
-	return not _completed_job_ids.has(job.id)
+	return not _completed_job_ids.has(job.id) and Colony.is_terrain_at(job.anchor_cell)
 
 
 func should_close(job: Job) -> bool:
 	if _completed_job_ids.has(job.id):
 		_completed_job_ids.erase(job.id)
+		return true
+	if not Colony.is_terrain_at(job.anchor_cell):
 		return true
 	return false

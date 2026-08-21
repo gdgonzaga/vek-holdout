@@ -94,6 +94,8 @@ The renderer can't carry material identity (F8/F14), so looks are indirect and r
 
 | Function | Description |
 |---|---|
+| `set_grid_adapter(adapter: VoxelGridAdapter) -> void` | Injects adapter and binds smooth terrain modification signals. |
+| `clean_air_markers() -> void` | Sweeps active visual markers and frees any whose cell has become air. |
 | `_on_dig_box_designated(cells: Array[Vector3i]) -> void` | Spawns visual markers for newly designated cells. |
 | `_on_dig_job_completed(cell: Vector3i) -> void` | Frees marker and carves voxel terrain at cell. |
 

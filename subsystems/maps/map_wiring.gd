@@ -70,7 +70,8 @@ static func wire_mining(map: Map) -> void:
 		mining_sys = MiningSystem.new()
 		mining_sys.name = "MiningSystem"
 		map.add_child(mining_sys)
-	mining_sys.grid_adapter = adapter
+	mining_sys.set_grid_adapter(adapter)
+	Colony.set_terrain_predicate(Callable(adapter, "is_terrain_at"))
 
 	# DigBoxController: player UI tool for dig box designation
 	var dig_ctrl := map.find_child("DigBoxController", true, false) as DigBoxController
