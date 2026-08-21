@@ -271,3 +271,130 @@ func test_dig_target_refines_from_the_hit_point() -> void:
 	assert_float(target.x).is_equal_approx(4.6, 0.001)
 	assert_float(target.y).is_equal_approx(2.29, 0.001)
 	assert_float(target.z).is_equal(4.5)
+
+# ── Dig Box & MiningSystem Tests ──────────────────────────────────────────────
+
+## Mock grid adapter to record block removals
+class MockVoxelGridAdapter extends VoxelGridAdapter:
+	var removed_blocks: Array[Vector3i] = []
+	var mock_blocks: Dictionary = {}
+	var _mock_smooth: Doubles.RecordingSmoothGrid
+
+	func _init(smooth: Doubles.RecordingSmoothGrid = null) -> void:
+		_mock_smooth = smooth
+
+	func get_block_at(cell: Vector3i) -> String:
+		return mock_blocks.get(cell, "")
+
+	func remove_block_at(cell: Vector3i) -> void:
+		removed_blocks.append(cell)
+		mock_blocks.erase(cell)
+
+	func get_smooth_grid() -> SmoothGrid:
+		return _mock_smooth
+
+
+func test_mining_system_spawns_and_deduplicates_designation_markers() -> void:
+	var root := Node3D.new()
+	auto_free(root)
+	add_child(root)
+
+	var mining_sys := MiningSystem.new()
+	auto_free(mining_sys)
+	root.add_child(mining_sys)
+
+	var cells: Array[Vector3i] = [Vector3i(1, 2, 3), Vector3i(4, 5, 6)]
+	EventBus.dig_box_designated.emit(cells)
+
+	var container := root.get_node_or_null("DesignationContainer") as Node3D
+	assert_object(container).is_not_null()
+	assert_int(container.get_child_count()).is_equal(2)
+	assert_object(container.get_node_or_null("Marker_1_2_3")).is_not_null()
+	assert_object(container.get_node_or_null("Marker_4_5_6")).is_not_null()
+
+	# Re-emit with one duplicate and one new cell
+	EventBus.dig_box_designated.emit([Vector3i(1, 2, 3), Vector3i(7, 8, 9)])
+	assert_int(container.get_child_count()).is_equal(3)
+	assert_object(container.get_node_or_null("Marker_7_8_9")).is_not_null()
+
+
+func test_mining_system_on_dig_job_completed_frees_marker_and_carves() -> void:
+	var root := Node3D.new()
+	auto_free(root)
+	add_child(root)
+
+	var smooth: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(smooth)
+	var adapter := MockVoxelGridAdapter.new(smooth)
+	auto_free(adapter)
+
+	var mining_sys := MiningSystem.new()
+	auto_free(mining_sys)
+	mining_sys.grid_adapter = adapter
+	root.add_child(mining_sys)
+
+	# Spawn a marker
+	EventBus.dig_box_designated.emit([Vector3i(2, 3, 4)])
+	var container := root.get_node_or_null("DesignationContainer") as Node3D
+	assert_object(container.get_node_or_null("Marker_2_3_4")).is_not_null()
+
+	# Fire completion
+	EventBus.dig_job_completed.emit(Vector3i(2, 3, 4))
+	await get_tree().process_frame
+
+	# Marker should be queued for deletion / null
+	var marker := container.get_node_or_null("Marker_2_3_4")
+	assert_bool(marker == null or marker.is_queued_for_deletion()).is_true()
+
+	# Adapter and smooth grid should record removal/carve
+	assert_int(adapter.removed_blocks.size()).is_equal(1)
+	assert_vector(adapter.removed_blocks[0]).is_equal(Vector3i(2, 3, 4))
+	assert_int(smooth.box_carves.size()).is_equal(1)
+	assert_vector(smooth.box_carves[0]["min"]).is_equal(Vector3(2, 3, 4))
+	assert_vector(smooth.box_carves[0]["max"]).is_equal(Vector3(3, 4, 5))
+
+
+func test_dig_box_designated_spawns_jobs_on_colony_board() -> void:
+	var cells: Array = [Vector3i(10, 1, 10), Vector3i(11, 1, 10)]
+	EventBus.dig_box_designated.emit(cells)
+
+	var available_jobs: Array[Job] = Colony.job_board.get_jobs()
+	var dig_jobs: Array = []
+	for j in available_jobs:
+		var job := j as Job
+		if job != null and job.def != null and job.def.id == "dig":
+			dig_jobs.append(job)
+	assert_int(dig_jobs.size()).is_equal(2)
+
+
+func test_dig_job_def_legs_and_completion_signal() -> void:
+	var dig_def: JobDef = preload("res://data/jobs/dig.tres")
+	var target_cell := Vector3i(5, 1, 5)
+	var job := Job.from_def(dig_def)
+	job.anchor_cell = target_cell
+	job.location = Vector3(target_cell) + Vector3(0.5, 0.5, 0.5)
+	var colonist := _sandbox.make_colonist()
+
+	# Leg: travels to location
+	var leg := dig_def.get_next_leg(colonist, job)
+	assert_object(leg).is_not_null()
+	assert_vector(leg.location).is_equal(job.location)
+
+	# Begin work duration
+	var duration := dig_def.begin(colonist, leg, job)
+	assert_float(duration).is_greater(0.0)
+
+	# Complete work
+	var counter := Doubles.SignalCounter.new(EventBus.dig_job_completed)
+	dig_def.complete(colonist, leg, job)
+	assert_int(counter.read()).is_equal(1)
+	assert_bool(dig_def.should_close(job)).is_true()
+
+
+func test_dig_box_controller_dominant_cardinal() -> void:
+	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.9, 0.1, 0.1))).is_equal(Vector3i(1, 0, 0))
+	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(-0.9, 0.1, 0.1))).is_equal(Vector3i(-1, 0, 0))
+	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.1, 0.9, 0.1))).is_equal(Vector3i(0, 1, 0))
+	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.1, -0.9, 0.1))).is_equal(Vector3i(0, -1, 0))
+	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.1, 0.1, 0.9))).is_equal(Vector3i(0, 0, 1))
+	assert_vector(DigBoxController.get_dominant_cardinal(Vector3(0.1, 0.1, -0.9))).is_equal(Vector3i(0, 0, -1))
