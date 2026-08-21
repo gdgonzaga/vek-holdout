@@ -8,7 +8,9 @@ extends GdUnitTestSuite
 ##   + mining XP (the HarvestAction._apply testing seam)
 ## - DigAction timed path: busy lock while the gauge runs, completion carves
 ## - SmoothGrid.box_samples: the box-to-samples math the carve and ghost share
-## - BuildController._calculate_dig_target: cell-center snapping of the BOX dig
+## - SmoothGrid.nearest_solid_sample_in: the BOX dig's anchor selection
+## - BuildController._calculate_dig_target / _dig_target: cell-center prior +
+##   hit-point refinement of the BOX dig
 
 const DIG_TOOL: DigToolParams = preload("res://data/mining/dig_tool.tres")
 const GROUND: TerrainMaterialDef = preload("res://data/terrain/materials/ground.tres")
@@ -212,3 +214,60 @@ func test_calculate_dig_target_snaps_to_struck_cell_center() -> void:
 	# cell (-1, -1, -1), i.e. the negative-side cell, not round-to-zero.
 	var diagonal := {"point": Vector3(0.0, 0.0, 0.0), "normal": Vector3(1.0, 1.0, 1.0).normalized()}
 	assert_vector(controller._calculate_dig_target(diagonal)).is_equal(Vector3(-0.5, -0.5, -0.5))
+
+
+## nearest_solid_sample_in: the anchor is the nearest SOLID sample to the hit
+## point — the incline-edge regression, where the struck cell's min sample is
+## air and the surface is held up by the corner above it.
+func test_nearest_solid_sample_finds_the_corner_holding_the_surface() -> void:
+	var solids := {Vector3i(4, 3, 4): true}
+	var pick := func(pos: Vector3i) -> bool: return solids.has(pos)
+	var anchor := SmoothGrid.nearest_solid_sample_in(Vector3(4.5, 2.6, 4.5), pick)
+	assert_vector(anchor).is_equal(Vector3(4, 3, 4))
+
+
+## The ghost tracks the crosshair: as the hit point slides inside the struck
+## cell, the anchor steps to whichever solid corner is nearest.
+func test_nearest_solid_sample_tracks_the_hit_point() -> void:
+	var solids := {Vector3i(4, 2, 4): true, Vector3i(5, 2, 4): true}
+	var pick := func(pos: Vector3i) -> bool: return solids.has(pos)
+	assert_vector(SmoothGrid.nearest_solid_sample_in(Vector3(4.1, 2.5, 4.5), pick)).is_equal(Vector3(4, 2, 4))
+	assert_vector(SmoothGrid.nearest_solid_sample_in(Vector3(4.9, 2.5, 4.5), pick)).is_equal(Vector3(5, 2, 4))
+
+
+## The struck cell's own corners win over ring candidates — the "ghost snaps
+## two cubes away" regression: a solid sample further out must not steal the
+## anchor from the corner under the crosshair.
+func test_nearest_solid_sample_prefers_struck_cell_over_ring() -> void:
+	var solids := {Vector3i(4, 2, 4): true, Vector3i(6, 3, 5): true}
+	var pick := func(pos: Vector3i) -> bool: return solids.has(pos)
+	var anchor := SmoothGrid.nearest_solid_sample_in(Vector3(4.6, 2.6, 4.6), pick)
+	assert_vector(anchor).is_equal(Vector3(4, 2, 4))
+
+
+## All-air surroundings: the position comes back unchanged (aim at air —
+## the dig clears nothing), while the one-ring widening still answers grazing
+## hits whose struck cell is all-air.
+func test_nearest_solid_sample_all_air_falls_back_to_ring_then_position() -> void:
+	var none_solid := func(_pos: Vector3i) -> bool: return false
+	var pos := Vector3(4.5, 2.5, 4.5)
+	assert_vector(SmoothGrid.nearest_solid_sample_in(pos, none_solid)).is_equal(pos)
+	var solids := {Vector3i(6, 3, 5): true}
+	var ring_pick := func(p: Vector3i) -> bool: return solids.has(p)
+	assert_vector(SmoothGrid.nearest_solid_sample_in(Vector3(4.9, 2.6, 4.6), ring_pick)).is_equal(Vector3(6, 3, 5))
+
+
+## _dig_target: the BOX refinement runs from the ACTUAL hit point — with no
+## live voxel tool the grid hands back the nudged hit point unchanged (the
+## no-refinement fallback), not the cell-center prior.
+func test_dig_target_refines_from_the_hit_point() -> void:
+	var controller := BuildController.new()
+	auto_free(controller)
+	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(grid)
+	var target := controller._dig_target(grid, {"point": Vector3(4.6, 2.3, 4.5), "normal": Vector3.UP})
+	# Vector3 components are 32-bit floats: widen-to-64-bit vs the literal
+	# makes exact is_equal fail on inexact values like 4.6 — compare approx.
+	assert_float(target.x).is_equal_approx(4.6, 0.001)
+	assert_float(target.y).is_equal_approx(2.29, 0.001)
+	assert_float(target.z).is_equal(4.5)

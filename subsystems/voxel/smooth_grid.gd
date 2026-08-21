@@ -363,6 +363,47 @@ static func box_samples(min_pos: Vector3, max_pos: Vector3) -> Array[Vector3i]:
 	return samples
 
 
+## Snap a dig target to the nearest SOLID lattice sample to `world_pos` (the
+## hit point nudged into the surface). Searches the struck cell's own 8 corner
+## samples FIRST — they are the samples that mesh the surface under the
+## crosshair, so the anchor stays within half a cube of the aim and the ghost
+## steps one lattice cell at a time as the crosshair moves; the wider 3x3x3
+## ring only answers grazing hits whose struck cell is all-air. Returns
+## world_pos unchanged when nothing nearby is solid (aim at air — the dig
+## then clears nothing, the honest answer). F15: anchoring on a solid sample
+## guarantees the dig bites (no air-over-air no-ops on incline edges) and a
+## 1x1x1 dig clears exactly ONE sample (~1 m bite) — box_samples of a box
+## centered on the returned integer position is exactly that sample (a
+## 3-box: its 3x3x3 neighborhood).
+func nearest_solid_sample(world_pos: Vector3) -> Vector3:
+	return nearest_solid_sample_in(world_pos, func(pos: Vector3i) -> bool:
+		return _voxel_tool != null and _voxel_tool.get_voxel_f(pos) <= 0.0)
+
+
+## The selection logic, split out with an `is_solid` callable so suites can
+## pin it without a live VoxelTerrain (the RecordingSmoothGrid seam pattern).
+static func nearest_solid_sample_in(world_pos: Vector3, is_solid: Callable) -> Vector3:
+	var base := Vector3i(int(floor(world_pos.x)), int(floor(world_pos.y)), int(floor(world_pos.z)))
+	for margin: int in [0, 1]:
+		var best := base
+		var best_distance := INF
+		var found := false
+		for x: int in range(base.x - margin, base.x + 2 + margin):
+			for y: int in range(base.y - margin, base.y + 2 + margin):
+				for z: int in range(base.z - margin, base.z + 2 + margin):
+					var sample := Vector3i(x, y, z)
+					if not is_solid.call(sample):
+						continue
+					var distance: float = (Vector3(sample) - world_pos).length_squared()
+					if distance < best_distance:
+						best_distance = distance
+						best = sample
+						found = true
+		if found:
+			return Vector3(best)
+	return world_pos
+
+
 # --- F12 material sidecar --------------------------------------------------------
 
 ## Origin of the voxel block containing pos (floor division — negative

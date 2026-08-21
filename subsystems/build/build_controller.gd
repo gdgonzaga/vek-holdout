@@ -302,7 +302,7 @@ func _try_dig() -> void:
 	var surface := _smooth_surface_hit(_cursor_ray())
 	if surface.is_empty():
 		return
-	var target := _calculate_dig_target(surface)
+	var target := _dig_target(smooth_grid, surface)
 	var action := DigAction.new()
 	action.begin(player, smooth_grid, target, BuildLibrary.DIG_TOOL)
 
@@ -312,15 +312,35 @@ func _try_dig() -> void:
 ## smooth hit is diggable (hp scales the duration, never blocks the dig).
 func _update_dig_ghost(hit: Dictionary) -> void:
 	var surface := _smooth_surface_hit(hit)
-	if surface.is_empty():
+	var smooth_grid := grid_adapter.get_smooth_grid() if grid_adapter != null else null
+	if surface.is_empty() or smooth_grid == null:
 		_ghost.hide_()
 		return
 	var tool := BuildLibrary.DIG_TOOL
-	var target := _calculate_dig_target(surface)
+	var target := _dig_target(smooth_grid, surface)
 	if tool.shape == DigToolParams.Shape.BOX:
 		_ghost.show_box_at(target, tool.box_size, true)
 	else:
 		_ghost.show_sphere_at(target, tool.carve_radius, true)
+
+
+## The dig target both the ghost and the carve use: the geometric prior from
+## _calculate_dig_target, refined for BOX digs by the grid to the nearest
+## solid sample — one shared path, so the preview box and the cleared samples
+## can never disagree (the pre-refinement bugs were exactly ghost/carve
+## disagreements).
+func _dig_target(smooth_grid: SmoothGrid, surface: Dictionary) -> Vector3:
+	var target := _calculate_dig_target(surface)
+	var tool := BuildLibrary.DIG_TOOL
+	if tool.shape == DigToolParams.Shape.BOX and tool.snap_grid:
+		# Refine from the ACTUAL hit point, not the cell-center prior: the
+		# nearest solid sample to where the crosshair lands is the sample the
+		# player is pointing at, so the ghost tracks the crosshair and steps
+		# one lattice cell at a time instead of jumping between candidates
+		# (the prior-centered search snapped up to two cubes off at corners).
+		var hit_in: Vector3 = surface["point"] - surface["normal"] * 0.01
+		return smooth_grid.nearest_solid_sample(hit_in)
+	return target
 
 
 func _calculate_dig_target(surface: Dictionary) -> Vector3:
@@ -329,14 +349,13 @@ func _calculate_dig_target(surface: Dictionary) -> Vector3:
 		# Push a tiny epsilon into the surface to land inside the solid.
 		var hit_in: Vector3 = surface["point"] - surface["normal"] * 0.01
 		if tool.snap_grid:
-			# Snap to the CENTER of the struck cell (floor + 0.5), not the nearest
-			# lattice vertex (round): everything downstream — ghost box, carve_box's
-			# sample range, the material lookup — agrees on the struck cell, so
-			# the ghost outlines the dig's core. A vertex anchor straddles 8 cells
-			# and, on dirt edges, rounds to the air-side vertex so the whole
-			# removal range is already air (the silent no-op dig); a cell-center
-			# anchor makes carve_box clear that cell's full corner-sample set —
-			# incline edges and spike remnants included.
+			# Geometric PRIOR for the BOX dig: the center of the struck cell
+			# (floor + 0.5). _dig_target then refines it on the grid to the
+			# nearest solid sample (SmoothGrid.nearest_solid_sample, F15), so a
+			# 1x1x1 dig clears exactly that sample — a ~1 m bite that always
+			# connects, whatever corner of the struck cell holds the surface up.
+			# The unrefined vertex anchor (round) straddled 8 cells and rounded
+			# to the air-side vertex on dirt edges: the silent no-op dig.
 			return hit_in.floor() + Vector3(0.5, 0.5, 0.5)
 		return surface["point"] - surface["normal"] * (tool.box_size.y * 0.5)
 	else:

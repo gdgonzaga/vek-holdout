@@ -36,10 +36,10 @@ Two load-bearing invariants keep the sources from disagreeing: `_pristine_height
 ## Flow Trace: player digs
 
 1. **B** opens the build menu; the **Dig** entry (`BuildLibrary.DIG_ID` sentinel, not a `BuildableDef`) arms dig mode.
-2. `_physics_process` raycasts; a smooth-surface hit shows the green ghost of the dig volume. Today's BOX tool: a 1×1×1 cube snapped to the **struck cell's center** (`floor` of the hit nudged ~1 cm into the surface, +0.5) — WYSIWYG, because the carve clears exactly the terrain samples inside that box (F15). A SPHERE-tool dig shows the half-sunk sphere ghost instead.
+2. `_physics_process` raycasts; a smooth-surface hit shows the green ghost of the dig volume. Today's BOX tool: a 1×1×1 cube anchored on the **nearest solid sample** to the hit point (nudged ~1 cm into the surface, F15) — WYSIWYG: the dig clears exactly that sample, ~1 m³ per dig, and the cube tracks the crosshair one lattice step at a time. A SPHERE-tool dig shows the half-sunk sphere ghost instead.
 3. **LMB** → `BuildController._try_dig()` → `DigAction.begin(actor, grid, center, BuildLibrary.DIG_TOOL)`.
 4. The gauge duration is `work_time × hp(at the dig position) / 100 ÷ mining-skill multiplier`; the label reads **"Digging <display_name>"** from the def at the dig position (a BOX resolves the first solid sample in its span) — the in-game oracle for the whole chain.
-5. On completion `_apply` resolves the def **before** carving (after the carve the position is air), carves the shape — BOX: `carve_box` hard-writes air (+2) to every sample in the ghost box, deliberately not a blended `do_box` (F15: blends leave "pyramid" fringe spikes, and a single-sample write misses surfaces held up by a different corner); SPHERE: `MODE_REMOVE do_sphere` — then grants the def's `yields` to the digger's pocket inventory and records a `mining` skill use.
+5. On completion `_apply` resolves the def **before** carving (after the carve the position is air), carves the shape — BOX: `carve_box` hard-writes air (+2) to every sample in the ghost box (a 1×1×1 dig: the single anchored sample), deliberately not a blended `do_box` (F15: blends leave "pyramid" fringe spikes; hard per-sample writes are deterministic); SPHERE: `MODE_REMOVE do_sphere` — then grants the def's `yields` to the digger's pocket inventory and records a `mining` skill use.
 6. A cancelled dig banks nothing (v1 semantics — no partial-HP state on smooth terrain).
 
 ## Visuals: how a material becomes visible

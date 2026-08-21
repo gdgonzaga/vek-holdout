@@ -446,14 +446,17 @@ same"), not a dedicated spike — the symptoms and the fix pin the model:
   a "pyramid" spike remnant that later digs kept missing. A direct
   `set_voxel_f(pos, v)` writes exactly that sample: no fringe, deterministic.
 - **What the dig tool encodes** (`SmoothGrid.carve_box` +
-  `BuildController._calculate_dig_target`): the BOX dig anchors on the struck
-  cell's CENTER (`floor(hit_in) + 0.5`, with `hit_in` nudged ~1 cm into the
-  surface along the hit normal) and hard-writes `AIR_DENSITY` (+2, the F8 air
-  mirror of `SOLID_DENSITY`) to every sample inside the ghost box
-  (`box_samples`: closed `ceil(min)..floor(max)` per axis). A snapped 1×1×1
-  dig therefore clears all 8 corners of the struck cell, so no surface can
-  survive inside it no matter which corner held it up. The visible hole is
-  the sample span dilated ~half a sample into the remaining solid (the mesher
+  `nearest_solid_sample` + `BuildController._dig_target`): the BOX dig
+  anchors on the nearest SOLID sample to the hit point nudged ~1 cm into the
+  surface — searched over the struck cell's own 8 corners first (the samples
+  that mesh the surface under the crosshair, so the ghost tracks the aim one
+  lattice step at a time), widening one ring only for all-air grazing hits —
+  then hard-writes `AIR_DENSITY` (+2, the F8 air mirror of `SOLID_DENSITY`)
+  to every sample inside the ghost box (`box_samples`: closed
+  `ceil(min)..floor(max)` per axis). A snapped 1×1×1 dig clears exactly the
+  anchored sample: a ~1 m bite that always connects (the anchor is solid by
+  selection, whatever corner holds the surface up). The visible hole is the
+  sample span dilated ~half a sample into the remaining solid (the mesher
   puts the zero crossing between the last solid and first air sample) —
   symmetric around the ghost box.
 
