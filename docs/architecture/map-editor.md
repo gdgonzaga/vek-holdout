@@ -83,6 +83,12 @@ sequenceDiagram
 
 **New maps** go through the launcher's create form, which emits `new_map_requested(payload: Dictionary)` — `map_id`, `map_type`, `terrain_mode` (`EditorLauncher.TerrainMode`: `NOISE`/`HEIGHTMAP`/`NONE`), `noise_def_path`, `image`, `height_start`, `height_range`. The payload is a Dictionary (not a class) so a future blocky-image authoring key extends it without another signature change.
 
+**Terrain generation on open** — the two "Inject terrain_gen" / "Attach streams" diagram steps are the terrain workflow, in this order:
+
+1. `load_map` instantiates the map scene, then `_inject_terrain_gen` sets `SmoothGrid.terrain_gen` from `MapDef` **and** injects the material catalog (`set_material_catalog(BuildLibrary.get_terrain_materials())`) BEFORE `add_child` — so `_ready` builds the generator (heightmap image or noise, F13 branch rules), the Transvoxel mesher, and collision layer 3 from the def. A null def frees the SmoothGrid (blocky-only map). Full pipeline: [Voxel World](voxel-world.md) "Terrain generation when a map opens".
+2. `_attach_streams` force-points both `VoxelStreamSQLite` paths at the **authored** `res://data/maps/<id>/` dbs (injecting streams when the scene ships none) — unlike runtime's copy-on-load to `user://`, the editor writes authored content directly. Saved blocks override the generator, so existing sculpts replay on open; sculpting/undo flows below flush after each edit.
+3. The Terrain drawer's **Apply & Reload** re-runs this whole sequence with the edited def (`_reload_current_map` → flush → `load_map`) — the reload is deliberate; see §A3.
+
 ### A2. Terrain Setup: Heightmap or Noise
 
 The create form's Terrain section picks how the new map's `SmoothGrid` generates (see [Voxel World](voxel-world.md) for the generator side):

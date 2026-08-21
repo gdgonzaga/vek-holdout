@@ -84,7 +84,7 @@ Sculpt continuous Transvoxel SDF terrain.
 - **`LMB`**: Add terrain material at the crosshair point.
 - **`Shift + LMB`**: Carve away smooth terrain.
 - **`[` / `]`** or **`B + Mouse Wheel`**: Increase or decrease brush sculpt radius ($0.5\,\text{m}$ to $5.0\,\text{m}$).
-- **`M` / `Shift + M`**: Cycle the terrain material added by `LMB` (from `data/terrain/materials/`; the HUD shows `name (i/N)`). Authoring metadata for dig hardness/yields — the smooth grid has one visual appearance (F8), so blobs don't change color.
+- **`M` / `Shift + M`**: Cycle the terrain material added by `LMB` (from `data/terrain/materials/`; the HUD shows `name (i/N)`). Authoring metadata for dig hardness/yields — the smooth grid has one visual appearance (F8), so blobs don't change color. The id persists in the voxel-metadata sidecar and drives mining (`architecture/mining.md`).
 - **`Ctrl + Z`**: Undo terrain sculpt operation.
 
 ### Mode 4: Furniture Mode (`F4`)
@@ -121,7 +121,7 @@ You can author the natural terrain's base shape in any external image editor (Kr
 
 **Sculpting on top still works**: F3 terrain brushes are overrides stored in `terrain.sqlite` — the heightmap stays the base that regenerates wherever you haven't sculpted. Changing the image or span later never rewrites existing sculpts, but they keep their *absolute* heights, so a lowered base may leave them floating (the terrain drawer warns about this).
 
-**Adjusting later** — the **Terrain** toolbar button opens the terrain drawer: tweak Start/Range (or seed/frequency on noise maps), replace the image, convert a noise map to a heightmap, or remove terrain entirely. **Apply & Reload** saves the def and reloads the map (a deliberate reload, not a live swap — streaming makes hot-swapping generators unreliable).
+**Adjusting later** — the **Terrain** toolbar button opens the terrain drawer: tweak Start/Range (or seed/frequency on noise maps), replace the image, convert a noise map to a heightmap, or remove terrain entirely. **Apply & Reload** saves the def and reloads the map (a deliberate reload, not a live swap — streaming makes hot-swapping generators unreliable). What reload does step-by-step (inject def + catalog → build generator → attach streams) is documented in [Voxel World](architecture/voxel-world.md) "Terrain generation when a map opens" and [Map Editor](architecture/map-editor.md) §3A.
 
 **Known limits**: 8-bit precision (≈6 cm steps over a 16 m range — Transvoxel smoothing hides this well for organic terrain); no horizontal scaling (1 px is always 1 m — resize the image in your editor if you need a different footprint); the image **repeats periodically** across the infinite plane (F10 in VOXEL-TOOL-NOTES) — mismatched image edges become a cliff seam at every repetition, so keep the heightmap seamless if the far terrain matters (GIMP workflow: `tmp/HOWTO-heightmap-gimp.md`).
 

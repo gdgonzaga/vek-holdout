@@ -44,6 +44,17 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `material_placed(pos: Vector3, material_id: String)` | `smooth_grid.gd` | (none yet — `SmoothPlacementStrategy` calls `add_material` directly; the signal is the future sound/particles hook) | No | — |
 | `material_carved(pos: Vector3)` | `smooth_grid.gd` | (none yet — DigAction calls `carve` directly; the signal is the future sound/particles hook) | No | — |
 
+## Terrain generation when a map opens
+
+The smooth terrain is **def-driven and assembled at load** — nothing terrain-shaped is baked into the scene except the node skeleton. Opening a map runs the same pipeline at runtime (`SceneManager.swap_map`) and in the editor (`map_editor.load_map`):
+
+1. **Injection, pre-tree.** `MapDef.terrain_gen` (a `TerrainGenDef`) is injected into the `SmoothGrid` BEFORE it enters the tree, together with the material catalog (`set_material_catalog(BuildLibrary.get_terrain_materials())` — the strata's input). A null def leaves the node to free itself at `_ready`: "no smooth grid at all", so terrain-less maps play exactly as before. The editor's `_inject_terrain_gen` performs the same pair.
+2. **Build, `SmoothGrid._ready`.** The def's heightmap (when present) is prepared ONCE into an L8 `Image` that feeds BOTH the generator and `_pristine_height` — the F13 lockstep rule (strata and generator must describe the same def); noise maps instead mirror the generator's `FastNoiseLite` sampler for the same purpose. `_build_generator` then picks the branch: `VoxelGeneratorImage` (image + `height_start`/`height_range` + half-size origin offset; repeats periodically, F10) or `VoxelGeneratorNoise2D` (noise + span; the surface is exactly `start + (n·0.5+0.5)·range`, F13). The `VoxelMesherTransvoxel`, collision layer 3 + body mask, and the D4 `block_loaded`/`block_unloaded` cache hooks are set here. See the SmoothGrid class reference below.
+3. **Streaming.** Each map's `VoxelStreamSQLite` is attached per map — **runtime** copies the authored db to `user://maps/<id>/terrain.sqlite` on first load and repoints the stream (`res://` is read-only; copy-on-load, see [Save / Load](save.md)), while the **editor** points straight at the authored `res://data/maps/<id>/terrain.sqlite` (writing authored content is the editor's job). Saved blocks **override the generator**: sculpted/edited cells replay on top of generated ground wherever a viewer streams them in (F2/F8).
+4. **Identity live.** With the catalog injected, every solid position answers `get_material_at` — authored sidecar (F12) → strata depth rules (F13) → `default_material` — so mining, dig feedback, and editor previews all resolve per position. See [Mining](mining.md).
+
+Editor regeneration follows the same pipeline by design: the Terrain drawer's **Apply & Reload** saves the edited def and reloads the map (never a live generator hot-swap — already-streamed blocks would keep stale generated data). Details in [Map Editor](map-editor.md) §3A.
+
 ## Flow Trace: Player targets ground (raycast)
 
 **Trigger:** Build mode active; player moves cursor.
