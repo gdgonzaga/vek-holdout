@@ -4,5 +4,4 @@
 
 [resource]
 script = ExtResource("1_script")
-work_time = 1.0
 carve_radius = 0.5
