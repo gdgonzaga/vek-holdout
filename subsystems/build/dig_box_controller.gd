@@ -7,6 +7,11 @@ extends Node3D
 ## relative orientation derived from camera look direction (Depth forward into
 ## view, Height screen-up, Width screen-right), and displays a GhostPreview
 ## bounding box snapped to the struck voxel cell.
+##
+## Resizing controls:
+##   - Scroll Wheel (no modifiers): Width +/- 1 (clamped 1..11, alternating R/L)
+##   - Shift + Scroll (or Wheel Left/Right): Depth +/- 1 (clamped 1..11)
+##   - Ctrl + Scroll: Height +/- 1 (clamped 1..11)
 
 const _RAY_DISTANCE := 30.0
 
@@ -67,6 +72,73 @@ func _update_activation() -> void:
 
 func _on_dig_box_toggled(active: bool) -> void:
 	set_active(active)
+	if active:
+		width = 1
+		height = 3
+		depth = 3
+		EventBus.dig_box_dimensions_changed.emit(width, height, depth)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _active:
+		return
+	if UiGate.is_input_blocked():
+		return
+	
+	if event is InputEventMouseButton and event.pressed:
+		var mouse_event := event as InputEventMouseButton
+		var btn: int = mouse_event.button_index
+		var is_wheel: bool = btn in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]
+		if not is_wheel:
+			return
+		
+		var changed := false
+		if btn == MOUSE_BUTTON_WHEEL_UP:
+			if event.shift_pressed:
+				var new_d := clampi(depth + 1, 1, 11)
+				if new_d != depth:
+					depth = new_d
+					changed = true
+			elif event.ctrl_pressed:
+				var new_h := clampi(height + 1, 1, 11)
+				if new_h != height:
+					height = new_h
+					changed = true
+			else:
+				var new_w := clampi(width + 1, 1, 11)
+				if new_w != width:
+					width = new_w
+					changed = true
+		elif btn == MOUSE_BUTTON_WHEEL_DOWN:
+			if event.shift_pressed:
+				var new_d := clampi(depth - 1, 1, 11)
+				if new_d != depth:
+					depth = new_d
+					changed = true
+			elif event.ctrl_pressed:
+				var new_h := clampi(height - 1, 1, 11)
+				if new_h != height:
+					height = new_h
+					changed = true
+			else:
+				var new_w := clampi(width - 1, 1, 11)
+				if new_w != width:
+					width = new_w
+					changed = true
+		elif btn == MOUSE_BUTTON_WHEEL_RIGHT:
+			var new_d := clampi(depth + 1, 1, 11)
+			if new_d != depth:
+				depth = new_d
+				changed = true
+		elif btn == MOUSE_BUTTON_WHEEL_LEFT:
+			var new_d := clampi(depth - 1, 1, 11)
+			if new_d != depth:
+				depth = new_d
+				changed = true
+		
+		if changed:
+			EventBus.dig_box_dimensions_changed.emit(width, height, depth)
+			get_viewport().set_input_as_handled()
 
 
 func _physics_process(_delta: float) -> void:
@@ -156,9 +228,14 @@ func _update_preview_ghost(hit: Dictionary) -> void:
 		absf(float(width) * width_dir.z + float(height) * height_dir.z + float(depth) * depth_dir.z)
 	)
 	
-	# Calculate Box Center (anchors: Depth extends forward along look dir, Height upward from cell, Width centered).
+	# Alternating Right/Left width extension calculation (each scroll tick changes width by exactly +1 or -1).
+	var left_ext: float = float((width - 1) / 2)
+	var right_ext: float = float(width - 1) - left_ext
+	var width_offset: float = (right_ext - left_ext) * 0.5
+	
+	# Calculate Box Center (anchors: Depth extends forward, Height upward from cell, Width alternating R/L).
 	var base_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
-	var box_center: Vector3 = base_center + depth_dir * ((float(depth) - 1.0) * 0.5) + height_dir * ((float(height) - 1.0) * 0.5)
+	var box_center: Vector3 = base_center + depth_dir * ((float(depth) - 1.0) * 0.5) + height_dir * ((float(height) - 1.0) * 0.5) + width_dir * width_offset
 	
 	_ghost.show_box_at(box_center, box_size, true)
 
