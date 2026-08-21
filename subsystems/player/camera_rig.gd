@@ -12,8 +12,8 @@ extends Node3D
 
 @export var sensitivity := 0.0025
 @export var spring_length := 3.0
-@export_range(-1.2, 1.2) var min_pitch := -1.2
-@export_range(-1.2, 1.2) var max_pitch := 1.2
+@export_range(-1.57, 1.57) var min_pitch := -1.57
+@export_range(-1.57, 1.57) var max_pitch := 1.57
 @export var height_offset := 1.4
 ## Horizontal frustum shift: positive moves the view right (body frames screen-left).
 ## Uses Camera3D.h_offset so the aim direction stays along the spring arm's axis.
