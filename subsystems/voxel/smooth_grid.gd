@@ -497,7 +497,9 @@ func _spawn_marker_decal(positions: Array, def: TerrainMaterialDef) -> void:
 		return
 	var sphere := marker_sphere_for(positions)
 	var decal := Decal.new()
-	decal.albedo_texture = marker_texture()
+	## This Godot names the decal textures texture_albedo/texture_normal/...
+	## (not albedo_texture) — property names verified against the build.
+	decal.texture_albedo = marker_texture()
 	decal.modulate = def.color
 	decal.size = Vector3(sphere.radius * 2.0 + 2.0, sphere.radius * 2.0 + 2.0, 12.0)
 	decal.upper_fade = 0.2
