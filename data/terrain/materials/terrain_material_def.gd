@@ -8,12 +8,20 @@ class_name TerrainMaterialDef
 ## placement, structure stamps) carry their material id in per-block voxel
 ## metadata (F12 — one Dictionary per 16^3 block anchored at the block origin);
 ## natural ground resolves through TerrainStrata's deterministic depth rules.
-## F8/F11 remain the MESHER ceiling — the terrain has one visual look per map —
-## so unlike BlockDef there is no mesh/material here; `texture` is reserved
-## data, not a render hook. Equipment gating (later) matches on `id`.
+## The mesher remains a one-look-per-map ceiling — per-voxel texturing is
+## verified non-functional (F14) — so visuals are INDIRECT: the terrain shader
+## bands the two `band_material` endpoints' look by depth (F11 shader rules),
+## and authored blobs each get a Decal marker tinted `color`. Equipment gating
+## (later) matches on `id`.
 
 @export var id: String
 @export var display_name: String
+
+## Visual identity color: tints the depth-band look when this material is a
+## band endpoint without a `texture`, and tints the Decal marker that makes
+## authored blobs of this material visually distinct (iron vs gold at a
+## glance). White reads as "no tint".
+@export var color: Color = Color.WHITE
 
 ## Break pool. Today it scales dig time (work_time * hp / 100 — hp 100 keeps
 ## the old hardness-1 feel, 300 the old hardness-3); the future tool-damage
@@ -39,8 +47,10 @@ class_name TerrainMaterialDef
 ## ratio); 0 = never generates.
 @export var spawn_weight: float = 1.0
 
-## Reserved (F8/F11 ceiling): NOT rendered on the terrain in v1 — future
-## dig-UI feedback swatch and per-material visuals if a custom mesher lands.
+## Triplanar band texture for the terrain shader's DEPTH-BAND look (F14
+## fallback: shader rules only — there is no per-voxel rendering). Only band
+## endpoints (the surface material and the dominant deep material) sample it;
+## other materials are visually identified by their Decal marker `color`.
 @export var texture: Texture2D = null
 
 ## Radius of the sphere one placement of this material adds (also the blob

@@ -13,6 +13,7 @@ count = 1
 script = ExtResource("1_script")
 id = "gold_ore"
 display_name = "gold ore"
+color = Color(0.831, 0.686, 0.216, 1)
 hp = 400
 min_depth = 24
 vein_size = 6

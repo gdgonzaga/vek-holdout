@@ -17,6 +17,12 @@ extends Node
 ## the block origin), natural ground resolves through TerrainStrata's
 ## deterministic depth rules against the pristine surface (F13).
 ##
+## Visuals (F11/F14): one ShaderMaterial on the terrain's material_override
+## blends the two band endpoints' triplanar textures by depth below the
+## pristine surface; authored blobs get Decal markers tinted
+## TerrainMaterialDef.color — per-voxel texturing is verified dead (F14), so
+## visual identity is indirect.
+##
 ## Lifecycle: absent by design. Maps opt in via MapDef.terrain_gen — SceneManager
 ## injects it into this node before the map enters the tree; a SmoothGrid that
 ## reaches _ready without one removes itself ("null -> no smooth grid at all",
@@ -41,6 +47,15 @@ const TERRAIN_LAYER_VALUE := 1 << (TERRAIN_LAYER - 1)
 ## deep-solid density (-1.999 probed, F8) so added ground is indistinguishable
 ## from generated ground in meshing and collision.
 const SOLID_DENSITY := 2
+
+## One terrain look per map (F11), banded by depth (the F14 fallback path —
+## per-voxel texturing is non-functional, so the shader is the whole visual).
+const TERRAIN_SHADER: Shader = preload("res://assets/terrain/terrain_shader.gdshader")
+## Pristine-height bake feeding the shader's depth bands: R = meters, one
+## pixel per meter, centered on the origin, sampled with repeat — depth bands
+## drift beyond the window, which only far terrain sees.
+const HEIGHT_BAKE_SIZE := 512
+const HEIGHT_BAKE_SPAN := 512.0
 
 ## Path/name of the VoxelTerrain node, relative to this SmoothGrid. The map
 ## template parents VoxelTerrain as a direct child.
@@ -78,6 +93,17 @@ var _noise_sampler: FastNoiseLite = null
 ## F12 block size (from the terrain's mesh_block_size); 0 until first use.
 var _block_size := 0
 
+## Visual state (F11/F14): band endpoints for the terrain shader, the surface
+## material id whose blobs skip marking (they match the terrain's own top
+## band), and the marker registry — "origin|id" keys funnel BOTH spawn paths
+## (add_material and block_loaded) so nothing double-spawns.
+var _band_materials: Dictionary = {}
+var _surface_material_id := ""
+var _marker_keys: Dictionary = {}
+var _marker_root: Node3D = null
+static var _shared_marker_texture: ImageTexture = null
+static var _shared_white_texture: ImageTexture = null
+
 func _ready() -> void:
 	if terrain_gen == null:
 		# MapDef.terrain_gen is null — the map opted out of natural terrain.
@@ -105,14 +131,20 @@ func _ready() -> void:
 	if "mesher" in _terrain:
 		_terrain.set("mesher", VoxelMesherTransvoxel.new())
 
+	_apply_visuals()
+	_marker_root = Node3D.new()
+	_marker_root.name = "TerrainMarkers"
+	add_child(_marker_root)
+
 	_voxel_tool = _terrain.get_voxel_tool()
 
 	# D4 invalidation hooks (F8 signatures): block streaming swaps voxel data
 	# under cached columns — a loaded block may carry sqlite edits, an unloaded
 	# one takes its columns with it. Whole-cache clear: correct and cheap next
-	# to per-block column math; the cache repopulates on demand.
+	# to per-block column math; the cache repopulates on demand. block_loaded
+	# ALSO drives marker reconstruction (F14 sidecar -> Decal on reload).
 	if _terrain.has_signal("block_loaded"):
-		_terrain.block_loaded.connect(_clear_height_cache)
+		_terrain.block_loaded.connect(_on_block_loaded)
 	if _terrain.has_signal("block_unloaded"):
 		_terrain.block_unloaded.connect(_clear_height_cache)
 
@@ -225,7 +257,8 @@ func get_material_def_at(pos: Vector3i) -> TerrainMaterialDef:
 ## editor when authoring), sourced from BuildLibrary.get_terrain_materials() —
 ## this subsystem reads no catalogs itself (AGENTS.md rule 3). No injection
 ## means no strata: natural ground answers default_material, exactly the
-## pre-mining behavior.
+## pre-mining behavior. Also feeds the visuals: band endpoints for the
+## terrain shader and the marker-skip surface material.
 func set_material_catalog(materials: Array) -> void:
 	_catalog_by_id = {}
 	for m: TerrainMaterialDef in materials:
@@ -234,18 +267,31 @@ func set_material_catalog(materials: Array) -> void:
 	_strata = TerrainStrata.new()
 	var seed := terrain_gen.noise_seed if terrain_gen != null else 0
 	_strata.setup(materials, seed, Callable(self, "_pristine_height"))
+	_band_materials = _pick_band_materials(_catalog_by_id.values())
+	_surface_material_id = ""
+	if _band_materials.has("surface"):
+		_surface_material_id = String(_band_materials["surface"].id)
+	# Catalog injection may precede the tree (both injectors do), so _terrain
+	# can be unset — _ready's _apply_visuals covers that order.
+	if _terrain != null and "material_override" in _terrain:
+		var override: Variant = _terrain.get("material_override")
+		if override is ShaderMaterial:
+			_push_band_uniforms(override)
 
 ## Add a sphere of solid ground (SDF -SOLID_DENSITY) at world pos, carrying
 ## material_id in the F12 sidecar — the ONLY smooth-add path in the codebase
 ## (editor sculpts, smooth placement, structure stamps all route here: the
-## "identity sources can't disagree" invariant).
+## "identity sources can't disagree" invariant). Also spawns the blob's
+## visual marker (F14): a Decal tinted from the material's color.
 func add_material(pos: Vector3, material_id: String, radius: float) -> void:
 	if _voxel_tool == null:
 		return
 	_voxel_tool.mode = VoxelTool.MODE_ADD
 	_voxel_tool.value = SOLID_DENSITY
 	_voxel_tool.do_sphere(pos, radius)
-	_write_material_sidecar(pos, radius, material_id)
+	var origins := _write_material_sidecar(pos, radius, material_id)
+	for origin: Vector3i in origins:
+		_spawn_markers_for_block(origin)
 	_evict_columns_near(pos, radius)
 	material_placed.emit(pos, material_id)
 
@@ -293,25 +339,200 @@ func _block_materials(origin: Vector3i) -> Dictionary:
 ## material. The solid check keeps air cells (sphere corners) untagged. Editor
 ## sculpt + placement + stamper inherit persistence free — their existing
 ## save_modified_blocks() calls carry the dicts into terrain.sqlite (F12).
-func _write_material_sidecar(center: Vector3, radius: float, material_id: String) -> void:
+## Returns the touched block origins (the marker spawn path consumes them).
+func _write_material_sidecar(pos: Vector3, radius: float, material_id: String) -> Array[Vector3i]:
+	var origins: Array[Vector3i] = []
 	if material_id == "" or _voxel_tool == null or not _voxel_tool.has_method("set_voxel_metadata") \
 			or not _voxel_tool.has_method("get_voxel_f"):
-		return
-	var min_p := center - Vector3.ONE * radius
-	var max_p := center + Vector3.ONE * radius
+		return origins
+	var min_p := pos - Vector3.ONE * radius
+	var max_p := pos + Vector3.ONE * radius
 	var block_dicts := {}
 	for x: int in range(int(floor(min_p.x)), int(floor(max_p.x)) + 1):
 		for y: int in range(int(floor(min_p.y)), int(floor(max_p.y)) + 1):
 			for z: int in range(int(floor(min_p.z)), int(floor(max_p.z)) + 1):
-				var pos := Vector3i(x, y, z)
-				if _voxel_tool.get_voxel_f(pos) > 0.0:
+				var cell := Vector3i(x, y, z)
+				if _voxel_tool.get_voxel_f(cell) > 0.0:
 					continue
-				var origin := _block_origin(pos)
+				var origin := _block_origin(cell)
 				if not block_dicts.has(origin):
 					block_dicts[origin] = _block_materials(origin)
-				block_dicts[origin][pos] = material_id
+					origins.append(origin)
+				block_dicts[origin][cell] = material_id
 	for origin: Vector3i in block_dicts:
 		_voxel_tool.set_voxel_metadata(origin, block_dicts[origin])
+	return origins
+
+
+# --- terrain visuals (F11/F14) -----------------------------------------------------
+
+## One look per map, set from data: the terrain shader (F11's material_override
+## hook) blends the band endpoints' triplanar textures by depth below the
+## pristine surface. Per-voxel texturing is dead (F14), so this shader plus
+## blob markers IS the whole visual system. Catalog-derived uniforms land via
+## set_material_catalog, which may run before or after this.
+func _apply_visuals() -> void:
+	var material := ShaderMaterial.new()
+	material.shader = TERRAIN_SHADER
+	material.set_shader_parameter("height_map", _bake_height_texture())
+	material.set_shader_parameter("bake_span", HEIGHT_BAKE_SPAN)
+	_push_band_uniforms(material)
+	if "material_override" in _terrain:
+		_terrain.set("material_override", material)
+
+
+## Shader-rule band endpoints (F14): the surface material (smallest min_depth)
+## and the dominant deep material (highest spawn_weight among defs that start
+## at/below the surface material's max_depth). Deterministic — ties break on
+## id, like TerrainStrata's scan-order immunity. Mirrors the strata vocabulary
+## without duplicating its per-voxel math. Static + pure — the visuals suite
+## tests it.
+static func _pick_band_materials(defs: Array) -> Dictionary:
+	var surface: TerrainMaterialDef = null
+	for m: TerrainMaterialDef in defs:
+		if m == null or m.id == "":
+			continue
+		if surface == null or m.min_depth < surface.min_depth \
+				or (m.min_depth == surface.min_depth and m.id < surface.id):
+			surface = m
+	if surface == null:
+		return {}
+	var deep: TerrainMaterialDef = null
+	for m: TerrainMaterialDef in defs:
+		if m == null or m.id == "" or m == surface:
+			continue
+		if m.min_depth < surface.max_depth:
+			continue
+		if deep == null or m.spawn_weight > deep.spawn_weight \
+				or (m.spawn_weight == deep.spawn_weight and m.id < deep.id):
+			deep = m
+	return {"surface": surface, "deep": deep}
+
+
+func _push_band_uniforms(material: ShaderMaterial) -> void:
+	var surface: TerrainMaterialDef = _band_materials.get("surface")
+	var deep: TerrainMaterialDef = _band_materials.get("deep")
+	material.set_shader_parameter("ground_tex", _band_texture(surface))
+	material.set_shader_parameter("rock_tex", _band_texture(deep))
+	material.set_shader_parameter("ground_tint", _band_tint(surface, Color(0.545, 0.435, 0.278)))
+	material.set_shader_parameter("rock_tint", _band_tint(deep, Color(0.541, 0.541, 0.561)))
+	var center := 3.0
+	if surface != null:
+		center = float(surface.max_depth)
+	material.set_shader_parameter("band_center_depth", center)
+
+
+## A real texture carries its own color, so it is never tinted (WHITE); the
+## textureless fallback path paints the def's flat color instead. Static +
+## pure — the visuals suite tests it.
+static func _band_texture(def: TerrainMaterialDef) -> Texture2D:
+	if def != null and def.texture != null:
+		return def.texture
+	return _white_texture()
+
+
+static func _band_tint(def: TerrainMaterialDef, fallback: Color) -> Color:
+	if def != null and def.texture != null:
+		return Color.WHITE
+	if def != null and def.color != Color.WHITE:
+		return def.color
+	return fallback
+
+
+static func _white_texture() -> ImageTexture:
+	if _shared_white_texture == null:
+		var image := Image.create(4, 4, false, Image.FORMAT_RGB8)
+		image.fill(Color.WHITE)
+		_shared_white_texture = ImageTexture.create_from_image(image)
+	return _shared_white_texture
+
+
+## Pristine-surface height bake (RF float, R = meters) for the shader's depth
+## bands. Mirrors _compute_pristine exactly (F13 noise / F10 heightmap wrap)
+## minus the per-column cache — 262k cached columns would balloon memory.
+func _bake_height_texture() -> ImageTexture:
+	var image := Image.create(HEIGHT_BAKE_SIZE, HEIGHT_BAKE_SIZE, false, Image.FORMAT_RF)
+	var half := HEIGHT_BAKE_SIZE / 2
+	for z: int in HEIGHT_BAKE_SIZE:
+		for x: int in HEIGHT_BAKE_SIZE:
+			var h := _compute_pristine(x - half, z - half)
+			image.set_pixel(x, z, Color(h if h == h else 0.0, 0.0, 0.0))
+	return ImageTexture.create_from_image(image)
+
+
+# --- authored-blob markers (F14) ---------------------------------------------------
+
+## One Decal per (block origin, material) of authored terrain, tinted from the
+## material's color — the visual identity the mesher can't provide. Spawned
+## from add_material for immediate feedback and reconstructed from the F12
+## sidecar as blocks load (_on_block_loaded), so markers survive map reloads
+## with zero extra save state. Skips the surface material (its blobs match the
+## terrain's own top band). Known v1 limits (docs/architecture/mining.md): a
+## marker can go stale after its blob is carved away, and each marker is a
+## projector — heavy editor paint sessions may eventually want a cap.
+func _spawn_markers_for_block(origin: Vector3i) -> void:
+	if _voxel_tool == null or not _voxel_tool.has_method("get_voxel_metadata"):
+		return
+	var dict := _block_materials(origin)
+	if dict.is_empty():
+		return
+	var by_material := {}
+	for cell: Vector3i in dict:
+		var material_id := String(dict[cell])
+		if material_id == "" or material_id == _surface_material_id:
+			continue
+		if not by_material.has(material_id):
+			by_material[material_id] = []
+		by_material[material_id].append(cell)
+	for material_id: String in by_material:
+		var key := "%s|%s" % [origin, material_id]
+		if _marker_keys.has(key):
+			continue
+		_marker_keys[key] = true
+		_spawn_marker_decal(by_material[material_id], _catalog_by_id.get(material_id))
+
+
+func _spawn_marker_decal(positions: Array, def: TerrainMaterialDef) -> void:
+	if def == null or positions.is_empty() or _marker_root == null:
+		return
+	var sphere := marker_sphere_for(positions)
+	var decal := Decal.new()
+	decal.albedo_texture = marker_texture()
+	decal.modulate = def.color
+	decal.size = Vector3(sphere.radius * 2.0 + 2.0, sphere.radius * 2.0 + 2.0, 12.0)
+	decal.upper_fade = 0.2
+	decal.lower_fade = 0.2
+	# Decal projects along its local -Z; aim it straight down so the disc
+	# lands on the terrain under the blob.
+	decal.transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2.0), sphere.center + Vector3.UP * 5.0)
+	_marker_root.add_child(decal)
+
+
+## Bounding sphere of a marker's authored positions: centroid + max distance,
+## clamped to decal-friendly sizes. Static + pure — the visuals suite tests it.
+static func marker_sphere_for(positions: Array) -> Dictionary:
+	var center := Vector3.ZERO
+	for cell: Vector3i in positions:
+		center += Vector3(cell)
+	center /= float(positions.size())
+	var radius := 0.0
+	for cell: Vector3i in positions:
+		radius = maxf(radius, (Vector3(cell) - center).length())
+	return {"center": center, "radius": clampf(radius, 1.5, 6.0)}
+
+
+## Shared white radial-falloff disc; per-material identity comes from
+## Decal.modulate, so one texture serves every material.
+static func marker_texture() -> ImageTexture:
+	if _shared_marker_texture == null:
+		var size := 64
+		var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
+		for y: int in size:
+			for x: int in size:
+				var r := Vector2(x - float(size - 1) / 2.0, y - float(size - 1) / 2.0).length() / (float(size) / 2.0)
+				image.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf((1.0 - r) * 1.6, 0.0, 1.0)))
+		_shared_marker_texture = ImageTexture.create_from_image(image)
+	return _shared_marker_texture
 
 
 ## Pristine (generator-only) surface height at column (x, z) — the depth basis
@@ -413,6 +634,14 @@ func _evict_columns_near(pos: Vector3, radius: float) -> void:
 
 func _clear_height_cache(_block_position: Vector3i = Vector3i.ZERO) -> void:
 	_height_cache.clear()
+
+
+## Block streaming both invalidates the height cache (D4) and re-exposes F12
+## sidecar data — the marker reconstruction path that makes Decals survive map
+## reloads (F14).
+func _on_block_loaded(origin: Vector3i) -> void:
+	_height_cache.clear()
+	_spawn_markers_for_block(origin)
 
 # --- SaveSystem contract -------------------------------------------------------------
 

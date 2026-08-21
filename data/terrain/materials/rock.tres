@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Resource" path="res://data/items/stone_block.tres" id="3_stone"]
 [ext_resource type="Texture2D" path="res://assets/item_icons/stone_block.png" id="4_icon"]
+[ext_resource type="Texture2D" path="res://assets/terrain/textures/rock.png" id="5_texture"]
 
 [sub_resource type="Resource" id="Resource_stone_yield"]
 script = ExtResource("2_item_amount")
@@ -14,9 +15,11 @@ count = 2
 script = ExtResource("1_script")
 id = "rock"
 display_name = "rock"
+color = Color(0.541, 0.541, 0.561, 1)
 hp = 300
 min_depth = 3
 vein_size = 60
 spawn_weight = 10.0
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_stone_yield")])
 icon = ExtResource("4_icon")
+texture = ExtResource("5_texture")
