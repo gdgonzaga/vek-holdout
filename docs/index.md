@@ -10,7 +10,7 @@ Last updated: 2026-08-17 (doc-vs-code audit: as-built pages synced with the code
 
 | Page | Description |
 |---|---|
-| [Overview](overview.md) | Directory structure, scene tree, autoloads, signal registry, conventions |
+| [Overview](architecture/overview.md) | Directory structure, scene tree, autoloads, signal registry, conventions |
 
 ## Subsystems
 

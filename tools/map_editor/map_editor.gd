@@ -12,6 +12,7 @@ const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
 const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
 const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_authoring.gd")
 const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
+const TreeScattererClass = preload("res://subsystems/map_authoring/tree_scatterer.gd")
 
 const MAPS_DIR: String = "res://data/maps/"
 const TERRAIN_DIR: String = "res://data/terrain/"
@@ -119,6 +120,8 @@ func _ready() -> void:
 	_hud.block_selected.connect(_on_hud_block_selected)
 	_hud.furniture_selected.connect(_on_hud_furniture_selected)
 	_hud.structure_selected.connect(_on_hud_structure_selected)
+	_hud.scatter_trees_requested.connect(_on_hud_scatter_trees_requested)
+	_hud.clear_trees_requested.connect(_on_hud_clear_trees_requested)
 	_hud.save_requested.connect(save_map)
 	_hud.terrain_apply_requested.connect(_on_terrain_apply)
 	_hud.terrain_pick_image_requested.connect(_on_terrain_pick_image)
@@ -638,6 +641,19 @@ func create_new_map(payload: Dictionary) -> String:
 		_launcher.setup(_scan_maps())
 
 	load_map(map_name)
+
+	if payload.get("scatter_trees", false):
+		var density_val = payload.get("tree_density", 1)
+		var target_count := TreeScattererClass.DENSITY_NORMAL
+		if density_val is int:
+			match density_val:
+				0: target_count = TreeScattererClass.DENSITY_SPARSE
+				1: target_count = TreeScattererClass.DENSITY_NORMAL
+				2: target_count = TreeScattererClass.DENSITY_DENSE
+				_: target_count = density_val
+		_do_scatter_trees(target_count)
+		save_map()
+
 	return tscn_path
 
 
@@ -1488,9 +1504,41 @@ func _on_hud_furniture_selected(idx: int) -> void:
 	if idx >= 0 and idx < _furniture_defs.size():
 		_selected_furniture_idx = idx
 		_update_hud_info()
-		if _camera != null and _ghost != null and _mode == Mode.FURNITURE:
-			var hit := _raycast_from_camera()
-			_update_ghost(hit)
+
+
+func _on_hud_scatter_trees_requested() -> void:
+	_do_scatter_trees()
+
+
+func _on_hud_clear_trees_requested() -> void:
+	_do_clear_trees()
+
+
+func _do_scatter_trees(target_count: int = TreeScattererClass.DENSITY_NORMAL) -> int:
+	if _map_root == null or _furniture_auth == null:
+		return 0
+	var count := TreeScattererClass.scatter_trees(
+		_map_root,
+		_furniture_auth,
+		[{"id": "tree1", "weight": 1.0}],
+		{"target_count": target_count}
+	)
+	if count > 0:
+		_dirty = true
+		if _hud != null and _map_def != null:
+			_hud.set_map_info(_map_def.id, _dirty)
+	return count
+
+
+func _do_clear_trees() -> int:
+	if _furniture_auth == null:
+		return 0
+	var count := TreeScattererClass.clear_trees(_furniture_auth, ["tree1"])
+	if count > 0:
+		_dirty = true
+		if _hud != null and _map_def != null:
+			_hud.set_map_info(_map_def.id, _dirty)
+	return count
 
 
 func _do_spawn_place(type: String, hit: Dictionary) -> void:

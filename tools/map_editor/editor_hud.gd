@@ -15,6 +15,8 @@ signal block_selected(index: int)
 signal furniture_selected(index: int)
 signal structure_selected(index: int)
 signal save_requested()
+signal scatter_trees_requested()
+signal clear_trees_requested()
 ## Terrain drawer: the editor writes def params / image, then reloads the map.
 signal terrain_apply_requested()
 ## The user asked for a heightmap image file — the editor owns the FileDialog.
@@ -238,6 +240,34 @@ func _build_ui() -> void:
 	_yaw_label.add_theme_font_size_override("font_size", 11)
 	_yaw_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	dims_yaw_hbox.add_child(_yaw_label)
+
+	# Foliage quick actions
+	var tree_actions_hbox := HBoxContainer.new()
+	tree_actions_hbox.name = "TreeActionsHBox"
+	tree_actions_hbox.add_theme_constant_override("separation", 6)
+	furn_footer.add_child(tree_actions_hbox)
+
+	var scatter_btn := Button.new()
+	scatter_btn.name = "ScatterTreesButton"
+	scatter_btn.text = "🌳 Scatter Trees"
+	scatter_btn.tooltip_text = "Procedurally scatter random trees across the terrain"
+	scatter_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scatter_btn.add_theme_font_size_override("font_size", 11)
+	scatter_btn.pressed.connect(func() -> void:
+		scatter_trees_requested.emit()
+	)
+	tree_actions_hbox.add_child(scatter_btn)
+
+	var clear_btn := Button.new()
+	clear_btn.name = "ClearTreesButton"
+	clear_btn.text = "✕ Clear Trees"
+	clear_btn.tooltip_text = "Remove all authored trees from this map"
+	clear_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	clear_btn.add_theme_font_size_override("font_size", 11)
+	clear_btn.pressed.connect(func() -> void:
+		clear_trees_requested.emit()
+	)
+	tree_actions_hbox.add_child(clear_btn)
 
 	# Backward-compatible references
 	_furniture_info_panel = _furniture_palette

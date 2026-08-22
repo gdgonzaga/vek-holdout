@@ -94,7 +94,14 @@ const GROUND_RAY_LENGTH := 1024.0
 ## Per-grid height_at stays layer-specific — this query is for placement, not
 ## walkability.
 func ground_height_at(x: float, z: float) -> float:
-	var space := blocky_grid.get_terrain().get_world_3d().direct_space_state
+	if blocky_grid == null:
+		return NAN
+	var terrain := blocky_grid.get_terrain()
+	if terrain == null or not is_inside_tree() or terrain.get_world_3d() == null:
+		return NAN
+	var space := terrain.get_world_3d().direct_space_state
+	if space == null:
+		return NAN
 	var from := Vector3(x, GROUND_RAY_FROM_Y, z)
 	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * GROUND_RAY_LENGTH)
 	# BlockyGrid.TERRAIN_LAYER doubles as its bit value (layer 2 = bit 2);

@@ -95,6 +95,7 @@ Place interactive furniture and appliances (beds, workbenches, crates, doors, li
 - **`R`**: Rotate selected furniture by $90^\circ$ yaw.
 - **`LMB`**: Place furniture at target anchor position.
 - **`Shift + LMB`**: Remove targeted furniture.
+- **`🌳 Scatter Trees` / `✕ Clear Trees`**: Quick action buttons in the furniture sidebar footer to procedurally scatter random trees across the terrain or remove all authored trees.
 
 ### Mode 5: Spawn Mode (`F5`)
 Place player and colonist spawn markers.

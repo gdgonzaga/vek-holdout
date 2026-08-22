@@ -1781,3 +1781,31 @@ func test_map_editor_heightmap_creation_with_snapping() -> void:
 	assert_int(img.get_format()).is_equal(Image.FORMAT_RF)
 
 	await _dispose_test_editor(editor)
+
+
+## Map editor creation with scatter_trees places tree markers in the map.
+func test_map_editor_new_map_with_scatter_trees() -> void:
+	const TEST_TREE_MAP := "tree_scatter_test_map"
+	_remove_test_map(TEST_TREE_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	var payload := _heightmap_payload(TEST_TREE_MAP)
+	payload["scatter_trees"] = true
+	payload["tree_density"] = 0 # Sparse (~30)
+	editor.create_new_map(payload)
+
+	var spawn_points: Node3D = editor._map_root.get_node("SpawnPoints") as Node3D
+	var tree_count := 0
+	for child in spawn_points.get_children():
+		if child is Marker3D and child.name.begins_with("Furniture_tree1_"):
+			tree_count += 1
+
+	assert_int(tree_count).is_greater(0)
+
+	# Verify clear trees action in editor
+	var cleared := editor._do_clear_trees()
+	assert_int(cleared).is_equal(tree_count)
+
+	await _dispose_test_editor(editor)
+	_remove_test_map(TEST_TREE_MAP)

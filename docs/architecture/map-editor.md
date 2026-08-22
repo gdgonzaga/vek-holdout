@@ -89,6 +89,14 @@ sequenceDiagram
 2. `_attach_streams` force-points both `VoxelStreamSQLite` paths at the **authored** `res://data/maps/<id>/` dbs (injecting streams when the scene ships none) — unlike runtime's copy-on-load to `user://`, the editor writes authored content directly. Saved blocks override the generator, so existing sculpts replay on open; sculpting/undo flows below flush after each edit.
 3. The Terrain drawer's **Apply & Reload** re-runs this whole sequence with the edited def (`_reload_current_map` → flush → `load_map`) — the reload is deliberate; see §A3.
 
+### A4. Foliage & Tree Scattering
+
+`TreeScatterer` (`subsystems/map_authoring/tree_scatterer.gd`) procedurally scatters harvestable trees (`data/furniture/tree1.tres`) onto the map surface during creation or in-session:
+- **3-Layer Density Model:** Macro clustering via 2D `FastNoiseLite` (forest groves vs meadows), micro minimum trunk spacing ($\ge 4.5\,	ext{m}$), and target count budgets (Sparse ~30, Normal ~75, Dense ~150).
+- **Placement Constraints:** Slope gating ($\le 25^\circ$), clearance from `PlayerSpawn` ($\ge 8\,	ext{m}$), and surface queries across `SmoothGrid` / `Map.ground_height_at`.
+- **Extensible Weighted Definitions:** `tree_types: Array[Dictionary] = [{"id": "tree1", "weight": 1.0}]` supports multi-flora authoring with cumulative weight rolls.
+- **Authoring Model:** Authored as `Furniture_*` markers in `map.tscn` via `FurnitureAuthoring`, allowing in-editor inspection, F4 removal, and save persistence. In-editor actions: **"🌳 Scatter Trees"** and **"✕ Clear Trees"** in the F4 Furniture footer.
+
 ### A2. Terrain Setup: Heightmap or Noise
 
 The create form's Terrain section picks how the new map's `SmoothGrid` generates (see [Voxel World](voxel-world.md) for the generator side):

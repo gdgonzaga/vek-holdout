@@ -1,22 +1,18 @@
 class_name EditorLauncher
 extends CanvasLayer
-## Launcher UI overlay for selecting an existing map or creating a new map.
-##
-## Owned by MapEditor. Built procedurally in code.
+## Launcher dialog for the Map Editor: lists existing maps with metadata and
+## provides a creation form for new maps.
 
 signal map_selected(map_id: String)
-
-## Emitted when the user presses the delete button next to a map in the
-## existing-maps list. MapEditor shows a confirmation dialog before removing
-## the map directory.
+signal new_map_requested(payload: Dictionary)
 signal map_delete_requested(map_id: String)
 
-## Create-request payload — a Dictionary (not a class) so a future blocky-image
-## authoring key extends it without another signature change. Keys:
-## `map_id: String`, `map_type: int`, `terrain_mode: int` (TerrainMode),
-## `noise_def_path: String`, `image: Image` (L8, HEIGHTMAP mode only),
-## `height_start: float`, `height_range: float`.
-signal new_map_requested(payload: Dictionary)
+enum TerrainMode { NOISE, HEIGHTMAP, NONE }
+const TERRAIN_MODE_NAMES: Array[String] = ["Noise (procedural)", "Heightmap (image)", "None (blocky only)"]
+
+const TYPE_NAMES: Array[String] = ["BASE", "POI", "BUILDING", "TOWN"]
+const MIN_HEIGHTMAP_SIZE: int = 16
+const WARN_HEIGHTMAP_SIZE: int = 1024
 
 var _backdrop: ColorRect
 var _panel: PanelContainer
@@ -25,20 +21,7 @@ var _new_name_input: LineEdit
 var _new_type_select: OptionButton
 var _error_label: Label
 
-const TYPE_NAMES: Array[String] = ["BASE", "POI", "BUILDING", "TOWN"]
-
-## Terrain setup for new maps, chosen in the create form. NOISE keeps the
-## shared-def pipeline (data/terrain/*.tres); HEIGHTMAP embeds the picked
-## image in a per-map terrain_gen.tres; NONE opts the map out of smooth
-## terrain entirely (SmoothGrid frees itself on load).
-enum TerrainMode { NOISE, HEIGHTMAP, NONE }
-
-const TERRAIN_MODE_NAMES: Array[String] = ["Procedural (noise)", "Heightmap (image)", "None"]
-## Below this an image is more placeholder than terrain; above it the map gets
-## huge relative to colony scale (and the embedded texture grows with it).
-const MIN_HEIGHTMAP_SIZE := 16
-const WARN_HEIGHTMAP_SIZE := 1024
-
+# Terrain-setup controls in the create form
 var _terrain_mode_select: OptionButton
 var _noise_def_select: OptionButton
 var _noise_def_paths: Array[String] = []
@@ -52,6 +35,10 @@ var _snap_to_grid_check: CheckBox
 var _heightmap_image: Image = null
 var _heightmap_box: Control = null
 var _file_dialog: FileDialog = null
+
+# Foliage / tree controls
+var _scatter_trees_check: CheckBox
+var _tree_density_select: OptionButton
 
 
 func _init() -> void:
@@ -82,79 +69,94 @@ func _build_ui() -> void:
 	panel_style.set_corner_radius_all(8)
 	panel_style.set_content_margin_all(20)
 	_panel.add_theme_stylebox_override("panel", panel_style)
-	_backdrop.add_child(_panel)
+	add_child(_panel)
 
 	var main_vbox := VBoxContainer.new()
 	main_vbox.add_theme_constant_override("separation", 14)
 	_panel.add_child(main_vbox)
 
 	# Header Title
-	var title := Label.new()
-	title.text = "VEK HOLDOUT — MAP EDITOR"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 20)
-	title.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
-	main_vbox.add_child(title)
+	var title_lbl := Label.new()
+	title_lbl.text = "MAP EDITOR"
+	title_lbl.add_theme_font_size_override("font_size", 20)
+	title_lbl.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	main_vbox.add_child(title_lbl)
 
-	var subtitle := Label.new()
-	subtitle.text = "Dual-Voxel Terrain & Structures Authoring Environment"
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size", 12)
-	subtitle.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
-	main_vbox.add_child(subtitle)
+	var split_hbox := HBoxContainer.new()
+	split_hbox.add_theme_constant_override("separation", 20)
+	split_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_vbox.add_child(split_hbox)
 
-	# Section: Existing Maps
-	var existing_title := Label.new()
-	existing_title.text = "OPEN EXISTING MAP"
-	existing_title.add_theme_font_size_override("font_size", 14)
-	existing_title.add_theme_color_override("font_color", Color(0.7, 0.8, 0.95))
-	main_vbox.add_child(existing_title)
+	# --- Left Column: Existing Maps ---
+	var left_vbox := VBoxContainer.new()
+	left_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_vbox.add_theme_constant_override("separation", 8)
+	split_hbox.add_child(left_vbox)
+
+	var list_lbl := Label.new()
+	list_lbl.text = "Select Existing Map"
+	list_lbl.add_theme_font_size_override("font_size", 14)
+	list_lbl.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	left_vbox.add_child(list_lbl)
 
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 180)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	main_vbox.add_child(scroll)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size = Vector2(240, 180)
+	left_vbox.add_child(scroll)
 
 	_maps_container = VBoxContainer.new()
 	_maps_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_maps_container.add_theme_constant_override("separation", 6)
+	_maps_container.add_theme_constant_override("separation", 4)
 	scroll.add_child(_maps_container)
 
-	var separator := HSeparator.new()
-	main_vbox.add_child(separator)
+	# --- Right Column: Create New Map ---
+	var right_vbox := VBoxContainer.new()
+	right_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_vbox.add_theme_constant_override("separation", 8)
+	split_hbox.add_child(right_vbox)
 
-	# Section: Create New Map
-	var new_title := Label.new()
-	new_title.text = "CREATE NEW MAP"
-	new_title.add_theme_font_size_override("font_size", 14)
-	new_title.add_theme_color_override("font_color", Color(0.7, 0.8, 0.95))
-	main_vbox.add_child(new_title)
+	var create_lbl := Label.new()
+	create_lbl.text = "Create New Map"
+	create_lbl.add_theme_font_size_override("font_size", 14)
+	create_lbl.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	right_vbox.add_child(create_lbl)
 
-	var new_hbox := HBoxContainer.new()
-	new_hbox.add_theme_constant_override("separation", 8)
-	main_vbox.add_child(new_hbox)
+	var form_vbox := VBoxContainer.new()
+	form_vbox.add_theme_constant_override("separation", 6)
+	right_vbox.add_child(form_vbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = "Map ID (snake_case):"
+	name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	form_vbox.add_child(name_lbl)
 
 	_new_name_input = LineEdit.new()
-	_new_name_input.placeholder_text = "map_id (snake_case)"
-	_new_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_new_name_input.text_submitted.connect(func(_t: String): _on_create_pressed())
-	new_hbox.add_child(_new_name_input)
+	_new_name_input.placeholder_text = "e.g. outpost_alpha"
+	form_vbox.add_child(_new_name_input)
+
+	var type_lbl := Label.new()
+	type_lbl.text = "Map Type:"
+	type_lbl.add_theme_font_size_override("font_size", 12)
+	type_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	form_vbox.add_child(type_lbl)
 
 	_new_type_select = OptionButton.new()
-	for name in TYPE_NAMES:
-		_new_type_select.add_item(name)
-	_new_type_select.selected = 1 # Default POI
-	new_hbox.add_child(_new_type_select)
-
-	var create_btn := Button.new()
-	create_btn.text = "Create & Open"
-	create_btn.pressed.connect(_on_create_pressed)
-	new_hbox.add_child(create_btn)
+	for t in TYPE_NAMES:
+		_new_type_select.add_item(t)
+	_new_type_select.selected = 1  # Default to POI
+	form_vbox.add_child(_new_type_select)
 
 	# Terrain setup: how the new map's smooth terrain is generated.
+	var terrain_lbl := Label.new()
+	terrain_lbl.text = "Terrain:"
+	terrain_lbl.add_theme_font_size_override("font_size", 12)
+	terrain_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	form_vbox.add_child(terrain_lbl)
+
 	var terrain_hbox := HBoxContainer.new()
-	terrain_hbox.add_theme_constant_override("separation", 8)
-	main_vbox.add_child(terrain_hbox)
+	terrain_hbox.add_theme_constant_override("separation", 6)
+	form_vbox.add_child(terrain_hbox)
 
 	_terrain_mode_select = OptionButton.new()
 	for mode_name in TERRAIN_MODE_NAMES:
@@ -202,40 +204,40 @@ func _build_ui() -> void:
 	preview_row.add_child(_heightmap_minimap)
 
 	_heightmap_stats_label = Label.new()
-	_heightmap_stats_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_heightmap_stats_label.add_theme_font_size_override("font_size", 12)
-	_heightmap_stats_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
+	_heightmap_stats_label.add_theme_font_size_override("font_size", 11)
+	_heightmap_stats_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
+	_heightmap_stats_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	preview_row.add_child(_heightmap_stats_label)
 
-	var span_row := HBoxContainer.new()
-	span_row.add_theme_constant_override("separation", 8)
-	_heightmap_box.add_child(span_row)
+	var range_row := HBoxContainer.new()
+	range_row.add_theme_constant_override("separation", 8)
+	_heightmap_box.add_child(range_row)
 
 	var start_lbl := Label.new()
-	start_lbl.text = "Start:"
+	start_lbl.text = "Start (m):"
 	start_lbl.add_theme_font_size_override("font_size", 12)
-	span_row.add_child(start_lbl)
+	range_row.add_child(start_lbl)
 
 	_height_start_spin = SpinBox.new()
-	_height_start_spin.min_value = -100.0
-	_height_start_spin.max_value = 100.0
+	_height_start_spin.min_value = -128.0
+	_height_start_spin.max_value = 128.0
 	_height_start_spin.step = 0.5
 	_height_start_spin.value = -6.0
 	_height_start_spin.value_changed.connect(_update_heightmap_stats)
-	span_row.add_child(_height_start_spin)
+	range_row.add_child(_height_start_spin)
 
-	var range_lbl := Label.new()
-	range_lbl.text = "Range:"
-	range_lbl.add_theme_font_size_override("font_size", 12)
-	span_row.add_child(range_lbl)
+	var span_lbl := Label.new()
+	span_lbl.text = "Range (m):"
+	span_lbl.add_theme_font_size_override("font_size", 12)
+	range_row.add_child(span_lbl)
 
 	_height_range_spin = SpinBox.new()
 	_height_range_spin.min_value = 1.0
-	_height_range_spin.max_value = 200.0
+	_height_range_spin.max_value = 256.0
 	_height_range_spin.step = 0.5
 	_height_range_spin.value = 16.0
 	_height_range_spin.value_changed.connect(_update_heightmap_stats)
-	span_row.add_child(_height_range_spin)
+	range_row.add_child(_height_range_spin)
 
 	var snap_row := HBoxContainer.new()
 	snap_row.add_theme_constant_override("separation", 8)
@@ -248,6 +250,38 @@ func _build_ui() -> void:
 	_snap_to_grid_check.add_theme_font_size_override("font_size", 12)
 	_snap_to_grid_check.toggled.connect(func(_toggled: bool) -> void: _update_heightmap_stats())
 	snap_row.add_child(_snap_to_grid_check)
+
+	# Foliage / tree scattering controls
+	var foliage_row := HBoxContainer.new()
+	foliage_row.add_theme_constant_override("separation", 8)
+	form_vbox.add_child(foliage_row)
+
+	_scatter_trees_check = CheckBox.new()
+	_scatter_trees_check.name = "ScatterTreesCheckBox"
+	_scatter_trees_check.text = "Scatter Trees"
+	_scatter_trees_check.tooltip_text = "Procedurally place trees across terrain on map creation"
+	_scatter_trees_check.button_pressed = true
+	_scatter_trees_check.add_theme_font_size_override("font_size", 12)
+	_scatter_trees_check.toggled.connect(func(pressed: bool) -> void:
+		if _tree_density_select != null:
+			_tree_density_select.visible = pressed
+	)
+	foliage_row.add_child(_scatter_trees_check)
+
+	_tree_density_select = OptionButton.new()
+	_tree_density_select.name = "TreeDensitySelect"
+	_tree_density_select.add_item("Sparse (~30)")
+	_tree_density_select.add_item("Normal (~75)")
+	_tree_density_select.add_item("Dense (~150)")
+	_tree_density_select.selected = 1
+	_tree_density_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foliage_row.add_child(_tree_density_select)
+
+	var create_btn := Button.new()
+	create_btn.text = "Create & Open"
+	create_btn.custom_minimum_size = Vector2(0, 36)
+	create_btn.pressed.connect(_on_create_pressed)
+	right_vbox.add_child(create_btn)
 
 	_error_label = Label.new()
 	_error_label.add_theme_font_size_override("font_size", 12)
@@ -388,6 +422,8 @@ func _on_create_pressed() -> void:
 		"height_start": _height_start_spin.value,
 		"height_range": _height_range_spin.value,
 		"snap_to_grid": _snap_to_grid_check.button_pressed if _snap_to_grid_check != null else false,
+		"scatter_trees": _scatter_trees_check.button_pressed if _scatter_trees_check != null else false,
+		"tree_density": _tree_density_select.selected if _tree_density_select != null else 1,
 	})
 
 
