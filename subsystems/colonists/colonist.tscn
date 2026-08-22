@@ -46,7 +46,7 @@ script = ExtResource("4_he54h")
 
 [node name="StepClimber" type="Node" parent="." unique_id=715293840]
 script = ExtResource("6_step")
-hop_height = 1.05
+hop_height = 1.3
 
 [node name="ColonistDebugVisualizer" type="Node3D" parent="." unique_id=1121441470]
 script = ExtResource("7_3o0mj")
