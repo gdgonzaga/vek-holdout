@@ -63,7 +63,17 @@ var _last_depth_dir: Vector3 = Vector3.ZERO
 var _last_height_dir: Vector3 = Vector3.ZERO
 var _last_width_dir: Vector3 = Vector3.ZERO
 var _last_box_center: Vector3 = Vector3.ZERO
-var _last_box_size: Vector3 = Vector3.ZERO
+var _last_box_size: Vector3
+# Cache variables to avoid expensive mesh regeneration every frame
+var _last_rendered_cell := Vector3i.MAX
+var _last_rendered_look := Vector3i.MAX
+var _last_rendered_depth_dir := Vector3.ZERO
+var _last_rendered_height_dir := Vector3.ZERO
+var _last_rendered_width_dir := Vector3.ZERO
+var _last_rendered_mode := -1
+var _last_rendered_width := -1
+var _last_rendered_height := -1
+var _last_rendered_depth := -1
 
 
 func _ready() -> void:
@@ -321,6 +331,28 @@ func _update_preview_ghost(hit: Dictionary) -> void:
 	_last_height_dir = height_dir
 	_last_width_dir = width_dir
 	
+	# Check cache: avoid rebuilding meshes if target parameters haven't changed
+	if (cell == _last_rendered_cell and
+		dominant_horiz_look == _last_rendered_look and
+		depth_dir == _last_rendered_depth_dir and
+		height_dir == _last_rendered_height_dir and
+		width_dir == _last_rendered_width_dir and
+		mode == _last_rendered_mode and
+		width == _last_rendered_width and
+		height == _last_rendered_height and
+		depth == _last_rendered_depth):
+		return
+	
+	_last_rendered_cell = cell
+	_last_rendered_look = dominant_horiz_look
+	_last_rendered_depth_dir = depth_dir
+	_last_rendered_height_dir = height_dir
+	_last_rendered_width_dir = width_dir
+	_last_rendered_mode = mode
+	_last_rendered_width = width
+	_last_rendered_height = height
+	_last_rendered_depth = depth
+	
 	# Get all candidate coordinates for the active shape
 	var all_coords: Array[Vector3i]
 	if mode == OrientationMode.STAIRWAY_DOWN:
@@ -451,67 +483,154 @@ static func build_stairway_mesh(steps: int, dominant_horiz_look: Vector3i) -> Ar
 	return st.commit()
 
 
-## Builds a solid triangle mesh from an array of cells relative to the origin cell.
+## Builds a solid triangle mesh from an array of cells relative to the origin cell (fast direct array generation).
 static func build_cells_solid_mesh(cells: Array[Vector3i], origin: Vector3i) -> ArrayMesh:
-	if cells.is_empty():
+	var n := cells.size()
+	if n == 0:
 		return null
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(1.1, 1.1, 1.1)
 	
+	var vertices := PackedVector3Array()
+	vertices.resize(n * 24)
+	var indices := PackedInt32Array()
+	indices.resize(n * 36)
+	
+	# Unit cube size 1.1 (half-extent 0.55)
+	const S: float = 0.55
+	const FACE_OFFSETS: Array[Vector3] = [
+		# Front (+Z)
+		Vector3(-S, -S,  S), Vector3( S, -S,  S), Vector3( S,  S,  S), Vector3(-S,  S,  S),
+		# Back (-Z)
+		Vector3( S, -S, -S), Vector3(-S, -S, -S), Vector3(-S,  S, -S), Vector3( S,  S, -S),
+		# Top (+Y)
+		Vector3(-S,  S,  S), Vector3( S,  S,  S), Vector3( S,  S, -S), Vector3(-S,  S, -S),
+		# Bottom (-Y)
+		Vector3(-S, -S, -S), Vector3( S, -S, -S), Vector3( S, -S,  S), Vector3(-S, -S,  S),
+		# Right (+X)
+		Vector3( S, -S,  S), Vector3( S, -S, -S), Vector3( S,  S, -S), Vector3( S,  S,  S),
+		# Left (-X)
+		Vector3(-S, -S, -S), Vector3(-S, -S,  S), Vector3(-S,  S,  S), Vector3(-S,  S, -S)
+	]
+	
+	var v_offset := 0
+	var i_offset := 0
 	for cell in cells:
-		var local_offset := Vector3(cell - origin) + Vector3(0.5, 0.5, 0.5)
-		st.append_from(box_mesh, 0, Transform3D(Basis(), local_offset))
-	return st.commit()
+		var center := Vector3(cell - origin) + Vector3(0.5, 0.5, 0.5)
+		for i in range(24):
+			vertices[v_offset + i] = center + FACE_OFFSETS[i]
+		
+		for f in range(6):
+			var base_v: int = v_offset + f * 4
+			indices[i_offset + f * 6 + 0] = base_v + 0
+			indices[i_offset + f * 6 + 1] = base_v + 1
+			indices[i_offset + f * 6 + 2] = base_v + 2
+			indices[i_offset + f * 6 + 3] = base_v + 0
+			indices[i_offset + f * 6 + 4] = base_v + 2
+			indices[i_offset + f * 6 + 5] = base_v + 3
+		
+		v_offset += 24
+		i_offset += 36
+	
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_INDEX] = indices
+	
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
-## Builds a 3D wireframe beam mesh (3cm borders) from an array of cells relative to the origin cell.
-static func build_cells_wire_mesh(cells: Array[Vector3i], origin: Vector3i, thickness: float = 0.03) -> ArrayMesh:
-	if cells.is_empty():
+## Builds a 3D wireframe mesh from an array of cells relative to the origin cell (fast direct array generation).
+static func build_cells_wire_mesh(cells: Array[Vector3i], origin: Vector3i, thickness: float = 0.02) -> ArrayMesh:
+	var n := cells.size()
+	if n == 0:
 		return null
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	
-	var half_t := thickness * 0.5
-	var edge_high := 1.0 - half_t
+	# 12 beams per cell, each beam is a box with 24 vertices and 36 indices
+	var vertices := PackedVector3Array()
+	vertices.resize(n * 288)
+	var indices := PackedInt32Array()
+	indices.resize(n * 432)
 	
-	var box_x := BoxMesh.new()
-	box_x.size = Vector3(1.0, thickness, thickness)
+	var half_t: float = thickness * 0.5
+	var edge_h: float = 1.0 - half_t
 	
-	var box_y := BoxMesh.new()
-	box_y.size = Vector3(thickness, 1.0, thickness)
-	
-	var box_z := BoxMesh.new()
-	box_z.size = Vector3(thickness, thickness, 1.0)
+	var v_offset := 0
+	var i_offset := 0
 	
 	for cell in cells:
 		var p := Vector3(cell - origin)
 		
-		# 4 X-aligned edges
-		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, half_t, half_t)))
-		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, half_t, edge_high)))
-		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, edge_high, half_t)))
-		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, edge_high, edge_high)))
+		# 12 Beam centers and extents
+		# 4 X-beams (extent along X: 0.5, half-thickness in Y and Z)
+		var beams: Array[Transform3D] = [
+			Transform3D(Basis().scaled(Vector3(1.0, thickness, thickness)), p + Vector3(0.5, half_t, half_t)),
+			Transform3D(Basis().scaled(Vector3(1.0, thickness, thickness)), p + Vector3(0.5, half_t, edge_h)),
+			Transform3D(Basis().scaled(Vector3(1.0, thickness, thickness)), p + Vector3(0.5, edge_h, half_t)),
+			Transform3D(Basis().scaled(Vector3(1.0, thickness, thickness)), p + Vector3(0.5, edge_h, edge_h)),
+			# 4 Y-beams
+			Transform3D(Basis().scaled(Vector3(thickness, 1.0, thickness)), p + Vector3(half_t, 0.5, half_t)),
+			Transform3D(Basis().scaled(Vector3(thickness, 1.0, thickness)), p + Vector3(edge_h, 0.5, half_t)),
+			Transform3D(Basis().scaled(Vector3(thickness, 1.0, thickness)), p + Vector3(half_t, 0.5, edge_h)),
+			Transform3D(Basis().scaled(Vector3(thickness, 1.0, thickness)), p + Vector3(edge_h, 0.5, edge_h)),
+			# 4 Z-beams
+			Transform3D(Basis().scaled(Vector3(thickness, thickness, 1.0)), p + Vector3(half_t, half_t, 0.5)),
+			Transform3D(Basis().scaled(Vector3(thickness, thickness, 1.0)), p + Vector3(edge_h, half_t, 0.5)),
+			Transform3D(Basis().scaled(Vector3(thickness, thickness, 1.0)), p + Vector3(half_t, edge_h, 0.5)),
+			Transform3D(Basis().scaled(Vector3(thickness, thickness, 1.0)), p + Vector3(edge_h, edge_h, 0.5))
+		]
 		
-		# 4 Y-aligned edges
-		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(half_t, 0.5, half_t)))
-		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(edge_high, 0.5, half_t)))
-		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(half_t, 0.5, edge_high)))
-		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(edge_high, 0.5, edge_high)))
-		
-		# 4 Z-aligned edges
-		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(half_t, half_t, 0.5)))
-		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(edge_high, half_t, 0.5)))
-		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(half_t, edge_high, 0.5)))
-		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(edge_high, edge_high, 0.5)))
-		
-	return st.commit()
+		for t in beams:
+			var basis := t.basis * 0.5
+			var origin_pos := t.origin
+			
+			# 8 local cube corners transformed
+			var c0 := origin_pos + basis * Vector3(-1, -1, -1)
+			var c1 := origin_pos + basis * Vector3( 1, -1, -1)
+			var c2 := origin_pos + basis * Vector3( 1,  1, -1)
+			var c3 := origin_pos + basis * Vector3(-1,  1, -1)
+			var c4 := origin_pos + basis * Vector3(-1, -1,  1)
+			var c5 := origin_pos + basis * Vector3( 1, -1,  1)
+			var c6 := origin_pos + basis * Vector3( 1,  1,  1)
+			var c7 := origin_pos + basis * Vector3(-1,  1,  1)
+			
+			# 6 faces
+			var beam_verts: Array[Vector3] = [
+				c4, c5, c6, c7, # Front (+Z)
+				c1, c0, c3, c2, # Back (-Z)
+				c7, c6, c2, c3, # Top (+Y)
+				c0, c1, c5, c4, # Bottom (-Y)
+				c5, c1, c2, c6, # Right (+X)
+				c0, c4, c7, c3  # Left (-X)
+			]
+			
+			for i in range(24):
+				vertices[v_offset + i] = beam_verts[i]
+			
+			for f in range(6):
+				var base_v: int = v_offset + f * 4
+				indices[i_offset + f * 6 + 0] = base_v + 0
+				indices[i_offset + f * 6 + 1] = base_v + 1
+				indices[i_offset + f * 6 + 2] = base_v + 2
+				indices[i_offset + f * 6 + 3] = base_v + 0
+				indices[i_offset + f * 6 + 4] = base_v + 2
+				indices[i_offset + f * 6 + 5] = base_v + 3
+			
+			v_offset += 24
+			i_offset += 36
+	
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_INDEX] = indices
+	
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
 ## Snap a vector to the closest of the 6 cardinal directions (+/- X, +/- Y, +/- Z).
 static func get_dominant_cardinal(v: Vector3) -> Vector3i:
-
 	var abs_x := absf(v.x)
 	var abs_y := absf(v.y)
 	var abs_z := absf(v.z)
@@ -521,3 +640,4 @@ static func get_dominant_cardinal(v: Vector3) -> Vector3i:
 		return Vector3i.RIGHT if v.x > 0.0 else Vector3i.LEFT
 	else:
 		return Vector3i.BACK if v.z > 0.0 else Vector3i.FORWARD
+
