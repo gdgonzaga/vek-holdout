@@ -8,26 +8,49 @@ extends MeshInstance3D
 ## space, so the MeshInstance3D's origin is placed exactly at the integer voxel
 ## cell (no centering offset). BuildController sets global_position to Vector3(cell).
 
-const _COLOR_VALID := Color(0.2, 0.9, 0.3, 0.4)
-const _COLOR_INVALID := Color(0.9, 0.2, 0.2, 0.4)
+const _SHADER_CODE := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_test_disabled;
 
-var _material: StandardMaterial3D
-# The unit-box mesh authored in build.tscn. Captured so show_remove_at() can
-# restore it after _set_ghost_mesh() swapped in a def's mesh for placement.
+uniform vec4 color_above : source_color;
+uniform vec4 color_under : source_color;
+uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nearest;
+
+void fragment() {
+    float depth = texture(depth_texture, SCREEN_UV).x;
+    vec3 ndc = vec3(SCREEN_UV, depth) * 2.0 - 1.0;
+    vec4 view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
+    view.xyz /= view.w;
+    float linear_depth = -view.z;
+    float frag_depth = -VERTEX.z;
+    
+    if (frag_depth > linear_depth + 0.0001) {
+        ALBEDO = color_under.rgb;
+        ALPHA = color_under.a;
+    } else {
+        ALBEDO = color_above.rgb;
+        ALPHA = color_above.a;
+    }
+}
+"""
+
+const _COLOR_VALID_ABOVE := Color(0.2, 0.9, 0.3, 0.5)
+const _COLOR_VALID_UNDERGROUND := Color(1.0, 0.65, 0.15, 0.5)
+
+const _COLOR_INVALID_ABOVE := Color(0.9, 0.2, 0.2, 0.5)
+const _COLOR_INVALID_UNDERGROUND := Color(0.35, 0.05, 0.05, 0.15)
+
+var _material: ShaderMaterial
 var _default_mesh: Mesh
-# Unit sphere (radius 1) for spherical smooth-terrain edits (dig carve, smooth
-# material placement) — built in code, same as the material.
 var _sphere_mesh: SphereMesh
 
 
 func _ready() -> void:
-	# Build the material in code so the .tscn only needs a plain MeshInstance3D.
-	_material = StandardMaterial3D.new()
-	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_material.no_depth_test = true
+	var shader := Shader.new()
+	shader.code = _SHADER_CODE
+	_material = ShaderMaterial.new()
+	_material.shader = shader
 	_material.render_priority = 10
-	_material.albedo_color = _COLOR_VALID
 	material_override = _material
 	_default_mesh = mesh
 	_sphere_mesh = SphereMesh.new()
@@ -115,4 +138,9 @@ func hide_() -> void:
 
 
 func set_valid(ok: bool) -> void:
-	_material.albedo_color = _COLOR_VALID if ok else _COLOR_INVALID
+	if ok:
+		_material.set_shader_parameter("color_above", _COLOR_VALID_ABOVE)
+		_material.set_shader_parameter("color_under", _COLOR_VALID_UNDERGROUND)
+	else:
+		_material.set_shader_parameter("color_above", _COLOR_INVALID_ABOVE)
+		_material.set_shader_parameter("color_under", _COLOR_INVALID_UNDERGROUND)

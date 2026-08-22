@@ -445,7 +445,7 @@ static func build_stairway_mesh(steps: int, dominant_horiz_look: Vector3i) -> Ar
 	box_mesh.size = step_size
 	
 	for s: int in range(steps):
-		var step_center := Vector3(dominant_horiz_look) * (float(s) + 0.5) + Vector3.RIGHT * (float(w_dir_i.x) * 0.5 + 0.5) + Vector3.FORWARD * (float(w_dir_i.z) * 0.5 + 0.5) + Vector3.UP * (1.5 - float(s))
+		var step_center := Vector3(dominant_horiz_look) * float(s) + Vector3(w_dir_i) * 0.5 + Vector3(0.5, 1.5 - float(s), 0.5)
 		st.append_from(box_mesh, 0, Transform3D(Basis(), step_center))
 	
 	return st.commit()

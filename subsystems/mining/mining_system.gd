@@ -8,6 +8,32 @@ extends Node
 ## to free the corresponding marker and carve out the terrain.
 ## Automatically cleans up visual markers when terrain is mined/carved to air.
 
+const _SHADER_CODE := """
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_test_disabled;
+
+uniform vec4 color_above : source_color;
+uniform vec4 color_under : source_color;
+uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nearest;
+
+void fragment() {
+    float depth = texture(depth_texture, SCREEN_UV).x;
+    vec3 ndc = vec3(SCREEN_UV, depth) * 2.0 - 1.0;
+    vec4 view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
+    view.xyz /= view.w;
+    float linear_depth = -view.z;
+    float frag_depth = -VERTEX.z;
+    
+    if (frag_depth > linear_depth + 0.0001) {
+        ALBEDO = color_under.rgb;
+        ALPHA = color_under.a;
+    } else {
+        ALBEDO = color_above.rgb;
+        ALPHA = color_above.a;
+    }
+}
+"""
+
 var grid_adapter: VoxelGridAdapter
 
 
@@ -71,13 +97,15 @@ func _spawn_designation_markers(cells: Array[Vector3i]) -> void:
 		return
 	
 	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3.ONE
+	box_mesh.size = Vector3(1.1, 1.1, 1.1)
 	
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.65, 0.15, 0.35) # Translucent Amber / Orange
-	mat.render_priority = 5
+	var shader := Shader.new()
+	shader.code = _SHADER_CODE
+	var marker_mat := ShaderMaterial.new()
+	marker_mat.shader = shader
+	marker_mat.render_priority = 10
+	marker_mat.set_shader_parameter("color_above", Color(1.0, 0.65, 0.15, 0.5))
+	marker_mat.set_shader_parameter("color_under", Color(0.35, 0.18, 0.04, 0.15))
 	
 	for cell in cells:
 		var cell_name := "Marker_%d_%d_%d" % [cell.x, cell.y, cell.z]
@@ -89,7 +117,7 @@ func _spawn_designation_markers(cells: Array[Vector3i]) -> void:
 		marker.set_meta("cell", cell)
 		marker.mesh = box_mesh
 		marker.position = Vector3(cell) + Vector3(0.5, 0.5, 0.5)
-		marker.material_override = mat
+		marker.material_override = marker_mat
 		container.add_child(marker)
 
 
