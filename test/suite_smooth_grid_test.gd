@@ -231,6 +231,16 @@ func test_adapter_is_ground_supported_on_smooth() -> void:
 	# Column the smooth terrain doesn't reach, no blocky voxel below: rejected.
 	assert_bool(adapter.is_ground_supported(Vector3i(50, 11, 0))).is_false()
 
+	# Underground cavity floor under the surface at Y=10.5:
+	# Add a lower box with top at Y=2.5. Top-down height_at(0, 0) still reports 10.5,
+	# but the lower cavity floor at Y=2.5 supports cell at Y=3.
+	_add_box(grid.get_parent(), 4, Vector3(0, 2, 0))
+	await _run_frames(2)
+	assert_bool(adapter.is_ground_supported(Vector3i(0, 3, 0))).is_true()
+	assert_bool(adapter.is_ground_supported(Vector3i(0, 2, 0))).is_true()
+	# Midair in the cavity between Y=3 and Y=10: rejected.
+	assert_bool(adapter.is_ground_supported(Vector3i(0, 6, 0))).is_false()
+
 
 ## Grid whose def drives generation from a heightmap: a synthetic L8 image
 ## wrapped in an ImageTexture — the same shape the map editor embeds.

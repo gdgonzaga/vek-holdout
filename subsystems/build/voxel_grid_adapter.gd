@@ -130,6 +130,20 @@ func is_ground_supported(pos: Vector3i) -> bool:
 	if _grid.get_block_at(pos + Vector3i(0, -1, 0)) != "":
 		return true
 	if _smooth != null:
+		if is_terrain_at(pos + Vector3i(0, -1, 0)):
+			return true
+		var terrain := _smooth.get_terrain()
+		if terrain != null and terrain.is_inside_tree():
+			var space := terrain.get_world_3d().direct_space_state
+			var from := Vector3(float(pos.x) + 0.5, float(pos.y) + 1.0, float(pos.z) + 0.5)
+			var to := Vector3(float(pos.x) + 0.5, float(pos.y) - 1.0, float(pos.z) + 0.5)
+			var query := PhysicsRayQueryParameters3D.create(from, to)
+			query.collision_mask = SmoothGrid.TERRAIN_LAYER_VALUE
+			query.collide_with_areas = false
+			query.collide_with_bodies = true
+			var hit := space.intersect_ray(query)
+			if not hit.is_empty():
+				return true
 		var h: float = _smooth.height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
 		if not is_nan(h) and h >= float(pos.y - 1) and h <= float(pos.y + 1):
 			return true
