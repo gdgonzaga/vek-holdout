@@ -44,6 +44,7 @@ func _build_world(obstacle_size: Vector3, obstacle_center: Vector3, hop: float) 
 	slab_shape.shape = slab_box
 	slab.position = obstacle_center
 	var body := CharacterBody3D.new()
+	body.floor_max_angle = deg_to_rad(60.0)
 	root.add_child(body)
 	var shape_node := CollisionShape3D.new()
 	body.add_child(shape_node)
@@ -129,6 +130,7 @@ func _build_staircase_world(step_count: int = 4, step_h: float = 0.25, step_d: f
 		step_body.position = Vector3(1.0 + i * step_d + 2.0, height * 0.5, 0)
 
 	var body := CharacterBody3D.new()
+	body.floor_max_angle = deg_to_rad(60.0)
 	root.add_child(body)
 	var shape_node := CollisionShape3D.new()
 	body.add_child(shape_node)
@@ -146,3 +148,54 @@ func _build_staircase_world(step_count: int = 4, step_h: float = 0.25, step_d: f
 	body.add_child(climber)
 	body.global_position = Vector3(0, 0.02, 0)
 	return body
+
+## Walking down off a 25 cm step/platform continues moving forward and down
+## without being teleported back up to the top of the step.
+func test_stepping_down_does_not_teleport_back() -> void:
+	var root: Node3D = auto_free(Node3D.new())
+	add_child(root)
+
+	var floor_body := StaticBody3D.new()
+	root.add_child(floor_body)
+	var floor_shape := CollisionShape3D.new()
+	floor_body.add_child(floor_shape)
+	var floor_box := BoxShape3D.new()
+	floor_box.size = Vector3(24, 1, 24)
+	floor_shape.shape = floor_box
+	floor_body.position = Vector3(0, -0.5, 0)
+
+	var platform := StaticBody3D.new()
+	root.add_child(platform)
+	var plat_shape := CollisionShape3D.new()
+	platform.add_child(plat_shape)
+	var plat_box := BoxShape3D.new()
+	plat_box.size = Vector3(1.5, 0.25, 4.0)
+	plat_shape.shape = plat_box
+	platform.position = Vector3(0.75, 0.125, 0)
+
+	var body := CharacterBody3D.new()
+	body.floor_max_angle = deg_to_rad(60.0)
+	root.add_child(body)
+	var shape_node := CollisionShape3D.new()
+	body.add_child(shape_node)
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.3
+	capsule.height = 1.6
+	shape_node.shape = capsule
+	shape_node.position = Vector3(0, 0.8, 0)
+
+	var drive := Drive.new()
+	drive.body = body
+	body.add_child(drive)
+
+	var climber := StepClimber.new()
+	climber.step_height = 0.5
+	climber.hop_height = 0.0
+	body.add_child(climber)
+
+	body.global_position = Vector3(0.5, 0.27, 0)
+
+	await _run_frames(60)
+
+	assert_float(body.global_position.y).is_between(-0.05, 0.05)
+	assert_float(body.global_position.x).is_greater(2.0)

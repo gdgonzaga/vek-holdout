@@ -120,9 +120,11 @@ func deserialize(data: Dictionary) -> void:
 var _velocity_on_jump := Vector3.ZERO # horizontal world-velocity frozen at jump (y=0)
 var _speed_on_jump := 0.0 # walk_speed or sprint_speed, frozen at takeoff
 var _is_sprinting_on_jump := false
+var _was_on_floor := true
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	floor_max_angle = deg_to_rad(60.0)
 	# SkillSet child (skill catalog loads in its own _ready; unseeded = all L1).
 	var skills := SkillSet.new()
 	skills.name = "SkillSet"
@@ -311,8 +313,16 @@ func _physics_process(delta: float) -> void:
 	_handle_jump()
 
 func _handle_move_keys(delta: float) -> void:
-	if not is_on_floor():
+	var grounded := is_on_floor()
+	if not grounded:
 		velocity.y -= gravity * delta
+		if _was_on_floor and not _input.wants_jump():
+			# Leaving ground without jumping (e.g. walking down stairs / stepping off a ledge):
+			# Capture horizontal ground momentum so walking down ledges preserves walking speed.
+			_velocity_on_jump = _camera_relative_wish(_input.get_movement_input())
+			_speed_on_jump = sprint_speed if _input.wants_sprint() else walk_speed
+			_is_sprinting_on_jump = _input.wants_sprint()
+	_was_on_floor = grounded
 
 	# Horizontal wish-velocity in WORLD space.
 	# Ground: fresh each frame from camera-relative WASD.

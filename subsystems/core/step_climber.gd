@@ -45,6 +45,8 @@ var _body: CharacterBody3D
 var _shape: Shape3D
 var _shape_offset := Vector3.ZERO
 var _hop_ready_at := 0.0
+var _last_position := Vector3.ZERO
+var _has_last_position := false
 
 # Telemetry / Diagnostics
 var last_probe_status: String = "IDLE"
@@ -88,18 +90,32 @@ func _cache_shape() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if _body == null or not _body.is_on_floor() or not _body.is_on_wall():
+	if _body == null:
 		return
-	# Direction comes from the wall normal, not velocity: move_and_slide has
-	# already zeroed the horizontal velocity against the wall face by now, and
-	# is_on_wall() itself only turns true when the body moved INTO the wall
-	# this frame (idle bodies don't generate wall contacts, so no explicit
-	# push-speed gate is needed).
+
+	var current_pos := _body.global_position
+	var motion := current_pos - _last_position if _has_last_position else Vector3.ZERO
+	_last_position = current_pos
+	_has_last_position = true
+
+	if not _body.is_on_floor() or not _body.is_on_wall():
+		return
+
+	# Direction comes from the wall normal.
 	var dir := -_body.get_wall_normal()
 	dir.y = 0.0
 	if dir.length() < 0.5:
 		return # normal is near-vertical — a floor contact, not a steppable face
 	dir = dir.normalized()
+
+	# Gate: When walking down a step, ladder, or slope, the trailing wall contact
+	# behind the body produces a wall normal pointing forward (in the direction of
+	# descent). Thus dir = -wall_normal points backward (opposite to motion).
+	# If horizontal motion is moving away from the wall (dot < -0.0001), reject it.
+	var horiz_motion := Vector3(motion.x, 0.0, motion.z)
+	if horiz_motion.dot(dir) < -0.0001:
+		return
+
 	if _try_step(dir):
 		return
 	_try_hop(dir)
@@ -113,11 +129,17 @@ func _try_step(dir: Vector3) -> bool:
 	var landing := _probe_landing(dir, step_height + _STEP_PROBE_CLEARANCE, step_height)
 	if landing.is_empty():
 		return false
-	var origin: Vector3 = landing["origin"]
-	_body.global_position = origin - _body.global_transform.basis * _shape_offset
+	var rise: float = landing["rise"]
+	var base := _shape_transform()
+	# Step onto the edge with a minimal forward inset (0.08m) rather than jumping
+	# deep into the tread (0.15m). This avoids skipping the step length (which causes
+	# unnatural speedups on stairs) while keeping the capsule contact angle safely below
+	# floor_max_angle (60 deg) so it doesn't slide off or dribble.
+	var landed_shape_origin := Vector3(base.origin.x + dir.x * 0.04, base.origin.y + rise, base.origin.z + dir.z * 0.04)
+	_body.global_position = landed_shape_origin - _body.global_transform.basis * _shape_offset
 	_body.velocity.y = 0.0
 	_body.apply_floor_snap()
-	last_probe_status = "STEP_OK (rise: %.2fm)" % float(landing["rise"])
+	last_probe_status = "STEP_OK (rise: %.2fm)" % rise
 	return true
 
 
