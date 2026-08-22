@@ -122,10 +122,6 @@ func _ready() -> void:
 	else:
 		push_warning("SmoothGrid: VoxelTerrain lacks collision_layer; smooth terrain stays on the default layer")
 
-	# Align Transvoxel lattice (samples at vertices) with Blocky grid (blocks
-	# bounded by integer coords) by shifting the smooth terrain half a unit.
-	_terrain.position = Vector3(0.5, 0.5, 0.5)
-
 	# One prepared image feeds both the generator and _pristine_height — F13's
 	# lockstep rule: strata and generator must describe the same def. Noise
 	# maps mirror the generator's sampler the same way (F13 closed form).
@@ -323,7 +319,7 @@ func add_material(pos: Vector3, material_id: String, radius: float) -> void:
 		return
 	_voxel_tool.mode = VoxelTool.MODE_ADD
 	_voxel_tool.value = SOLID_DENSITY
-	_voxel_tool.do_sphere(_terrain.to_local(pos), radius)
+	_voxel_tool.do_sphere(pos, radius)
 	var origins := _write_material_sidecar(pos, radius, material_id)
 	for origin: Vector3i in origins:
 		_spawn_markers_for_block(origin)
@@ -362,8 +358,22 @@ func carve_box(min_pos: Vector3, max_pos: Vector3) -> void:
 		return
 	var local_min := _terrain.to_local(min_pos)
 	var local_max := _terrain.to_local(max_pos)
-	for sample: Vector3i in box_samples(local_min, local_max):
-		_voxel_tool.set_voxel_f(sample, AIR_DENSITY)
+	var samples := box_samples(local_min, local_max)
+	if samples.is_empty():
+		return
+		
+	var min_y := samples[0].y
+	for s: Vector3i in samples:
+		if s.y < min_y:
+			min_y = s.y
+			
+	for sample: Vector3i in samples:
+		# Force the floor of the dug area to exactly align with the integer grid (0.0 = surface)
+		var target_sdf := 0.0 if sample.y == min_y else AIR_DENSITY
+		var current := _voxel_tool.get_voxel_f(sample)
+		if target_sdf > current:
+			_voxel_tool.set_voxel_f(sample, target_sdf)
+			
 	_evict_columns_in_box(min_pos, max_pos)
 	material_carved.emit((min_pos + max_pos) * 0.5)
 
@@ -659,14 +669,11 @@ static func marker_texture() -> ImageTexture:
 ## closed form for noise; the def's own image for heightmaps, same repeat
 ## semantics as F10) and never evicts: the generated surface cannot change.
 func _pristine_height(x: float, z: float) -> float:
-	var local_x := x - _terrain.position.x
-	var local_z := z - _terrain.position.z
-	var col := Vector2i(int(floor(local_x)), int(floor(local_z)))
+	var col := Vector2i(int(floor(x)), int(floor(z)))
 	if _pristine_cache.has(col):
 		return _pristine_cache[col]
 	var h := _compute_pristine(col.x, col.y)
 	if h == h:  # not NAN
-		h += _terrain.position.y
 		_pristine_cache[col] = h
 	return h
 
