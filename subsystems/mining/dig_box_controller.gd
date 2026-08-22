@@ -458,7 +458,7 @@ static func build_cells_solid_mesh(cells: Array[Vector3i], origin: Vector3i) -> 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(1.0, 1.0, 1.0)
+	box_mesh.size = Vector3(1.1, 1.1, 1.1)
 	
 	for cell in cells:
 		var local_offset := Vector3(cell - origin) + Vector3(0.5, 0.5, 0.5)
