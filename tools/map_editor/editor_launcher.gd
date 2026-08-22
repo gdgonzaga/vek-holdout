@@ -454,7 +454,7 @@ static func quantize_heightmap_image(image: Image, height_start: float, height_r
 	var result := image.duplicate() as Image
 	if result.is_compressed():
 		result.decompress()
-	result.convert(Image.FORMAT_L8)
+	result.convert(Image.FORMAT_RF)
 	var width := result.get_width()
 	var height := result.get_height()
 	for y: int in range(height):

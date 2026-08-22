@@ -1691,7 +1691,7 @@ func test_editor_launcher_quantize_heightmap_image() -> void:
 
 	var q_img := EditorLauncherClass.quantize_heightmap_image(img, -6.0, 16.0, 1.0)
 	assert_object(q_img).is_not_null()
-	assert_int(q_img.get_format()).is_equal(Image.FORMAT_L8)
+	assert_int(q_img.get_format()).is_equal(Image.FORMAT_RF)
 
 	var p0: float = q_img.get_pixel(0, 0).r
 	var p1: float = q_img.get_pixel(1, 0).r
@@ -1778,6 +1778,6 @@ func test_map_editor_heightmap_creation_with_snapping() -> void:
 	assert_object(terrain_def.heightmap).is_not_null()
 
 	var img := terrain_def.heightmap.get_image()
-	assert_int(img.get_format()).is_equal(Image.FORMAT_L8)
+	assert_int(img.get_format()).is_equal(Image.FORMAT_RF)
 
 	await _dispose_test_editor(editor)

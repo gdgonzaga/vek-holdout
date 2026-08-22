@@ -122,10 +122,14 @@ func _ready() -> void:
 	else:
 		push_warning("SmoothGrid: VoxelTerrain lacks collision_layer; smooth terrain stays on the default layer")
 
+	# Align Transvoxel lattice (samples at vertices) with Blocky grid (blocks
+	# bounded by integer coords) by shifting the smooth terrain half a unit.
+	_terrain.position = Vector3(0.5, 0.5, 0.5)
+
 	# One prepared image feeds both the generator and _pristine_height — F13's
 	# lockstep rule: strata and generator must describe the same def. Noise
 	# maps mirror the generator's sampler the same way (F13 closed form).
-	_heightmap_image = _prepare_heightmap_image(terrain_gen.heightmap)
+	_heightmap_image = _prepare_heightmap_image(terrain_gen)
 	if _heightmap_image == null:
 		_noise_sampler = FastNoiseLite.new()
 		_noise_sampler.seed = terrain_gen.noise_seed
@@ -201,10 +205,10 @@ func _build_heightmap_generator(def: TerrainGenDef, heightmap: Image) -> Resourc
 ## so a future blocky-grid image generator in this subsystem can promote it to
 ## a shared helper by moving, not rewriting. Null tex / unreadable pixels ->
 ## null (the caller falls back to noise; the error is reported here).
-static func _prepare_heightmap_image(tex: Texture2D) -> Image:
-	if tex == null:
+static func _prepare_heightmap_image(def: TerrainGenDef) -> Image:
+	if def == null or def.heightmap == null:
 		return null
-	var image := tex.get_image()
+	var image := def.heightmap.get_image()
 	if image == null:
 		push_error("SmoothGrid: terrain_gen.heightmap has no readable pixels — falling back to noise")
 		return null
@@ -212,7 +216,21 @@ static func _prepare_heightmap_image(tex: Texture2D) -> Image:
 		if image.decompress() != OK:
 			push_error("SmoothGrid: terrain_gen.heightmap is compressed and cannot decompress — falling back to noise")
 			return null
-	image.convert(Image.FORMAT_L8)
+	
+	# The map editor's L8 quantization causes ~0.2m offsets (e.g. 128/255 = 0.5019 -> +0.196m).
+	# Convert to float and snap physical heights back to the nearest whole meter to
+	# recover the authored integer height and align the generator with the Blocky grid.
+	image.convert(Image.FORMAT_RF)
+	var width := image.get_width()
+	var height := image.get_height()
+	for y: int in range(height):
+		for x: int in range(width):
+			var v: float = image.get_pixel(x, y).r
+			var h: float = def.height_start + v * def.height_range
+			var snapped_h: float = roundf(h)
+			var new_v: float = (snapped_h - def.height_start) / def.height_range
+			image.set_pixel(x, y, Color(new_v, new_v, new_v, 1.0))
+			
 	return image
 
 # --- read / edit surface (D1 mirror of BlockyGrid's block API) -----------------
@@ -305,7 +323,7 @@ func add_material(pos: Vector3, material_id: String, radius: float) -> void:
 		return
 	_voxel_tool.mode = VoxelTool.MODE_ADD
 	_voxel_tool.value = SOLID_DENSITY
-	_voxel_tool.do_sphere(pos, radius)
+	_voxel_tool.do_sphere(_terrain.to_local(pos), radius)
 	var origins := _write_material_sidecar(pos, radius, material_id)
 	for origin: Vector3i in origins:
 		_spawn_markers_for_block(origin)
@@ -342,7 +360,9 @@ func carve(pos: Vector3, radius: float) -> void:
 func carve_box(min_pos: Vector3, max_pos: Vector3) -> void:
 	if _voxel_tool == null:
 		return
-	for sample: Vector3i in box_samples(min_pos, max_pos):
+	var local_min := _terrain.to_local(min_pos)
+	var local_max := _terrain.to_local(max_pos)
+	for sample: Vector3i in box_samples(local_min, local_max):
 		_voxel_tool.set_voxel_f(sample, AIR_DENSITY)
 	_evict_columns_in_box(min_pos, max_pos)
 	material_carved.emit((min_pos + max_pos) * 0.5)
@@ -639,11 +659,14 @@ static func marker_texture() -> ImageTexture:
 ## closed form for noise; the def's own image for heightmaps, same repeat
 ## semantics as F10) and never evicts: the generated surface cannot change.
 func _pristine_height(x: float, z: float) -> float:
-	var col := Vector2i(int(floor(x)), int(floor(z)))
+	var local_x := x - _terrain.position.x
+	var local_z := z - _terrain.position.z
+	var col := Vector2i(int(floor(local_x)), int(floor(local_z)))
 	if _pristine_cache.has(col):
 		return _pristine_cache[col]
 	var h := _compute_pristine(col.x, col.y)
 	if h == h:  # not NAN
+		h += _terrain.position.y
 		_pristine_cache[col] = h
 	return h
 

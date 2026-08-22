@@ -278,23 +278,25 @@ func test_noise_def_still_builds_noise_generator() -> void:
 
 
 ## _prepare_heightmap_image: whatever the source texture's format, the generator
-## receives uncompressed L8 (white stays fully bright through the conversion).
-func test_prepare_heightmap_image_normalizes_to_l8() -> void:
+## receives Image.FORMAT_RF (snapped to whole-meter physical heights).
+func test_prepare_heightmap_image_normalizes_and_snaps() -> void:
+	var def := TerrainGenDef.new()
+	def.height_start = 0.0
+	def.height_range = 100.0
 	var rgb := Image.create(2, 2, false, Image.FORMAT_RGB8)
-	rgb.fill(Color.WHITE)
-	var prepared: Image = SmoothGrid._prepare_heightmap_image(ImageTexture.create_from_image(rgb))
+	# Value of 0.052 * 100 = 5.2 meters -> snaps to 5.0 meters -> 0.05 pixel value
+	rgb.fill(Color(0.052, 0.052, 0.052))
+	def.heightmap = ImageTexture.create_from_image(rgb)
+	
+	var prepared: Image = SmoothGrid._prepare_heightmap_image(def)
 	assert_that(prepared).is_not_null()
-	assert_int(prepared.get_format()).is_equal(Image.FORMAT_L8)
-	assert_float(prepared.get_pixel(0, 0).r).is_equal_approx(1.0, 0.01)
+	assert_int(prepared.get_format()).is_equal(Image.FORMAT_RF)
+	assert_float(prepared.get_pixel(0, 0).r).is_equal_approx(0.05, 0.001)
 
 
-## _prepare_heightmap_image: L8 sources pass through intact; null stays null so
+## _prepare_heightmap_image: null def or null heightmap stays null so
 ## the caller falls back to the noise path.
 func test_prepare_heightmap_image_null_and_passthrough() -> void:
 	assert_that(SmoothGrid._prepare_heightmap_image(null)).is_null()
-	var l8 := Image.create(2, 2, false, Image.FORMAT_L8)
-	l8.fill(Color(0.25, 0.25, 0.25))
-	var prepared: Image = SmoothGrid._prepare_heightmap_image(ImageTexture.create_from_image(l8))
-	assert_that(prepared).is_not_null()
-	assert_int(prepared.get_format()).is_equal(Image.FORMAT_L8)
-	assert_float(prepared.get_pixel(0, 0).r).is_equal_approx(0.25, 0.01)
+	var def := TerrainGenDef.new()
+	assert_that(SmoothGrid._prepare_heightmap_image(def)).is_null()
