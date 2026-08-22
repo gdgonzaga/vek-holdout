@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_he54h"]
 [ext_resource type="Script" uid="uid://dbsyrm1856fnh" path="res://subsystems/colonists/colonist_ai.gd" id="5_ai"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
+[ext_resource type="Script" uid="uid://bosg2otbbkcma" path="res://subsystems/colonists/colonist_debug_visualizer.gd" id="7_3o0mj"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3
@@ -46,3 +47,7 @@ script = ExtResource("4_he54h")
 [node name="StepClimber" type="Node" parent="." unique_id=715293840]
 script = ExtResource("6_step")
 hop_height = 1.05
+
+[node name="ColonistDebugVisualizer" type="Node3D" parent="." unique_id=1121441470]
+script = ExtResource("7_3o0mj")
+metadata/_custom_type_script = "uid://bosg2otbbkcma"
