@@ -18,13 +18,13 @@ uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nea
 
 void fragment() {
     float depth = texture(depth_texture, SCREEN_UV).x;
-    vec3 ndc = vec3(SCREEN_UV, depth) * 2.0 - 1.0;
+    vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, depth);
     vec4 view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
     view.xyz /= view.w;
     float linear_depth = -view.z;
     float frag_depth = -VERTEX.z;
     
-    if (frag_depth > linear_depth + 0.0001) {
+    if (frag_depth > linear_depth + 0.05) {
         ALBEDO = color_under.rgb;
         ALPHA = color_under.a;
     } else {
