@@ -302,51 +302,44 @@ func _update_preview_ghost(hit: Dictionary) -> void:
 	_last_cell = cell
 	_last_dominant_horiz_look = dominant_horiz_look
 	
-	if mode == OrientationMode.STAIRWAY_DOWN:
-		var stairway_mesh := build_stairway_mesh(depth, dominant_horiz_look)
-		_ghost.show_mesh_at(Vector3(cell), stairway_mesh, true)
-		return
-	
 	var depth_dir: Vector3
 	var height_dir: Vector3
 	var width_dir: Vector3
 	
 	if mode == OrientationMode.VERTICAL:
-		# Vertical mode: Depth extends vertically (-Y down or +Y up based on camera pitch)
 		var v_dir := Vector3.UP if cam_fwd.y > 0.0 else Vector3.DOWN
 		depth_dir = v_dir
 		height_dir = Vector3(dominant_horiz_look)
 		width_dir = depth_dir.cross(height_dir)
 	else:
-		# Horizontal mode: Depth extends along ground plane in look direction, Height is +Y (Up)
 		depth_dir = Vector3(dominant_horiz_look)
 		height_dir = Vector3.UP
 		width_dir = depth_dir.cross(height_dir)
-	
-	# Calculate Box Size along world axes.
-	var box_size := Vector3(
-		absf(float(width) * width_dir.x + float(height) * height_dir.x + float(depth) * depth_dir.x),
-		absf(float(width) * width_dir.y + float(height) * height_dir.y + float(depth) * depth_dir.y),
-		absf(float(width) * width_dir.z + float(height) * height_dir.z + float(depth) * depth_dir.z)
-	)
-	
-	# Alternating Right/Left width extension calculation.
-	var left_ext: float = float((width - 1) / 2)
-	var right_ext: float = float(width - 1) - left_ext
-	var width_offset: float = (right_ext - left_ext) * 0.5
-	
-	# Calculate Box Center.
-	var base_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
-	var box_center: Vector3 = base_center + depth_dir * ((float(depth) - 1.0) * 0.5) + height_dir * ((float(height) - 1.0) * 0.5) + width_dir * width_offset
 	
 	# Save frame state for commit
 	_last_depth_dir = depth_dir
 	_last_height_dir = height_dir
 	_last_width_dir = width_dir
-	_last_box_center = box_center
-	_last_box_size = box_size
 	
-	_ghost.show_box_at(box_center, box_size, true)
+	# Get all candidate coordinates for the active shape
+	var all_coords: Array[Vector3i]
+	if mode == OrientationMode.STAIRWAY_DOWN:
+		all_coords = get_stairway_coordinates(cell, dominant_horiz_look, depth)
+	else:
+		all_coords = get_box_coordinates(cell, depth_dir, height_dir, width_dir, width, height, depth)
+	
+	var solid_cells: Array[Vector3i] = []
+	var air_cells: Array[Vector3i] = []
+	for c in all_coords:
+		if is_terrain_at(c):
+			solid_cells.append(c)
+		else:
+			air_cells.append(c)
+	
+	var solid_mesh := build_cells_solid_mesh(solid_cells, cell)
+	var wire_mesh := build_cells_wire_mesh(air_cells, cell)
+	
+	_ghost.show_split_at(Vector3(cell), solid_mesh, wire_mesh, true)
 
 
 ## Confirm designation on LMB click: filters terrain voxel coordinates and places persistent visual markers.
@@ -359,24 +352,7 @@ func _try_commit_designation() -> void:
 	if mode == OrientationMode.STAIRWAY_DOWN:
 		coords = get_stairway_coordinates(_last_cell, _last_dominant_horiz_look, depth)
 	else:
-		var left_ext: int = int((width - 1) / 2)
-		var right_ext: int = int(width - 1) - left_ext
-		
-		for d_idx: int in range(depth):
-			for h_idx: int in range(height):
-				for w_idx: int in range(-left_ext, right_ext + 1):
-					var offset_v := Vector3(
-						float(d_idx) * _last_depth_dir.x + float(h_idx) * _last_height_dir.x + float(w_idx) * _last_width_dir.x,
-						float(d_idx) * _last_depth_dir.y + float(h_idx) * _last_height_dir.y + float(w_idx) * _last_width_dir.y,
-						float(d_idx) * _last_depth_dir.z + float(h_idx) * _last_height_dir.z + float(w_idx) * _last_width_dir.z
-					)
-					var v_cell := Vector3i(
-						_last_cell.x + int(round(offset_v.x)),
-						_last_cell.y + int(round(offset_v.y)),
-						_last_cell.z + int(round(offset_v.z))
-					)
-					if not coords.has(v_cell):
-						coords.append(v_cell)
+		coords = get_box_coordinates(_last_cell, _last_depth_dir, _last_height_dir, _last_width_dir, width, height, depth)
 	
 	# Filter to only voxels that actually contain terrain
 	var terrain_coords: Array[Vector3i] = filter_terrain_voxels(coords)
@@ -411,6 +387,30 @@ func filter_terrain_voxels(coords: Array[Vector3i]) -> Array[Vector3i]:
 		if is_terrain_at(cell):
 			terrain_coords.append(cell)
 	return terrain_coords
+
+
+## Calculates all voxel cells for a cuboid box designation.
+static func get_box_coordinates(start_cell: Vector3i, depth_dir: Vector3, height_dir: Vector3, width_dir: Vector3, w: int, h: int, d: int) -> Array[Vector3i]:
+	var coords: Array[Vector3i] = []
+	var left_ext: int = int((w - 1) / 2)
+	var right_ext: int = int(w - 1) - left_ext
+	
+	for d_idx: int in range(d):
+		for h_idx: int in range(h):
+			for w_idx: int in range(-left_ext, right_ext + 1):
+				var offset_v := Vector3(
+					float(d_idx) * depth_dir.x + float(h_idx) * height_dir.x + float(w_idx) * width_dir.x,
+					float(d_idx) * depth_dir.y + float(h_idx) * height_dir.y + float(w_idx) * width_dir.y,
+					float(d_idx) * depth_dir.z + float(h_idx) * height_dir.z + float(w_idx) * width_dir.z
+				)
+				var v_cell := Vector3i(
+					start_cell.x + int(round(offset_v.x)),
+					start_cell.y + int(round(offset_v.y)),
+					start_cell.z + int(round(offset_v.z))
+				)
+				if not coords.has(v_cell):
+					coords.append(v_cell)
+	return coords
 
 
 ## Generate coordinates for a 2-wide x 3-high downward stairway tunnel.
@@ -451,8 +451,60 @@ static func build_stairway_mesh(steps: int, dominant_horiz_look: Vector3i) -> Ar
 	return st.commit()
 
 
+## Builds a solid triangle mesh from an array of cells relative to the origin cell.
+static func build_cells_solid_mesh(cells: Array[Vector3i], origin: Vector3i) -> ArrayMesh:
+	if cells.is_empty():
+		return null
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var box_mesh := BoxMesh.new()
+	box_mesh.size = Vector3(1.0, 1.0, 1.0)
+	
+	for cell in cells:
+		var local_offset := Vector3(cell - origin) + Vector3(0.5, 0.5, 0.5)
+		st.append_from(box_mesh, 0, Transform3D(Basis(), local_offset))
+	return st.commit()
+
+
+## Builds a wireframe line mesh from an array of cells relative to the origin cell.
+static func build_cells_wire_mesh(cells: Array[Vector3i], origin: Vector3i) -> ArrayMesh:
+	if cells.is_empty():
+		return null
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_LINES)
+	
+	for cell in cells:
+		var p0 := Vector3(cell - origin)
+		var p1 := p0 + Vector3.RIGHT
+		var p2 := p0 + Vector3.RIGHT + Vector3.BACK
+		var p3 := p0 + Vector3.BACK
+		var p4 := p0 + Vector3.UP
+		var p5 := p1 + Vector3.UP
+		var p6 := p2 + Vector3.UP
+		var p7 := p3 + Vector3.UP
+		
+		# Bottom 4 lines
+		st.add_vertex(p0); st.add_vertex(p1)
+		st.add_vertex(p1); st.add_vertex(p2)
+		st.add_vertex(p2); st.add_vertex(p3)
+		st.add_vertex(p3); st.add_vertex(p0)
+		# Top 4 lines
+		st.add_vertex(p4); st.add_vertex(p5)
+		st.add_vertex(p5); st.add_vertex(p6)
+		st.add_vertex(p6); st.add_vertex(p7)
+		st.add_vertex(p7); st.add_vertex(p4)
+		# 4 Vertical pillars
+		st.add_vertex(p0); st.add_vertex(p4)
+		st.add_vertex(p1); st.add_vertex(p5)
+		st.add_vertex(p2); st.add_vertex(p6)
+		st.add_vertex(p3); st.add_vertex(p7)
+		
+	return st.commit()
+
+
 ## Snap a vector to the closest of the 6 cardinal directions (+/- X, +/- Y, +/- Z).
 static func get_dominant_cardinal(v: Vector3) -> Vector3i:
+
 	var abs_x := absf(v.x)
 	var abs_y := absf(v.y)
 	var abs_z := absf(v.z)

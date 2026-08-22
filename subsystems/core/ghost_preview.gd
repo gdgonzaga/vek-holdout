@@ -8,76 +8,64 @@ extends MeshInstance3D
 ## space, so the MeshInstance3D's origin is placed exactly at the integer voxel
 ## cell (no centering offset). BuildController sets global_position to Vector3(cell).
 
-const _SHADER_CODE := """
-shader_type spatial;
-render_mode unshaded, blend_mix, depth_test_disabled;
-
-uniform vec4 color_above : source_color;
-uniform vec4 color_under : source_color;
-uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nearest;
-
-void fragment() {
-    float depth = texture(depth_texture, SCREEN_UV).x;
-    vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, depth);
-    vec4 view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
-    view.xyz /= view.w;
-    float linear_depth = -view.z;
-    float frag_depth = -VERTEX.z;
-    
-    if (frag_depth > linear_depth + 0.05) {
-        ALBEDO = color_under.rgb;
-        ALPHA = color_under.a;
-    } else {
-        ALBEDO = color_above.rgb;
-        ALPHA = color_above.a;
-    }
-}
-"""
-
-const _COLOR_VALID_ABOVE := Color(0.2, 0.9, 0.3, 0.15)
+const _COLOR_VALID_ABOVE := Color(0.2, 0.9, 0.3, 0.5)
 const _COLOR_VALID_UNDERGROUND := Color(1.0, 0.65, 0.15, 0.5)
 
 const _COLOR_INVALID_ABOVE := Color(0.9, 0.2, 0.2, 0.5)
 const _COLOR_INVALID_UNDERGROUND := Color(0.35, 0.05, 0.05, 0.15)
 
-var _material: ShaderMaterial
+var _material: StandardMaterial3D
+var _wire_material: StandardMaterial3D
+var _wire_instance: MeshInstance3D
 var _default_mesh: Mesh
 var _sphere_mesh: SphereMesh
 
 
 func _ready() -> void:
-	var shader := Shader.new()
-	shader.code = _SHADER_CODE
-	_material = ShaderMaterial.new()
-	_material.shader = shader
+	_material = StandardMaterial3D.new()
+	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_material.no_depth_test = false
+	_material.albedo_color = _COLOR_VALID_ABOVE
 	_material.render_priority = 10
 	material_override = _material
+
+	_wire_material = StandardMaterial3D.new()
+	_wire_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_wire_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_wire_material.no_depth_test = false
+	_wire_material.albedo_color = Color(1.0, 0.65, 0.15, 0.4)
+	_wire_material.render_priority = 9
+
+	_wire_instance = MeshInstance3D.new()
+	_wire_instance.material_override = _wire_material
+	add_child(_wire_instance)
+
 	_default_mesh = mesh
 	_sphere_mesh = SphereMesh.new()
 	_sphere_mesh.radius = 1.0
 	_sphere_mesh.height = 2.0
 	_sphere_mesh.radial_segments = 24
 	_sphere_mesh.rings = 12
-	hide()
+	hide_()
 
 
 ## Show the ghost at a world-space origin. Tints by validity. Callers resolve
 ## the position: blocks pass the cell corner (Vector3(cell)); furniture passes
 ## the footprint center (FurnitureLayer.world_origin(...)).
 func show_at(world_pos: Vector3, valid: bool) -> void:
+	if _wire_instance != null:
+		_wire_instance.hide()
+	mesh = _default_mesh
 	global_position = world_pos
 	scale = Vector3.ONE
 	set_valid(valid)
 	show()
 
 
-## Red unit-box preview on the cell a Deconstruct click would remove. Mirrors
-## the erase ghost in addons/voxel_paint/. world_pos is the cell corner, same
-## convention as show_at(); _default_mesh restores the unit box so a previously
-## selected buildable's mesh doesn't bleed through. The unit BoxMesh is centered
-## on its origin (unlike authored def meshes, which use the (0,0,0)->(1,1,1)
-## corner convention), so offset by half a cell to align it with the cell.
 func show_remove_at(world_pos: Vector3) -> void:
+	if _wire_instance != null:
+		_wire_instance.hide()
 	mesh = _default_mesh
 	global_position = world_pos + Vector3(0.5, 0.5, 0.5)
 	scale = Vector3.ONE
@@ -86,12 +74,10 @@ func show_remove_at(world_pos: Vector3) -> void:
 	show()
 
 
-## Red preview of a specific mesh (e.g. the targeted furniture's def mesh) at a
-## world position and yaw, overlaying the target a Deconstruct click would remove.
-## The red material_override tints whatever mesh is supplied, so callers just pass
-## the def mesh and the placed transform; matches the erase ghost in feel.
-func show_remove_mesh_at(world_pos: Vector3, mesh: Mesh, yaw_degrees: float) -> void:
-	self.mesh = mesh
+func show_remove_mesh_at(world_pos: Vector3, mesh_: Mesh, yaw_degrees: float) -> void:
+	if _wire_instance != null:
+		_wire_instance.hide()
+	self.mesh = mesh_
 	global_position = world_pos
 	scale = Vector3.ONE
 	rotation_degrees.y = yaw_degrees
@@ -99,11 +85,9 @@ func show_remove_mesh_at(world_pos: Vector3, mesh: Mesh, yaw_degrees: float) -> 
 	show()
 
 
-## Blob preview for spherical smooth-terrain edits (the dig carve volume, a
-## smooth-material placement): a sphere scaled to `radius`, CENTERED on
-## world_pos — unlike the box paths' corner convention, a sphere has no cell
-## corner to sit on. What the preview shows is exactly what the edit changes.
 func show_sphere_at(world_pos: Vector3, radius: float, valid: bool) -> void:
+	if _wire_instance != null:
+		_wire_instance.hide()
 	mesh = _sphere_mesh
 	global_position = world_pos
 	scale = Vector3.ONE * maxf(radius, 0.001)
@@ -112,9 +96,9 @@ func show_sphere_at(world_pos: Vector3, radius: float, valid: bool) -> void:
 	show()
 
 
-## Box preview for cuboid terrain edits (box dig carve): a box of dimensions
-## `size`, CENTERED on world_pos.
 func show_box_at(world_pos: Vector3, size: Vector3, valid: bool) -> void:
+	if _wire_instance != null:
+		_wire_instance.hide()
 	mesh = _default_mesh
 	global_position = world_pos
 	scale = Vector3(maxf(size.x, 0.001), maxf(size.y, 0.001), maxf(size.z, 0.001))
@@ -123,8 +107,9 @@ func show_box_at(world_pos: Vector3, size: Vector3, valid: bool) -> void:
 	show()
 
 
-## Mesh preview for arbitrary custom shapes (e.g. multi-step stairway tunnel ghost).
 func show_mesh_at(world_pos: Vector3, custom_mesh: Mesh, valid: bool) -> void:
+	if _wire_instance != null:
+		_wire_instance.hide()
 	mesh = custom_mesh
 	global_position = world_pos
 	scale = Vector3.ONE
@@ -133,14 +118,39 @@ func show_mesh_at(world_pos: Vector3, custom_mesh: Mesh, valid: bool) -> void:
 	show()
 
 
+## Displays solid parts on self.mesh and air wireframes on _wire_instance simultaneously.
+func show_split_at(world_pos: Vector3, solid_mesh: Mesh, wire_mesh: Mesh, valid: bool) -> void:
+	global_position = world_pos
+	scale = Vector3.ONE
+	rotation_degrees.y = 0.0
+	set_valid(valid)
+	
+	if solid_mesh != null:
+		mesh = solid_mesh
+		visible = true
+	else:
+		mesh = null
+		visible = true
+	
+	if _wire_instance != null:
+		if wire_mesh != null:
+			_wire_instance.mesh = wire_mesh
+			_wire_instance.show()
+		else:
+			_wire_instance.mesh = null
+			_wire_instance.hide()
+	
+	show()
+
+
 func hide_() -> void:
+	if _wire_instance != null:
+		_wire_instance.hide()
 	hide()
 
 
 func set_valid(ok: bool) -> void:
 	if ok:
-		_material.set_shader_parameter("color_above", _COLOR_VALID_ABOVE)
-		_material.set_shader_parameter("color_under", _COLOR_VALID_UNDERGROUND)
+		_material.albedo_color = Color(1.0, 0.65, 0.15, 0.5)
 	else:
-		_material.set_shader_parameter("color_above", _COLOR_INVALID_ABOVE)
-		_material.set_shader_parameter("color_under", _COLOR_INVALID_UNDERGROUND)
+		_material.albedo_color = _COLOR_INVALID_ABOVE
