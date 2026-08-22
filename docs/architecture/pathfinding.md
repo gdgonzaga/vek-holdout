@@ -40,8 +40,8 @@ The pathfinding system provides intelligent navigation for colonists across both
 
 ### 6. Telemetry Lifecycle & Diagnostic Visualizer Clutter
 
-- **Problem:** `ColonistDebugVisualizer` renders A* start/target bounding boxes, ring search candidates, and 3D billboard text. Retaining telemetry after job completion caused obsolete green/red debug wireframes and stale A* status strings to linger at previous job sites.
-- **Solution:** Added `clear_diagnostics()` to `VoxelPathfinder`, called automatically by `ColonistAI._end_job()` upon completion, abortion, or idle transition.
+- **Problem:** `ColonistDebugVisualizer` renders A* start/target bounding boxes, ring search candidates, and 3D billboard text. Retaining telemetry after job completion caused obsolete green/red debug wireframes and stale A* status strings to linger at previous job sites. Two residue sources remained after the initial `clear_diagnostics()` fix: the colonist's unconsumed waypoints (dig jobs routinely enter work range with the path unfinished, so the tether, path strip and target box kept redrawing from `Colonist._path` after the job closed), and telemetry frozen by a failed initial claim (the unreachable-cell case) whose job then went to backoff-sleep with no further queries to refresh or clear it.
+- **Solution:** `ColonistAI._end_job()` now also clears the locomotion path via `Colonist.set_path([])` alongside `VoxelPathfinder.clear_diagnostics()`. Additionally, every telemetry-writing query stamps `last_query_time`, and the visualizer only draws telemetry-derived elements (A* boxes, ring candidates, status line, telemetry target fallback) while the stamp is within a TTL ($5\\text{s}$) — the same self-expiry idea as the StepClimber probe window. Clearing the diagnostics on a failed claim was rejected: query and clear land in the same tick, which would blank exactly the unreachable-target boxes the tool exists to show.
 - **Rationale:** Visual debug tools must reflect real-time entity state without leaving phantom indicators in the world.
 
 ## Files
@@ -107,6 +107,7 @@ The pathfinding system provides intelligent navigation for colonists across both
 | `last_stand_candidates` | `Array[Dictionary]` | Diagnostic: evaluated stand candidate cells from ring search. |
 | `last_status` | `String` | Diagnostic: status string ("OK (N pts)", "FAIL (No path)", etc.). |
 | `last_explored_count` | `int` | Diagnostic: number of cells expanded during search. |
+| `last_query_time` | `float` | Diagnostic: engine-clock seconds of the last telemetry-writing query (-1.0 = never); the visualizer expires telemetry older than its TTL. |
 
 **Functions:**
 

@@ -97,3 +97,42 @@ func test_diagnostics_pathfinder_and_step_climber_telemetry() -> void:
 
 	_visualizer._update_label()
 	assert_str(_visualizer._label.text).contains("A*:")
+
+
+## Regression (pathfinding.md §6): ending a job must drop unconsumed waypoints
+## and pathfinder telemetry so the visualizer stops redrawing the dead job's
+## tether, path strip and target box at the old dig site.
+func test_end_job_clears_path_and_wireframes() -> void:
+	_colonist.set_path([Vector3(5, 0, 0), Vector3(10, 0, 0)])
+	var ai = _colonist.get_node("ColonistAI")
+	ai._end_job(false)
+
+	assert_int(_colonist._path.size()).is_equal(0)
+	assert_int(_colonist._path_index).is_equal(0)
+	assert_bool(_colonist.pathfinder.last_query_start == Vector3i.MAX).is_true()
+	assert_bool(_colonist.pathfinder.last_query_target == Vector3i.MAX).is_true()
+
+	_visualizer._draw_navigation_path()
+	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_equal(0)
+
+
+## Frozen telemetry must expire: a query whose job went to backoff-sleep (the
+## failed-claim case) draws its boxes while fresh, nothing once past the TTL.
+func test_stale_telemetry_draws_nothing() -> void:
+	var pf := _colonist.pathfinder
+	pf.set_walkability(func(c: Vector3i) -> bool: return c.y == 0)
+	assert_array(pf.find_path(Vector3i(0, 5, 0), Vector3i(2, 5, 0))).is_empty()
+
+	# Fresh failed query: A* boxes / tether still render (that is the point of
+	# the tool while troubleshooting unreachable tunnel cells).
+	_visualizer._draw_navigation_path()
+	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_greater(0)
+
+	# Same telemetry, backdated past the TTL: nothing is drawn.
+	pf.last_query_time -= _visualizer._TELEMETRY_TTL_SEC + 1.0
+	_visualizer._draw_navigation_path()
+	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_equal(0)
+
+	# The billboard's A* status line follows the same freshness gate.
+	_visualizer._update_label()
+	assert_bool(_visualizer._label.text.contains("A*:")).is_false()

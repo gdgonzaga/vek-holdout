@@ -217,6 +217,11 @@ func _end_job(success: bool) -> void:
 			Colony.job_board.remove_job(job.id)
 	_colonist.current_job = null
 	_leg = null
+	# Drop any unconsumed waypoints too (dig jobs routinely enter work range with
+	# the path unfinished): a leftover _path keeps the debug visualizer's tether,
+	# path strip and target box redrawing at the closed job site, and would let
+	# locomotion drift along stale waypoints (pathfinding.md §6).
+	_colonist.set_path([])
 	if _colonist.pathfinder != null:
 		_colonist.pathfinder.clear_diagnostics()
 	_work_elapsed = 0.0

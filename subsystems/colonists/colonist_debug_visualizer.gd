@@ -9,6 +9,12 @@ extends Node3D
 @export var path_color: Color = Color(0.0, 0.8, 1.0, 1.0)      ## Cyan
 @export var target_color: Color = Color(1.0, 0.6, 0.0, 1.0)    ## Orange
 
+## How long pathfinder telemetry (A* boxes, ring candidates, status) stays
+## drawable after the query that produced it. A frozen query — a failed claim
+## whose job went to backoff-sleep — must not leave phantom boxes at dead
+## targets; same self-expiry idea as the StepClimber probe window below.
+const _TELEMETRY_TTL_SEC: float = 5.0
+
 var _parent_body: CharacterBody3D
 var _colonist_ai: Node
 var _pathfinder: VoxelPathfinder
@@ -69,6 +75,16 @@ func _process(_delta: float) -> void:
 	_draw_navigation_path()
 
 
+## True while the pathfinder's last query is recent enough to still be drawn.
+## Stale telemetry (no query ran within the TTL — e.g. every job failed to
+## claim and went to sleep) renders nothing so dead targets leave no phantoms.
+func _telemetry_is_fresh() -> bool:
+	if _pathfinder == null or _pathfinder.last_query_time < 0.0:
+		return false
+	var now := float(Time.get_ticks_msec()) * 0.001
+	return now - _pathfinder.last_query_time < _TELEMETRY_TTL_SEC
+
+
 func _setup_billboard_label() -> void:
 	_label = Label3D.new()
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -116,7 +132,7 @@ func _update_label() -> void:
 		text_lines.append(job_str)
 
 	# 3. Path & Start/Goal Cells (unified)
-	if _pathfinder != null and _pathfinder.last_query_start != Vector3i.MAX:
+	if _pathfinder != null and _telemetry_is_fresh() and _pathfinder.last_query_start != Vector3i.MAX:
 		var s_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_start) else "BLOCKED"
 		var t_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_target) else "BLOCKED"
 		text_lines.append("A*: %s | %s[%s] -> %s[%s]" % [
@@ -334,7 +350,8 @@ func _draw_navigation_path() -> void:
 		elif "target_node" in job and job.target_node != null and is_instance_valid(job.target_node) and job.target_node is Node3D:
 			target_pos = (job.target_node as Node3D).global_position
 
-	if target_pos == Vector3.ZERO and _pathfinder != null and _pathfinder.last_query_target != Vector3i.MAX:
+	if target_pos == Vector3.ZERO and _pathfinder != null and _telemetry_is_fresh() \
+			and _pathfinder.last_query_target != Vector3i.MAX:
 		target_pos = Vector3(_pathfinder.last_query_target) + Vector3(0.5, 0.5, 0.5)
 
 	if target_pos == Vector3.ZERO and not path.is_empty():
@@ -354,7 +371,9 @@ func _draw_navigation_path() -> void:
 	if target_pos != Vector3.ZERO and colonist_pos.distance_to(target_pos) > 0.3:
 		_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 		var tether_color := target_color
-		if _pathfinder != null and _pathfinder.last_query_target != Vector3i.MAX and not _pathfinder.is_walkable(_pathfinder.last_query_target):
+		if _pathfinder != null and _telemetry_is_fresh() \
+				and _pathfinder.last_query_target != Vector3i.MAX \
+				and not _pathfinder.is_walkable(_pathfinder.last_query_target):
 			tether_color = Color(1.0, 0.2, 0.2, 0.9) # Red if target is unwalkable/blocked
 		elif path.is_empty():
 			tether_color = Color(1.0, 0.4, 0.0, 0.9) # Orange warning if no path exists
@@ -398,7 +417,7 @@ func _draw_navigation_path() -> void:
 		_draw_target_marker(target_pos)
 
 	# 6. Diagnostic: Draw A* Start / Goal Cell Wireframes
-	if _pathfinder != null:
+	if _pathfinder != null and _telemetry_is_fresh():
 		if _pathfinder.last_query_start != Vector3i.MAX:
 			var s_color := Color(0.1, 1.0, 0.1, 0.7) if _pathfinder.is_walkable(_pathfinder.last_query_start) else Color(1.0, 0.1, 0.1, 0.7)
 			_draw_cell_box(_pathfinder.last_query_start, s_color)

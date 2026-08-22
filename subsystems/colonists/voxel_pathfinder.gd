@@ -62,6 +62,11 @@ var last_stand_candidates: Array[Dictionary] = []
 var last_query_target: Vector3i = Vector3i.MAX
 var last_status: String = "IDLE"
 var last_explored_count: int = 0
+## When the last telemetry-writing query ran (seconds, engine clock); -1.0 =
+## never. ColonistDebugVisualizer stops drawing telemetry older than its TTL so
+## a frozen query (failed claim whose job went to backoff-sleep) can't leave
+## phantom boxes on screen — same self-expiry idea as StepClimber probes.
+var last_query_time: float = -1.0
 
 
 ## Inject the per-cell walkability predicate (composed by the wiring layer).
@@ -80,10 +85,16 @@ func is_walkable(cell: Vector3i) -> bool:
 	return _is_walkable.is_valid() and bool(_is_walkable.call(cell))
 
 
+## Refresh the telemetry clock. Called by every query that writes last_* fields.
+func _stamp_query_time() -> void:
+	last_query_time = float(Time.get_ticks_msec()) * 0.001
+
+
 ## Core A* over cells. Returns cell waypoints start->target (empty if no path,
 ## predicate unset, or target not standable). Returns [start_cell] when start
 ## already equals target. The predicate gates every expanded cell lazily.
 func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
+	_stamp_query_time()
 	last_query_start = start_cell
 	last_query_target = target_cell
 	last_explored_count = 0
@@ -240,6 +251,7 @@ func find_path_world(start_world: Vector3, target_world: Vector3) -> Array[Vecto
 ## hills stand +/-1 Y per step, D4) and stays same-Y otherwise — the original
 ## flat-terrain assumption, now only the fallback.
 func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
+	_stamp_query_time()
 	last_stand_candidates.clear()
 	if not _is_walkable.is_valid():
 		return center
@@ -308,6 +320,7 @@ func find_path_to_adjacent(start_world: Vector3, target_world: Vector3, max_radi
 ## full footprint is known — handles irregularly-shaped / multi-cell pieces
 ## correctly regardless of which side the colonist approaches from.
 func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vector3i]) -> Array[Vector3]:
+	_stamp_query_time() # the no-candidate early-out below writes telemetry too
 	var start_cell := find_stand_cell(start_world)
 	# Expand footprint to all immediately-adjacent walkable cells.
 	var fp_set: Dictionary = {}
@@ -333,6 +346,7 @@ func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vect
 ## A* from `start` to the nearest cell in `targets` (the goal set).
 ## Heuristic: min Manhattan distance to any target (still admissible).
 func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array[Vector3i]:
+	_stamp_query_time()
 	last_query_start = start
 	if not targets.is_empty():
 		last_query_target = targets[0]
@@ -410,3 +424,4 @@ func clear_diagnostics() -> void:
 	last_query_target = Vector3i.MAX
 	last_stand_candidates.clear()
 	last_status = "IDLE"
+	last_query_time = -1.0

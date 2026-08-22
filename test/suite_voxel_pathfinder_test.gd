@@ -122,3 +122,23 @@ func test_routes_across_steppable_furniture() -> void:
 	# Route blocked by tall furniture at (2, 1, 1) has to go around
 	var path_around := finder.find_path(Vector3i(0, 1, 1), Vector3i(4, 1, 1))
 	assert_bool(path_around.has(Vector3i(2, 1, 1))).is_false()
+
+
+## Telemetry clock (pathfinding.md §6): every telemetry-writing query stamps
+## last_query_time so the debug visualizer can expire stale diagnostics;
+## clear_diagnostics() resets it to the never-fresh sentinel.
+func test_query_stamps_and_clear_resets_telemetry_time() -> void:
+	var solid := {}
+	_fill_floor(solid, -5, 5, -5, 5, 0)
+	var finder := _make_finder(solid)
+	assert_float(finder.last_query_time).is_less(0.0)
+
+	var before := float(Time.get_ticks_msec()) * 0.001
+	finder.find_path(Vector3i(0, 1, 0), Vector3i(3, 1, 0))
+	finder.find_stand_near_cell(Vector3i(3, 1, 0), 2)
+	var after := float(Time.get_ticks_msec()) * 0.001
+	assert_float(finder.last_query_time).is_greater_equal(before)
+	assert_float(finder.last_query_time).is_less_equal(after)
+
+	finder.clear_diagnostics()
+	assert_float(finder.last_query_time).is_less(0.0)
