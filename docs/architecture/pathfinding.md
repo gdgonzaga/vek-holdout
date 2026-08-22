@@ -44,11 +44,17 @@ The pathfinding system provides intelligent navigation for colonists across both
 - **Solution:** `ColonistAI._end_job()` now also clears the locomotion path via `Colonist.set_path([])` alongside `VoxelPathfinder.clear_diagnostics()`. Additionally, every telemetry-writing query stamps `last_query_time`, and the visualizer only draws telemetry-derived elements (A* boxes, ring candidates, status line, telemetry target fallback) while the stamp is within a TTL ($5\\text{s}$) — the same self-expiry idea as the StepClimber probe window. Clearing the diagnostics on a failed claim was rejected: query and clear land in the same tick, which would blank exactly the unreachable-target boxes the tool exists to show.
 - **Rationale:** Visual debug tools must reflect real-time entity state without leaving phantom indicators in the world.
 
+### 7. Stand Resolution for Footprints Raised Above the Floor
+
+- **Problem:** Build jobs target the blueprint node; since `Blueprint extends Furniture`, `ColonistAI._path_for_leg` routes them through `find_path_to_footprint_adjacent`, whose candidate expansion probed only same-$Y$ horizontal neighbours of the footprint cells. A block blueprint placed on top of an existing block sits one $Y$ above the walkable floor — every same-$Y$ neighbour is air with no floor — so the query yielded zero candidates (`FAIL (No walkable adjacent cells to footprint)`), and the job failed on the board until auto-removed. `find_stand_near_cell`'s $\\pm 1 Y$ probes had the same blind spot on blocky-only maps, where they were gated behind the smooth-terrain column hint being injected.
+- **Solution:** Extracted `_stand_cell_in_column(col_base, max_hint_dy)` — the first standable cell among same-$Y$, $+1 Y$, $-1 Y$, then the hinted column cell — used by both the ring search (hint bound $r+1$) and the footprint expansion (bound 2, the ring $r{=}1$ equivalent). The $\\pm 1$ probes are unconditional; the hint only extends reach beyond one vertical step.
+- **Rationale:** "Stand adjacent to this footprint" is a question about columns, not cells: the walkable ground beside a raised target routinely sits one $Y$ below it. Both stand-cell resolvers must agree on that answer, on smooth-terrain and blocky-only maps alike.
+
 ## Files
 
 | File | Type | Responsibility |
 |---|---|---|
-| `subsystems/colonists/voxel_pathfinder.gd` | Script (component) | Core A* over integer voxel coordinates with stepped neighbor model, dynamic costs, multi-target queries, and stand-adjacent ring resolution. |
+| `subsystems/colonists/voxel_pathfinder.gd` | Script (component) | Core A* over integer voxel coordinates with stepped neighbor model, dynamic costs, multi-target queries, and stand-adjacent ring/footprint column resolution. |
 | `subsystems/colonists/step_climber.gd` | Script (component) | Physical obstacle negotiation: upward hop assists ($1.3\\text{m}$ max rise) and step-down smoothing for CharacterBody3D locomotion. |
 | `subsystems/colonists/colonist_debug_visualizer.gd` | Script (component) | Dev visualization: ImmediateMesh 3D path lines, A* start/goal bounding boxes, candidate ring cells, step climber landing probes, and billboard text. |
 | `subsystems/colonists/colonist.gd` | Script | Locomotion execution: waypoint consumption, look-ahead vectoring, stuck detection, dynamic wiggle impulses, and StepClimber integration. |
@@ -60,11 +66,12 @@ The pathfinding system provides intelligent navigation for colonists across both
 
 ## Flow Trace: Resolving Stand Cells & Finding Paths
 
-**Trigger:** `ColonistAI` claims a job and requests a path to a target position (`find_path_to_adjacent` or `find_path_world`).
+**Trigger:** `ColonistAI` claims a job and requests a path to a target position (`find_path_to_adjacent`, `find_path_to_footprint_adjacent`, or `find_path_world`).
 
 1. **Target Stand Resolution:**
    - For ground targets: `find_stand_cell` scans $\\pm 3 Y$ cells or evaluates the column stand hint.
-   - For blocked footprints / blueprints: `find_stand_near_cell` executes an expanding horizontal Chebyshev ring search ($r = 1..4$). At each ring step, it checks same-$Y$, $+1 Y$, $-1 Y$, and column hints to find the nearest valid walkable neighbour cell adjacent to the footprint.
+   - For blocked footprints / blueprints: `find_stand_near_cell` executes an expanding horizontal Chebyshev ring search ($r = 1..4$). Each ring position resolves its column's stand cell via `_stand_cell_in_column` — same-$Y$, then $\\pm 1 Y$, then the column hint — regardless of hint presence, and the search returns the nearest valid walkable neighbour cell adjacent to the footprint.
+   - For furniture/blueprint nodes with a known footprint: `find_path_to_footprint_adjacent` expands each footprint cell's 4 horizontal neighbour columns through the same `_stand_cell_in_column` resolution (hint bound 2), then runs multi-target A* over the candidate set — so a footprint raised one $Y$ above the floor yields the ground cells beside it.
 2. **Start Stand Resolution:**
    - Evaluates colonist current world position to the nearest standable cell via `find_stand_cell`.
 3. **A* Search Execution (`find_path`):**

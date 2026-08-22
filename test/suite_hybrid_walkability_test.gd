@@ -209,8 +209,9 @@ func test_find_stand_cell_uses_hint_beyond_scan_window() -> void:
 
 
 ## Ring search over a sloped neighborhood: the adjacent column's standable
-## cell sits at a different Y (the old same-Y assumption would find nothing
-## and return the blocked center unchanged).
+## cell sits at a different Y. The +/-1 probes find it with or without the
+## hint — the hint only extends reach beyond one vertical step (the exact
+## heightfield stand Y, e.g. the tunnel-vs-roof case below).
 func test_ring_search_resolves_derived_stand_y() -> void:
 	var heights := {Vector2i(1, 0): {"h": 2.4, "n": Vector3.UP}}
 	var solid := {Vector3i(0, 0, 0): true, Vector3i(0, 1, 0): true}  # blocked center
@@ -220,7 +221,7 @@ func test_ring_search_resolves_derived_stand_y() -> void:
 	assert_that(finder.find_stand_near_cell(Vector3i(0, 1, 0))).is_equal(Vector3i(1, 2, 0))
 	var unhinted: VoxelPathfinder = auto_free(VoxelPathfinder.new())
 	unhinted.set_walkability(_hybrid(solid, heights))
-	assert_that(unhinted.find_stand_near_cell(Vector3i(0, 1, 0))).is_equal(Vector3i(0, 1, 0))
+	assert_that(unhinted.find_stand_near_cell(Vector3i(0, 1, 0))).is_equal(Vector3i(1, 2, 0))
 
 
 ## Hint MAX (column beyond the smooth terrain) falls back to the same-Y ring

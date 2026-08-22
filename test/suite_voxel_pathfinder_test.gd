@@ -124,6 +124,52 @@ func test_routes_across_steppable_furniture() -> void:
 	assert_bool(path_around.has(Vector3i(2, 1, 1))).is_false()
 
 
+## A blueprint placed on top of an existing block sits one Y above the walkable
+## floor (blueprint ghost occupancy overlaid like production's BlueprintLayer):
+## every same-Y neighbour column is air with no floor, so the footprint
+## expansion must resolve the ground cell one below the footprint.
+func test_footprint_adjacent_stands_below_raised_blueprint() -> void:
+	var solid := {}
+	_fill_floor(solid, -5, 5, -5, 5, 0)
+	solid[Vector3i(2, 1, 0)] = true # existing block the blueprint sits on
+	var blueprint := {Vector3i(2, 2, 0): true}
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	var predicate := func(cell: Vector3i) -> bool:
+		if blueprint.has(cell):
+			return false
+		return not solid.has(cell) and solid.has(cell + _DOWN) and not solid.has(cell + _UP)
+	finder.set_walkability(predicate)
+
+	var path := finder.find_path_to_footprint_adjacent(
+			Vector3(0.5, 1.5, 0.5), [Vector3i(2, 2, 0)])
+	assert_int(path.size()).is_greater(0)
+	if path.is_empty():
+		return
+	var final := path[path.size() - 1]
+	assert_int(int(floor(final.y))).is_equal(1) # ground floor, one below the bp
+	assert_int(max(absi(int(floor(final.x)) - 2), absi(int(floor(final.z))))).is_equal(1)
+
+
+## Hint-less (blocky-only map) ring search: a blueprint cell one Y above the
+## floor resolves to the walkable ground cell one below — the +/-1 column
+## probes are not gated on the smooth-terrain hint.
+func test_stand_near_cell_without_hint_finds_floor_below() -> void:
+	var solid := {}
+	_fill_floor(solid, -5, 5, -5, 5, 0)
+	solid[Vector3i(0, 1, 0)] = true # existing block
+	var blueprint := {Vector3i(0, 2, 0): true}
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	var predicate := func(cell: Vector3i) -> bool:
+		if blueprint.has(cell):
+			return false
+		return not solid.has(cell) and solid.has(cell + _DOWN) and not solid.has(cell + _UP)
+	finder.set_walkability(predicate)
+
+	var stand := finder.find_stand_near_cell(Vector3i(0, 2, 0))
+	assert_int(stand.y).is_equal(1)
+	assert_int(max(absi(stand.x), absi(stand.z))).is_equal(1)
+
+
 ## Telemetry clock (pathfinding.md §6): every telemetry-writing query stamps
 ## last_query_time so the debug visualizer can expire stale diagnostics;
 ## clear_diagnostics() resets it to the never-fresh sentinel.

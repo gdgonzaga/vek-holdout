@@ -22,8 +22,9 @@ class_name VoxelPathfinder
 ## exists for interrupted MOVE legs either way.
 
 const _DOWN := Vector3i(0, -1, 0)
-## Horizontal-only adjacency: used where "stand adjacent to a footprint" is
-## the question — ring/footprint expansion never changes Y.
+## Horizontal-only adjacency: defines the neighbour *columns* probed where
+## "stand adjacent to a footprint" is the question — each column's stand cell
+## may still sit +/-1 Y (see _stand_cell_in_column).
 const _NEIGHBORS_4 := [
 	Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
 	Vector3i(0, 0, 1), Vector3i(0, 0, -1),
@@ -52,8 +53,9 @@ var _is_walkable: Callable
 ## Optional column stand-cell hint source, `(x: float, z: float) -> Vector3i`
 ## (composed by the wiring layer from the smooth heightfield, D4). Lets the
 ## stand-cell resolvers derive a column's true stand Y instead of assuming flat
-## ground. Vector3i.MAX from the hint = "no answer for this column" -> the
-## flat same-Y assumption applies, so hint-less maps behave exactly as before.
+## ground. Vector3i.MAX from the hint = "no answer for this column" -> only the
+## same-Y and +/-1 probes apply, so hint-less (blocky-only) maps still resolve
+## stand cells within one vertical step of the query Y.
 var _stand_cell_hint: Callable
 
 # Telemetry / Diagnostics
@@ -222,6 +224,26 @@ func _column_stand_cell(pos: Vector3i) -> Vector3i:
 	return pos
 
 
+## First standable cell in `col_base`'s column: same-Y (flat room/tunnel floor),
+## then +/-1 Y (a build target routinely sits one above the walkable floor — a
+## blueprint placed on top of an existing block), then the hinted column stand
+## cell when a hint source is injected and answers within `max_hint_dy` of the
+## column (smooth slopes, D4). Vector3i.MAX when the column has no standable
+## cell. Shared by the ring search and the footprint expansion so both agree on
+## what "stand near this column" means.
+func _stand_cell_in_column(col_base: Vector3i, max_hint_dy: int) -> Vector3i:
+	if _is_walkable.call(col_base):
+		return col_base
+	if _is_walkable.call(col_base + Vector3i.UP):
+		return col_base + Vector3i.UP
+	if _is_walkable.call(col_base + Vector3i.DOWN):
+		return col_base + Vector3i.DOWN
+	var hinted := _column_stand_cell(col_base)
+	if hinted != col_base and absi(hinted.y - col_base.y) <= max_hint_dy and _is_walkable.call(hinted):
+		return hinted
+	return Vector3i.MAX
+
+
 ## Convert cell waypoints to world-space centers (XZ-centered; Y at cell center
 ## — ignored by Colonist locomotion, which navigates on the XZ plane).
 func to_world_waypoints(cells: Array[Vector3i]) -> Array[Vector3]:
@@ -247,9 +269,9 @@ func find_path_world(start_world: Vector3, target_world: Vector3) -> Array[Vecto
 ## within max_radius (find_path then fails clean -> empty path). Rings expand
 ## outward, returning the nearest walkable cell of the first non-empty ring, so
 ## the result is the globally-nearest standable neighbour. Each ring position
-## resolves its column's stand cell via the hint when one is injected (smooth
-## hills stand +/-1 Y per step, D4) and stays same-Y otherwise — the original
-## flat-terrain assumption, now only the fallback.
+## resolves its column's stand cell — same-Y, then +/-1 Y (a build target one
+## above the floor; a ramp step, D4), then the hinted column cell — via
+## _stand_cell_in_column, unconditionally of whether a hint is injected.
 func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 	_stamp_query_time()
 	last_stand_candidates.clear()
@@ -266,27 +288,8 @@ func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 				if max(absi(dx), absi(dz)) != r: # only the ring at Chebyshev distance r
 					continue
 				var col_base := center + Vector3i(dx, 0, dz)
-				var c := col_base
-				var is_w := false
-				# If same-Y is walkable (flat room/tunnel floor), use it directly
-				if _is_walkable.call(col_base):
-					c = col_base
-					is_w = true
-				elif _stand_cell_hint.is_valid():
-					# On terrain/ramps, check +/-1 Y step on the ramp slope or hinted surface
-					if _is_walkable.call(col_base + Vector3i.UP):
-						c = col_base + Vector3i.UP
-						is_w = true
-					elif _is_walkable.call(col_base + Vector3i.DOWN):
-						c = col_base + Vector3i.DOWN
-						is_w = true
-					else:
-						var hinted := _column_stand_cell(col_base)
-						if absi(hinted.y - center.y) <= (r + 1) and _is_walkable.call(hinted):
-							c = hinted
-							is_w = true
-				
-				if not is_w:
+				var c := _stand_cell_in_column(col_base, r + 1)
+				if c == Vector3i.MAX:
 					last_stand_candidates.append({"cell": col_base, "walkable": false, "chosen": false})
 					continue
 				
@@ -318,24 +321,32 @@ func find_path_to_adjacent(start_world: Vector3, target_world: Vector3, max_radi
 ## `footprint` that is closest to the colonist (multi-target A*). Use this
 ## instead of find_path_to_adjacent when the target is a furniture node whose
 ## full footprint is known — handles irregularly-shaped / multi-cell pieces
-## correctly regardless of which side the colonist approaches from.
+## correctly regardless of which side the colonist approaches from. Each
+## adjacent column resolves its stand cell via _stand_cell_in_column, so a
+## footprint raised one Y above the floor (a blueprint placed on top of an
+## existing block) still yields the ground cells beside it.
 func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vector3i]) -> Array[Vector3]:
 	_stamp_query_time() # the no-candidate early-out below writes telemetry too
 	var start_cell := find_stand_cell(start_world)
-	# Expand footprint to all immediately-adjacent walkable cells.
+	# Expand footprint to the stand cell of each adjacent column. Neighbours are
+	# Chebyshev 1, so the hint bound matches ring r=1. Without the column
+	# resolution a footprint raised one Y above the floor (a blueprint placed on
+	# top of an existing block) would have only air-with-no-floor same-Y
+	# neighbours and yield zero candidates.
 	var fp_set: Dictionary = {}
 	for c in footprint:
 		fp_set[c] = true
 	var candidates: Array[Vector3i] = []
 	for c in footprint:
 		for off in _NEIGHBORS_4:
-			var nb: Vector3i = c + off
-			if fp_set.has(nb):
+			var col: Vector3i = c + off
+			if fp_set.has(col):
 				continue # inside the footprint itself
-			if not _is_walkable.call(nb):
+			var stand := _stand_cell_in_column(col, 2)
+			if stand == Vector3i.MAX or fp_set.has(stand):
 				continue
-			if not candidates.has(nb):
-				candidates.append(nb)
+			if not candidates.has(stand):
+				candidates.append(stand)
 	if candidates.is_empty():
 		last_query_start = start_cell
 		last_status = "FAIL (No walkable adjacent cells to footprint)"
