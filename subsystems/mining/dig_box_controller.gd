@@ -133,7 +133,7 @@ func _on_dig_box_toggled(active: bool) -> void:
 func cycle_mode() -> void:
 	mode = ((int(mode) + 1) % 3) as OrientationMode
 	if mode == OrientationMode.STAIRWAY_DOWN:
-		width = 2
+		width = 1
 		height = 3
 	EventBus.dig_box_mode_changed.emit(get_mode_name())
 	EventBus.dig_box_dimensions_changed.emit(width, height, depth)
@@ -299,11 +299,11 @@ func _update_preview_ghost(hit: Dictionary) -> void:
 		cell = hit.get("position", Vector3i.ZERO)
 	
 	# Resolve horizontal facing on ground plane (XZ)
-	var cam_fwd: Vector3 = -_camera.global_transform.basis.z.normalized()
+	var cam_fwd: Vector3 = - _camera.global_transform.basis.z.normalized()
 	var cam_up: Vector3 = _camera.global_transform.basis.y.normalized()
 	var horiz_fwd := Vector3(cam_fwd.x, 0.0, cam_fwd.z)
 	if horiz_fwd.length_squared() < 0.001:
-		horiz_fwd = -Vector3(cam_up.x, 0.0, cam_up.z)
+		horiz_fwd = - Vector3(cam_up.x, 0.0, cam_up.z)
 		if horiz_fwd.length_squared() < 0.001:
 			horiz_fwd = Vector3.FORWARD
 	var dominant_horiz_look: Vector3i = get_dominant_cardinal(horiz_fwd.normalized())
@@ -356,7 +356,7 @@ func _update_preview_ghost(hit: Dictionary) -> void:
 	# Get all candidate coordinates for the active shape
 	var all_coords: Array[Vector3i]
 	if mode == OrientationMode.STAIRWAY_DOWN:
-		all_coords = get_stairway_coordinates(cell, dominant_horiz_look, depth)
+		all_coords = get_stairway_coordinates(cell, dominant_horiz_look, depth, width, height)
 	else:
 		all_coords = get_box_coordinates(cell, depth_dir, height_dir, width_dir, width, height, depth)
 	
@@ -382,7 +382,7 @@ func _try_commit_designation() -> void:
 	var coords: Array[Vector3i] = []
 	
 	if mode == OrientationMode.STAIRWAY_DOWN:
-		coords = get_stairway_coordinates(_last_cell, _last_dominant_horiz_look, depth)
+		coords = get_stairway_coordinates(_last_cell, _last_dominant_horiz_look, depth, width, height)
 	else:
 		coords = get_box_coordinates(_last_cell, _last_depth_dir, _last_height_dir, _last_width_dir, width, height, depth)
 	
@@ -445,15 +445,15 @@ static func get_box_coordinates(start_cell: Vector3i, depth_dir: Vector3, height
 	return coords
 
 
-## Generate coordinates for a 2-wide x 3-high downward stairway tunnel.
-static func get_stairway_coordinates(start_cell: Vector3i, dominant_horiz_look: Vector3i, steps: int) -> Array[Vector3i]:
+## Generate coordinates for a w_count-wide x h_count-high downward stairway tunnel.
+static func get_stairway_coordinates(start_cell: Vector3i, dominant_horiz_look: Vector3i, steps: int, w_count: int = 2, h_count: int = 3) -> Array[Vector3i]:
 	var coords: Array[Vector3i] = []
 	var width_dir_v := Vector3(dominant_horiz_look).cross(Vector3.UP)
 	var width_dir := Vector3i(int(round(width_dir_v.x)), int(round(width_dir_v.y)), int(round(width_dir_v.z)))
 	
 	for s: int in range(steps):
-		for h: int in range(3):
-			for w: int in range(2):
+		for h: int in range(h_count):
+			for w: int in range(w_count):
 				var v_cell: Vector3i = start_cell + s * dominant_horiz_look + (h - s) * Vector3i.UP + w * width_dir
 				if not coords.has(v_cell):
 					coords.append(v_cell)
@@ -544,13 +544,13 @@ static func build_cells_wire_mesh(cells: Array[Vector3i], origin: Vector3i, thic
 			
 			# 8 local cube corners transformed
 			var c0 := origin_pos + basis * Vector3(-1, -1, -1)
-			var c1 := origin_pos + basis * Vector3( 1, -1, -1)
-			var c2 := origin_pos + basis * Vector3( 1,  1, -1)
-			var c3 := origin_pos + basis * Vector3(-1,  1, -1)
-			var c4 := origin_pos + basis * Vector3(-1, -1,  1)
-			var c5 := origin_pos + basis * Vector3( 1, -1,  1)
-			var c6 := origin_pos + basis * Vector3( 1,  1,  1)
-			var c7 := origin_pos + basis * Vector3(-1,  1,  1)
+			var c1 := origin_pos + basis * Vector3(1, -1, -1)
+			var c2 := origin_pos + basis * Vector3(1, 1, -1)
+			var c3 := origin_pos + basis * Vector3(-1, 1, -1)
+			var c4 := origin_pos + basis * Vector3(-1, -1, 1)
+			var c5 := origin_pos + basis * Vector3(1, -1, 1)
+			var c6 := origin_pos + basis * Vector3(1, 1, 1)
+			var c7 := origin_pos + basis * Vector3(-1, 1, 1)
 			
 			# 6 faces
 			var beam_verts: Array[Vector3] = [
@@ -559,7 +559,7 @@ static func build_cells_wire_mesh(cells: Array[Vector3i], origin: Vector3i, thic
 				c7, c6, c2, c3, # Top (+Y)
 				c0, c1, c5, c4, # Bottom (-Y)
 				c5, c1, c2, c6, # Right (+X)
-				c0, c4, c7, c3  # Left (-X)
+				c0, c4, c7, c3 # Left (-X)
 			]
 			
 			for i in range(24):

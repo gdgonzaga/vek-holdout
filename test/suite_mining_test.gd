@@ -652,7 +652,7 @@ func test_dig_box_mode_cycling() -> void:
 	ctrl.cycle_mode()
 	assert_int(ctrl.mode).is_equal(DigBoxController.OrientationMode.STAIRWAY_DOWN)
 	assert_str(ctrl.get_mode_name()).is_equal("Stairway (Down)")
-	assert_int(ctrl.width).is_equal(2)
+	assert_int(ctrl.width).is_equal(1)
 	assert_int(ctrl.height).is_equal(3)
 
 	ctrl.cycle_mode()
