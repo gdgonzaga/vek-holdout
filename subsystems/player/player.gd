@@ -465,12 +465,13 @@ func _on_primary_action() -> void:
 		return
 
 	var collider: Node = hit.collider as Node
-	var hit_in: Vector3 = hit.position - hit.normal * 0.1
+	var hit_normal: Vector3 = hit.normal
+	var hit_in: Vector3 = hit.position - hit_normal * 0.1
 	var target_cell := Vector3i(int(floor(hit_in.x)), int(floor(hit_in.y)), int(floor(hit_in.z)))
 
 	var smooth := _find_smooth_grid(collider)
 	if smooth != null:
-		smooth.apply_damage_at(target_cell, 50, self)
+		smooth.apply_damage_at(target_cell, 50, self, hit_normal)
 		return
 
 	var blocky := _find_blocky_grid(collider)

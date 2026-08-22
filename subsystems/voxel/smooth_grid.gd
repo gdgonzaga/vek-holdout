@@ -74,7 +74,7 @@ const HEIGHT_BAKE_SPAN := 512.0
 ## def for all natural ground).
 @export var default_material: TerrainMaterialDef = null
 
-@onready var _terrain: VoxelTerrain = get_node(terrain_path)
+@onready var _terrain: VoxelTerrain = get_node_or_null(terrain_path) as VoxelTerrain
 var _voxel_tool: VoxelTool
 var _default_material_warned := false
 
@@ -139,6 +139,9 @@ func _ready() -> void:
 	_marker_root = Node3D.new()
 	_marker_root.name = "TerrainMarkers"
 	add_child(_marker_root)
+	_damage_decal_root = Node3D.new()
+	_damage_decal_root.name = "DamageDecals"
+	add_child(_damage_decal_root)
 
 	_voxel_tool = _terrain.get_voxel_tool()
 
@@ -700,6 +703,9 @@ func _compute_pristine(x: int, z: int) -> float:
 
 ## Cached damage per position: Vector3i -> { "hp": float, "last_hit_ms": int, "max_hp": int }
 var _hp_by_pos: Dictionary = {}
+var _damage_decal_root: Node3D = null
+var _damage_decals: Dictionary = {} # Vector3i -> Decal
+static var _crack_textures: Array[ImageTexture] = []
 
 ## Grace period in seconds before a damaged voxel begins regenerating HP.
 const HEAL_GRACE_PERIOD_SEC := 2.0
@@ -707,7 +713,7 @@ const HEAL_GRACE_PERIOD_SEC := 2.0
 
 ## Computes the current effective HP of a damaged voxel at pos, taking into account
 ## damage decay / regeneration (TerrainMaterialDef.minutes_to_full_heal).
-## If healed to full HP, erases the entry and returns max_hp.
+## If healed to full HP, erases the entry, removes decal, and returns max_hp.
 func _get_effective_hp(pos: Vector3i, material: TerrainMaterialDef) -> float:
 	if not _hp_by_pos.has(pos):
 		return float(material.hp if material != null else (default_material.hp if default_material != null else 100))
@@ -727,7 +733,9 @@ func _get_effective_hp(pos: Vector3i, material: TerrainMaterialDef) -> float:
 	var current_hp: float = float(entry.get("hp", max_hp)) + heal_rate * heal_elapsed
 	if current_hp >= max_hp:
 		_hp_by_pos.erase(pos)
+		_remove_damage_decal(pos)
 		return max_hp
+	_update_damage_decal(pos, 1.0 - (current_hp / max_hp))
 	return current_hp
 
 
@@ -751,7 +759,7 @@ func get_max_hp_at(pos: Vector3i) -> int:
 ## If HP reaches 0, carves the voxel, grants yields to actor, records mining skill,
 ## and returns {"destroyed": true, "material": material, "remaining_hp": 0, "max_hp": max_hp}.
 ## If HP > 0, returns {"destroyed": false, "material": material, "remaining_hp": remaining_hp, "max_hp": max_hp}.
-func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null) -> Dictionary:
+func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null, normal: Vector3 = Vector3.UP) -> Dictionary:
 	var material: TerrainMaterialDef = get_material_def_at(pos)
 	if material == null:
 		material = default_material
@@ -761,6 +769,7 @@ func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null) -> Dictiona
 	
 	if new_hp <= 0.0:
 		_hp_by_pos.erase(pos)
+		_remove_damage_decal(pos)
 		carve_box(Vector3(pos), Vector3(pos) + Vector3.ONE)
 		if material != null and actor != null:
 			var pocket := _pocket_of(actor)
@@ -782,12 +791,155 @@ func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null) -> Dictiona
 		"last_hit_ms": Time.get_ticks_msec(),
 		"max_hp": max_hp
 	}
+	_update_damage_decal(pos, 1.0 - (new_hp / float(max_hp)), normal)
 	return {
 		"destroyed": false,
 		"material": material,
 		"remaining_hp": int(ceil(new_hp)),
 		"max_hp": max_hp
 	}
+
+
+func _update_damage_decal(pos: Vector3i, damage_ratio: float, normal: Vector3 = Vector3.UP) -> void:
+	if damage_ratio <= 0.0:
+		_remove_damage_decal(pos)
+		return
+	var root := _get_or_create_damage_decal_root()
+	if root == null:
+		return
+	var stage := 0
+	if damage_ratio >= 0.7:
+		stage = 2
+	elif damage_ratio >= 0.35:
+		stage = 1
+	var decal: Decal = _damage_decals.get(pos)
+	if decal == null or not is_instance_valid(decal) or decal.is_queued_for_deletion():
+		decal = Decal.new()
+		decal.name = "Crack_%d_%d_%d" % [pos.x, pos.y, pos.z]
+		decal.size = Vector3(1.2, 1.2, 1.2)
+		decal.upper_fade = 0.05
+		decal.lower_fade = 0.05
+		
+		# Orient decal projection along the struck surface normal
+		var n := normal.normalized() if not normal.is_zero_approx() else Vector3.UP
+		var basis: Basis
+		if absf(n.dot(Vector3.UP)) > 0.95:
+			basis = Basis(Vector3.RIGHT, -PI / 2.0 * signf(n.y if n.y != 0.0 else 1.0))
+		else:
+			basis = Basis.looking_at(-n, Vector3.UP)
+		
+		var center := Vector3(pos) + Vector3(0.5, 0.5, 0.5)
+		decal.transform = Transform3D(basis, center)
+		root.add_child(decal)
+		_damage_decals[pos] = decal
+	
+	decal.texture_albedo = _get_crack_texture(stage)
+
+
+func _get_or_create_damage_decal_root() -> Node3D:
+	if _damage_decal_root == null or not is_instance_valid(_damage_decal_root):
+		_damage_decal_root = Node3D.new()
+		_damage_decal_root.name = "DamageDecals"
+		add_child(_damage_decal_root)
+	return _damage_decal_root
+
+
+func _remove_damage_decal(pos: Vector3i) -> void:
+	if _damage_decals.has(pos):
+		var decal: Decal = _damage_decals[pos]
+		if decal != null and is_instance_valid(decal) and not decal.is_queued_for_deletion():
+			decal.queue_free()
+		_damage_decals.erase(pos)
+
+
+func _clear_all_damage_decals() -> void:
+	for pos: Vector3i in _damage_decals.keys():
+		var decal: Decal = _damage_decals[pos]
+		if decal != null and is_instance_valid(decal) and not decal.is_queued_for_deletion():
+			decal.queue_free()
+	_damage_decals.clear()
+
+
+static func _get_crack_texture(stage: int) -> ImageTexture:
+	if _crack_textures.is_empty():
+		_crack_textures = _build_crack_textures()
+	var clamped := clampi(stage, 0, _crack_textures.size() - 1)
+	return _crack_textures[clamped]
+
+
+static func _build_crack_textures() -> Array[ImageTexture]:
+	var textures: Array[ImageTexture] = []
+	var size := 128
+	var seeds := [12345, 67890, 54321]
+	var root_counts := [4, 8, 14]
+	var seg_counts := [8, 14, 24]
+	var widths := [2, 3, 4]
+	var crack_color := Color(0.04, 0.04, 0.04, 0.98)
+	var sub_color := Color(0.12, 0.12, 0.12, 0.88)
+
+	for s: int in 3:
+		var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
+		image.fill(Color(0, 0, 0, 0))
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seeds[s]
+		var num_roots: int = root_counts[s]
+		var num_segs: int = seg_counts[s]
+		var width: int = widths[s]
+
+		for r: int in num_roots:
+			var cx := rng.randi_range(30, size - 30)
+			var cy := rng.randi_range(30, size - 30)
+			var base_angle := rng.randf_range(0.0, TAU)
+			for seg: int in num_segs:
+				var angle := base_angle + rng.randf_range(-0.6, 0.6)
+				var length := rng.randf_range(8.0, 26.0)
+				var nx := clampi(int(round(float(cx) + cos(angle) * length)), 4, size - 5)
+				var ny := clampi(int(round(float(cy) + sin(angle) * length)), 4, size - 5)
+				_draw_thick_line_on_image(image, cx, cy, nx, ny, crack_color, width)
+				if s >= 1 and rng.randf() > 0.4:
+					var b_angle := angle + rng.randf_range(-1.2, 1.2)
+					var b_len := length * 0.7
+					var bx := clampi(int(round(float(nx) + cos(b_angle) * b_len)), 4, size - 5)
+					var by := clampi(int(round(float(ny) + sin(b_angle) * b_len)), 4, size - 5)
+					_draw_thick_line_on_image(image, nx, ny, bx, by, sub_color, maxi(1, width - 1))
+				cx = nx
+				cy = ny
+				base_angle = angle
+
+		textures.append(ImageTexture.create_from_image(image))
+	return textures
+
+
+static func _draw_thick_line_on_image(img: Image, x0: int, y0: int, x1: int, y1: int, col: Color, thickness: int = 1) -> void:
+	if thickness <= 1:
+		_draw_line_on_image(img, x0, y0, x1, y1, col)
+		return
+	var half := thickness / 2
+	for ox: int in range(-half, half + 1):
+		for oy: int in range(-half, half + 1):
+			_draw_line_on_image(img, x0 + ox, y0 + oy, x1 + ox, y1 + oy, col)
+
+
+static func _draw_line_on_image(img: Image, x0: int, y0: int, x1: int, y1: int, col: Color) -> void:
+	var dx := absi(x1 - x0)
+	var dy := -absi(y1 - y0)
+	var sx := 1 if x0 < x1 else -1
+	var sy := 1 if y0 < y1 else -1
+	var err := dx + dy
+	var x := x0
+	var y := y0
+	while true:
+		if x >= 0 and x < img.get_width() and y >= 0 and y < img.get_height():
+			img.set_pixel(x, y, col)
+		if x == x1 and y == y1:
+			break
+		var e2 := 2 * err
+		if e2 >= dy:
+			err += dy
+			x += sx
+		if e2 <= dx:
+			err += dx
+			y += sy
 
 
 func _pocket_of(actor: Node) -> Inventory:
@@ -891,6 +1043,7 @@ func _evict_columns_in_box(min_pos: Vector3, max_pos: Vector3) -> void:
 
 func _clear_height_cache(_block_position: Vector3i = Vector3i.ZERO) -> void:
 	_height_cache.clear()
+	_clear_all_damage_decals()
 
 
 ## Block streaming both invalidates the height cache (D4) and re-exposes F12

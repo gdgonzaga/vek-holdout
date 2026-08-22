@@ -178,10 +178,10 @@ func is_terrain_at(pos: Vector3i, threshold: float = 0.5) -> bool:
 
 
 ## Applies damage to the block or smooth terrain at pos.
-func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null) -> Dictionary:
+func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null, normal: Vector3 = Vector3.UP) -> Dictionary:
 	if _smooth != null and is_instance_valid(_smooth) and _smooth.is_inside_tree():
 		if _smooth.get_material_def_at(pos) != null or is_terrain_at(pos):
-			return _smooth.apply_damage_at(pos, amount, actor)
+			return _smooth.apply_damage_at(pos, amount, actor, normal)
 	if _grid != null and _grid.has_block_at(pos):
 		_grid.apply_damage(pos, amount)
 		var hp: int = _grid.get_hp_at(pos)
@@ -192,5 +192,5 @@ func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null) -> Dictiona
 			"max_hp": 0
 		}
 	if _smooth != null and is_instance_valid(_smooth) and _smooth.is_inside_tree():
-		return _smooth.apply_damage_at(pos, amount, actor)
+		return _smooth.apply_damage_at(pos, amount, actor, normal)
 	return {"destroyed": false, "material": null, "remaining_hp": 0, "max_hp": 0}

@@ -98,7 +98,7 @@ func test_apply_yields_come_from_the_dig_position_not_the_default() -> void:
 	var player := _sandbox.make_player()
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.default_material = GROUND
+	grid.material_def = GROUND
 	grid.material_def = ROCK
 
 	var action := DigAction.new()
@@ -549,3 +549,65 @@ func test_smooth_grid_no_heal_when_minutes_to_full_heal_is_zero() -> void:
 	# Querying HP should still be 150 (damage preserved, no decay)
 	assert_int(grid.get_hp_at(target_cell)).is_equal(150)
 	assert_bool(grid._hp_by_pos.has(target_cell)).is_true()
+
+
+func test_smooth_grid_spawns_and_updates_damage_decal() -> void:
+	var root := Node3D.new()
+	auto_free(root)
+	add_child(root)
+
+	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(grid)
+	root.add_child(grid)
+	grid.material_def = ROCK # 300 HP
+
+	var target_cell := Vector3i(3, 3, 3)
+
+	# Hit 1: 50 dmg (16.7% dmg) -> Decal spawned at Stage 0
+	grid.apply_damage_at(target_cell, 50)
+	assert_bool(grid._damage_decals.has(target_cell)).is_true()
+	var decal: Decal = grid._damage_decals[target_cell]
+	assert_object(decal).is_not_null()
+	assert_vector(decal.position).is_equal(Vector3(3.5, 3.5, 3.5))
+	assert_vector(decal.size).is_equal(Vector3(1.2, 1.2, 1.2))
+	assert_object(decal.texture_albedo).is_equal(SmoothGrid._get_crack_texture(0))
+
+	# Hit 3: 150 dmg (50% dmg) -> Decal advances to Stage 1
+	grid.apply_damage_at(target_cell, 100)
+	assert_object(decal.texture_albedo).is_equal(SmoothGrid._get_crack_texture(1))
+
+	# Hit 5: 250 dmg (83.3% dmg) -> Decal advances to Stage 2
+	grid.apply_damage_at(target_cell, 100)
+	assert_object(decal.texture_albedo).is_equal(SmoothGrid._get_crack_texture(2))
+
+	# Hit 6: 300 dmg (destroyed) -> Decal removed & freed
+	grid.apply_damage_at(target_cell, 50)
+	assert_bool(grid._damage_decals.has(target_cell)).is_false()
+	assert_bool(decal.is_queued_for_deletion()).is_true()
+
+
+func test_smooth_grid_removes_damage_decal_on_full_regeneration() -> void:
+	var root := Node3D.new()
+	auto_free(root)
+	add_child(root)
+
+	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(grid)
+	root.add_child(grid)
+	grid.material_def = GROUND # 100 HP, 0.25 min heal
+
+	var target_cell := Vector3i(6, 6, 6)
+
+	# Hit once for 50 dmg -> Decal spawned
+	grid.apply_damage_at(target_cell, 50)
+	assert_bool(grid._damage_decals.has(target_cell)).is_true()
+	var decal: Decal = grid._damage_decals[target_cell]
+	assert_object(decal).is_not_null()
+
+	# Simulate 16 seconds passed (fully healed)
+	grid._hp_by_pos[target_cell]["last_hit_ms"] = Time.get_ticks_msec() - 16000
+
+	# Query HP -> triggers regeneration cleanup and removes decal
+	assert_int(grid.get_hp_at(target_cell)).is_equal(100)
+	assert_bool(grid._damage_decals.has(target_cell)).is_false()
+	assert_bool(decal.is_queued_for_deletion()).is_true()
