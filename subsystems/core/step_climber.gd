@@ -1,29 +1,30 @@
-extends Node
 class_name StepClimber
+extends Node
 
 ## Stair-step / hop locomotion assist shared by Player and Colonist (ARCH
-## "Subsystem: Player" / "Subsystem: Colonists"). Lives in core because both
-## subsystems own it equally (AGENTS: ambiguous ownership -> core).
+## "Subsystem: Player" / "Subsystem: Colonists").
 ##
-## Child of a CharacterBody3D scene. Children tick AFTER their parent in
-## _physics_process, so move_and_slide() has already run when this node sees
-## the body: is_on_wall()/is_on_floor() describe this frame's collision and
-## the component needs zero hooks in the bodies' own movement kernels.
+## Ticks in _physics_process after the parent CharacterBody3D's move_and_slide().
+## Children process after parents, so this node sees the post-move collision
+## state (is_on_wall, wall normal) and requires zero movement hooks in the
+## parent body. When the body presses against an obstacle, probes forward and
+## up: if the obstacle top is walkable, climbs it.
 ##
-## When a grounded body presses into an obstacle it first tries to STEP onto it
-## (sweep up -> forward -> down, teleport + re-slide) for lips and risers up to
-## step_height — the "walk over a few-cm mesh like a stair" case that plain
-## move_and_slide treats as a wall. Obstacles up to hop_height instead get a
-## HOP: a vertical velocity impulse solved from the probed rise, letting the
-## body's own gravity and horizontal steering arc it over 1 m voxel blocks.
-## Colonists need the hop (no manual jump); the Player keeps its Space jump, so
-## its scene leaves hop_height at 0.
+## Two climb modes:
+##   - STEP (<= step_height): instant teleport onto the lip + floor snap, so
+##     is_on_floor() never drops false for a frame. Designed for low lips /
+##     stairs (e.g. 0.35-0.5 m). Used by Player and Colonist alike.
+##   - HOP (<= hop_height): vertical takeoff impulse solved so the body's arc
+##     reaches lip + clearance at apex. Used by Colonist (hop_height = 1.05) to
+##     negotiate full 1 m voxel blocks without a manual Space-jump action;
+##     remains 0 on Player (the human jump stays manual).
 ##
+## Both modes sweep the parent body's own CollisionShape3D (via direct space
+## state queries) so obstacle validation matches the body's real physics shape.
 ## The pathfinder knows nothing of this component — walkability stays a pure
-## graph question (VoxelPathfinder); this is the locomotion half of climbing.
+## graph question, and this component makes the physical hops succeed.
 
 @export var step_height := 0.5
-## Tallest obstacle the body will hop over (world units). 0 disables hopping.
 @export var hop_height := 0.0
 @export var hop_gravity := 9.8
 @export var hop_cooldown := 0.25
@@ -45,6 +46,18 @@ var _shape: Shape3D
 var _shape_offset := Vector3.ZERO
 var _hop_ready_at := 0.0
 
+# Telemetry / Diagnostics
+var last_probe_status: String = "IDLE"
+var last_probe_time: float = 0.0
+var last_probe_dir: Vector3 = Vector3.ZERO
+var last_probe_height: float = 0.0
+var last_probe_rise: float = 0.0
+var last_raised_origin: Vector3 = Vector3.ZERO
+var last_landing_origin: Vector3 = Vector3.ZERO
+var last_over_origin: Vector3 = Vector3.ZERO
+var last_shape_radius: float = 0.3
+var last_shape_height: float = 1.6
+
 
 func _ready() -> void:
 	_body = get_parent() as CharacterBody3D
@@ -64,6 +77,10 @@ func _cache_shape() -> void:
 		if _body.shape_owner_get_shape_count(owner_id) > 0:
 			_shape = _body.shape_owner_get_shape(owner_id, 0)
 			_shape_offset = _body.shape_owner_get_transform(owner_id).origin
+			if _shape is CapsuleShape3D:
+				var cap := _shape as CapsuleShape3D
+				last_shape_radius = cap.radius
+				last_shape_height = cap.height
 			return
 	if _shape == null:
 		push_warning("StepClimber: body has no collision shape — disabled")
@@ -100,6 +117,7 @@ func _try_step(dir: Vector3) -> bool:
 	_body.global_position = origin - _body.global_transform.basis * _shape_offset
 	_body.velocity.y = 0.0
 	_body.apply_floor_snap()
+	last_probe_status = "STEP_OK (rise: %.2fm)" % float(landing["rise"])
 	return true
 
 
@@ -120,6 +138,7 @@ func _try_hop(dir: Vector3) -> void:
 	var rise: float = landing["rise"]
 	_body.velocity.y = sqrt(2.0 * hop_gravity * (rise + _HOP_APEX_CLEARANCE))
 	_hop_ready_at = now + hop_cooldown
+	last_probe_status = "HOP_OK (rise: %.2fm, vel_y: %.2fm/s)" % [rise, _body.velocity.y]
 
 
 ## Lift the body's capsule to probe height, sweep forward past the obstacle's
@@ -137,23 +156,45 @@ func _probe_landing(dir: Vector3, probe_height: float, climb_max: float) -> Dict
 	var base := _shape_transform()
 	var raised := Transform3D(base.basis, base.origin + Vector3.UP * probe_height)
 	query.transform = raised
+
+	last_probe_time = float(Time.get_ticks_msec()) * 0.001
+	last_probe_dir = dir
+	last_probe_height = probe_height
+	last_raised_origin = raised.origin
+	last_landing_origin = Vector3.ZERO
+
 	if not space.intersect_shape(query).is_empty():
+		last_probe_status = "FAIL_OVERHANG (ceiling collision at Y+%.2f)" % probe_height
 		return {} # overhang above — no room to lift the capsule
+
 	query.transform = raised
 	if _sweep_fraction(space, query, dir * _forward_distance()) < 0.999:
+		last_probe_status = "FAIL_OBSTACLE_TOO_HIGH (wall > %.2fm)" % climb_max
 		return {} # obstacle reaches up to (or past) the probe height
+
 	var over := Transform3D(raised.basis, raised.origin + dir * _forward_distance())
+	last_over_origin = over.origin
 	query.transform = over
 	var drop := Vector3.DOWN * (probe_height + _DROP_SLACK)
 	var fraction := _sweep_fraction(space, query, drop)
 	if fraction >= 0.999:
+		last_probe_status = "FAIL_OUT_OF_CLIMB_RANGE (no floor within reach)"
 		return {} # surface deeper than the probe — out of climb range
+
 	var landing := Transform3D(over.basis, over.origin + drop * fraction)
+	last_landing_origin = landing.origin
 	var rise := landing.origin.y - base.origin.y
+	last_probe_rise = rise
+
 	if rise < _MIN_ACCEPTED_RISE or rise > climb_max:
+		last_probe_status = "FAIL_RISE_BOUNDS (rise %.2fm outside [%.2f, %.2f])" % [rise, _MIN_ACCEPTED_RISE, climb_max]
 		return {}
+
 	if not _landing_is_floor(landing.origin):
+		last_probe_status = "FAIL_NOT_FLOOR (slope exceeds floor_max_angle)"
 		return {}
+
+	last_probe_status = "PROBE_OK (rise: %.2fm)" % rise
 	return {"origin": landing.origin, "rise": rise}
 
 

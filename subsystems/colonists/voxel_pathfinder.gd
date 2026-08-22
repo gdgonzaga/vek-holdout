@@ -56,6 +56,12 @@ var _is_walkable: Callable
 ## flat same-Y assumption applies, so hint-less maps behave exactly as before.
 var _stand_cell_hint: Callable
 
+# Telemetry / Diagnostics
+var last_query_start: Vector3i = Vector3i.MAX
+var last_query_target: Vector3i = Vector3i.MAX
+var last_status: String = "IDLE"
+var last_explored_count: int = 0
+
 
 ## Inject the per-cell walkability predicate (composed by the wiring layer).
 func set_walkability(predicate: Callable) -> void:
@@ -68,17 +74,31 @@ func set_stand_cell_hint(hint: Callable) -> void:
 	_stand_cell_hint = hint
 
 
+## Query whether a given voxel cell is standable under the injected predicate.
+func is_walkable(cell: Vector3i) -> bool:
+	return _is_walkable.is_valid() and bool(_is_walkable.call(cell))
+
+
 ## Core A* over cells. Returns cell waypoints start->target (empty if no path,
 ## predicate unset, or target not standable). Returns [start_cell] when start
 ## already equals target. The predicate gates every expanded cell lazily.
 func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
+	last_query_start = start_cell
+	last_query_target = target_cell
+	last_explored_count = 0
 	var path: Array[Vector3i] = []
 	if not _is_walkable.is_valid():
 		push_warning("VoxelPathfinder: walkability predicate not set")
+		last_status = "FAIL (predicate not set)"
 		return path
 	if not _is_walkable.call(target_cell):
+		last_status = "FAIL (Target unwalkable %s)" % str(target_cell)
+		return path
+	if not _is_walkable.call(start_cell):
+		last_status = "FAIL (Start unwalkable %s)" % str(start_cell)
 		return path
 	if start_cell == target_cell:
+		last_status = "OK (Already at target)"
 		return [start_cell]
 
 	# Standard A* with Dictionary-backed open/closed sets (MVP search sizes
@@ -100,13 +120,18 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
 				best_i = i
 		var current: Vector3i = open.pop_at(best_i)
 		if current == target_cell:
-			return _reconstruct(came_from, current)
+			last_explored_count = explored
+			path = _reconstruct(came_from, current)
+			last_status = "OK (%d pts, %d explored)" % [path.size(), explored]
+			return path
 		if closed.has(current):
 			continue
 		closed[current] = true
 		explored += 1
 		if explored > _MAX_EXPLORED:
-			push_warning("VoxelPathfinder: exceeded %d cells, giving up" % _MAX_EXPLORED)
+			push_warning("VoxelPathfinder: exceeded %d cells" % _MAX_EXPLORED)
+			last_explored_count = explored
+			last_status = "FAIL (Exceeded max %d explored)" % _MAX_EXPLORED
 			return path
 		for off in _NEIGHBORS_STEPPED:
 			var nb: Vector3i = current + off
@@ -118,6 +143,9 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
 				came_from[nb] = current
 				if not open.has(nb):
 					open.append(nb)
+
+	last_explored_count = explored
+	last_status = "FAIL (No path, %d explored)" % explored
 	return path
 
 
@@ -267,6 +295,8 @@ func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vect
 			if not candidates.has(nb):
 				candidates.append(nb)
 	if candidates.is_empty():
+		last_query_start = start_cell
+		last_status = "FAIL (No walkable adjacent cells to footprint)"
 		return []
 	return to_world_waypoints(_find_path_multi_target(start_cell, candidates))
 
@@ -274,8 +304,19 @@ func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vect
 ## A* from `start` to the nearest cell in `targets` (the goal set).
 ## Heuristic: min Manhattan distance to any target (still admissible).
 func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array[Vector3i]:
+	last_query_start = start
+	if not targets.is_empty():
+		last_query_target = targets[0]
+	last_explored_count = 0
 	var path: Array[Vector3i] = []
-	if targets.is_empty() or not _is_walkable.is_valid():
+	if targets.is_empty():
+		last_status = "FAIL (No candidate targets)"
+		return path
+	if not _is_walkable.is_valid():
+		last_status = "FAIL (predicate not set)"
+		return path
+	if not _is_walkable.call(start):
+		last_status = "FAIL (Start unwalkable %s)" % str(start)
 		return path
 	var target_set: Dictionary = {}
 	for t in targets:
@@ -296,13 +337,19 @@ func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array
 				best_i = i
 		var current: Vector3i = open.pop_at(best_i)
 		if target_set.has(current):
-			return _reconstruct(came_from, current)
+			last_explored_count = explored
+			path = _reconstruct(came_from, current)
+			last_query_target = current
+			last_status = "OK (%d pts, %d explored)" % [path.size(), explored]
+			return path
 		if closed.has(current):
 			continue
 		closed[current] = true
 		explored += 1
 		if explored > _MAX_EXPLORED:
 			push_warning("VoxelPathfinder: exceeded %d cells" % _MAX_EXPLORED)
+			last_explored_count = explored
+			last_status = "FAIL (Exceeded max %d explored)" % _MAX_EXPLORED
 			return path
 		for off in _NEIGHBORS_STEPPED:
 			var nb: Vector3i = current + off
@@ -314,7 +361,12 @@ func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array
 				came_from[nb] = current
 				if not open.has(nb):
 					open.append(nb)
+
+	last_explored_count = explored
+	last_status = "FAIL (No path, %d explored)" % explored
 	return path
+
+
 func _heuristic_multi(a: Vector3i, targets: Array[Vector3i]) -> float:
 	var best := INF
 	for t in targets:

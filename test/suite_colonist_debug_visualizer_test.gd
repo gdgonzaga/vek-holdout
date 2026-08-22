@@ -15,6 +15,8 @@ func before_test() -> void:
 func test_visualizer_initialization() -> void:
 	assert_object(_visualizer).is_not_null()
 	assert_object(_visualizer._colonist_ai).is_not_null()
+	assert_object(_visualizer._pathfinder).is_not_null()
+	assert_object(_visualizer._step_climber).is_not_null()
 	assert_object(_visualizer._label).is_not_null()
 	assert_object(_visualizer._immediate_mesh).is_not_null()
 
@@ -70,7 +72,6 @@ func test_resolve_path_info() -> void:
 func test_draw_navigation_path_and_target_marker() -> void:
 	_colonist.set_path([Vector3(5, 0, 0), Vector3(10, 0, 0)])
 	_visualizer._draw_navigation_path()
-	# ImmediateMesh should have generated surfaces (line strip, waypoint markers, target marker)
 	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_greater(0)
 
 
@@ -80,3 +81,19 @@ func test_resolve_carried_items() -> void:
 	var carry := _visualizer._resolve_carried_items()
 	assert_str(carry).contains("wood x3")
 	assert_str(carry).contains("stone x5")
+
+
+func test_diagnostics_pathfinder_and_step_climber_telemetry() -> void:
+	var pf := _colonist.pathfinder
+	pf.set_walkability(func(c: Vector3i) -> bool: return c.y == 0)
+	var path := pf.find_path(Vector3i(0, 0, 0), Vector3i(2, 0, 0))
+	assert_array(path).is_not_empty()
+	assert_str(pf.last_status).contains("OK")
+
+	# Test failed query updates diagnostics
+	var fail_path := pf.find_path(Vector3i(0, 5, 0), Vector3i(2, 5, 0))
+	assert_array(fail_path).is_empty()
+	assert_str(pf.last_status).contains("FAIL")
+
+	_visualizer._update_label()
+	assert_str(_visualizer._label.text).contains("A*:")
