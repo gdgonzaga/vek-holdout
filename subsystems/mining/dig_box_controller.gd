@@ -466,38 +466,45 @@ static func build_cells_solid_mesh(cells: Array[Vector3i], origin: Vector3i) -> 
 	return st.commit()
 
 
-## Builds a wireframe line mesh from an array of cells relative to the origin cell.
-static func build_cells_wire_mesh(cells: Array[Vector3i], origin: Vector3i) -> ArrayMesh:
+## Builds a 3D wireframe beam mesh (3cm borders) from an array of cells relative to the origin cell.
+static func build_cells_wire_mesh(cells: Array[Vector3i], origin: Vector3i, thickness: float = 0.03) -> ArrayMesh:
 	if cells.is_empty():
 		return null
 	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_LINES)
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	
+	var half_t := thickness * 0.5
+	var edge_high := 1.0 - half_t
+	
+	var box_x := BoxMesh.new()
+	box_x.size = Vector3(1.0, thickness, thickness)
+	
+	var box_y := BoxMesh.new()
+	box_y.size = Vector3(thickness, 1.0, thickness)
+	
+	var box_z := BoxMesh.new()
+	box_z.size = Vector3(thickness, thickness, 1.0)
 	
 	for cell in cells:
-		var p0 := Vector3(cell - origin)
-		var p1 := p0 + Vector3.RIGHT
-		var p2 := p0 + Vector3.RIGHT + Vector3.BACK
-		var p3 := p0 + Vector3.BACK
-		var p4 := p0 + Vector3.UP
-		var p5 := p1 + Vector3.UP
-		var p6 := p2 + Vector3.UP
-		var p7 := p3 + Vector3.UP
+		var p := Vector3(cell - origin)
 		
-		# Bottom 4 lines
-		st.add_vertex(p0); st.add_vertex(p1)
-		st.add_vertex(p1); st.add_vertex(p2)
-		st.add_vertex(p2); st.add_vertex(p3)
-		st.add_vertex(p3); st.add_vertex(p0)
-		# Top 4 lines
-		st.add_vertex(p4); st.add_vertex(p5)
-		st.add_vertex(p5); st.add_vertex(p6)
-		st.add_vertex(p6); st.add_vertex(p7)
-		st.add_vertex(p7); st.add_vertex(p4)
-		# 4 Vertical pillars
-		st.add_vertex(p0); st.add_vertex(p4)
-		st.add_vertex(p1); st.add_vertex(p5)
-		st.add_vertex(p2); st.add_vertex(p6)
-		st.add_vertex(p3); st.add_vertex(p7)
+		# 4 X-aligned edges
+		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, half_t, half_t)))
+		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, half_t, edge_high)))
+		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, edge_high, half_t)))
+		st.append_from(box_x, 0, Transform3D(Basis(), p + Vector3(0.5, edge_high, edge_high)))
+		
+		# 4 Y-aligned edges
+		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(half_t, 0.5, half_t)))
+		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(edge_high, 0.5, half_t)))
+		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(half_t, 0.5, edge_high)))
+		st.append_from(box_y, 0, Transform3D(Basis(), p + Vector3(edge_high, 0.5, edge_high)))
+		
+		# 4 Z-aligned edges
+		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(half_t, half_t, 0.5)))
+		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(edge_high, half_t, 0.5)))
+		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(half_t, edge_high, 0.5)))
+		st.append_from(box_z, 0, Transform3D(Basis(), p + Vector3(edge_high, edge_high, 0.5)))
 		
 	return st.commit()
 
