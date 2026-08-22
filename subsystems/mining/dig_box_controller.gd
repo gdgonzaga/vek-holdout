@@ -483,61 +483,19 @@ static func build_stairway_mesh(steps: int, dominant_horiz_look: Vector3i) -> Ar
 	return st.commit()
 
 
-## Builds a solid triangle mesh from an array of cells relative to the origin cell (fast direct array generation).
+## Builds a solid triangle mesh from an array of cells relative to the origin cell.
 static func build_cells_solid_mesh(cells: Array[Vector3i], origin: Vector3i) -> ArrayMesh:
-	var n := cells.size()
-	if n == 0:
+	if cells.is_empty():
 		return null
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var box_mesh := BoxMesh.new()
+	box_mesh.size = Vector3(1.1, 1.1, 1.1)
 	
-	var vertices := PackedVector3Array()
-	vertices.resize(n * 24)
-	var indices := PackedInt32Array()
-	indices.resize(n * 36)
-	
-	# Unit cube size 1.1 (half-extent 0.55)
-	const S: float = 0.55
-	const FACE_OFFSETS: Array[Vector3] = [
-		# Front (+Z)
-		Vector3(-S, -S,  S), Vector3( S, -S,  S), Vector3( S,  S,  S), Vector3(-S,  S,  S),
-		# Back (-Z)
-		Vector3( S, -S, -S), Vector3(-S, -S, -S), Vector3(-S,  S, -S), Vector3( S,  S, -S),
-		# Top (+Y)
-		Vector3(-S,  S,  S), Vector3( S,  S,  S), Vector3( S,  S, -S), Vector3(-S,  S, -S),
-		# Bottom (-Y)
-		Vector3(-S, -S, -S), Vector3( S, -S, -S), Vector3( S, -S,  S), Vector3(-S, -S,  S),
-		# Right (+X)
-		Vector3( S, -S,  S), Vector3( S, -S, -S), Vector3( S,  S, -S), Vector3( S,  S,  S),
-		# Left (-X)
-		Vector3(-S, -S, -S), Vector3(-S, -S,  S), Vector3(-S,  S,  S), Vector3(-S,  S, -S)
-	]
-	
-	var v_offset := 0
-	var i_offset := 0
 	for cell in cells:
-		var center := Vector3(cell - origin) + Vector3(0.5, 0.5, 0.5)
-		for i in range(24):
-			vertices[v_offset + i] = center + FACE_OFFSETS[i]
-		
-		for f in range(6):
-			var base_v: int = v_offset + f * 4
-			indices[i_offset + f * 6 + 0] = base_v + 0
-			indices[i_offset + f * 6 + 1] = base_v + 1
-			indices[i_offset + f * 6 + 2] = base_v + 2
-			indices[i_offset + f * 6 + 3] = base_v + 0
-			indices[i_offset + f * 6 + 4] = base_v + 2
-			indices[i_offset + f * 6 + 5] = base_v + 3
-		
-		v_offset += 24
-		i_offset += 36
-	
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_INDEX] = indices
-	
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+		var local_offset := Vector3(cell - origin) + Vector3(0.5, 0.5, 0.5)
+		st.append_from(box_mesh, 0, Transform3D(Basis(), local_offset))
+	return st.commit()
 
 
 ## Builds a 3D wireframe mesh from an array of cells relative to the origin cell (fast direct array generation).
@@ -640,4 +598,3 @@ static func get_dominant_cardinal(v: Vector3) -> Vector3i:
 		return Vector3i.RIGHT if v.x > 0.0 else Vector3i.LEFT
 	else:
 		return Vector3i.BACK if v.z > 0.0 else Vector3i.FORWARD
-

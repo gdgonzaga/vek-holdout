@@ -27,6 +27,7 @@ func _ready() -> void:
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.no_depth_test = false
 	_material.albedo_color = _COLOR_VALID_ABOVE
+	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_material.render_priority = 10
 	material_override = _material
 
@@ -35,6 +36,7 @@ func _ready() -> void:
 	_wire_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_wire_material.no_depth_test = false
 	_wire_material.albedo_color = Color(1.0, 0.65, 0.15, 0.4)
+	_wire_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_wire_material.render_priority = 9
 
 	_wire_instance = MeshInstance3D.new()
