@@ -16,8 +16,6 @@ signal closed()
 
 const _EntryScene := preload("res://ui/build_menu/build_menu_entry.tscn")
 const DECONSTRUCT_ICON = preload("res://assets/item_icons/__deconstruct__.png")
-# Prototype icon for the Dig tool (a dirt block) until the art pass.
-const DIG_ICON = preload("res://assets/item_icons/dirt_block.png")
 
 @onready var _list: VBoxContainer = $Panel/VBox/ScrollContainer/List
 @onready var _close_button: Button = $Panel/VBox/Header/CloseButton
@@ -46,18 +44,12 @@ func populate() -> void:
 	for child in _list.get_children():
 		child.queue_free()
 
-	# Tool entries (not buildables): Deconstruct routes LMB to removal, Dig
-	# routes it to a timed smooth-terrain carve (mining, Phase 5). Neither is
-	# unlock-gated — always available.
+	# Tool entries (not buildables): Deconstruct routes LMB to removal.
+	# Mining is performed via direct LMB in Normal mode.
 	var deconstruct: BuildMenuEntry = _EntryScene.instantiate()
 	_list.add_child(deconstruct)
 	deconstruct.setup_tool(BuildLibrary.DECONSTRUCT_ID, "Deconstruct", DECONSTRUCT_ICON)
 	deconstruct.pressed_id.connect(_on_entry_pressed)
-
-	var dig: BuildMenuEntry = _EntryScene.instantiate()
-	_list.add_child(dig)
-	dig.setup_tool(BuildLibrary.DIG_ID, "Dig", DIG_ICON)
-	dig.pressed_id.connect(_on_entry_pressed)
 
 	for def in BuildLibrary.get_unlocked():
 		var entry: BuildMenuEntry = _EntryScene.instantiate()

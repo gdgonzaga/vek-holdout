@@ -457,6 +457,56 @@ func _on_primary_action() -> void:
 			if harvestable != null:
 				var action := HarvestAction.new()
 				action.execute(self, target)
+				return
+
+	# Direct terrain / block mining with LMB from crosshair
+	var hit := _interaction_raycast()
+	if hit.is_empty():
+		return
+
+	var collider: Node = hit.collider as Node
+	var hit_in: Vector3 = hit.position - hit.normal * 0.1
+	var target_cell := Vector3i(int(floor(hit_in.x)), int(floor(hit_in.y)), int(floor(hit_in.z)))
+
+	var smooth := _find_smooth_grid(collider)
+	if smooth != null:
+		smooth.apply_damage_at(target_cell, 50, self)
+		return
+
+	var blocky := _find_blocky_grid(collider)
+	if blocky != null and blocky.has_block_at(target_cell):
+		blocky.apply_damage(target_cell, 50)
+		return
+
+
+func _find_smooth_grid(node: Node) -> SmoothGrid:
+	var cur: Node = node
+	while cur != null:
+		if cur is SmoothGrid:
+			return cur
+		if cur is Map:
+			return (cur as Map).get_smooth_grid()
+		cur = cur.get_parent()
+	if SceneManager != null:
+		var current_map := SceneManager.get_current_map()
+		if current_map != null:
+			return current_map.get_smooth_grid()
+	return null
+
+
+func _find_blocky_grid(node: Node) -> BlockyGrid:
+	var cur: Node = node
+	while cur != null:
+		if cur is BlockyGrid:
+			return cur
+		if cur is Map:
+			return (cur as Map).get_blocky_grid()
+		cur = cur.get_parent()
+	if SceneManager != null:
+		var current_map := SceneManager.get_current_map()
+		if current_map != null:
+			return current_map.get_blocky_grid()
+	return null
 
 
 func _on_dig_box_toggle_pressed() -> void:

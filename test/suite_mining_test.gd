@@ -455,3 +455,97 @@ func test_dig_job_def_checks_colony_is_terrain_at() -> void:
 	assert_bool(dig_def.is_available(job)).is_false()
 	assert_bool(dig_def.should_close(job)).is_true()
 	assert_object(dig_def.get_next_leg(colonist, job)).is_null()
+
+
+# ── Direct LMB Mining & Damage Tests ─────────────────────────────────────────
+
+func test_smooth_grid_apply_damage_multi_hit_destroys_dirt() -> void:
+	var player := _sandbox.make_player()
+	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(grid)
+	grid.material_def = GROUND
+	var target_cell := Vector3i(2, 3, 4)
+
+	# Hit 1: 50 damage to 100 HP dirt -> 50 HP left, not destroyed
+	var res1 := grid.apply_damage_at(target_cell, 50, player)
+	assert_bool(res1["destroyed"]).is_false()
+	assert_int(res1["remaining_hp"]).is_equal(50)
+	assert_int(res1["max_hp"]).is_equal(100)
+	assert_int(grid.box_carves.size()).is_equal(0)
+	var yield_entry: ItemAmount = GROUND.yields[0]
+	assert_bool(player.inventory.has_item(yield_entry.item_def.id, yield_entry.count)).is_false()
+	assert_int(_sandbox.skill_uses(player.skill_set, "mining")).is_equal(0)
+
+	# Hit 2: another 50 damage -> destroyed, carved, yields granted, skill recorded
+	var res2 := grid.apply_damage_at(target_cell, 50, player)
+	assert_bool(res2["destroyed"]).is_true()
+	assert_int(res2["remaining_hp"]).is_equal(0)
+	assert_int(grid.box_carves.size()).is_equal(1)
+	assert_vector(grid.box_carves[0]["min"]).is_equal(Vector3(2, 3, 4))
+	assert_vector(grid.box_carves[0]["max"]).is_equal(Vector3(3, 4, 5))
+	assert_bool(player.inventory.has_item(yield_entry.item_def.id, yield_entry.count)).is_true()
+	assert_int(_sandbox.skill_uses(player.skill_set, "mining")).is_equal(1)
+
+
+func test_smooth_grid_apply_damage_on_rock_takes_6_hits() -> void:
+	var player := _sandbox.make_player()
+	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(grid)
+	grid.material_def = ROCK # 300 HP
+	var target_cell := Vector3i(10, 5, 10)
+
+	# 5 hits @ 50 dmg = 250 dmg -> 50 HP remaining
+	for i in 5:
+		var res := grid.apply_damage_at(target_cell, 50, player)
+		assert_bool(res["destroyed"]).is_false()
+	assert_int(grid.get_hp_at(target_cell)).is_equal(50)
+	assert_int(grid.box_carves.size()).is_equal(0)
+
+	# 6th hit -> 300 dmg total -> destroyed
+	var res6 := grid.apply_damage_at(target_cell, 50, player)
+	assert_bool(res6["destroyed"]).is_true()
+	assert_int(grid.box_carves.size()).is_equal(1)
+	var rock_yield: ItemAmount = ROCK.yields[0]
+	assert_bool(player.inventory.has_item(rock_yield.item_def.id, rock_yield.count)).is_true()
+
+
+func test_smooth_grid_damage_decay_heals_over_time() -> void:
+	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(grid)
+	grid.material_def = GROUND # 100 HP, 0.25 min full heal
+	var target_cell := Vector3i(7, 8, 9)
+
+	# Hit once for 50 dmg
+	grid.apply_damage_at(target_cell, 50)
+	assert_bool(grid._hp_by_pos.has(target_cell)).is_true()
+	assert_int(grid.get_hp_at(target_cell)).is_equal(50)
+
+	# Simulate 16 seconds passed (beyond the 15s full heal time)
+	grid._hp_by_pos[target_cell]["last_hit_ms"] = Time.get_ticks_msec() - 16000
+
+	# Querying HP should show full heal and pruned entry
+	assert_int(grid.get_hp_at(target_cell)).is_equal(100)
+	assert_bool(grid._hp_by_pos.has(target_cell)).is_false()
+
+
+func test_smooth_grid_no_heal_when_minutes_to_full_heal_is_zero() -> void:
+	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
+	auto_free(grid)
+	var asphalt := TerrainMaterialDef.new()
+	auto_free(asphalt)
+	asphalt.id = "asphalt"
+	asphalt.hp = 200
+	asphalt.minutes_to_full_heal = 0.0 # Non-healing material
+	grid.material_def = asphalt
+	var target_cell := Vector3i(1, 1, 1)
+
+	# Hit once for 50 dmg
+	grid.apply_damage_at(target_cell, 50)
+	assert_int(grid.get_hp_at(target_cell)).is_equal(150)
+
+	# Simulate 60 seconds passed
+	grid._hp_by_pos[target_cell]["last_hit_ms"] = Time.get_ticks_msec() - 60000
+
+	# Querying HP should still be 150 (damage preserved, no decay)
+	assert_int(grid.get_hp_at(target_cell)).is_equal(150)
+	assert_bool(grid._hp_by_pos.has(target_cell)).is_true()

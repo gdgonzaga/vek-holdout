@@ -35,14 +35,17 @@ Player (Shift+G) -> DigBoxController (Raycast / Ghost preview / Box math)
 | `material_placed(pos: Vector3, material_id: String)` | `smooth_grid.gd` | (sound/particles hook) | No | Smooth placement, editor sculpt, structure stamp |
 | `material_carved(pos: Vector3)` | `smooth_grid.gd` | (dig feedback hook) | No | Dig completion |
 
-## Flow Trace: player direct dig
+## Flow Trace: player real-time LMB mining
 
-1. **B** opens the build menu; the **Dig** entry (`BuildLibrary.DIG_ID` sentinel, not a `BuildableDef`) arms dig mode.
-2. `_physics_process` raycasts; a smooth-surface hit shows the green ghost of the dig volume. Today's BOX tool: a 1×1×1 cube anchored on the **nearest solid sample** to the hit point (nudged ~1 cm into the surface, F15) — WYSIWYG: the dig clears exactly that sample, ~1 m³ per dig, and the cube tracks the crosshair one lattice step at a time. A SPHERE-tool dig shows the half-sunk sphere ghost instead.
-3. **LMB** → `BuildController._try_dig()` → `DigAction.begin(actor, grid, center, BuildLibrary.DIG_TOOL)`.
-4. The gauge duration is `work_time × hp(at the dig position) / 100 ÷ mining-skill multiplier`; the label reads **"Digging <display_name>"** from the def at the dig position (a BOX resolves the first solid sample in its span) — the in-game oracle for the whole chain.
-5. On completion `_apply` resolves the def **before** carving (after the carve the position is air), carves the shape — BOX: `carve_box` hard-writes air (+2) to every sample in the ghost box (a 1×1×1 dig: the single anchored sample), deliberately not a blended `do_box` (F15: blends leave "pyramid" fringe spikes; hard per-sample writes are deterministic); SPHERE: `MODE_REMOVE do_sphere` — then grants the def's `yields` to the digger's pocket inventory and records a `mining` skill use.
-6. A cancelled dig banks nothing (v1 semantics — no partial-HP state on smooth terrain).
+1. In **Normal mode**, player aims crosshair at terrain within reach (`interact_distance`) and clicks **LMB** (`InputComponent.primary_action_pressed`).
+2. `Player._on_primary_action` raycasts to find the struck terrain voxel coordinate `pos: Vector3i`.
+3. `SmoothGrid.apply_damage_at(pos, 50, player)` is called:
+   - Queries `TerrainMaterialDef` at `pos` to determine max HP and `minutes_to_full_heal`.
+   - Computes effective current HP considering time elapsed and damage regeneration.
+   - Inflicts damage (50 HP per hit).
+   - If HP drops $\le 0$: the cell is carved via `carve_box`, `material.yields` are deposited into the player inventory, `"mining"` skill use is recorded on `skill_set`, and `_hp_by_pos[pos]` is erased.
+   - If HP remains $> 0$: `_hp_by_pos[pos]` records the new HP and timestamp.
+4. Abandoned hits heal back to max HP over `minutes_to_full_heal` (default 0.25 min / 15s) and are purged from memory once full. Materials with `minutes_to_full_heal <= 0.0` (e.g. asphalt) retain damage permanently without regenerating.
 
 ## Flow Trace: Dig Box Designation & Colonist Dig Jobs
 

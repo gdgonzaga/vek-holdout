@@ -696,6 +696,124 @@ func _compute_pristine(x: int, z: int) -> float:
 	var n := _noise_sampler.get_noise_2d(x, z)
 	return terrain_gen.height_start + (n * 0.5 + 0.5) * terrain_gen.height_range
 
+# --- Terrain damage & mining (real-time LMB mining) ---------------------------
+
+## Cached damage per position: Vector3i -> { "hp": float, "last_hit_ms": int, "max_hp": int }
+var _hp_by_pos: Dictionary = {}
+
+## Grace period in seconds before a damaged voxel begins regenerating HP.
+const HEAL_GRACE_PERIOD_SEC := 2.0
+
+
+## Computes the current effective HP of a damaged voxel at pos, taking into account
+## damage decay / regeneration (TerrainMaterialDef.minutes_to_full_heal).
+## If healed to full HP, erases the entry and returns max_hp.
+func _get_effective_hp(pos: Vector3i, material: TerrainMaterialDef) -> float:
+	if not _hp_by_pos.has(pos):
+		return float(material.hp if material != null else (default_material.hp if default_material != null else 100))
+	var entry: Dictionary = _hp_by_pos[pos]
+	if material != null and material.minutes_to_full_heal <= 0.0:
+		return float(entry.get("hp", float(material.hp)))
+	var full_heal_sec: float = (material.minutes_to_full_heal * 60.0) if material != null else 15.0
+	if full_heal_sec <= 0.0:
+		return float(entry.get("hp", 100.0))
+	var now_ms: int = Time.get_ticks_msec()
+	var elapsed_sec: float = float(now_ms - int(entry.get("last_hit_ms", now_ms))) / 1000.0
+	var max_hp: float = float(entry.get("max_hp", material.hp if material != null else 100))
+	if elapsed_sec <= HEAL_GRACE_PERIOD_SEC:
+		return float(entry.get("hp", max_hp))
+	var heal_elapsed: float = elapsed_sec - HEAL_GRACE_PERIOD_SEC
+	var heal_rate: float = max_hp / maxf(1.0, full_heal_sec - HEAL_GRACE_PERIOD_SEC)
+	var current_hp: float = float(entry.get("hp", max_hp)) + heal_rate * heal_elapsed
+	if current_hp >= max_hp:
+		_hp_by_pos.erase(pos)
+		return max_hp
+	return current_hp
+
+
+## Current effective HP at pos (or max HP if undamaged / air).
+func get_hp_at(pos: Vector3i) -> int:
+	var material: TerrainMaterialDef = get_material_def_at(pos)
+	if material == null:
+		material = default_material
+	return int(ceil(_get_effective_hp(pos, material)))
+
+
+## Max HP of the material at pos.
+func get_max_hp_at(pos: Vector3i) -> int:
+	var material: TerrainMaterialDef = get_material_def_at(pos)
+	if material == null:
+		material = default_material
+	return material.hp if material != null else 100
+
+
+## Applies damage to the terrain voxel at pos.
+## If HP reaches 0, carves the voxel, grants yields to actor, records mining skill,
+## and returns {"destroyed": true, "material": material, "remaining_hp": 0, "max_hp": max_hp}.
+## If HP > 0, returns {"destroyed": false, "material": material, "remaining_hp": remaining_hp, "max_hp": max_hp}.
+func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null) -> Dictionary:
+	var material: TerrainMaterialDef = get_material_def_at(pos)
+	if material == null:
+		material = default_material
+	var max_hp: int = material.hp if material != null else 100
+	var current_hp: float = _get_effective_hp(pos, material)
+	var new_hp: float = current_hp - float(amount)
+	
+	if new_hp <= 0.0:
+		_hp_by_pos.erase(pos)
+		carve_box(Vector3(pos), Vector3(pos) + Vector3.ONE)
+		if material != null and actor != null:
+			var pocket := _pocket_of(actor)
+			if pocket != null:
+				for entry: ItemAmount in material.yields:
+					pocket.add(entry.item_def.id, entry.count)
+			var skill_set := _skills_of(actor)
+			if skill_set != null:
+				skill_set.record_use_for_labor("mining")
+		return {
+			"destroyed": true,
+			"material": material,
+			"remaining_hp": 0,
+			"max_hp": max_hp
+		}
+	
+	_hp_by_pos[pos] = {
+		"hp": new_hp,
+		"last_hit_ms": Time.get_ticks_msec(),
+		"max_hp": max_hp
+	}
+	return {
+		"destroyed": false,
+		"material": material,
+		"remaining_hp": int(ceil(new_hp)),
+		"max_hp": max_hp
+	}
+
+
+func _pocket_of(actor: Node) -> Inventory:
+	var colonist := actor as Colonist
+	if colonist != null and colonist.inventory != null:
+		return colonist.inventory
+	var player := actor as Player
+	if player != null and player.inventory != null:
+		return player.inventory
+	if actor != null and "inventory" in actor and actor.get("inventory") is Inventory:
+		return actor.get("inventory")
+	return null
+
+
+func _skills_of(actor: Node) -> SkillSet:
+	var colonist := actor as Colonist
+	if colonist != null:
+		return colonist.skill_set
+	var player := actor as Player
+	if player != null:
+		return player.skill_set
+	if actor != null and "skill_set" in actor and actor.get("skill_set") is SkillSet:
+		return actor.get("skill_set")
+	return null
+
+
 # --- queries --------------------------------------------------------------------
 
 ## Ray against the natural surface only (mask = TerrainSmooth). Returns float

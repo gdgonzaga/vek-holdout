@@ -132,7 +132,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `_on_build_menu_closed() -> void` | Menu dismissed without a selection: clears `_build_menu`; emits `build_menu_toggled(false)`; re-captures the mouse; sets `mode = NORMAL`. |
 | `execute_default_action() -> void` | Quick-tap E path (the HUD calls this on a <0.3s tap): runs `action_options[0].action.execute(self, target)` directly with no menu, then re-emits `interactable_changed` so the label refreshes. |
 | `open_interaction_menu() -> void` | Long-press E path (the HUD calls this after a ≥0.3s hold): calls `_current_interactable.interact(self)` to build + mount the full action menu. |
-| `_on_primary_action() -> void` | LMB handler (connected to InputComponent's `primary_action_pressed`). In Normal mode with a crosshair target: runs `FarmManualAction` on a `Growable` target or `HarvestAction` on a `Harvestable` target. No-op while busy, in Blueprint mode, or when UiGate blocks input. |
+| `_on_primary_action() -> void` | LMB handler (connected to InputComponent's `primary_action_pressed`). In Normal mode: runs `FarmManualAction` on a `Growable` target or `HarvestAction` on a `Harvestable` target; if looking at smooth/blocky terrain, executes real-time LMB mining (50 HP damage per swing to struck voxel). No-op while busy, in Blueprint mode, or when UiGate blocks input. |
 | `clear_interactable() -> void` | Clears `_current_interactable` and emits `interactable_changed(null)`. Called by `SceneManager.unload_current_map` before the map's InteractionComponent children are freed (so the HUD label doesn't linger over the title screen). |
 | `_recapture_mouse() -> void` | Sets `Input.mouse_mode = CAPTURED`. Connected to InputComponent's `recapture_requested` signal (click-to-recapture after alt-tab). |
 | `_on_ui_cancel() -> void` | Esc handler (connected to InputComponent's `ui_cancel_pressed`). In `BUILD_PLACEMENT` it exits straight to Normal: marks the event handled (so `Main._unhandled_input` doesn't also open the Pause overlay), sets `mode = NORMAL`, emits `build_placement_toggled(false)`. Otherwise a no-op — the build menu owns its own Esc, and plain Esc opens the Pause overlay via `Main`. |
@@ -153,7 +153,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | Signal | Description |
 |---|---|
 | `build_toggle_pressed()` | Emitted on B key (`build_toggle` action). |
-| `primary_action_pressed()` | Emitted on LMB during gameplay. Handled by `_on_primary_action`: runs `FarmManualAction` / `HarvestAction` on the crosshair target when it carries a `Growable` / `Harvestable` component. |
+| `primary_action_pressed()` | Emitted on LMB during gameplay. Handled by `_on_primary_action`: runs `FarmManualAction` / `HarvestAction` on interactables, or damages/mines targeted terrain on LMB. |
 | `interact_pressed()` | Emitted on E key-down (`interact` action). Consumed by the HUD for hold detection. |
 | `interact_released()` | Emitted on E key-up (`interact` action). Consumed by the HUD: release before the hold threshold = quick tap. |
 | `recapture_requested()` | Emitted on mouse click while cursor is visible. |

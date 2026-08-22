@@ -28,6 +28,11 @@ class_name TerrainMaterialDef
 ## model consumes it per swing.
 @export var hp: int = 100
 
+## Time in minutes for a damaged voxel of this material to fully regenerate back
+## to max HP. Default 0.25 min (15 seconds). Set to <= 0.0 to disable regeneration
+## (e.g. asphalt, masonry).
+@export var minutes_to_full_heal: float = 0.25
+
 ## What one completed dig of this material drops into the digger's inventory
 ## (the HarvestParams.yields shape).
 @export var yields: Array[ItemAmount] = []
