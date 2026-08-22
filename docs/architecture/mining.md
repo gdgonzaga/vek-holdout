@@ -30,6 +30,7 @@ Player (Shift+G) -> DigBoxController (Raycast / Ghost preview / Box math)
 |---|---|---|---|---|
 | `dig_box_toggled(active: bool)` | `player.gd` | `DigBoxController`, `DigBoxHud` | Yes | Dig Box Designation toggle |
 | `dig_box_dimensions_changed(w, h, d)` | `dig_box_controller.gd` | `DigBoxHud` | Yes | Live HUD dimension updates |
+| `dig_box_mode_changed(mode_name)` | `dig_box_controller.gd` | `DigBoxHud` | Yes | Active orientation mode changed (Horizontal, Vertical, Stairway Down) |
 | `dig_box_designated(voxels: Array)` | `dig_box_controller.gd` | `Colony`, `MiningSystem` | Yes | Designation commit, job dispatch, marker spawn |
 | `dig_job_completed(cell: Vector3i)` | `dig_job_def.gd` | `MiningSystem` | Yes | Job completion, marker cleanup, voxel carving |
 | `material_placed(pos: Vector3, material_id: String)` | `smooth_grid.gd` | (sound/particles hook) | No | Smooth placement, editor sculpt, structure stamp |
@@ -59,7 +60,10 @@ Player (Shift+G) -> DigBoxController (Raycast / Ghost preview / Box math)
    - **Shift + Scroll** (or horizontal scroll): Adjusts **Depth** $\\pm 1$.
    - **Ctrl + Scroll**: Adjusts **Height** $\\pm 1$.
    - All dimensions clamp between $1$ and $11$, emitting `EventBus.dig_box_dimensions_changed` to update the HUD live.
-5. **Orientation Flip:** **Right-Click (`RMB`)** toggles between **Horizontal Mode** (ground plane tunneling) and **Vertical Mode** (vertical shaft digging down $-Y$ or up $+Y$).
+5. **Orientation Modes:** **Right-Click (`RMB`)** cycles through 3 orientation modes:
+   - **Horizontal Mode**: Standard ground plane tunneling ($W \times H \times D$).
+   - **Vertical Mode**: Vertical shaft digging down $-Y$ or up $+Y$.
+   - **Stairway Down Mode**: Digs a downward-descending staircase corridor fixed at 2 blocks wide and 3 blocks high clearance, dropping 1 block down per 1 block forward along the player's dominant horizontal view direction. Scroll wheel adjusts the number of downward steps ($1..11$).
 6. **LMB Designation:** **Left-Click (`LMB`)** gathers all voxel coordinates in the volume, filters them through `is_terrain_at` (requiring terrain height $\\ge Y + \\text{terrain\\_solidity\\_threshold}$), logs the coordinates to stdout and `GameLog`, and emits `EventBus.dig_box_designated`.
 7. **Simulation Dispatch & Marker Placement:**
    - `MiningSystem` receives `dig_box_designated` and places persistent translucent amber `MeshInstance3D` unit cube markers on solid blocks under `DesignationContainer`.

@@ -100,6 +100,16 @@ func show_box_at(world_pos: Vector3, size: Vector3, valid: bool) -> void:
 	show()
 
 
+## Mesh preview for arbitrary custom shapes (e.g. multi-step stairway tunnel ghost).
+func show_mesh_at(world_pos: Vector3, custom_mesh: Mesh, valid: bool) -> void:
+	mesh = custom_mesh
+	global_position = world_pos
+	scale = Vector3.ONE
+	rotation_degrees.y = 0.0
+	set_valid(valid)
+	show()
+
+
 func hide_() -> void:
 	hide()
 

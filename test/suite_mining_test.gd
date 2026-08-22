@@ -611,3 +611,56 @@ func test_smooth_grid_removes_damage_decal_on_full_regeneration() -> void:
 	assert_int(grid.get_hp_at(target_cell)).is_equal(100)
 	assert_bool(grid._damage_decals.has(target_cell)).is_false()
 	assert_bool(decal.is_queued_for_deletion()).is_true()
+
+
+func test_dig_box_stairway_coordinate_generation() -> void:
+	var start := Vector3i(10, 20, 30)
+	var fwd := Vector3i.FORWARD # (0, 0, -1)
+	# width_dir = (0, 0, -1) x (0, 1, 0) = (1, 0, 0)
+	var coords: Array[Vector3i] = DigBoxController.get_stairway_coordinates(start, fwd, 3)
+
+	# 3 steps * 3 high * 2 wide = 18 unique voxels
+	assert_int(coords.size()).is_equal(18)
+
+	# Step 0 (s=0): Y in [20, 22], Z = 30, X in [10, 11]
+	for h in range(3):
+		for w in range(2):
+			assert_bool(coords.has(Vector3i(10 + w, 20 + h, 30))).is_true()
+
+	# Step 1 (s=1): Y in [19, 21], Z = 29, X in [10, 11]
+	for h in range(3):
+		for w in range(2):
+			assert_bool(coords.has(Vector3i(10 + w, 19 + h, 29))).is_true()
+
+	# Step 2 (s=2): Y in [18, 20], Z = 28, X in [10, 11]
+	for h in range(3):
+		for w in range(2):
+			assert_bool(coords.has(Vector3i(10 + w, 18 + h, 28))).is_true()
+
+
+func test_dig_box_mode_cycling() -> void:
+	var ctrl := DigBoxController.new()
+	auto_free(ctrl)
+
+	assert_int(ctrl.mode).is_equal(DigBoxController.OrientationMode.HORIZONTAL)
+	assert_str(ctrl.get_mode_name()).is_equal("Horizontal")
+
+	ctrl.cycle_mode()
+	assert_int(ctrl.mode).is_equal(DigBoxController.OrientationMode.VERTICAL)
+	assert_str(ctrl.get_mode_name()).is_equal("Vertical")
+
+	ctrl.cycle_mode()
+	assert_int(ctrl.mode).is_equal(DigBoxController.OrientationMode.STAIRWAY_DOWN)
+	assert_str(ctrl.get_mode_name()).is_equal("Stairway (Down)")
+	assert_int(ctrl.width).is_equal(2)
+	assert_int(ctrl.height).is_equal(3)
+
+	ctrl.cycle_mode()
+	assert_int(ctrl.mode).is_equal(DigBoxController.OrientationMode.HORIZONTAL)
+	assert_str(ctrl.get_mode_name()).is_equal("Horizontal")
+
+
+func test_dig_box_stairway_mesh_generation() -> void:
+	var mesh := DigBoxController.build_stairway_mesh(3, Vector3i.FORWARD)
+	assert_object(mesh).is_not_null()
+	assert_int(mesh.get_surface_count()).is_greater(0)

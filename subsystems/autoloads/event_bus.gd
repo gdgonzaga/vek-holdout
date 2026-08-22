@@ -34,6 +34,7 @@ signal game_over() # GameState -> SceneManager
 signal build_placement_toggled(active: bool) # player -> BuildController, HUD
 signal dig_box_toggled(active: bool) # player -> DigBoxController, HUD
 signal dig_box_dimensions_changed(width: int, height: int, depth: int) # DigBoxController -> HUD
+signal dig_box_mode_changed(mode_name: String) # DigBoxController -> HUD
 signal dig_box_designated(voxels: Array) # DigBoxController -> Colony / JobBoard
 signal dig_job_completed(cell: Vector3i) # DigJobDef -> DigBoxController
 signal build_menu_toggled(open: bool) # player -> HUD (build menu visibility for the Instructions label)
