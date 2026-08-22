@@ -25,5 +25,4 @@ id = "tree1"
 display_name = "Tree"
 hp = 200
 mesh = ExtResource("3_27bby")
-texture = ExtResource("5_leesm")
 metadata/_custom_type_script = "uid://d1d6mt2bi578n"
