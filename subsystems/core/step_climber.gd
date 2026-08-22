@@ -37,8 +37,8 @@ const _HOP_PROBE_CLEARANCE := 0.25
 const _HOP_APEX_CLEARANCE := 0.25
 const _DROP_SLACK := 0.1
 const _MIN_ACCEPTED_RISE := 0.05
-const _FORWARD_MARGIN := 0.05
-const _DEFAULT_FORWARD := 0.35
+const _FORWARD_MARGIN := 0.10
+const _DEFAULT_FORWARD := 0.40
 const _DEFAULT_PROBE_LENGTH := 0.95
 
 var _body: CharacterBody3D
@@ -190,7 +190,7 @@ func _probe_landing(dir: Vector3, probe_height: float, climb_max: float) -> Dict
 		last_probe_status = "FAIL_RISE_BOUNDS (rise %.2fm outside [%.2f, %.2f])" % [rise, _MIN_ACCEPTED_RISE, climb_max]
 		return {}
 
-	if not _landing_is_floor(landing.origin):
+	if not _landing_is_floor(landing.origin, dir):
 		last_probe_status = "FAIL_NOT_FLOOR (slope exceeds floor_max_angle)"
 		return {}
 
@@ -212,17 +212,27 @@ func _sweep_fraction(space: PhysicsDirectSpaceState3D, query: PhysicsShapeQueryP
 
 
 ## The landing spot must be a standable slope by the body's own floor setting
-## — a near-vertical remnant face would just re-trigger the wall next tick.
-func _landing_is_floor(origin: Vector3) -> bool:
+## (with a slight tolerance for faceted 45-degree voxel ramps). Probes slightly
+## inset along `dir` so the ray doesn't catch a chamfered/beveled edge facet.
+func _landing_is_floor(origin: Vector3, dir: Vector3 = Vector3.ZERO) -> bool:
 	var space := _body.get_world_3d().direct_space_state
-	var params := PhysicsRayQueryParameters3D.create(origin, origin + Vector3.DOWN * _probe_length())
+	var test_origin := origin
+	if dir != Vector3.ZERO:
+		test_origin += dir * 0.1
+	var params := PhysicsRayQueryParameters3D.create(test_origin, test_origin + Vector3.DOWN * _probe_length())
 	params.collision_mask = _body.collision_mask
 	params.exclude = [_body.get_rid()]
 	var hit := space.intersect_ray(params)
 	if hit.is_empty():
-		return false
+		# Fallback to direct origin
+		params.from = origin
+		params.to = origin + Vector3.DOWN * _probe_length()
+		hit = space.intersect_ray(params)
+		if hit.is_empty():
+			return false
 	var normal: Vector3 = hit["normal"]
-	return normal.angle_to(Vector3.UP) <= _body.floor_max_angle + 0.01
+	var max_angle := maxf(_body.floor_max_angle, deg_to_rad(50.0)) + 0.02
+	return normal.angle_to(Vector3.UP) <= max_angle
 
 
 func _make_query() -> PhysicsShapeQueryParameters3D:
