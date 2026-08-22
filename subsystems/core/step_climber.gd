@@ -231,7 +231,7 @@ func _landing_is_floor(origin: Vector3, dir: Vector3 = Vector3.ZERO) -> bool:
 		if hit.is_empty():
 			return false
 	var normal: Vector3 = hit["normal"]
-	var max_angle := maxf(_body.floor_max_angle, deg_to_rad(50.0)) + 0.02
+	var max_angle := maxf(_body.floor_max_angle, deg_to_rad(60.0)) + 0.05
 	return normal.angle_to(Vector3.UP) <= max_angle
 
 

@@ -167,8 +167,9 @@ static func _compose_walkability(map: Map) -> Callable:
 	var smooth := _live_smooth_grid(map)
 	var probe := blocky_ground_probe(Callable(grid, "get_block_at"))
 	if smooth != null:
+		var is_solid := Callable(smooth, "is_solid_at")
 		probe = hybrid_ground_probe(Callable(grid, "get_block_at"),
-				Callable(smooth, "height_at"), smooth.terrain_gen.max_walk_slope_deg)
+				Callable(smooth, "height_at"), smooth.terrain_gen.max_walk_slope_deg, is_solid)
 	return compose_walkability(probe, fl, bl)
 
 
@@ -208,7 +209,7 @@ static func blocky_ground_probe(get_block_at: Callable) -> Callable:
 ##
 ## D4 slope bound <= 45deg keeps derived stand cells within +/-1 per horizontal
 ## step, so the pathfinder's step model (climb +1, drop <= 3) needs no change.
-static func hybrid_ground_probe(get_block_at: Callable, smooth_height_at: Callable, max_slope_deg: float) -> Callable:
+static func hybrid_ground_probe(get_block_at: Callable, smooth_height_at: Callable, max_slope_deg: float, is_terrain_at: Callable = Callable()) -> Callable:
 	const DOWN := Vector3i(0, -1, 0)
 	const UP := Vector3i(0, 1, 0)
 	var min_normal_y := cos(deg_to_rad(clampf(max_slope_deg, 0.0, 89.0)))
@@ -217,10 +218,27 @@ static func hybrid_ground_probe(get_block_at: Callable, smooth_height_at: Callab
 		# Probe at the column center so the cached height answers for this
 		# exact column, never the boundary between two.
 		var h: float = smooth_height_at.call(float(cell.x) + 0.5, float(cell.z) + 0.5, normals)
+		
+		var has_terrain_query := is_terrain_at.is_valid()
+		var cell_in_terrain: bool = is_terrain_at.call(cell) if has_terrain_query else false
+		var head_in_terrain: bool = is_terrain_at.call(cell + UP) if has_terrain_query else false
+		var floor_in_terrain: bool = is_terrain_at.call(cell + DOWN) if has_terrain_query else false
+
 		if not is_nan(h):
 			if h >= float(cell.y + 1):
-				# Buried inside the hill — no grid's opinion makes this standable.
+				# Cell is below the mountain surface height.
+				# If we have no terrain query or if the cell/head is solid terrain, it is buried.
+				if not has_terrain_query or cell_in_terrain or head_in_terrain:
+					return false
+				# Otherwise, this is a hollowed out cave/tunnel below the surface.
+				if get_block_at.call(cell) != "":
+					return false
+				if get_block_at.call(cell + UP) != "":
+					return false
+				if get_block_at.call(cell + DOWN) != "" or floor_in_terrain:
+					return true
 				return false
+				
 			if h >= float(cell.y):
 				# Smooth surface within this cell: stand on it. Blocky must not
 				# occupy the stand cell (air) nor the head cell above (the 1.6 m
@@ -229,15 +247,18 @@ static func hybrid_ground_probe(get_block_at: Callable, smooth_height_at: Callab
 					return false
 				if get_block_at.call(cell + UP) != "":
 					return false
+				if head_in_terrain:
+					return false
 				var n: Vector3 = normals[0] if normals.size() > 0 else Vector3.UP
 				return n.y >= min_normal_y
+
 		# No smooth surface in or above this cell (or no smooth terrain here at
 		# all): plain blocky rules, identical to a smooth-less map.
 		if get_block_at.call(cell) != "":             # solid (terrain/block)
 			return false
-		if get_block_at.call(cell + DOWN) == "":      # no floor below
+		if get_block_at.call(cell + DOWN) == "" and not floor_in_terrain:      # no floor below
 			return false
-		if get_block_at.call(cell + UP) != "":        # no head clearance
+		if get_block_at.call(cell + UP) != "" or head_in_terrain:        # no head clearance
 			return false
 		return true
 

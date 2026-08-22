@@ -231,3 +231,57 @@ func test_ring_search_hint_max_falls_back_to_same_y() -> void:
 	finder.set_walkability(_hybrid(solid, {}))
 	finder.set_stand_cell_hint(_fake_hint({}))
 	assert_that(finder.find_stand_near_cell(Vector3i(0, 1, 0))).is_equal(Vector3i(1, 1, 0))
+
+
+## An excavated tunnel below a hill (h = 16.0) has air at y=13 and y=14, with
+## solid terrain at y=12. The hybrid probe must recognise y=13 as a standable
+## tunnel floor, while unexcavated solid cells stay unwalkable.
+func test_excavated_tunnel_below_hill_is_walkable() -> void:
+	var heights := _flat_heights(-3, 3, -3, 3, 16.0)
+	# Solid terrain everywhere except the carved tunnel corridor at (0, 13, 0) and head cell (0, 14, 0)
+	var is_solid_terrain := func(cell: Vector3i) -> bool:
+		if cell.x == 0 and cell.z == 0 and (cell.y == 13 or cell.y == 14):
+			return false # Carved tunnel air
+		return true # Solid rock
+
+	var probe: Callable = MapWiring.hybrid_ground_probe(
+		_fake_get_block_at({}),
+		_fake_height_at(heights),
+		_MAX_SLOPE_DEG,
+		is_solid_terrain
+	)
+
+	assert_bool(probe.call(Vector3i(0, 13, 0))).is_true()  # Tunnel floor is walkable
+	assert_bool(probe.call(Vector3i(0, 14, 0))).is_false() # Head cell has no floor below
+	assert_bool(probe.call(Vector3i(0, 10, 0))).is_false() # Unexcavated solid rock is unwalkable
+
+
+## When resolving a stand cell for a dig target underground (y=13) below a hill (h=16),
+## find_stand_near_cell must choose the adjacent tunnel floor at y=13 rather than
+## jumping to the hilltop roof at y=16.
+func test_find_stand_near_cell_prefers_local_tunnel_floor_over_hill_roof() -> void:
+	var heights := _flat_heights(-3, 3, -3, 3, 16.0)
+	# Tunnel carved at y=13 with solid floor at y=12
+	var is_solid_terrain := func(cell: Vector3i) -> bool:
+		# Target block being mined at (0, 13, 0) is solid
+		if cell == Vector3i(0, 13, 0):
+			return true
+		# Adjacent tunnel cells at (-1, 13, 0), (1, 13, 0), etc. are carved air (and head cells at y=14)
+		if cell.y == 13 or cell.y == 14:
+			return false
+		return true # Floor below and rest of mountain is solid
+
+	var predicate: Callable = MapWiring.hybrid_ground_probe(
+		_fake_get_block_at({}),
+		_fake_height_at(heights),
+		_MAX_SLOPE_DEG,
+		is_solid_terrain
+	)
+
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	finder.set_walkability(predicate)
+	finder.set_stand_cell_hint(_fake_hint(heights)) # Hint points to y=16 (roof)
+
+	var resolved_stand := finder.find_stand_near_cell(Vector3i(0, 13, 0))
+	assert_int(resolved_stand.y).is_equal(13) # Must stand in the tunnel at y=13, NOT y=16!
+	assert_bool(predicate.call(resolved_stand)).is_true()

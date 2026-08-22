@@ -58,6 +58,7 @@ var _stand_cell_hint: Callable
 
 # Telemetry / Diagnostics
 var last_query_start: Vector3i = Vector3i.MAX
+var last_stand_candidates: Array[Dictionary] = []
 var last_query_target: Vector3i = Vector3i.MAX
 var last_status: String = "IDLE"
 var last_explored_count: int = 0
@@ -239,9 +240,11 @@ func find_path_world(start_world: Vector3, target_world: Vector3) -> Array[Vecto
 ## hills stand +/-1 Y per step, D4) and stays same-Y otherwise — the original
 ## flat-terrain assumption, now only the fallback.
 func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
+	last_stand_candidates.clear()
 	if not _is_walkable.is_valid():
 		return center
 	if _is_walkable.call(center):
+		last_stand_candidates.append({"cell": center, "walkable": true, "chosen": true})
 		return center
 	for r in range(1, max_radius + 1):
 		var best := center
@@ -250,14 +253,40 @@ func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 			for dz in range(-r, r + 1):
 				if max(absi(dx), absi(dz)) != r: # only the ring at Chebyshev distance r
 					continue
-				var c := _column_stand_cell(center + Vector3i(dx, 0, dz))
-				if not _is_walkable.call(c):
+				var col_base := center + Vector3i(dx, 0, dz)
+				var c := col_base
+				var is_w := false
+				# If same-Y is walkable (flat room/tunnel floor), use it directly
+				if _is_walkable.call(col_base):
+					c = col_base
+					is_w = true
+				elif _stand_cell_hint.is_valid():
+					# On terrain/ramps, check +/-1 Y step on the ramp slope or hinted surface
+					if _is_walkable.call(col_base + Vector3i.UP):
+						c = col_base + Vector3i.UP
+						is_w = true
+					elif _is_walkable.call(col_base + Vector3i.DOWN):
+						c = col_base + Vector3i.DOWN
+						is_w = true
+					else:
+						var hinted := _column_stand_cell(col_base)
+						if absi(hinted.y - center.y) <= (r + 1) and _is_walkable.call(hinted):
+							c = hinted
+							is_w = true
+				
+				if not is_w:
+					last_stand_candidates.append({"cell": col_base, "walkable": false, "chosen": false})
 					continue
-				var d := float(dx * dx + dz * dz)
+				
+				var d := float(dx * dx + dz * dz + (c.y - center.y) * (c.y - center.y))
+				last_stand_candidates.append({"cell": c, "walkable": true, "chosen": false, "dist": d})
 				if d < best_d:
 					best_d = d
 					best = c
 		if best_d < INF:
+			for cand in last_stand_candidates:
+				if cand.cell == best:
+					cand.chosen = true
 			return best
 	return center
 

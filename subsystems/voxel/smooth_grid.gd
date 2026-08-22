@@ -237,6 +237,20 @@ static func _prepare_heightmap_image(def: TerrainGenDef) -> Image:
 ## Material id at pos, or "" for air. Resolution order (terrain_mining/plan.md):
 ## authored sidecar (F12 per-block dict at the block origin) -> TerrainStrata's
 ## deterministic natural material (F13 depth rules) -> default_material.
+## True if the voxel SDF at pos represents solid terrain (SDF <= 0.0).
+func is_solid_at(pos: Vector3i) -> bool:
+	var vt := _voxel_tool
+	if vt != null and vt.has_method("get_voxel_f"):
+		if vt.get_voxel_f(pos) >= 0.0:
+			return false
+	var h: float = height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
+	if not is_nan(h):
+		return h >= float(pos.y + 0.5)
+	if vt != null and vt.has_method("get_voxel_f"):
+		return vt.get_voxel_f(pos) <= 0.0
+	return false
+
+
 func get_material_at(pos: Vector3i) -> String:
 	if _voxel_tool == null or not _voxel_tool.has_method("get_voxel_f"):
 		return ""

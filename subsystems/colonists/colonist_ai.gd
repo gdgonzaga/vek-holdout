@@ -50,7 +50,7 @@ func _process(delta: float) -> void:
 			if _leg != null and _leg.target_node != null and not is_instance_valid(_leg.target_node):
 				_abort_job("leg target freed")
 				return
-			if _colonist.has_arrived():
+			if _colonist.has_arrived() or _is_in_work_range():
 				_begin_work()
 		State.WORK:
 			_tick_work(delta)
@@ -98,6 +98,19 @@ func _try_claim_and_path() -> void:
 
 ## MOVE arrival: run the current leg. Ask the def how long the work takes; if
 ## instant (<=0) fire complete() now and advance; otherwise enter WORK and tick.
+func _is_in_work_range() -> bool:
+	if _colonist.current_job == null or _leg == null:
+		return false
+	var target_pos := _leg.location
+	if _leg.target_node != null and is_instance_valid(_leg.target_node):
+		var node3d := _leg.target_node as Node3D
+		if node3d != null:
+			target_pos = node3d.global_position
+	elif _colonist.current_job.anchor_cell != Vector3i.MAX:
+		target_pos = Vector3(_colonist.current_job.anchor_cell) + Vector3(0.5, 0.5, 0.5)
+	return _colonist.global_position.distance_to(target_pos) <= 1.8
+
+
 func _begin_work() -> void:
 	var job := _colonist.current_job
 	if job == null or job.def == null or _leg == null:

@@ -168,11 +168,14 @@ func height_at(x: float, z: float, normal_out: Array = []) -> float:
 func is_terrain_at(pos: Vector3i, threshold: float = 0.5) -> bool:
 	if _smooth == null:
 		return false
+	var vt: VoxelTool = _smooth.get_voxel_tool()
+	if vt != null and vt.has_method("get_voxel_f"):
+		if vt.get_voxel_f(pos) >= 0.0:
+			return false
 	var h: float = _smooth.height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
 	if not is_nan(h):
 		return h >= (float(pos.y) + threshold)
-	var vt: VoxelTool = _smooth.get_voxel_tool()
-	if vt != null:
+	if vt != null and vt.has_method("get_voxel_f"):
 		return vt.get_voxel_f(pos) <= -threshold
 	return false
 

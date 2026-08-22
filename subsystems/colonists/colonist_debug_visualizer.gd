@@ -103,53 +103,38 @@ func _update_label() -> void:
 
 	var text_lines: Array[String] = []
 
-	# 1. Colonist Identity & HP
+	# 1. Identity & State
 	var colonist_name: String = str(_parent_body.get("display_name")) if "display_name" in _parent_body and not str(_parent_body.get("display_name")).is_empty() else _parent_body.name
 	var hp: int = _parent_body.get_hp() if _parent_body.has_method("get_hp") else (int(_parent_body.get("_current_hp")) if "_current_hp" in _parent_body else -1)
 	var max_hp: int = _parent_body.get_max_hp() if _parent_body.has_method("get_max_hp") else 100
-	if hp >= 0:
-		text_lines.append("%s (HP: %d/%d)" % [colonist_name, hp, max_hp])
-	else:
-		text_lines.append(colonist_name)
-
-	# 2. State
 	var state_str: String = _resolve_colonist_state()
-	text_lines.append("State: %s" % state_str)
+	text_lines.append("%s (%d/%d HP) | %s" % [colonist_name, hp, max_hp, state_str])
 
-	# 3. Assigned Job / Target / Leg
-	var job_str: String = _resolve_colonist_job()
+	# 2. Compact Job & Target
+	var job_str: String = _resolve_colonist_job_compact()
 	if not job_str.is_empty():
 		text_lines.append(job_str)
 
-	# 4. Path & Navigation Info
-	var path_info: String = _resolve_path_info()
-	if not path_info.is_empty():
-		text_lines.append(path_info)
+	# 3. Path & Start/Goal Cells (unified)
+	if _pathfinder != null and _pathfinder.last_query_start != Vector3i.MAX:
+		var s_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_start) else "BLOCKED"
+		var t_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_target) else "BLOCKED"
+		text_lines.append("A*: %s | %s[%s] -> %s[%s]" % [
+			_pathfinder.last_status,
+			str(_pathfinder.last_query_start), s_w,
+			str(_pathfinder.last_query_target), t_w
+		])
 
-	# 5. Diagnostic: Pathfinder Telemetry
-	if _pathfinder != null:
-		text_lines.append("A*: %s" % _pathfinder.last_status)
-		if _pathfinder.last_query_start != Vector3i.MAX:
-			var s_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_start) else "BLOCKED"
-			var t_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_target) else "BLOCKED"
-			text_lines.append("Cells: Start %s [%s] | Goal %s [%s]" % [
-				str(_pathfinder.last_query_start), s_w,
-				str(_pathfinder.last_query_target), t_w
-			])
+	# 4. Physics & StepClimber
+	var on_floor_str := "ON" if _parent_body.is_on_floor() else "AIR"
+	var climber_status := (" | %s" % _step_climber.last_probe_status) if _step_climber != null and not _step_climber.last_probe_status.is_empty() and _step_climber.last_probe_status != "IDLE" else ""
+	text_lines.append("Phys: Floor %s (Vel: %.1f, %.1f)%s" % [
+		on_floor_str,
+		_parent_body.velocity.x, _parent_body.velocity.z,
+		climber_status
+	])
 
-	# 6. Diagnostic: StepClimber Telemetry
-	if _step_climber != null and not _step_climber.last_probe_status.is_empty():
-		text_lines.append("Climber: %s" % _step_climber.last_probe_status)
-
-	# 7. Physics & Inventory
-	var phys_info: String = "Floor: %s | Vel: (%.1f, %.1f, %.1f)" % [
-		str(_parent_body.is_on_floor()),
-		_parent_body.velocity.x,
-		_parent_body.velocity.y,
-		_parent_body.velocity.z
-	]
-	text_lines.append(phys_info)
-
+	# 5. Inventory (only if carrying)
 	var carry_str: String = _resolve_carried_items()
 	if not carry_str.is_empty():
 		text_lines.append("Carry: %s" % carry_str)
@@ -196,6 +181,34 @@ func _resolve_colonist_state() -> String:
 						return "%s (%s)" % [str(val), child_name]
 
 	return "UNKNOWN"
+
+
+func _resolve_colonist_job_compact() -> String:
+	var job_obj = null
+	for prop in ["current_job", "_current_job", "job", "_job", "active_job"]:
+		if prop in _parent_body:
+			job_obj = _parent_body.get(prop)
+			if job_obj != null:
+				break
+	if job_obj == null:
+		return ""
+	var title: String = ""
+	if "title" in job_obj and not str(job_obj.title).is_empty():
+		title = str(job_obj.title)
+	elif "labor_id" in job_obj and not str(job_obj.labor_id).is_empty():
+		title = str(job_obj.labor_id).capitalize()
+	else:
+		title = "Job"
+
+	var target_str := ""
+	if "anchor_cell" in job_obj and job_obj.anchor_cell != Vector3i.ZERO:
+		target_str = " @ %s" % str(job_obj.anchor_cell)
+	elif "target_node" in job_obj and job_obj.target_node != null and is_instance_valid(job_obj.target_node):
+		target_str = " -> %s" % job_obj.target_node.name
+	elif "location" in job_obj and job_obj.location != Vector3.ZERO:
+		target_str = " @ (%.1f, %.1f, %.1f)" % [job_obj.location.x, job_obj.location.y, job_obj.location.z]
+
+	return "Job: %s%s" % [title, target_str]
 
 
 ## Inspects parent for active job, leg, and target coordinates
@@ -393,6 +406,19 @@ func _draw_navigation_path() -> void:
 			var t_color := Color(0.1, 1.0, 0.1, 0.7) if _pathfinder.is_walkable(_pathfinder.last_query_target) else Color(1.0, 0.1, 0.1, 0.7)
 			_draw_cell_box(_pathfinder.last_query_target, t_color)
 
+			# 6.5 Draw Ring Stand Candidates
+		if not _pathfinder.last_stand_candidates.is_empty():
+			for cand in _pathfinder.last_stand_candidates:
+				var c_cell: Vector3i = cand.get("cell", Vector3i.ZERO)
+				var is_chosen: bool = cand.get("chosen", false)
+				var is_walk: bool = cand.get("walkable", false)
+				if is_chosen:
+					_draw_cell_box(c_cell, Color(1.0, 0.8, 0.0, 0.8)) # Yellow for chosen
+				elif is_walk:
+					_draw_small_cell_box(c_cell, Color(0.2, 1.0, 0.2, 0.5)) # Green for walkable candidate
+				else:
+					_draw_small_cell_box(c_cell, Color(1.0, 0.2, 0.2, 0.3)) # Dim red for rejected candidate
+
 	# 7. Diagnostic: Draw StepClimber Probes
 	if _step_climber != null:
 		var now := float(Time.get_ticks_msec()) * 0.001
@@ -412,6 +438,41 @@ func _draw_navigation_path() -> void:
 				var is_ok: bool = "OK" in _step_climber.last_probe_status
 				var land_color := Color.CYAN if is_ok else Color.MAGENTA
 				_draw_probe_box(_step_climber.last_landing_origin, _step_climber.last_shape_radius, _step_climber.last_shape_height, land_color)
+
+
+func _draw_small_cell_box(cell: Vector3i, color: Color) -> void:
+	var pos := Vector3(cell) + Vector3(0.2, 0.05, 0.2)
+	var sz := Vector3(0.6, 0.4, 0.6)
+	_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	_immediate_mesh.surface_set_color(color)
+	# Bottom rect
+	_immediate_mesh.surface_add_vertex(pos)
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, sz.z))
+	_immediate_mesh.surface_add_vertex(pos)
+	# Top rect
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, 0))
+	# Pillars
+	_immediate_mesh.surface_add_vertex(pos)
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, 0))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, sz.z))
+	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, sz.z))
+	_immediate_mesh.surface_end()
 
 
 func _draw_cell_box(cell: Vector3i, color: Color) -> void:

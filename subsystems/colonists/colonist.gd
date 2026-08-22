@@ -49,6 +49,7 @@ func _ready() -> void:
 	add_child(inv)
 	inventory = inv
 	_current_hp = colonist_def.max_hp
+	floor_max_angle = deg_to_rad(60.0)
 
 
 func _physics_process(delta: float) -> void:
