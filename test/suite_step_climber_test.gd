@@ -94,3 +94,55 @@ func test_tall_wall_blocks() -> void:
 	await _run_frames(60)
 	assert_float(body.global_position.y).is_between(-0.05, 0.05)
 	assert_float(body.global_position.x).is_less(1.0)
+
+
+## A 25 cm step staircase (4 steps, 1 m total rise) is climbed step-by-step
+## without getting stuck at the bottom.
+func test_steps_up_25cm_staircase() -> void:
+	var body := _build_staircase_world(4, 0.25, 0.25)
+	await _run_frames(90)
+	assert_float(body.global_position.y).is_between(0.9, 1.1)
+	assert_float(body.global_position.x).is_greater(2.0)
+
+
+func _build_staircase_world(step_count: int = 4, step_h: float = 0.25, step_d: float = 0.25) -> CharacterBody3D:
+	var root: Node3D = auto_free(Node3D.new())
+	add_child(root)
+	var floor_body := StaticBody3D.new()
+	root.add_child(floor_body)
+	var floor_shape := CollisionShape3D.new()
+	floor_body.add_child(floor_shape)
+	var floor_box := BoxShape3D.new()
+	floor_box.size = Vector3(24, 1, 24)
+	floor_shape.shape = floor_box
+	floor_body.position = Vector3(0, -0.5, 0)
+
+	for i in range(step_count):
+		var step_body := StaticBody3D.new()
+		root.add_child(step_body)
+		var shape_node := CollisionShape3D.new()
+		step_body.add_child(shape_node)
+		var box := BoxShape3D.new()
+		var height := step_h * (i + 1)
+		box.size = Vector3(4.0, height, 4.0)
+		shape_node.shape = box
+		step_body.position = Vector3(1.0 + i * step_d + 2.0, height * 0.5, 0)
+
+	var body := CharacterBody3D.new()
+	root.add_child(body)
+	var shape_node := CollisionShape3D.new()
+	body.add_child(shape_node)
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.3
+	capsule.height = 1.6
+	shape_node.shape = capsule
+	shape_node.position = Vector3(0, 0.8, 0)
+	var drive := Drive.new()
+	drive.body = body
+	body.add_child(drive)
+	var climber := StepClimber.new()
+	climber.step_height = 0.5
+	climber.hop_height = 0.0
+	body.add_child(climber)
+	body.global_position = Vector3(0, 0.02, 0)
+	return body

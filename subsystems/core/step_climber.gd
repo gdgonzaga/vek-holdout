@@ -37,8 +37,8 @@ const _HOP_PROBE_CLEARANCE := 0.25
 const _HOP_APEX_CLEARANCE := 0.25
 const _DROP_SLACK := 0.1
 const _MIN_ACCEPTED_RISE := 0.05
-const _FORWARD_MARGIN := 0.10
-const _DEFAULT_FORWARD := 0.40
+const _FORWARD_MARGIN := 0.05
+const _DEFAULT_FORWARD := 0.15
 const _DEFAULT_PROBE_LENGTH := 0.95
 
 var _body: CharacterBody3D
@@ -217,7 +217,11 @@ func _sweep_fraction(space: PhysicsDirectSpaceState3D, query: PhysicsShapeQueryP
 func _landing_is_floor(origin: Vector3, dir: Vector3 = Vector3.ZERO) -> bool:
 	var space := _body.get_world_3d().direct_space_state
 	var test_origin := origin
-	if dir != Vector3.ZERO:
+	if dir != Vector3.ZERO and _shape is CapsuleShape3D:
+		var radius := (_shape as CapsuleShape3D).radius
+		test_origin = _shape_transform().origin + dir * (radius + 0.05)
+		test_origin.y = origin.y
+	elif dir != Vector3.ZERO:
 		test_origin += dir * 0.1
 	var params := PhysicsRayQueryParameters3D.create(test_origin, test_origin + Vector3.DOWN * _probe_length())
 	params.collision_mask = _body.collision_mask
@@ -259,7 +263,7 @@ func _shape_transform() -> Transform3D:
 ## the down-sweep finds its top surface under the capsule's lowest point.
 func _forward_distance() -> float:
 	if _shape is CapsuleShape3D:
-		return (_shape as CapsuleShape3D).radius + _FORWARD_MARGIN
+		return 0.15
 	return _DEFAULT_FORWARD
 
 
