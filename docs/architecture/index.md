@@ -25,6 +25,7 @@ Last updated: 2026-08-17 (doc-vs-code audit: as-built pages synced with the code
 | [Functional Rooms](functional-rooms.md) | Furniture-count tracking, capability unlocks | §7.8 |
 | [Colonists](colonists.md) | Roster, labor AI, raid stances | §6 |
 | [Jobs](jobs.md) | Job Board, hauling, construction, farming, JobDef contract | §6 |
+| [Pathfinding & Navigation](pathfinding.md) | Voxel A*, hybrid walkability, stepped 3D locomotion, physics assist | §6 |
 | [Skills](skills.md) | Per-entity L1–L5 progression, work-speed multipliers | §6.3 |
 | [Maps](maps.md) | MapLibrary, wiring, per-map scenes, authoring | — |
 | [Expeditions](expeditions.md) | POI discovery, depart/return, scavenge missions | §17 |

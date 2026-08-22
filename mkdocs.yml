@@ -34,6 +34,7 @@ nav:
     - "Functional Rooms": architecture/functional-rooms.md
     - Colonists: architecture/colonists.md
     - Jobs: architecture/jobs.md
+    - "Pathfinding & Navigation": architecture/pathfinding.md
     - Skills: architecture/skills.md
     - Maps: architecture/maps.md
     - "Map Editor": architecture/map-editor.md
