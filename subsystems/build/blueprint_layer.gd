@@ -110,12 +110,19 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 	# cell — mirrors GhostPreview.show_remove_at. (All current defs carry a mesh.)
 	if target_def.mesh != null:
 		mesh_node.mesh = target_def.mesh
+		if is_block:
+			var rot_basis := Basis(Vector3.UP, float(yaw_quarters) * PI * 0.5)
+			var local_center := target_def.mesh.get_aabb().get_center()
+			mesh_node.position = Vector3(0.5, 0.5, 0.5) - rot_basis * local_center
+			mesh_node.transform.basis = rot_basis
 	else:
 		var box := BoxMesh.new()
 		box.size = Vector3.ONE
 		mesh_node.mesh = box
 		if is_block:
+			var rot_basis := Basis(Vector3.UP, float(yaw_quarters) * PI * 0.5)
 			mesh_node.position = Vector3(0.5, 0.5, 0.5)
+			mesh_node.transform.basis = rot_basis
 	# Hologram look (translucent, unshaded, double-sided). material_override so a
 	# source mesh's embedded material is replaced for the blueprint form only.
 	mesh_node.material_override = _hologram_material()
@@ -146,8 +153,8 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 			# reaches it, character capsules never do.
 			build_body.set_collision_layer_value(5, true)
 
-	# Rotate root so mesh and collision rotate together.
-	if yaw_quarters != 0:
+	# Rotate root so mesh and collision rotate together (for furniture).
+	if not is_block and yaw_quarters != 0:
 		root.rotate_y(float(yaw_quarters) * PI * 0.5)
 
 	# Interactable: the child MUST be named exactly "InteractionComponent"
@@ -216,7 +223,9 @@ func complete_blueprint(bp: Blueprint, _builder: Node = null) -> bool:
 	var anchor: Vector3i = bp.anchor_cell
 	if target_def is BlockDef:
 		if _grid != null:
-			_grid.set_block_at(anchor, bp.target_def_id)
+			var ortho: int = BlockDef.YAW_INDICES[posmod(bp.target_rotation_step, 4)]
+			var sanitized: int = target_def.sanitize_rotation(ortho)
+			_grid.set_block_at(anchor, bp.target_def_id, sanitized)
 	elif _furniture_layer != null:
 		_furniture_layer.spawn(target_def, anchor, bp.target_rotation_step)
 	# Free the blueprint + clear its cells. blueprint_removed is emitted here too

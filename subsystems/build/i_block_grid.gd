@@ -22,7 +22,7 @@ func get_block_at(_pos: Vector3i) -> String:
 	return ""
 
 ## Places a block of block_id at pos. Emits block_placed.
-func set_block_at(_pos: Vector3i, _block_id: String) -> void:
+func set_block_at(_pos: Vector3i, _block_id: String, _rot_index: int = 0) -> void:
 	pass
 
 ## Removes whatever is at pos. Emits block_destroyed.

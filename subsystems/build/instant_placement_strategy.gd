@@ -37,7 +37,14 @@ func commit(transform: Transform3D, _rotation, item_id: String) -> bool:
 	if def is BlockDef:
 		if _grid == null:
 			return false
-		_grid.set_block_at(cell, item_id)
+		var step := 0
+		if _rotation is RotationState:
+			step = _rotation.step
+		elif _rotation is int:
+			step = _rotation
+		var ortho: int = BlockDef.YAW_INDICES[posmod(step, 4)]
+		var sanitized: int = def.sanitize_rotation(ortho)
+		_grid.set_block_at(cell, item_id, sanitized)
 	else:
 		if _furniture_layer == null:
 			return false

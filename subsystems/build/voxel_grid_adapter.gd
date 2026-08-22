@@ -39,10 +39,10 @@ func get_block_at(pos: Vector3i) -> String:
 
 
 ## Places block_id at pos (delegates to BlockyGrid; emits block_placed there).
-func set_block_at(pos: Vector3i, block_id: String) -> void:
+func set_block_at(pos: Vector3i, block_id: String, rot_index: int = 0) -> void:
 	if _grid == null:
 		return
-	_grid.set_block_at(pos, block_id)
+	_grid.set_block_at(pos, block_id, rot_index)
 
 
 ## Removes whatever is at pos (delegates to BlockyGrid; emits block_destroyed there).

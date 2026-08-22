@@ -14,7 +14,7 @@ class MockVoxelGridAdapter extends VoxelGridAdapter:
 	func get_block_at(pos: Vector3i) -> String:
 		return _blocks.get(pos, "")
 
-	func set_block_at(pos: Vector3i, block_id: String) -> void:
+	func set_block_at(pos: Vector3i, block_id: String, _rot_index: int = 0) -> void:
 		_blocks[pos] = block_id
 		_raws[pos] = 1 if not block_id.is_empty() else 0
 

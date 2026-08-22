@@ -67,12 +67,12 @@ func _make_library() -> BlockLibrary:
 func get_block_at(pos: Vector3i) -> String:
 	return _library.get_id(get_block_type(pos))
 
-func set_block_at(pos: Vector3i, block_id: String) -> void:
+func set_block_at(pos: Vector3i, block_id: String, rot_index: int = 0) -> void:
 	var index := _library.get_index(block_id)
 	if index < 0:
 		push_error("BlockyGrid: unknown block_id '%s'" % block_id)
 		return
-	set_block(pos, index, 0)
+	set_block(pos, index, rot_index)
 	var def := _library.get_def(block_id)
 	_hp_by_pos[pos] = def.hp if def != null else 0
 	block_placed.emit(pos, block_id)

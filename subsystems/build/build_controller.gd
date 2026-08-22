@@ -155,20 +155,29 @@ func _physics_process(_delta: float) -> void:
 			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
 		if DEBUG_RAYCAST:
 			print("[DEBUG] furniture ghost_pos=%s valid=%s" % [ghost_pos, valid])
+		_ghost.show_at(ghost_pos, valid)
+		_ghost.rotation_degrees.y = rotation_state.get_yaw_degrees()
 	else:
 		# Block (or nothing selected): single cell at the corner. Valid only if
 		# the cell is air, not already covered by a blueprint, and — for
 		# smooth-ground hits — supported by ground within one cell.
-		ghost_pos = Vector3(cell)
 		valid = grid_adapter.is_valid_placement(cell) \
 			and (blueprint_layer == null or not blueprint_layer.has_at(cell)) \
 			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
+		var def := BuildLibrary.get_def(selected_id)
+		if def is BlockDef and def.mesh != null:
+			var cell_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
+			var rot_basis := Basis(Vector3.UP, deg_to_rad(rotation_state.get_yaw_degrees()))
+			var local_center := def.mesh.get_aabb().get_center()
+			ghost_pos = cell_center - rot_basis * local_center
+			_ghost.show_at(ghost_pos, valid)
+			_ghost.transform.basis = rot_basis
+		else:
+			ghost_pos = Vector3(cell)
+			_ghost.show_at(ghost_pos, valid)
+			_ghost.rotation_degrees.y = 0.0
 		if DEBUG_RAYCAST:
 			print("[DEBUG] block ghost_pos=%s valid=%s" % [ghost_pos, valid])
-	_ghost.show_at(ghost_pos, valid)
-	# Rotate the ghost mesh to match the current step (visible for furniture;
-	# harmless for rotation-symmetric cube blocks).
-	_ghost.rotation_degrees.y = rotation_state.get_yaw_degrees()
 
 
 ## Enable/disable the controller (called on build_placement_toggled).
