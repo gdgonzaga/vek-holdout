@@ -27,6 +27,7 @@ Vek Holdout — Godot 4.7 (Forward Plus, Jolt) voxel colony-survival game. GDScr
 4. `res://` is read-only at runtime; saves go to `user://` (SaveSystem invariant INV-1).
 5. The EventBus registry is meant to be complete — prefer existing signals or direct refs over adding new ones.
 6. Prototype art: capsule primitives until the art pass. Enemies extend `enemy_base.gd`, colonists extend `colonist.gd` — never from scratch.
+7. Do not commit or edit previous automatically. Always wait for explicit commands before doing so.
 
 ## GDScript style
 
