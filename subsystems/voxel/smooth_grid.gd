@@ -367,11 +367,13 @@ func carve_box(min_pos: Vector3, max_pos: Vector3) -> void:
 		if s.y < min_y:
 			min_y = s.y
 			
+	print("CARVING BOX! min=", local_min, " max=", local_max, " samples=", samples.size(), " min_y=", min_y)
 	for sample: Vector3i in samples:
 		# Force the floor of the dug area to exactly align with the integer grid (0.0 = surface)
 		var target_sdf := 0.0 if sample.y == min_y else AIR_DENSITY
 		var current := _voxel_tool.get_voxel_f(sample)
 		if target_sdf > current:
+			print("Set ", sample, " from ", current, " to ", target_sdf)
 			_voxel_tool.set_voxel_f(sample, target_sdf)
 			
 	_evict_columns_in_box(min_pos, max_pos)

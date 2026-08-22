@@ -334,8 +334,9 @@ func _dig_target(smooth_grid: SmoothGrid, surface: Dictionary) -> Vector3:
 func _calculate_dig_target(surface: Dictionary) -> Vector3:
 	var tool := BuildLibrary.DIG_TOOL
 	if tool.shape == DigToolParams.Shape.BOX:
-		# Push a tiny epsilon into the surface to land inside the solid.
-		var hit_in: Vector3 = surface["point"] - surface["normal"] * 0.01
+		# Push into the surface to reliably land inside the solid voxel. 0.01 was too small
+		# and caused floor() to round up to the air block due to collision margins.
+		var hit_in: Vector3 = surface["point"] - surface["normal"] * 0.1
 		if tool.snap_grid:
 			# Geometric PRIOR for the BOX dig: the center of the struck cell
 			# (floor + 0.5). _dig_target then refines it on the grid to the

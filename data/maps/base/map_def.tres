@@ -8,5 +8,5 @@ script = ExtResource("1_hadky")
 id = "base"
 display_name = "Base"
 scene_path = "res://data/maps/base/map.tscn"
-player_spawn = Vector3(-0.92536163, 13.019999, 0.9834304)
+player_spawn = Vector3(-6.4271393, 13.0199995, 1.4247279)
 terrain_gen = ExtResource("2_2lq4g")
