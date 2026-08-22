@@ -170,7 +170,7 @@ func is_terrain_at(pos: Vector3i, threshold: float = 0.5) -> bool:
 		return false
 	var vt: VoxelTool = _smooth.get_voxel_tool()
 	if vt != null and vt.has_method("get_voxel_f"):
-		if vt.get_voxel_f(pos) >= 0.0:
+		if vt.get_voxel_f(pos) >= 0.25:
 			return false
 	var h: float = _smooth.height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
 	if not is_nan(h):
