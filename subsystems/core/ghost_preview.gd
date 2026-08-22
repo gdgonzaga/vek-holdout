@@ -34,7 +34,7 @@ void fragment() {
 }
 """
 
-const _COLOR_VALID_ABOVE := Color(0.2, 0.9, 0.3, 0.5)
+const _COLOR_VALID_ABOVE := Color(0.2, 0.9, 0.3, 0.15)
 const _COLOR_VALID_UNDERGROUND := Color(1.0, 0.65, 0.15, 0.5)
 
 const _COLOR_INVALID_ABOVE := Color(0.9, 0.2, 0.2, 0.5)

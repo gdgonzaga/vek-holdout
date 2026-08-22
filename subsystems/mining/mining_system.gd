@@ -104,8 +104,8 @@ func _spawn_designation_markers(cells: Array[Vector3i]) -> void:
 	var marker_mat := ShaderMaterial.new()
 	marker_mat.shader = shader
 	marker_mat.render_priority = 10
-	marker_mat.set_shader_parameter("color_above", Color(1.0, 0.65, 0.15, 0.5))
-	marker_mat.set_shader_parameter("color_under", Color(0.35, 0.18, 0.04, 0.15))
+	marker_mat.set_shader_parameter("color_above", Color(0.0, 0.0, 0.0, 0.0))
+	marker_mat.set_shader_parameter("color_under", Color(1.0, 0.65, 0.15, 0.5))
 	
 	for cell in cells:
 		var cell_name := "Marker_%d_%d_%d" % [cell.x, cell.y, cell.z]
