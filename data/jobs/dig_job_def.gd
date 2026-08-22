@@ -39,7 +39,6 @@ func is_available(job: Job) -> bool:
 
 func should_close(job: Job) -> bool:
 	if _completed_job_ids.has(job.id):
-		_completed_job_ids.erase(job.id)
 		return true
 	if not Colony.is_terrain_at(job.anchor_cell):
 		return true

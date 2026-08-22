@@ -217,6 +217,8 @@ func _end_job(success: bool) -> void:
 			Colony.job_board.remove_job(job.id)
 	_colonist.current_job = null
 	_leg = null
+	if _colonist.pathfinder != null:
+		_colonist.pathfinder.clear_diagnostics()
 	_work_elapsed = 0.0
 	_state = State.IDLE
 	_poll_clock = 0.0

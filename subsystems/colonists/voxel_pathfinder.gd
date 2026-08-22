@@ -403,3 +403,10 @@ func _heuristic_multi(a: Vector3i, targets: Array[Vector3i]) -> float:
 		if d < best:
 			best = d
 	return best
+
+
+func clear_diagnostics() -> void:
+	last_query_start = Vector3i.MAX
+	last_query_target = Vector3i.MAX
+	last_stand_candidates.clear()
+	last_status = "IDLE"
