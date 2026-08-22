@@ -212,7 +212,7 @@ static func blocky_ground_probe(get_block_at: Callable) -> Callable:
 static func hybrid_ground_probe(get_block_at: Callable, smooth_height_at: Callable, max_slope_deg: float, is_terrain_at: Callable = Callable()) -> Callable:
 	const DOWN := Vector3i(0, -1, 0)
 	const UP := Vector3i(0, 1, 0)
-	var min_normal_y := cos(deg_to_rad(clampf(max_slope_deg, 0.0, 89.0)))
+	var min_normal_y := cos(deg_to_rad(clampf(max_slope_deg, 0.0, 89.0))) - 0.01 # Float tolerance for exact 45-deg slopes
 	return func(cell: Vector3i) -> bool:
 		var normals: Array = []
 		# Probe at the column center so the cached height answers for this

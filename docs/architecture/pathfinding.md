@@ -21,7 +21,7 @@ The pathfinding system provides intelligent navigation for colonists across both
 ### 3. Capsule Wall Clearance & SDF Safety Margins
 
 - **Problem:** CharacterBody3D capsules have a collision radius of $0.35\\text{m}-0.4\\text{m}$. Discrete point probes evaluating SDF at exactly $0.0$ (the mathematical zero-isosurface) allowed path waypoints to pass dangerously close to jagged marching-cubes walls. Colonists following these waypoints frequently collided with wall micro-geometry, stopping locomotion.
-- **Solution:** Enforced an internal safety margin ($0.25\\text{m}$, evaluating solidity as $\\text{SDF} \\le -0.25$) in `SmoothGrid.is_solid_at` and `VoxelGridAdapter.is_terrain_at`.
+- **Solution:** Evaluated solidity via direct signed distance field checks (treating $\\text{SDF} > -0.01$ as excavated air/surface) in `SmoothGrid.is_solid_at` and `VoxelGridAdapter.is_terrain_at`.
 - **Rationale:** Incorporating the capsule radius into walkability solidity checks creates an automatic safety buffer around walls and corners, keeping waypoints centered in open air.
 
 ### 4. Stepped Locomotion & Continuous Ramp Transitions
@@ -70,17 +70,22 @@ The pathfinding system provides intelligent navigation for colonists across both
 
 1. **Target Stand Resolution:**
    - For ground targets: `find_stand_cell` scans $\\pm 3 Y$ cells or evaluates the column stand hint.
-   - For blocked footprints / blueprints: `find_stand_near_cell` executes an expanding horizontal Chebyshev ring search ($r = 1..4$). Each ring position resolves its column's stand cell via `_stand_cell_in_column` — same-$Y$, then $\\pm 1 Y$, then the column hint — regardless of hint presence, and the search returns the nearest valid walkable neighbour cell adjacent to the footprint.
+   - For blocked footprints / blueprints / dig targets (e.g. 1-wide stairways down): `find_stand_near_cell` executes an expanding horizontal Chebyshev ring search ($r = 1..4$). Each ring position resolves its column's stand cell via `_stand_cell_in_column` — same-$Y$, then $\\pm 1 Y$, then the column hint — regardless of hint presence, and the search returns the nearest valid walkable neighbour cell adjacent to the footprint.
    - For furniture/blueprint nodes with a known footprint: `find_path_to_footprint_adjacent` expands each footprint cell's 4 horizontal neighbour columns through the same `_stand_cell_in_column` resolution (hint bound 2), then runs multi-target A* over the candidate set — so a footprint raised one $Y$ above the floor yields the ground cells beside it.
 2. **Start Stand Resolution:**
    - Evaluates colonist current world position to the nearest standable cell via `find_stand_cell`.
-3. **A* Search Execution (`find_path`):**
+3. **Walkability Evaluation (`map_wiring.gd` & `SmoothGrid.is_solid_at`):**
+   - The composed `is_walkable(cell)` predicate runs `hybrid_ground_probe`:
+     - **Carved Voxels:** `SmoothGrid.is_solid_at(pos)` checks `vt.get_voxel_f(pos) > -0.01` for carved air (e.g. subterranean stairways / tunnels), returning `false` (air).
+     - **Surface Ground Stand Cells:** `height_at` probes smooth surface height $h$. A cell `pos` is solid natural terrain iff $h \ge \text{pos.y} + 0.5$. Open surface stand cells ($h \in [\text{cell.y}, \text{cell.y} + 1)$) evaluate cell center height above ground as non-solid (`false`), so feet clearance is open.
+     - **Surface Slope Gate:** Evaluates raycast surface normal $n.y \ge \cos(\text{max\_slope\_deg}) - 0.01$. The $-0.01$ float tolerance accounts for float32 physics raycast normals on exact 45-degree carved ramp step faces against float64 GDScript math.
+4. **A* Search Execution (`find_path`):**
    - Initializes open list with `start_cell`, evaluated with Manhattan horizontal heuristic $\\Delta X + \\Delta Z$.
    - Expands stepped neighbors (4 horizontal dirs $\\times$ $\\Delta Y \\in \\{+1, 0, -1, -2, -3\\}$).
    - Queries injected `_is_walkable` predicate on every candidate cell lazily.
    - Computes movement cost: flat = $1.0$, climb $+1 Y$ = $3.0$ (`_JUMP_UP_COST`), drop $-N Y$ = $1.5 \\times N$ (`_DROP_COST_PER_CELL`).
    - Bounded by `_MAX_EXPLORED = 8000` cells to prevent runaway searches.
-4. **Path Output:**
+5. **Path Output:**
    - Reconstructs cell chain and converts to world coordinates centered at cell midpoints ($+0.5, +0.5, +0.5$) via `to_world_waypoints`.
 
 ## Flow Trace: Locomotion & Physics Obstacle Handling

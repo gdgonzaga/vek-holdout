@@ -286,3 +286,51 @@ func test_find_stand_near_cell_prefers_local_tunnel_floor_over_hill_roof() -> vo
 	var resolved_stand := finder.find_stand_near_cell(Vector3i(0, 13, 0))
 	assert_int(resolved_stand.y).is_equal(13) # Must stand in the tunnel at y=13, NOT y=16!
 	assert_bool(predicate.call(resolved_stand)).is_true()
+
+
+## A 1-cell wide downward stairway under a hill: colonist paths down step-by-step
+## and resolves the stand cell adjacent to the bottom dig target.
+func test_one_cell_wide_stairway_down_pathfinding() -> void:
+	var heights := _flat_heights(-5, 5, -5, 5, 16.0)
+	# 1-cell wide stairway down along +X at z=0:
+	# Step 0: stand at (0, 10, 0), air at y=10..12, floor at y=9
+	# Step 1: stand at (1, 9, 0), air at y=9..11, floor at y=8
+	# Step 2: stand at (2, 8, 0), air at y=8..10, floor at y=7
+	# Step 3: stand at (3, 7, 0), air at y=7..9, floor at y=6
+	# Step 4 (unmined target block at (4, 6, 0)): solid
+	var is_solid_terrain := func(cell: Vector3i) -> bool:
+		if cell.z == 0:
+			for s in range(4):
+				var sx := s
+				var stand_y := 10 - s
+				if cell.x == sx and cell.y >= stand_y and cell.y <= stand_y + 2:
+					return false # Carved 3-high stairway air
+		return true # Everything else (including floor below and walls at z!=0) is solid
+
+	var predicate: Callable = MapWiring.hybrid_ground_probe(
+		_fake_get_block_at({}),
+		_fake_height_at(heights),
+		_MAX_SLOPE_DEG,
+		is_solid_terrain
+	)
+
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	finder.set_walkability(predicate)
+	finder.set_stand_cell_hint(_fake_hint(heights))
+
+	# All carved stairway stand cells must be walkable
+	for s in range(4):
+		var stand_cell := Vector3i(s, 10 - s, 0)
+		assert_bool(predicate.call(stand_cell)).is_true()
+
+	# Ring search for the unmined target at (4, 6, 0) must find (3, 7, 0)
+	var resolved_stand := finder.find_stand_near_cell(Vector3i(4, 6, 0))
+	assert_that(resolved_stand).is_equal(Vector3i(3, 7, 0))
+
+	# Full path from top (0, 10, 0) to bottom stand cell (3, 7, 0)
+	var path := finder.find_path(Vector3i(0, 10, 0), resolved_stand)
+	assert_int(path.size()).is_equal(4)
+	assert_that(path[0]).is_equal(Vector3i(0, 10, 0))
+	assert_that(path[1]).is_equal(Vector3i(1, 9, 0))
+	assert_that(path[2]).is_equal(Vector3i(2, 8, 0))
+	assert_that(path[3]).is_equal(Vector3i(3, 7, 0))

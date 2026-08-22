@@ -241,15 +241,13 @@ static func _prepare_heightmap_image(def: TerrainGenDef) -> Image:
 func is_solid_at(pos: Vector3i) -> bool:
 	var vt := _voxel_tool
 	if vt != null and vt.has_method("get_voxel_f"):
-		# Require at least 0.25m margin from the solid wall boundary (SDF >= 0.25)
-		# to ensure the colonist capsule (radius 0.3m) does not clip the wall.
-		if vt.get_voxel_f(pos) >= 0.25:
+		if vt.get_voxel_f(pos) > -0.01:
 			return false
 	var h: float = height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
 	if not is_nan(h):
 		return h >= float(pos.y + 0.5)
 	if vt != null and vt.has_method("get_voxel_f"):
-		return vt.get_voxel_f(pos) <= 0.0
+		return vt.get_voxel_f(pos) <= -0.5
 	return false
 
 
