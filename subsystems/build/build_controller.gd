@@ -19,6 +19,7 @@ extends Node3D
 
 const _RAY_DISTANCE := 30.0
 const DEBUG_RAYCAST := false
+const _GHOST_OFFSET := Vector3(0.5, 0.5, 0.5)
 
 # Runtime-wired (not @export: VoxelGridAdapter/FurnitureLayer/BlueprintLayer
 # and the placement strategies extend RefCounted, which Godot can't export). Set
@@ -169,14 +170,14 @@ func _physics_process(_delta: float) -> void:
 		var def := BuildLibrary.get_def(selected_id)
 		_ghost.mesh = def.mesh if def != null else null
 		if def is BlockDef and def.mesh != null:
-			var cell_center := Vector3(cell) + Vector3.ONE
+			var cell_center := Vector3(cell)
 			var rot_basis := Basis(Vector3.UP, deg_to_rad(rotation_state.get_yaw_degrees()))
 			var local_center := def.mesh.get_aabb().get_center()
-			ghost_pos = cell_center - rot_basis * local_center
+			ghost_pos = cell_center - rot_basis * local_center + _GHOST_OFFSET
 			_ghost.show_at(ghost_pos, valid)
 			_ghost.transform.basis = rot_basis
 		else:
-			ghost_pos = Vector3(cell) + Vector3.ONE
+			ghost_pos = Vector3(cell) + _GHOST_OFFSET
 			_ghost.show_at(ghost_pos, valid)
 			_ghost.rotation_degrees.y = 0.0
 		if DEBUG_RAYCAST:
