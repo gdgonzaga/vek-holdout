@@ -310,3 +310,83 @@ func test_prepare_heightmap_image_null_and_passthrough() -> void:
 	assert_that(SmoothGrid._prepare_heightmap_image(null)).is_null()
 	var def := TerrainGenDef.new()
 	assert_that(SmoothGrid._prepare_heightmap_image(def)).is_null()
+
+
+# --- is_solid_cell: lattice semantics of carve dilation ------------------------
+
+## Untouched lattice value in the fakes below — deep-solid, matching the
+## generator's density (F8 probe) so "solid" reads exactly like real rock.
+const _ROCK_SDF := -2.0
+
+
+## Lattice stand-in for the voxel tool: sample Dictionary (Vector3i -> float),
+## _ROCK_SDF everywhere else.
+func _fake_get_voxel_f(samples: Dictionary) -> Callable:
+	return func(p: Vector3i) -> float:
+		return float(samples.get(p, _ROCK_SDF))
+
+
+## Stamp one dug cell exactly as the dig pipeline does (MiningSystem carves
+## each cell via carve_box(cell, cell + ONE)): the real box_sample_targets
+## applied with carve_box's monotonic air-only writes, so the lattice the
+## tests read is the lattice the game writes.
+func _stamp_dug_cell(samples: Dictionary, cell: Vector3i) -> void:
+	var targets := SmoothGrid.box_sample_targets(Vector3(cell), Vector3(cell) + Vector3.ONE)
+	for sample: Vector3i in targets:
+		samples[sample] = maxf(float(targets[sample]), float(samples.get(sample, _ROCK_SDF)))
+
+
+## Height-at stand-in over a heights Dictionary (Vector2i column -> h); NAN
+## where the column is missing, like the real raycast cache.
+func _fake_height_fn(heights: Dictionary) -> Callable:
+	return func(x: float, z: float) -> float:
+		var col := Vector2i(int(floor(x)), int(floor(z)))
+		return NAN if not heights.has(col) else float(heights[col])
+
+
+## The dug cell itself is fully carved air; its floor cell below (top plane
+## stamped 0.0, bottom plane still rock) stays solid ground to stand on.
+func test_is_solid_cell_dug_cell_air_floor_solid() -> void:
+	var samples := {}
+	_stamp_dug_cell(samples, Vector3i(0, 0, 0))
+	var heights := {Vector2i(0, 0): 10.0} # surface far above: a buried dig
+	var solid := func(cell: Vector3i) -> bool:
+		return SmoothGrid.is_solid_cell(_fake_get_voxel_f(samples), _fake_height_fn(heights), cell)
+	assert_bool(solid.call(Vector3i(0, 0, 0))).is_false()  # dug: all 8 corners air
+	assert_bool(solid.call(Vector3i(0, -1, 0))).is_true()  # floor below: still rock
+
+
+## THE stairway regression: carve_box stamps the dug cell's full corner span,
+## which bleeds one lattice plane into the neighbouring walls. The wall cell
+## beside the dig has its shared-plane corners stamped air but its far plane
+## is still rock — a whole-cell probe must keep it SOLID (the old min-corner
+## probe read it as air and the pathfinder routed through the wall).
+func test_is_solid_cell_rejects_carve_fringe_in_walls() -> void:
+	var samples := {}
+	_stamp_dug_cell(samples, Vector3i(0, 0, 0))
+	# Intact hill over everything: height arbitration says solid everywhere
+	# the lattice doesn't prove air.
+	var heights := {}
+	for x in range(-2, 3):
+		for z in range(-2, 3):
+			heights[Vector2i(x, z)] = 10.0
+	var solid := func(cell: Vector3i) -> bool:
+		return SmoothGrid.is_solid_cell(_fake_get_voxel_f(samples), _fake_height_fn(heights), cell)
+	assert_bool(solid.call(Vector3i(1, 0, 0))).is_true()   # side wall fringe
+	assert_bool(solid.call(Vector3i(0, 0, 1))).is_true()   # side wall fringe
+	assert_bool(solid.call(Vector3i(0, 1, 0))).is_true()   # ceiling fringe above
+	assert_bool(solid.call(Vector3i(0, 0, 0))).is_false()  # the dig itself stays air
+
+
+## Without lattice data the height arbitrates alone; without either, the
+## min-corner sample is the last word (threshold half a cell into the solid).
+func test_is_solid_cell_degrades_like_the_old_probe() -> void:
+	var samples := {}
+	_stamp_dug_cell(samples, Vector3i(0, 0, 0))
+	var getf := _fake_get_voxel_f(samples)
+	# No voxel tool: height only — buried under h = 10 -> solid, open air above -> not.
+	assert_bool(SmoothGrid.is_solid_cell(Callable(), _fake_height_fn({Vector2i(0, 0): 10.0}), Vector3i(0, 0, 0))).is_true()
+	assert_bool(SmoothGrid.is_solid_cell(Callable(), _fake_height_fn({Vector2i(0, 0): 2.0}), Vector3i(0, 5, 0))).is_false()
+	# No height either: the dug cell's min corner is air, rock anywhere else.
+	assert_bool(SmoothGrid.is_solid_cell(getf, _fake_height_fn({}), Vector3i(0, 0, 0))).is_false()
+	assert_bool(SmoothGrid.is_solid_cell(getf, _fake_height_fn({}), Vector3i(4, 0, 4))).is_true()

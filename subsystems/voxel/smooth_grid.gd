@@ -237,17 +237,46 @@ static func _prepare_heightmap_image(def: TerrainGenDef) -> Image:
 ## Material id at pos, or "" for air. Resolution order (terrain_mining/plan.md):
 ## authored sidecar (F12 per-block dict at the block origin) -> TerrainStrata's
 ## deterministic natural material (F13 depth rules) -> default_material.
-## True if the voxel SDF at pos represents solid terrain (SDF <= 0.0).
+## True if pos contains solid terrain (whole-cell SDF + column-height decision,
+## see is_solid_cell).
 func is_solid_at(pos: Vector3i) -> bool:
 	var vt := _voxel_tool
-	if vt != null and vt.has_method("get_voxel_f"):
-		if vt.get_voxel_f(pos) > -0.01:
+	var get_voxel_f := Callable(vt, "get_voxel_f") if vt != null and vt.has_method("get_voxel_f") else Callable()
+	return is_solid_cell(get_voxel_f, Callable(self, "height_at"), pos)
+
+
+## The 8 lattice samples spanning a cell's volume — a cell's corners, i.e. the
+## exact sample span carve_box stamps when it digs that cell.
+const _CELL_CORNERS: Array[Vector3i] = [
+	Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 1, 0), Vector3i(1, 1, 0),
+	Vector3i(0, 0, 1), Vector3i(1, 0, 1), Vector3i(0, 1, 1), Vector3i(1, 1, 1),
+]
+
+
+## Whole-cell solidity decision shared by every terrain probe (walkability,
+## dig designation, job validity). A cell is carved air only when ALL 8 of its
+## corner samples read air: carve_box stamps a dug cell's full corner span,
+## which bleeds one lattice plane into the neighbouring walls — a min-corner
+## probe reads those wall cells as air and the pathfinder routes straight
+## through them (the 1-wide-stairway-through-the-wall bug). Any solid corner
+## defers to the column height, so surface cells keep the heightfield
+## arbitration. Static and side-effect-free so suites pin the lattice math
+## (box_samples precedent); either Callable may be invalid (no voxel tool /
+## no physics) and the chain degrades exactly like the old inline probe.
+static func is_solid_cell(get_voxel_f: Callable, height_at_fn: Callable, pos: Vector3i, threshold: float = 0.5) -> bool:
+	if get_voxel_f.is_valid():
+		var all_air := true
+		for corner: Vector3i in _CELL_CORNERS:
+			if float(get_voxel_f.call(pos + corner)) <= -0.01:
+				all_air = false
+				break
+		if all_air:
 			return false
-	var h: float = height_at(float(pos.x) + 0.5, float(pos.z) + 0.5)
+	var h: float = height_at_fn.call(float(pos.x) + 0.5, float(pos.z) + 0.5)
 	if not is_nan(h):
-		return h >= float(pos.y + 0.5)
-	if vt != null and vt.has_method("get_voxel_f"):
-		return vt.get_voxel_f(pos) <= -0.5
+		return h >= float(pos.y) + threshold
+	if get_voxel_f.is_valid():
+		return float(get_voxel_f.call(pos)) <= -threshold
 	return false
 
 
@@ -375,24 +404,15 @@ func carve_box(min_pos: Vector3, max_pos: Vector3) -> void:
 		return
 	var local_min := _terrain.to_local(min_pos)
 	var local_max := _terrain.to_local(max_pos)
-	var samples := box_samples(local_min, local_max)
-	if samples.is_empty():
+	var targets := box_sample_targets(local_min, local_max)
+	if targets.is_empty():
 		return
-		
-	var min_y := samples[0].y
-	for s: Vector3i in samples:
-		if s.y < min_y:
-			min_y = s.y
-			
-	print("CARVING BOX! min=", local_min, " max=", local_max, " samples=", samples.size(), " min_y=", min_y)
-	for sample: Vector3i in samples:
-		# Force the floor of the dug area to exactly align with the integer grid (0.0 = surface)
-		var target_sdf := 0.0 if sample.y == min_y else AIR_DENSITY
+	for sample: Vector3i in targets:
+		var target_sdf: float = targets[sample]
 		var current := _voxel_tool.get_voxel_f(sample)
 		if target_sdf > current:
-			print("Set ", sample, " from ", current, " to ", target_sdf)
 			_voxel_tool.set_voxel_f(sample, target_sdf)
-			
+
 	_evict_columns_in_box(min_pos, max_pos)
 	material_carved.emit((min_pos + max_pos) * 0.5)
 
@@ -410,6 +430,26 @@ static func box_samples(min_pos: Vector3, max_pos: Vector3) -> Array[Vector3i]:
 			for z: int in range(int(ceil(min_pos.z)), int(floor(max_pos.z)) + 1):
 				samples.append(Vector3i(x, y, z))
 	return samples
+
+
+## The SDF a box carve stamps per covered sample (box_samples span): the box's
+## lowest plane gets 0.0 so the floor aligns exactly with the integer grid
+## (0.0 = surface), everything above gets a hard AIR stamp. Returned as
+## sample -> target SDF; carve_box applies them with monotonic air-only writes
+## (a shared plane between two stacked digs keeps its AIR, never re-solidifies
+## back to 0.0). Static and side-effect-free so suites pin the stamp math.
+static func box_sample_targets(min_pos: Vector3, max_pos: Vector3) -> Dictionary:
+	var targets := {}
+	var samples := box_samples(min_pos, max_pos)
+	if samples.is_empty():
+		return targets
+	var min_y := samples[0].y
+	for s: Vector3i in samples:
+		if s.y < min_y:
+			min_y = s.y
+	for s: Vector3i in samples:
+		targets[s] = 0.0 if s.y == min_y else AIR_DENSITY
+	return targets
 
 
 ## Snap a dig target to the nearest SOLID lattice sample to `world_pos` (the

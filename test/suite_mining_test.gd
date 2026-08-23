@@ -202,6 +202,27 @@ func test_box_samples_fractional_bounds() -> void:
 	assert_bool(samples.has(Vector3i(4, 2, 4))).is_false()
 
 
+## box_sample_targets: a dug cell's lowest plane is stamped 0.0 (floor exactly
+## on the integer grid — SDF 0 is surface), everything above gets the hard
+## AIR stamp. These targets are what bleed one lattice plane into the
+## neighbouring walls, so they feed the fringe-solidity pins in
+## suite_smooth_grid_test.gd.
+func test_box_sample_targets_floor_plane_zero_rest_air() -> void:
+	var targets := SmoothGrid.box_sample_targets(Vector3(4.0, 2.0, 4.0), Vector3(5.0, 3.0, 5.0))
+	assert_int(targets.size()).is_equal(8)
+	assert_float(targets[Vector3i(4, 2, 4)]).is_equal(0.0)
+	assert_float(targets[Vector3i(5, 2, 5)]).is_equal(0.0)
+	assert_float(targets[Vector3i(4, 3, 4)]).is_equal(SmoothGrid.AIR_DENSITY)
+	assert_float(targets[Vector3i(5, 3, 5)]).is_equal(SmoothGrid.AIR_DENSITY)
+
+
+## box_sample_targets: an empty sample span (box between lattice samples)
+## yields no targets — carve_box early-returns without evicting or emitting.
+func test_box_sample_targets_empty_span() -> void:
+	var targets := SmoothGrid.box_sample_targets(Vector3(4.1, 2.1, 4.1), Vector3(4.9, 2.9, 4.9))
+	assert_int(targets.size()).is_equal(0)
+
+
 ## The BOX dig target snaps to the CENTER of the struck cell (floor + 0.5) —
 ## never the nearest lattice vertex — so the ghost box outlines exactly the
 ## cells carve_box clears. Both call sites (ghost + dig) share this math.

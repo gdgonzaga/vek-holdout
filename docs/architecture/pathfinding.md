@@ -9,7 +9,7 @@ The pathfinding system provides intelligent navigation for colonists across both
 ### 1. Dual-Voxel Multi-Layer Walkability & Excavated Tunnels
 
 - **Problem:** The original walkability seam (D4) relied purely on downward physics raycasts from the sky (`SmoothGrid.height_at`). On natural terrain, this only detected the topmost exterior surface of hills. When colonists mined underground rooms or tunnels beneath a hill, the downward raycast hit the mountain roof above rather than the excavated floor below, marking underground tunnel cells as completely unwalkable (buried inside rock) and preventing colonists from navigating inside mines.
-- **Solution:** `MapWiring._compose_walkability` and `MapWiring.hybrid_ground_probe` combine `height_at` with direct signed distance field (SDF) voxel sampling (`SmoothGrid.is_solid_at` and `VoxelGridAdapter.is_terrain_at`). An excavated cell with SDF $\\ge 0.0$ is recognized as traversable air regardless of whether solid terrain exists higher up in the column.
+- **Solution:** `MapWiring._compose_walkability` and `MapWiring.hybrid_ground_probe` combine `height_at` with direct signed distance field (SDF) voxel sampling (`SmoothGrid.is_solid_at` and `VoxelGridAdapter.is_terrain_at`). An excavated cell is recognized as traversable air when all 8 of its corner lattice samples read air, regardless of whether solid terrain exists higher up in the column.
 - **Rationale:** Dual-voxel base building requires seamless transitions between outdoor surface slopes and subterranean excavated networks. Probing the local voxel lattice SDF enables multi-story underground structures without breaking surface slope gating.
 
 ### 2. Head Clearance in Enclosed Cavities
@@ -21,8 +21,14 @@ The pathfinding system provides intelligent navigation for colonists across both
 ### 3. Capsule Wall Clearance & SDF Safety Margins
 
 - **Problem:** CharacterBody3D capsules have a collision radius of $0.35\\text{m}-0.4\\text{m}$. Discrete point probes evaluating SDF at exactly $0.0$ (the mathematical zero-isosurface) allowed path waypoints to pass dangerously close to jagged marching-cubes walls. Colonists following these waypoints frequently collided with wall micro-geometry, stopping locomotion.
-- **Solution:** Evaluated solidity via direct signed distance field checks (treating $\\text{SDF} > -0.01$ as excavated air/surface) in `SmoothGrid.is_solid_at` and `VoxelGridAdapter.is_terrain_at`.
+- **Solution:** Evaluated solidity via direct signed distance field checks (treating $\\text{SDF} > -0.01$ as excavated air/surface, applied per corner sample) in `SmoothGrid.is_solid_at` and `VoxelGridAdapter.is_terrain_at`.
 - **Rationale:** Incorporating the capsule radius into walkability solidity checks creates an automatic safety buffer around walls and corners, keeping waypoints centered in open air.
+
+### 8. Whole-Cell Solidity vs. Carve-Dilation Fringe
+
+- **Problem:** `SmoothGrid.carve_box` stamps a dug cell's full corner span — all 8 lattice samples from `box_sample_targets`, which bleeds one lattice plane into the neighbouring walls (the mesher interpolates the isosurface halfway back into the solid). The solidity probes tested only the cell's **min-corner sample**, so every wall cell adjacent to a dug cell read as hollow air. In `hybrid_ground_probe`'s buried-tunnel branch those wall cells passed the air and floor checks and came back **walkable** — on a 1-wide dug stairway the A* routed through the wall fringe (flat cost $1.0$ beats the ramp's $3.0$ climb) and colonists ground into solid rock with `FAIL_OBSTACLE_TOO_HIGH` until the stuck-wiggle guard fired.
+- **Solution:** `SmoothGrid.is_solid_cell` (shared by `is_solid_at`, `VoxelGridAdapter.is_terrain_at`) requires **all 8 corner samples** of a cell to read air before calling it carved; any solid corner defers to the column-height arbitration as before. The stamp math itself was extracted into the testable static `box_sample_targets` so suites replay the exact lattice the dig pipeline writes.
+- **Rationale:** Integer voxel coordinates are lattice *corner* values, not cell volumes — a single-sample probe answers the wrong question for any cell whose corners straddle a carve boundary. Dig designation and job-validity checks ride the same predicate, so fringe wall cells are correctly diggable terrain there too.
 
 ### 4. Stepped Locomotion & Continuous Ramp Transitions
 
@@ -76,7 +82,7 @@ The pathfinding system provides intelligent navigation for colonists across both
    - Evaluates colonist current world position to the nearest standable cell via `find_stand_cell`.
 3. **Walkability Evaluation (`map_wiring.gd` & `SmoothGrid.is_solid_at`):**
    - The composed `is_walkable(cell)` predicate runs `hybrid_ground_probe`:
-     - **Carved Voxels:** `SmoothGrid.is_solid_at(pos)` checks `vt.get_voxel_f(pos) > -0.01` for carved air (e.g. subterranean stairways / tunnels), returning `false` (air).
+     - **Carved Voxels:** `SmoothGrid.is_solid_at(pos)` (whole-cell rule, `is_solid_cell`) requires all 8 corner samples of `pos` to read `> -0.01` air before answering `false` (air) — carve dilation stamps one lattice plane into neighbouring walls, and a min-corner-only probe mistook those wall cells for hollow tunnel (see design note 8).
      - **Surface Ground Stand Cells:** `height_at` probes smooth surface height $h$. A cell `pos` is solid natural terrain iff $h \ge \text{pos.y} + 0.5$. Open surface stand cells ($h \in [\text{cell.y}, \text{cell.y} + 1)$) evaluate cell center height above ground as non-solid (`false`), so feet clearance is open.
      - **Surface Slope Gate:** Evaluates raycast surface normal $n.y \ge \cos(\text{max\_slope\_deg}) - 0.01$. The $-0.01$ float tolerance accounts for float32 physics raycast normals on exact 45-degree carved ramp step faces against float64 GDScript math.
 4. **A* Search Execution (`find_path`):**

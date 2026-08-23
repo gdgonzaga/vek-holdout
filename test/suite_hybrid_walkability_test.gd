@@ -334,3 +334,97 @@ func test_one_cell_wide_stairway_down_pathfinding() -> void:
 	assert_that(path[1]).is_equal(Vector3i(1, 9, 0))
 	assert_that(path[2]).is_equal(Vector3i(2, 8, 0))
 	assert_that(path[3]).is_equal(Vector3i(3, 7, 0))
+
+
+# --- lattice-level regression: carve-dilation fringe in walls -------------------
+# The tests above stub solidity as clean per-cell booleans; the REAL dig
+# pipeline stamps each dug cell's full corner span (SmoothGrid.carve_box ->
+# box_sample_targets), which bleeds one lattice plane into the neighbouring
+# walls. These fakes replay that lattice so the probe is exercised against
+# the geometry the game actually writes (see suite_smooth_grid_test.gd for
+# the is_solid_cell unit pins over the same idiom).
+
+const _ROCK_SDF := -2.0
+
+
+## Lattice stand-in for the voxel tool: sample Dictionary (Vector3i -> float),
+## _ROCK_SDF everywhere else.
+func _fake_get_voxel_f(samples: Dictionary) -> Callable:
+	return func(p: Vector3i) -> float:
+		return float(samples.get(p, _ROCK_SDF))
+
+
+## Stamp one dug cell exactly as the dig pipeline does (MiningSystem carves
+## each cell via carve_box(cell, cell + ONE)): the real box_sample_targets
+## applied with carve_box's monotonic air-only writes.
+func _stamp_dug_cell(samples: Dictionary, cell: Vector3i) -> void:
+	var targets := SmoothGrid.box_sample_targets(Vector3(cell), Vector3(cell) + Vector3.ONE)
+	for sample: Vector3i in targets:
+		samples[sample] = maxf(float(targets[sample]), float(samples.get(sample, _ROCK_SDF)))
+
+
+## Plain 2-arg height stand-in for SmoothGrid.is_solid_cell (no normals array).
+func _fake_height_only(heights: Dictionary) -> Callable:
+	return func(x: float, z: float) -> float:
+		var col := Vector2i(int(floor(x)), int(floor(z)))
+		return NAN if not heights.has(col) else float(heights[col])
+
+
+## THE wall-fringe regression: a 1-wide stairway dug by the real carve stamps
+## makes the wall cells beside every step read hollow to a min-corner probe —
+## A* then routed through the wall (flat 1.0 beats the ramp's 3.0 climb) and
+## colonists ground against rock with FAIL_OBSTACLE_TOO_HIGH. The whole-cell
+## probe must keep the fringe solid so the only route out is the ramp itself.
+func test_one_cell_stairway_carve_fringe_stays_unwalkable() -> void:
+	# Same geometry as test_one_cell_wide_stairway_down_pathfinding: step s
+	# stands at (s, 10-s, 0) with 3-high air above.
+	var samples := {}
+	for s in range(4):
+		for h in range(3):
+			_stamp_dug_cell(samples, Vector3i(s, 10 - s + h, 0))
+
+	# Trench columns read their tread height (ray down the open stairwell);
+	# every other column is intact hill surface at 16.
+	var heights := {}
+	var hmap := {}
+	for x in range(-5, 6):
+		for z in range(-5, 6):
+			var h := 16.0 if not (z == 0 and x >= 0 and x <= 3) else float(10 - x)
+			heights[Vector2i(x, z)] = {"h": h, "n": Vector3.UP}
+			hmap[Vector2i(x, z)] = h
+
+	var is_terrain := func(cell: Vector3i) -> bool:
+		return SmoothGrid.is_solid_cell(_fake_get_voxel_f(samples), _fake_height_only(hmap), cell)
+
+	var probe: Callable = MapWiring.hybrid_ground_probe(
+		_fake_get_block_at({}),
+		_fake_height_at(heights),
+		_MAX_SLOPE_DEG,
+		is_terrain
+	)
+
+	# The ramp itself stays walkable, step by step.
+	for s in range(4):
+		assert_bool(probe.call(Vector3i(s, 10 - s, 0))).is_true()
+
+	# The wall cells beside every step are NOT walkable: their dilated shared
+	# plane no longer reads as hollow once the whole cell is considered.
+	for s in range(4):
+		assert_bool(probe.call(Vector3i(s, 10 - s, 1))).is_false()
+		assert_bool(probe.call(Vector3i(s, 10 - s, -1))).is_false()
+
+	# Headroom air above the treads has no floor below — stays unwalkable.
+	for s in range(4):
+		assert_bool(probe.call(Vector3i(s, 11 - s, 0))).is_false()
+		assert_bool(probe.call(Vector3i(s, 12 - s, 0))).is_false()
+
+	# The path out of the stairwell climbs the ramp exactly — no wall detour.
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	finder.set_walkability(probe)
+	finder.set_stand_cell_hint(_fake_hint(heights))
+	var path := finder.find_path(Vector3i(3, 7, 0), Vector3i(0, 10, 0))
+	assert_int(path.size()).is_equal(4)
+	assert_that(path[0]).is_equal(Vector3i(3, 7, 0))
+	assert_that(path[1]).is_equal(Vector3i(2, 8, 0))
+	assert_that(path[2]).is_equal(Vector3i(1, 9, 0))
+	assert_that(path[3]).is_equal(Vector3i(0, 10, 0))
