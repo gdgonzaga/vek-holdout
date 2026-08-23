@@ -137,6 +137,44 @@ func is_terrain_at(cell: Vector3i) -> bool:
 	return true
 
 
+## Offsets for candidate standing cells from which a colonist can work on / dig a voxel.
+## Includes horizontal neighbours, directly above, and step-up/step-down (+/-1 Y) positions.
+const _WORK_STAND_OFFSETS: Array[Vector3i] = [
+	Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1),
+	Vector3i(0, 1, 0),
+	Vector3i(1, 1, 0), Vector3i(-1, 1, 0), Vector3i(0, 1, 1), Vector3i(0, 1, -1),
+	Vector3i(1, -1, 0), Vector3i(-1, -1, 0), Vector3i(0, -1, 1), Vector3i(0, -1, -1),
+]
+
+
+## True if cell is walkable according to the active map's walkability predicate.
+func is_walkable(cell: Vector3i) -> bool:
+	if _walkability_predicate.is_valid():
+		return _walkability_predicate.call(cell)
+	return true
+
+
+## True if at least one candidate stand position adjacent to `cell` is walkable.
+## Used to gate dig/work jobs so buried underground voxels cannot be claimed before
+## they are exposed.
+func has_walkable_neighbor(cell: Vector3i) -> bool:
+	if not _walkability_predicate.is_valid():
+		return true
+	for off in _WORK_STAND_OFFSETS:
+		if _walkability_predicate.call(cell + off):
+			return true
+	if _stand_cell_hint.is_valid():
+		for dx in [-1, 0, 1]:
+			for dz in [-1, 0, 1]:
+				if dx == 0 and dz == 0:
+					continue
+				var col_cell: Vector3i = _stand_cell_hint.call(float(cell.x + dx), float(cell.z + dz))
+				if col_cell != Vector3i.MAX and absi(col_cell.y - cell.y) <= 2:
+					if _walkability_predicate.call(col_cell):
+						return true
+	return false
+
+
 ## Instantiate, position, register, and wire a new colonist.
 ## Returns the new Colonist instance, or null if the roster is full or no map is wired.
 func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZERO) -> Colonist:

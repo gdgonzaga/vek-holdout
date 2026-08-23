@@ -69,7 +69,8 @@ Player (Shift+G) -> DigBoxController (Raycast / Ghost preview / Box math)
    - `MiningSystem` receives `dig_box_designated` and places persistent translucent amber `MeshInstance3D` unit cube markers on solid blocks under `DesignationContainer`.
    - `Colony` receives `dig_box_designated` and creates `Dig` jobs (`res://data/jobs/dig.tres`) on the `JobBoard`.
 8. **Colonist Execution & Terrain Carving:**
-   - Colonist AI picks up the dig job and navigates to an adjacent standable cell.
+   - `DigJobDef.is_available` gates job claimability on `Colony.has_walkable_neighbor`: buried underground blocks (e.g. lower steps of downward staircases or deep shafts) remain unclaimable until preceding excavation creates an adjacent walkable stand cell.
+   - Colonist AI picks up an available dig job and navigates to the adjacent standable cell.
    - On completing the work timer, `DigJobDef` emits `EventBus.dig_job_completed(cell)`.
    - `MiningSystem` receives the completion event, frees the corresponding visual marker in `DesignationContainer`, and removes the voxel via `grid_adapter.remove_block_at(cell)` and `smooth_grid.carve_box(...)`.
 

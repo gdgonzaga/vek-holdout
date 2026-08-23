@@ -13,7 +13,7 @@ var _completed_job_ids: Dictionary = {}
 
 
 func get_next_leg(_actor: Node, job: Job) -> JobLeg:
-	if _completed_job_ids.has(job.id) or not Colony.is_terrain_at(job.anchor_cell):
+	if _completed_job_ids.has(job.id) or not Colony.is_terrain_at(job.anchor_cell) or not Colony.has_walkable_neighbor(job.anchor_cell):
 		return null
 	var leg := JobLeg.new()
 	leg.location = job.location
@@ -34,7 +34,7 @@ func complete(_actor: Node, _leg: JobLeg, job: Job) -> void:
 
 
 func is_available(job: Job) -> bool:
-	return not _completed_job_ids.has(job.id) and Colony.is_terrain_at(job.anchor_cell)
+	return not _completed_job_ids.has(job.id) and Colony.is_terrain_at(job.anchor_cell) and Colony.has_walkable_neighbor(job.anchor_cell)
 
 
 func should_close(job: Job) -> bool:

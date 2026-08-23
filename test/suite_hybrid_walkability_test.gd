@@ -428,3 +428,60 @@ func test_one_cell_stairway_carve_fringe_stays_unwalkable() -> void:
 	assert_that(path[1]).is_equal(Vector3i(2, 8, 0))
 	assert_that(path[2]).is_equal(Vector3i(1, 9, 0))
 	assert_that(path[3]).is_equal(Vector3i(0, 10, 0))
+
+
+## A multi-step downward stairway designates all steps into jobs, but Colony/DigJobDef
+## only exposes steps that have a walkable neighbor, preventing colonists from claiming
+## buried bottom steps.
+func test_downward_stairway_jobs_unlock_sequentially() -> void:
+	var heights := _flat_heights(-5, 5, -5, 5, 16.0)
+	var carved_cells := {}
+
+	var is_solid_terrain := func(cell: Vector3i) -> bool:
+		return not carved_cells.has(cell)
+
+	var probe: Callable = MapWiring.hybrid_ground_probe(
+		_fake_get_block_at({}),
+		_fake_height_at(heights),
+		_MAX_SLOPE_DEG,
+		is_solid_terrain
+	)
+
+	Colony.set_terrain_predicate(is_solid_terrain)
+	Colony.set_walkability_predicate(probe)
+	Colony.set_stand_cell_hint(_fake_hint(heights))
+
+	var dig_def: JobDef = preload("res://data/jobs/dig.tres")
+
+	# Stairway steps along +X:
+	# Step 0: (0, 10, 0)
+	# Step 1: (1, 9, 0)
+	# Step 2: (2, 8, 0)
+	# Step 3: (3, 7, 0)
+	var job_step0 := Job.from_def(dig_def)
+	job_step0.anchor_cell = Vector3i(0, 10, 0)
+	job_step0.location = Vector3(0.5, 10.5, 0.5)
+
+	var job_step3 := Job.from_def(dig_def)
+	job_step3.anchor_cell = Vector3i(3, 7, 0)
+	job_step3.location = Vector3(3.5, 7.5, 0.5)
+
+	# Initially at top surface entry, surface at (-1, 10, 0) is walkable or step 0 is directly adjacent
+	# Make entry stand cell (-1, 10, 0) walkable:
+	carved_cells[Vector3i(-1, 10, 0)] = true
+	carved_cells[Vector3i(-1, 11, 0)] = true
+	carved_cells[Vector3i(-1, 12, 0)] = true
+
+	# Step 0 has a walkable neighbor -> available
+	assert_bool(dig_def.is_available(job_step0)).is_true()
+	# Step 3 deep underground has NO walkable neighbor -> unavailable
+	assert_bool(dig_def.is_available(job_step3)).is_false()
+
+	# Excavate steps 0, 1, 2
+	for s in range(3):
+		for h in range(3):
+			carved_cells[Vector3i(s, 10 - s + h, 0)] = true
+
+	# Now step 2 is walkable, which is an adjacent stand neighbor to step 3
+	assert_bool(probe.call(Vector3i(2, 8, 0))).is_true()
+	assert_bool(dig_def.is_available(job_step3)).is_true()
