@@ -5,7 +5,6 @@ extends GdUnitTestSuite
 ## duck-typed contract, hauling tool retention, and the Furniture state bag.
 
 const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
-const CONSTRUCTION_DEF: JobDef = preload("res://data/jobs/construction.tres")
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
@@ -309,103 +308,6 @@ func test_world_changed_wakes_sleeping_jobs() -> void:
 	board._on_world_changed()
 	assert_bool(job.is_available()).is_true()
 	assert_int(job.sleep_until_msec).is_equal(0)
-
-
-# ── Construction occupation & pausing ─────────────────────────────────────────
-
-func test_construction_is_available_when_clear_and_gated_when_occupied() -> void:
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.5, 0.0, 2.5)
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.target_node = bp
-	
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_true()
-	assert_bool(CONSTRUCTION_DEF.should_close(job)).is_false()
-	
-	var bystander := _sandbox.make_colonist()
-	bystander.global_position = Vector3(2.0, 0.0, 2.0)
-	Colony.colonists.append(bystander)
-	
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
-	assert_bool(CONSTRUCTION_DEF.should_close(job)).is_false()
-	
-	bystander.global_position = Vector3(10.0, 0.0, 10.0)
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_true()
-	
-	Colony.colonists.erase(bystander)
-
-
-func test_construction_can_progress_work_excludes_builder() -> void:
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.5, 0.0, 2.5)
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.target_node = bp
-	var leg := JobLeg.new()
-	leg.target_node = bp
-	
-	var builder := _sandbox.make_colonist()
-	builder.global_position = Vector3(2.0, 0.0, 2.0)
-	Colony.colonists.append(builder)
-	
-	assert_bool(CONSTRUCTION_DEF.can_progress_work(builder, leg, job)).is_true()
-	
-	var bystander := _sandbox.make_colonist()
-	bystander.global_position = Vector3(2.0, 0.0, 2.0)
-	Colony.colonists.append(bystander)
-	assert_bool(CONSTRUCTION_DEF.can_progress_work(builder, leg, job)).is_false()
-	
-	Colony.colonists.erase(builder)
-	Colony.colonists.erase(bystander)
-
-
-func test_construction_gated_when_player_occupies_blueprint() -> void:
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.5, 0.0, 2.5)
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.target_node = bp
-	
-	var player := _sandbox.make_player()
-	player.global_position = Vector3(2.0, 0.0, 2.0)
-	var old_player := SceneManager.get_player()
-	SceneManager.set_player(player)
-	
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
-	
-	player.global_position = Vector3(10.0, 0.0, 10.0)
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_true()
-	
-	SceneManager.set_player(old_player)
-
-
-func test_construction_gated_when_upper_body_occupies_overhead_blueprint() -> void:
-	# Blueprint placed at Y=1 (overhead/ceiling). Colonist standing at Y=0 (lower cell=0, upper cell=1).
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.5, 1.0, 2.5) # cell Y=1
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.target_node = bp
-	
-	var bystander := _sandbox.make_colonist()
-	bystander.global_position = Vector3(2.0, 0.0, 2.0) # feet at Y=0, head at Y=1
-	Colony.colonists.append(bystander)
-	
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
-	
-	bystander.global_position = Vector3(10.0, 0.0, 10.0)
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_true()
-	
-	Colony.colonists.erase(bystander)
 
 
 # ── Test doubles ──────────────────────────────────────────────────────────────

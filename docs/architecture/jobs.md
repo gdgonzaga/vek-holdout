@@ -236,14 +236,11 @@ Crafting stations, harvesting, and farming all landed (documented above and in [
 
 | Function | Description |
 |---|---|
-| `get_next_leg(actor, job) → JobLeg` | Returns the blueprint leg once (location = `job.location`, target = the bp) if valid and clear of colonists/player, then null. |
+| `get_next_leg(actor, job) → JobLeg` | Returns the blueprint leg once (location = `job.location`, target = the bp), then null. |
 | `begin(actor, leg, job) → float` | `BuildLibrary.get_def(bp.target_def_id).build_time / skill_set.get_multiplier(labor_id)`; the bare `build_time` for a non-Colonist actor; 0 if not a Blueprint / unknown def. |
-| `can_progress_work(actor, leg, job) → bool` | Returns true if the blueprint is clear of other colonists and the player. |
-| `complete(actor, leg, job) → void` | Reset `bp.work_done = 0` and `bp.complete(actor)` (guarded against blueprint occupancy). |
+| `complete(actor, leg, job) → void` | Reset `bp.work_done = 0` and `bp.complete(actor)`. |
 | `on_end(success, actor, leg, job, elapsed) → void` | On abort (not success), persist `bp.work_done = elapsed` so a later attempt resumes. |
-| `is_available(job) → bool` | The blueprint still exists and is not occupied by other colonists or the player. |
-| `should_close(job) → bool` | True only when the blueprint is freed (built or cancelled). |
-| `job_complete(job) → bool` | True only when the blueprint has been materialized and freed. |
+| `is_available(job) → bool` | The blueprint still exists. |
 
 ### Class: HaulingJobDef
 
