@@ -32,6 +32,7 @@ var _current_hp: int = 100
 var _is_dead: bool = false
 
 func _ready() -> void:
+	add_to_group("colonists")
 	colonist_id = Tools.generate_uuid()
 	display_name = colonist_def.display_name
 	labor_priorities = colonist_def.default_labor_priorities

@@ -18,15 +18,14 @@ class_name ConstructionJobDef
 ## begin's returned duration is the seam for build_time × multiplier later).
 
 
-## Single WORK leg targeting the blueprint, available exactly while the blueprint
-## exists. complete() frees it, so the post-complete get_next_leg call returns
-## null — the clean end-signal for this colonist (the one leg's begin/complete did
-## all the work, and a null next leg ends the job). Without the guard we'd hand
-## back a leg to a freed bp and only abort next tick via ColonistAI's freed-target
-## guard: a spurious re-path, and the job would end on the abort path instead of
-## the success path. (Matches is_available, which gates on the same validity.)
+## Single WORK leg targeting the blueprint, available while the blueprint
+## exists and is not occupied. complete() frees it, so the post-complete get_next_leg
+## call returns null — the clean end-signal for this colonist.
 func get_next_leg(_actor: Node, job: Job) -> JobLeg:
 	if not is_instance_valid(job.target_node):
+		return null
+	var bp := job.target_node as Blueprint
+	if bp == null or _is_blueprint_occupied(bp):
 		return null
 	# `location` is the footprint-center approach set by Colony at spawn; the AI
 	# refines it into an adjacent standing cell. target_node is the blueprint.
@@ -43,7 +42,7 @@ func get_next_leg(_actor: Node, job: Job) -> JobLeg:
 ## unknown. Matches BuildAction's duration resolution so player and colonist
 ## builds take the same time for a given def at L1.
 func begin(actor: Node, leg: JobLeg, _job: Job) -> float:
-	if leg.target_node == null:
+	if not is_instance_valid(leg.target_node):
 		return 0.0
 	var bp := leg.target_node as Blueprint
 	if bp == null:
@@ -57,14 +56,25 @@ func begin(actor: Node, leg: JobLeg, _job: Job) -> float:
 	return def.build_time / colonist.skill_set.get_multiplier(labor_id)
 
 
+## Pauses work progress if any colonist or player other than the builder is occupying the blueprint.
+func can_progress_work(actor: Node, leg: JobLeg, _job: Job) -> bool:
+	if not is_instance_valid(leg.target_node):
+		return false
+	var bp := leg.target_node as Blueprint
+	if bp == null:
+		return false
+	return not _is_blueprint_occupied(bp, actor)
+
+
 ## Materialize the blueprint. Resets work_done on success so a later rebuild of
 ## the same target starts fresh (matches player BuildAction), and forwards the
-## colonist as the builder so skill/stamina can be attributed later.
+## colonist as the builder so skill/stamina can be attributed later. Guarded so
+## it will not materialize if another colonist or player is standing on it.
 func complete(actor: Node, leg: JobLeg, _job: Job) -> void:
-	if leg.target_node == null:
+	if not is_instance_valid(leg.target_node):
 		return
 	var bp := leg.target_node as Blueprint
-	if is_instance_valid(bp):
+	if bp != null and not _is_blueprint_occupied(bp, actor):
 		bp.work_done = 0.0
 		bp.complete(actor)
 
@@ -76,15 +86,113 @@ func complete(actor: Node, leg: JobLeg, _job: Job) -> void:
 ## released before receiving a leg (claim-path miss — leg is null, no progress
 ## to persist).
 func on_end(success: bool, _actor: Node, leg: JobLeg, _job: Job, elapsed: float) -> void:
-	if success or leg == null:
+	if success or leg == null or not is_instance_valid(leg.target_node):
 		return
 	var bp := leg.target_node as Blueprint
-	if is_instance_valid(bp):
+	if bp != null:
 		bp.work_done = elapsed
 
 
-## A construction job is available while its blueprint still exists. The Job's
-## own slot gate (max_assignees=1) keeps it to one builder; once the bp is freed
-## (built or cancelled) this flips false so should_close() can remove it.
+## A construction job is available while its blueprint still exists and is not
+## occupied by a colonist or player. The Job's own slot gate (max_assignees=1) keeps it
+## to one builder.
 func is_available(job: Job) -> bool:
-	return is_instance_valid(job.target_node)
+	if not is_instance_valid(job.target_node):
+		return false
+	var bp := job.target_node as Blueprint
+	if bp == null:
+		return false
+	return not _is_blueprint_occupied(bp)
+
+
+## The job leaves the board ONLY when the blueprint is actually freed (built or cancelled).
+## An occupied blueprint keeps the job registered so it can resume once clear.
+func should_close(job: Job) -> bool:
+	return not is_instance_valid(job.target_node)
+
+
+## The job is complete only when the blueprint has been materialized and freed.
+func job_complete(job: Job) -> bool:
+	return not is_instance_valid(job.target_node)
+
+
+const _CHARACTER_RADIUS: float = 0.35
+const _CHARACTER_HEIGHT: float = 1.6
+
+## Returns true if any active colonist or player (excluding exclude_actor) is currently standing
+## inside any cell of the blueprint's 3D volume (accounting for the character's 3D bounding box).
+func _is_blueprint_occupied(bp: Blueprint, exclude_actor: Node = null) -> bool:
+	if not is_instance_valid(bp):
+		return false
+	var bp_cells := _get_blueprint_cells(bp)
+	if bp_cells.is_empty():
+		return false
+
+	var candidates: Array[Node3D] = []
+	for colonist in Colony.colonists:
+		if is_instance_valid(colonist) and not colonist.is_queued_for_deletion():
+			candidates.append(colonist)
+
+	if bp.get_tree() != null:
+		for node in bp.get_tree().get_nodes_in_group("colonists"):
+			var c := node as Node3D
+			if is_instance_valid(c) and not c.is_queued_for_deletion() and not candidates.has(c):
+				candidates.append(c)
+
+	var player := SceneManager.get_player()
+	if is_instance_valid(player) and not player.is_queued_for_deletion():
+		if not candidates.has(player):
+			candidates.append(player)
+
+	if bp.get_tree() != null:
+		var tree_player := bp.get_tree().get_first_node_in_group("player") as Node3D
+		if tree_player == null and bp.get_tree().root != null:
+			tree_player = bp.get_tree().root.find_child("Player", true, false) as Node3D
+		if is_instance_valid(tree_player) and not tree_player.is_queued_for_deletion() and not candidates.has(tree_player):
+			candidates.append(tree_player)
+
+	for actor in candidates:
+		if actor == exclude_actor:
+			continue
+		if _character_overlaps_cells(actor.global_position, bp_cells):
+			return true
+
+	return false
+
+
+func _get_blueprint_cells(bp: Blueprint) -> Array[Vector3i]:
+	if not is_instance_valid(bp):
+		return []
+	if bp.def == null and bp.target_def_id != "":
+		bp.def = BuildLibrary.get_def(bp.target_def_id)
+	if bp.def != null and not bp.def is FurnitureDef:
+		return [bp.anchor_cell]
+
+	var footprint := bp.get_footprint_cells()
+	if footprint.is_empty():
+		return []
+	var fdef := bp.def as FurnitureDef
+	var h := fdef.dimensions.y if fdef != null else 1
+	if h <= 1:
+		return footprint
+	var cells: Array[Vector3i] = []
+	for cell in footprint:
+		for dy in range(h):
+			cells.append(cell + Vector3i(0, dy, 0))
+	return cells
+
+
+func _character_overlaps_cells(pos: Vector3, bp_cells: Array[Vector3i]) -> bool:
+	var min_x := int(floor(pos.x - _CHARACTER_RADIUS))
+	var max_x := int(floor(pos.x + _CHARACTER_RADIUS))
+	var min_y := int(floor(pos.y))
+	var max_y := int(floor(pos.y + _CHARACTER_HEIGHT))
+	var min_z := int(floor(pos.z - _CHARACTER_RADIUS))
+	var max_z := int(floor(pos.z + _CHARACTER_RADIUS))
+
+	for x in range(min_x, max_x + 1):
+		for y in range(min_y, max_y + 1):
+			for z in range(min_z, max_z + 1):
+				if bp_cells.has(Vector3i(x, y, z)):
+					return true
+	return false
