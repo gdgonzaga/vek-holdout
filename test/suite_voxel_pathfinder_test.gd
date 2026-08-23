@@ -188,3 +188,44 @@ func test_query_stamps_and_clear_resets_telemetry_time() -> void:
 
 	finder.clear_diagnostics()
 	assert_float(finder.last_query_time).is_less(0.0)
+
+
+## When a colonist starts inside an unwalkable cell (e.g. blueprint placed on top of it),
+## find_path relaxes the unwalkable start constraint and routes outward to a walkable neighbor first.
+func test_unwalkable_start_cell_routes_to_walkable_neighbor() -> void:
+	var solid := {}
+	_fill_floor(solid, -5, 5, -5, 5, 0)
+	var blueprint := {Vector3i(0, 1, 0): true} # start cell is covered by blueprint
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	var predicate := func(cell: Vector3i) -> bool:
+		if blueprint.has(cell):
+			return false
+		return not solid.has(cell) and solid.has(cell + _DOWN) and not solid.has(cell + _UP)
+	finder.set_walkability(predicate)
+
+	var path := finder.find_path(Vector3i(0, 1, 0), Vector3i(3, 1, 0))
+	assert_int(path.size()).is_greater(0)
+	assert_bool(path.has(Vector3i(0, 1, 0))).is_true()
+	assert_bool(blueprint.has(path[1])).is_false() # step 1 exits the blueprint
+
+
+## When find_stand_cell queries a position in an unwalkable column (e.g. inside a tall blueprint),
+## it falls back to a ring search to locate the nearest exterior standable cell.
+func test_find_stand_cell_ring_search_fallback_when_column_unwalkable() -> void:
+	var solid := {}
+	_fill_floor(solid, -5, 5, -5, 5, 0)
+	# Column (0, 0) is blocked for all Y levels by blueprints/walls
+	var blueprint := {}
+	for y in range(-3, 6):
+		blueprint[Vector3i(0, y, 0)] = true
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	var predicate := func(cell: Vector3i) -> bool:
+		if blueprint.has(cell):
+			return false
+		return not solid.has(cell) and solid.has(cell + _DOWN) and not solid.has(cell + _UP)
+	finder.set_walkability(predicate)
+
+	var stand := finder.find_stand_cell(Vector3(0.5, 1.5, 0.5))
+	assert_bool(blueprint.has(stand)).is_false()
+	assert_int(stand.y).is_equal(1)
+	assert_int(max(absi(stand.x), absi(stand.z))).is_equal(1)

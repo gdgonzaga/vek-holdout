@@ -108,9 +108,6 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
 	if not _is_walkable.call(target_cell):
 		last_status = "FAIL (Target unwalkable %s)" % str(target_cell)
 		return path
-	if not _is_walkable.call(start_cell):
-		last_status = "FAIL (Start unwalkable %s)" % str(start_cell)
-		return path
 	if start_cell == target_cell:
 		last_status = "OK (Already at target)"
 		return [start_cell]
@@ -210,6 +207,9 @@ func find_stand_cell(world_pos: Vector3) -> Vector3i:
 	var hinted := _column_stand_cell(base)
 	if hinted != base and _is_walkable.call(hinted):
 		return hinted
+	var near_cell := find_stand_near_cell(base, _STAND_SCAN)
+	if _is_walkable.call(near_cell):
+		return near_cell
 	return base
 
 
@@ -368,9 +368,6 @@ func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array
 		return path
 	if not _is_walkable.is_valid():
 		last_status = "FAIL (predicate not set)"
-		return path
-	if not _is_walkable.call(start):
-		last_status = "FAIL (Start unwalkable %s)" % str(start)
 		return path
 	var target_set: Dictionary = {}
 	for t in targets:

@@ -28,6 +28,7 @@ Vek Holdout — Godot 4.7 (Forward Plus, Jolt) voxel colony-survival game. GDScr
 5. The EventBus registry is meant to be complete — prefer existing signals or direct refs over adding new ones.
 6. Prototype art: capsule primitives until the art pass. Enemies extend `enemy_base.gd`, colonists extend `colonist.gd` — never from scratch.
 7. Do not commit or edit previous automatically. Always wait for explicit commands before doing so.
+8. No LaTeX math syntax (e.g. `$...$`, `\pm`, `\times`) in responses, docs, or code comments. Use plain text or code formatting (e.g. `+/- 3 Y`, `2x2`, `3x3`).
 
 ## GDScript style
 

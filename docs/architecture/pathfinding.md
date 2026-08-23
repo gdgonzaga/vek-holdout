@@ -14,54 +14,62 @@ The pathfinding system provides intelligent navigation for colonists across both
 
 ### 2. Head Clearance in Enclosed Cavities
 
-- **Problem:** Colonist entities are $1.8\\text{m}$ tall capsules requiring at least 2 full vertical voxel cells ($2\\text{m}$) of vertical clearance. In narrow or partially carved tunnels, a stand cell could have walkable floor support, but have solid ceiling geometry immediately above it ($Y+1$), causing colonist capsules to clip into ceilings or get wedged during path execution.
-- **Solution:** `MapWiring._compose_walkability` explicitly enforces head clearance: for any cell $C$ to be standable, $C$ must be air, $C - Y$ must provide solid floor support, and $C + Y$ (head space) must also be non-solid (`not is_solid_at(cell + Vector3i.UP)`).
+- **Problem:** Colonist entities are $1.8\m$ tall capsules requiring at least 2 full vertical voxel cells ($2\m$) of vertical clearance. In narrow or partially carved tunnels, a stand cell could have walkable floor support, but have solid ceiling geometry immediately above it (Y+1), causing colonist capsules to clip into ceilings or get wedged during path execution.
+- **Solution:** `MapWiring._compose_walkability` explicitly enforces head clearance: for any cell C to be standable, C must be air, $C - Y$ must provide solid floor support, and $C + Y$ (head space) must also be non-solid (`not is_solid_at(cell + Vector3i.UP)`).
 - **Rationale:** Moving head clearance validation into the A* predicate prevents the pathfinder from ever generating paths through 1-block-high crawlspaces that the physics engine will reject.
 
 ### 3. Capsule Wall Clearance & SDF Safety Margins
 
-- **Problem:** CharacterBody3D capsules have a collision radius of $0.35\\text{m}-0.4\\text{m}$. Discrete point probes evaluating SDF at exactly $0.0$ (the mathematical zero-isosurface) allowed path waypoints to pass dangerously close to jagged marching-cubes walls. Colonists following these waypoints frequently collided with wall micro-geometry, stopping locomotion.
+- **Problem:** CharacterBody3D capsules have a collision radius of $0.35\m-0.4\m$. Discrete point probes evaluating SDF at exactly $0.0$ (the mathematical zero-isosurface) allowed path waypoints to pass dangerously close to jagged marching-cubes walls. Colonists following these waypoints frequently collided with wall micro-geometry, stopping locomotion.
 - **Solution:** Evaluated solidity via direct signed distance field checks (treating $\\text{SDF} > -0.01$ as excavated air/surface, applied per corner sample) in `SmoothGrid.is_solid_at` and `VoxelGridAdapter.is_terrain_at`.
 - **Rationale:** Incorporating the capsule radius into walkability solidity checks creates an automatic safety buffer around walls and corners, keeping waypoints centered in open air.
 
 ### 8. Whole-Cell Solidity vs. Carve-Dilation Fringe
 
-- **Problem:** `SmoothGrid.carve_box` stamps a dug cell's full corner span — all 8 lattice samples from `box_sample_targets`, which bleeds one lattice plane into the neighbouring walls (the mesher interpolates the isosurface halfway back into the solid). The solidity probes tested only the cell's **min-corner sample**, so every wall cell adjacent to a dug cell read as hollow air. In `hybrid_ground_probe`'s buried-tunnel branch those wall cells passed the air and floor checks and came back **walkable** — on a 1-wide dug stairway the A* routed through the wall fringe (flat cost $1.0$ beats the ramp's $3.0$ climb) and colonists ground into solid rock with `FAIL_OBSTACLE_TOO_HIGH` until the stuck-wiggle guard fired.
+- **Problem:** `SmoothGrid.carve_box` stamps a dug cell's full corner span — all 8 lattice samples from `box_sample_targets`, which bleeds one lattice plane into the neighbouring walls (the mesher interpolates the isosurface halfway back into the solid). The solidity probes tested only the cell's **min-corner sample**, so every wall cell adjacent to a dug cell read as hollow air. In `hybrid_ground_probe`'s buried-tunnel branch those wall cells passed the air and floor checks and came back **walkable** — on a 1-wide dug stairway the A* routed through the wall fringe (flat cost 1.0 beats the ramp's 3.0 climb) and colonists ground into solid rock with `FAIL_OBSTACLE_TOO_HIGH` until the stuck-wiggle guard fired.
 - **Solution:** `SmoothGrid.is_solid_cell` (shared by `is_solid_at`, `VoxelGridAdapter.is_terrain_at`) requires **all 8 corner samples** of a cell to read air before calling it carved; any solid corner defers to the column-height arbitration as before. The stamp math itself was extracted into the testable static `box_sample_targets` so suites replay the exact lattice the dig pipeline writes.
 - **Rationale:** Integer voxel coordinates are lattice *corner* values, not cell volumes — a single-sample probe answers the wrong question for any cell whose corners straddle a carve boundary. Dig designation and job-validity checks ride the same predicate, so fringe wall cells are correctly diggable terrain there too.
 
 ### 4. Stepped Locomotion & Continuous Ramp Transitions
 
-- **Problem:** Marching-cubes terrain extraction on $45^\\circ$ slopes generates smooth continuous ramps whose step-to-step height differential can exceed $1.0\\text{m}$ (up to $1.2\\text{m}-1.3\\text{m}$) due to vertex interpolation. Colonists using the standard $1.05\\text{m}$ hop height failed to climb ramps. Furthermore, `find_stand_near_cell` assumed same-Y neighbors, failing to find stand locations when target blueprints or dig jobs sat on a slope.
+- **Problem:** Marching-cubes terrain extraction on $45^\\circ$ slopes generates smooth continuous ramps whose step-to-step height differential can exceed $1.0\m$ (up to $1.2\m-1.3\m$) due to vertex interpolation. Colonists using the standard $1.05\m$ hop height failed to climb ramps. Furthermore, `find_stand_near_cell` assumed same-Y neighbors, failing to find stand locations when target blueprints or dig jobs sat on a slope.
 - **Solution:**
-  - Increased `StepClimber.hop_height` on `colonist.tscn` to $1.3\\text{m}$.
-  - Updated `find_stand_near_cell` in `VoxelPathfinder` to search $\\pm 1 Y$ neighbor steps on slopes and query column stand hints.
+  - Increased `StepClimber.hop_height` on `colonist.tscn` to $1.3\m$.
+  - Updated `find_stand_near_cell` in `VoxelPathfinder` to search $+/- 1 Y$ neighbor steps on slopes and query column stand hints.
 - **Rationale:** Real terrain is non-discrete; physical climbing assists and stand-cell resolvers must accommodate smooth slope variance without requiring artificial stair blocks for every incline.
 
 ### 5. Physics Snags & Dynamic Impulse Wiggling
 
 - **Problem:** Irregular physics collisions, sliding friction along multi-body boundaries, or grazing corner contacts could occasionally stall colonist movement even with valid paths.
-- **Solution:** Added a stuck detection timer in `Colonist._physics_process`. If horizontal progress towards the current waypoint remains near zero ($< 0.05\\text{m}$) for $> 0.4\\text{s}$, the colonist applies a lateral/vertical impulse ("wiggle") to dislodge the capsule. If progress remains blocked, the job leg aborts to trigger path recalculation.
+- **Solution:** Added a stuck detection timer in `Colonist._physics_process`. If horizontal progress towards the current waypoint remains near zero ($< 0.05\m$) for $> 0.4\s$, the colonist applies a lateral/vertical impulse ("wiggle") to dislodge the capsule. If progress remains blocked, the job leg aborts to trigger path recalculation.
 - **Rationale:** Provides resilient, self-healing locomotion in dynamic user-modified voxel geometry without hard locking the labor simulation.
 
 ### 6. Telemetry Lifecycle & Diagnostic Visualizer Clutter
 
 - **Problem:** `ColonistDebugVisualizer` renders A* start/target bounding boxes, ring search candidates, and 3D billboard text. Retaining telemetry after job completion caused obsolete green/red debug wireframes and stale A* status strings to linger at previous job sites. Two residue sources remained after the initial `clear_diagnostics()` fix: the colonist's unconsumed waypoints (dig jobs routinely enter work range with the path unfinished, so the tether, path strip and target box kept redrawing from `Colonist._path` after the job closed), and telemetry frozen by a failed initial claim (the unreachable-cell case) whose job then went to backoff-sleep with no further queries to refresh or clear it.
-- **Solution:** `ColonistAI._end_job()` now also clears the locomotion path via `Colonist.set_path([])` alongside `VoxelPathfinder.clear_diagnostics()`. Additionally, every telemetry-writing query stamps `last_query_time`, and the visualizer only draws telemetry-derived elements (A* boxes, ring candidates, status line, telemetry target fallback) while the stamp is within a TTL ($5\\text{s}$) — the same self-expiry idea as the StepClimber probe window. Clearing the diagnostics on a failed claim was rejected: query and clear land in the same tick, which would blank exactly the unreachable-target boxes the tool exists to show.
+- **Solution:** `ColonistAI._end_job()` now also clears the locomotion path via `Colonist.set_path([])` alongside `VoxelPathfinder.clear_diagnostics()`. Additionally, every telemetry-writing query stamps `last_query_time`, and the visualizer only draws telemetry-derived elements (A* boxes, ring candidates, status line, telemetry target fallback) while the stamp is within a TTL ($5\s$) — the same self-expiry idea as the StepClimber probe window. Clearing the diagnostics on a failed claim was rejected: query and clear land in the same tick, which would blank exactly the unreachable-target boxes the tool exists to show.
 - **Rationale:** Visual debug tools must reflect real-time entity state without leaving phantom indicators in the world.
 
 ### 7. Stand Resolution for Footprints Raised Above the Floor
 
-- **Problem:** Build jobs target the blueprint node; since `Blueprint extends Furniture`, `ColonistAI._path_for_leg` routes them through `find_path_to_footprint_adjacent`, whose candidate expansion probed only same-$Y$ horizontal neighbours of the footprint cells. A block blueprint placed on top of an existing block sits one $Y$ above the walkable floor — every same-$Y$ neighbour is air with no floor — so the query yielded zero candidates (`FAIL (No walkable adjacent cells to footprint)`), and the job failed on the board until auto-removed. `find_stand_near_cell`'s $\\pm 1 Y$ probes had the same blind spot on blocky-only maps, where they were gated behind the smooth-terrain column hint being injected.
-- **Solution:** Extracted `_stand_cell_in_column(col_base, max_hint_dy)` — the first standable cell among same-$Y$, $+1 Y$, $-1 Y$, then the hinted column cell — used by both the ring search (hint bound $r+1$) and the footprint expansion (bound 2, the ring $r{=}1$ equivalent). The $\\pm 1$ probes are unconditional; the hint only extends reach beyond one vertical step.
-- **Rationale:** "Stand adjacent to this footprint" is a question about columns, not cells: the walkable ground beside a raised target routinely sits one $Y$ below it. Both stand-cell resolvers must agree on that answer, on smooth-terrain and blocky-only maps alike.
+- **Problem:** Build jobs target the blueprint node; since `Blueprint extends Furniture`, `ColonistAI._path_for_leg` routes them through `find_path_to_footprint_adjacent`, whose candidate expansion probed only same-Y horizontal neighbours of the footprint cells. A block blueprint placed on top of an existing block sits one Y above the walkable floor — every same-Y neighbour is air with no floor — so the query yielded zero candidates (`FAIL (No walkable adjacent cells to footprint)`), and the job failed on the board until auto-removed. `find_stand_near_cell`'s $+/- 1 Y$ probes had the same blind spot on blocky-only maps, where they were gated behind the smooth-terrain column hint being injected.
+- **Solution:** Extracted `_stand_cell_in_column(col_base, max_hint_dy)` — the first standable cell among same-Y, $+1 Y$, $-1 Y$, then the hinted column cell — used by both the ring search (hint bound $r+1$) and the footprint expansion (bound 2, the ring r=1 equivalent). The $+/- 1$ probes are unconditional; the hint only extends reach beyond one vertical step.
+- **Rationale:** "Stand adjacent to this footprint" is a question about columns, not cells: the walkable ground beside a raised target routinely sits one Y below it. Both stand-cell resolvers must agree on that answer, on smooth-terrain and blocky-only maps alike.
+
+### 9. Two-Tier Recovery for Entombment and Unwalkable Start Cells
+
+- **Problem:** When a blueprint, furniture piece, or block structure is placed directly over an existing colonist, the cell containing the blueprint is marked unwalkable (`is_walkable == false`) by `MapWiring.compose_walkability`. Previously, when the colonist attempted to move or claim a job from inside the blueprint cell, `find_stand_cell` returned the current unwalkable cell (since the entire vertical column at that XZ was blocked), and `find_path` / `_find_path_multi_target` immediately aborted with `FAIL (Start unwalkable)`. The colonist became permanently stuck in `State.IDLE`, repeatedly failing job claims with "no reachable cell".
+- **Solution:** Implemented a two-tier recovery strategy in `VoxelPathfinder`:
+  - **Tier 1 (A* Core Relaxation):** Removed the immediate abort on an unwalkable `start_cell` in `find_path` and `_find_path_multi_target`. `start_cell` is seeded into the open set, but all neighbor expansions require `_is_walkable.call(nb) == true`. A* generates a goal-directed path whose first step exits the unwalkable cell into a valid neighbor.
+  - **Tier 2 (Stand-Cell Ring Fallback):** If `find_stand_cell` finds no standable cell within +/- 3 Y or the column hint (for example, when a colonist is inside a multi-cell building blueprint), it falls back to an expanding horizontal ring search (`find_stand_near_cell` with radius 3) to locate the nearest exterior standable perimeter cell as an anchor.
+- **Rationale:** Entity placement and blueprint construction are dynamic gameplay events. Pathfinding must recover gracefully from entities starting inside unwalkable cells without abandoning goal-directed search for single-cell obstacles or failing to resolve anchors for larger multi-cell footprints.
 
 ## Files
 
 | File | Type | Responsibility |
 |---|---|---|
 | `subsystems/colonists/voxel_pathfinder.gd` | Script (component) | Core A* over integer voxel coordinates with stepped neighbor model, dynamic costs, multi-target queries, and stand-adjacent ring/footprint column resolution. |
-| `subsystems/colonists/step_climber.gd` | Script (component) | Physical obstacle negotiation: upward hop assists ($1.3\\text{m}$ max rise) and step-down smoothing for CharacterBody3D locomotion. |
+| `subsystems/colonists/step_climber.gd` | Script (component) | Physical obstacle negotiation: upward hop assists ($1.3\m$ max rise) and step-down smoothing for CharacterBody3D locomotion. |
 | `subsystems/colonists/colonist_debug_visualizer.gd` | Script (component) | Dev visualization: ImmediateMesh 3D path lines, A* start/goal bounding boxes, candidate ring cells, step climber landing probes, and billboard text. |
 | `subsystems/colonists/colonist.gd` | Script | Locomotion execution: waypoint consumption, look-ahead vectoring, stuck detection, dynamic wiggle impulses, and StepClimber integration. |
 | `subsystems/maps/map_wiring.gd` | Script | Injects the composed `is_walkable(Vector3i)` Callable and `smooth_stand_hint(x, z)` into active pathfinders. |
@@ -75,36 +83,37 @@ The pathfinding system provides intelligent navigation for colonists across both
 **Trigger:** `ColonistAI` claims a job and requests a path to a target position (`find_path_to_adjacent`, `find_path_to_footprint_adjacent`, or `find_path_world`).
 
 1. **Target Stand Resolution:**
-   - For ground targets: `find_stand_cell` scans $\\pm 3 Y$ cells or evaluates the column stand hint.
-   - For blocked footprints / blueprints / dig targets (e.g. 1-wide stairways down): `find_stand_near_cell` executes an expanding horizontal Chebyshev ring search ($r = 1..4$). Each ring position resolves its column's stand cell via `_stand_cell_in_column` — same-$Y$, then $\\pm 1 Y$, then the column hint — regardless of hint presence, and the search returns the nearest valid walkable neighbour cell adjacent to the footprint.
-   - For furniture/blueprint nodes with a known footprint: `find_path_to_footprint_adjacent` expands each footprint cell's 4 horizontal neighbour columns through the same `_stand_cell_in_column` resolution (hint bound 2), then runs multi-target A* over the candidate set — so a footprint raised one $Y$ above the floor yields the ground cells beside it.
+   - For ground targets: `find_stand_cell` scans $+/- 3 Y$ cells or evaluates the column stand hint.
+   - For blocked footprints / blueprints / dig targets (e.g. 1-wide stairways down): `find_stand_near_cell` executes an expanding horizontal Chebyshev ring search (r = 1..4). Each ring position resolves its column's stand cell via `_stand_cell_in_column` — same-Y, then $+/- 1 Y$, then the column hint — regardless of hint presence, and the search returns the nearest valid walkable neighbour cell adjacent to the footprint.
+   - For furniture/blueprint nodes with a known footprint: `find_path_to_footprint_adjacent` expands each footprint cell's 4 horizontal neighbour columns through the same `_stand_cell_in_column` resolution (hint bound 2), then runs multi-target A* over the candidate set — so a footprint raised one Y above the floor yields the ground cells beside it.
 2. **Start Stand Resolution:**
-   - Evaluates colonist current world position to the nearest standable cell via `find_stand_cell`.
+   - Evaluates colonist current world position to the nearest standable cell via `find_stand_cell`. If the column and hint are unwalkable (e.g. inside a multi-cell blueprint), `find_stand_cell` falls back to a horizontal ring search (`find_stand_near_cell` with radius 3) to locate the nearest exterior standable perimeter cell.
 3. **Walkability Evaluation (`map_wiring.gd` & `SmoothGrid.is_solid_at`):**
    - The composed `is_walkable(cell)` predicate runs `hybrid_ground_probe`:
      - **Carved Voxels:** `SmoothGrid.is_solid_at(pos)` (whole-cell rule, `is_solid_cell`) requires all 8 corner samples of `pos` to read `> -0.01` air before answering `false` (air) — carve dilation stamps one lattice plane into neighbouring walls, and a min-corner-only probe mistook those wall cells for hollow tunnel (see design note 8).
-     - **Surface Ground Stand Cells:** `height_at` probes smooth surface height $h$. A cell `pos` is solid natural terrain iff $h \ge \text{pos.y} + 0.5$. Open surface stand cells ($h \in [\text{cell.y}, \text{cell.y} + 1)$) evaluate cell center height above ground as non-solid (`false`), so feet clearance is open.
-     - **Surface Slope Gate:** Evaluates raycast surface normal $n.y \ge \cos(\text{max\_slope\_deg}) - 0.01$. The $-0.01$ float tolerance accounts for float32 physics raycast normals on exact 45-degree carved ramp step faces against float64 GDScript math.
+     - **Surface Ground Stand Cells:** `height_at` probes smooth surface height h. A cell `pos` is solid natural terrain iff h >= pos.y + 0.5. Open surface stand cells (h in [cell.y, cell.y + 1)) evaluate cell center height above ground as non-solid (`false`), so feet clearance is open.
+     - **Surface Slope Gate:** Evaluates raycast surface normal n.y >= cos(max_slope_deg) - 0.01. The $-0.01$ float tolerance accounts for float32 physics raycast normals on exact 45-degree carved ramp step faces against float64 GDScript math.
 4. **A* Search Execution (`find_path`):**
-   - Initializes open list with `start_cell`, evaluated with Manhattan horizontal heuristic $\\Delta X + \\Delta Z$.
-   - Expands stepped neighbors (4 horizontal dirs $\\times$ $\\Delta Y \\in \\{+1, 0, -1, -2, -3\\}$).
+   - Initializes open list with `start_cell`, evaluated with Manhattan horizontal heuristic delta X + delta Z.
+   - **Unwalkable Start Recovery:** If `start_cell` is unwalkable (e.g. inside a 1x1 blueprint), `find_path` and `_find_path_multi_target` seed `start_cell` in the open set and enforce that all expanded step destinations pass `_is_walkable`, allowing the colonist to step directly out of the obstacle toward the goal.
+   - Expands stepped neighbors (4 horizontal dirs $x$ $delta Y in \\{+1, 0, -1, -2, -3\\}$).
    - Queries injected `_is_walkable` predicate on every candidate cell lazily.
-   - Computes movement cost: flat = $1.0$, climb $+1 Y$ = $3.0$ (`_JUMP_UP_COST`), drop $-N Y$ = $1.5 \\times N$ (`_DROP_COST_PER_CELL`).
+   - Computes movement cost: flat = 1.0, climb $+1 Y$ = 3.0 (`_JUMP_UP_COST`), drop -N Y = $1.5 x N$ (`_DROP_COST_PER_CELL`).
    - Bounded by `_MAX_EXPLORED = 8000` cells to prevent runaway searches.
 5. **Path Output:**
-   - Reconstructs cell chain and converts to world coordinates centered at cell midpoints ($+0.5, +0.5, +0.5$) via `to_world_waypoints`.
+   - Reconstructs cell chain and converts to world coordinates centered at cell midpoints (+0.5, +0.5, +0.5) via `to_world_waypoints`.
 
 ## Flow Trace: Locomotion & Physics Obstacle Handling
 
 **Trigger:** `Colonist.set_path(waypoints)` is called.
 
 1. `Colonist._physics_process` computes horizontal velocity towards the next waypoint in the queue.
-2. When approaching a vertical face ($+Y$ step):
+2. When approaching a vertical face (+Y step):
    - `StepClimber.try_step_up` performs a ray/box probe forward at character waist height.
    - Probes the landing surface height at step destination.
-   - If landing rise $\\in (0, 1.3\\text{m}]$, applies a vertical hop velocity boost to clear the ledge.
-3. When waypoint distance $< 0.3\\text{m}$, pops waypoint from queue.
-4. **Stuck Guard:** If horizontal movement stalls for $> 0.4\\text{s}$, applies lateral wiggle impulse. If stalling exceeds timeout, `has_arrived()` signals arrival or failure to `ColonistAI`.
+   - If landing rise $in (0, 1.3\m]$, applies a vertical hop velocity boost to clear the ledge.
+3. When waypoint distance $< 0.3\m$, pops waypoint from queue.
+4. **Stuck Guard:** If horizontal movement stalls for $> 0.4\s$, applies lateral wiggle impulse. If stalling exceeds timeout, `has_arrived()` signals arrival or failure to `ColonistAI`.
 5. Upon reaching the final waypoint, `has_arrived()` returns true.
 
 ## Class Reference
@@ -134,8 +143,8 @@ The pathfinding system provides intelligent navigation for colonists across both
 | `set_walkability(predicate: Callable) -> void` | Injects the `(cell: Vector3i) -> bool` walkability predicate. |
 | `set_stand_cell_hint(hint: Callable) -> void` | Injects the optional `(x: float, z: float) -> Vector3i` column stand hint. |
 | `is_walkable(cell: Vector3i) -> bool` | Evaluates walkability of a single cell using the injected predicate. |
-| `find_path(start_cell, target_cell) -> Array[Vector3i]` | Core A* over integer voxel coordinates. |
-| `find_stand_cell(world_pos: Vector3) -> Vector3i` | Resolves nearest standable cell within $\\pm 3 Y$ or column hint. |
+| `find_path(start_cell, target_cell) -> Array[Vector3i]` | Core A* over integer voxel coordinates; permits unwalkable start nodes to expand into adjacent walkable cells. |
+| `find_stand_cell(world_pos: Vector3) -> Vector3i` | Resolves nearest standable cell within $+/- 3 Y$ or column hint. |
 | `find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i` | Ring search for nearest standable neighbour adjacent to a target/footprint. |
 | `find_path_world(start_world, target_world) -> Array[Vector3]` | World-space entry point for open ground targets. |
 | `find_path_to_adjacent(start_world, target_world, max_radius = 4) -> Array[Vector3]` | World-space entry point for blocked footprints (blueprints, crates, dig sites). |
@@ -158,7 +167,7 @@ The pathfinding system provides intelligent navigation for colonists across both
 | `draw_path` | `bool` | Toggles drawing of the active 3D path polyline and waypoint markers. |
 | `draw_tether` | `bool` | Toggles direct colonist-to-goal vector tether. |
 | `draw_diagnostics` | `bool` | Toggles A* cell boxes, candidate ring markers, and StepClimber probe boxes. |
-| `label_height_offset` | `float` | Vertical offset ($2.2\\text{m}$) for the 3D billboard text label. |
+| `label_height_offset` | `float` | Vertical offset ($2.2\m$) for the 3D billboard text label. |
 
 ---
 
@@ -173,6 +182,6 @@ The pathfinding system provides intelligent navigation for colonists across both
 
 | Property | Type | Description |
 |---|---|---|
-| `hop_height` | `float` | Maximum climbable step rise ($1.3\\text{m}$ on colonists, $1.05\\text{m}$ on player). |
+| `hop_height` | `float` | Maximum climbable step rise ($1.3\m$ on colonists, $1.05\m$ on player). |
 | `probe_distance` | `float` | Forward distance for obstacle detection. |
 | `forward_bias` | `float` | Horizontal impulse applied during hop execution. |
