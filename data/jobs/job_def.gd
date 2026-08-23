@@ -85,6 +85,13 @@ func complete(_actor: Node, _leg: JobLeg, _job: Job) -> void:
 	pass
 
 
+## Whether work can progress on this leg during WORK state (e.g. false if a
+## construction site is temporarily occupied by a colonist). Returning false
+## pauses work accumulation and ticks a timeout in ColonistAI. Base default: true.
+func can_progress_work(_actor: Node, _leg: JobLeg, _job: Job) -> bool:
+	return true
+
+
 ## Cleanup when a colonist leaves the job. `success` is true on a clean finish
 ## (get_next_leg returned null and job_complete says the job is done), false on
 ## an abort (target freed / next leg unreachable) or a stall. Use to return

@@ -23,6 +23,7 @@ class_name ColonistAI
 enum State {IDLE, MOVE, WORK}
 
 const _POLL_INTERVAL := 0.5 # seconds between JobBoard polls while idle
+const _MAX_BLOCKED_WAIT_TIME := 5.0 # seconds to wait on an occupied work site before aborting
 
 @onready var _colonist: Colonist = get_parent()
 
@@ -33,6 +34,7 @@ var _leg: JobLeg = null
 # WORK scratch: the elapsed/duration pair this AI ticks against job.def.begin().
 var _work_elapsed: float = 0.0
 var _work_duration: float = 0.0
+var _blocked_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
@@ -135,6 +137,12 @@ func _tick_work(delta: float) -> void:
 	if _leg.target_node != null and not is_instance_valid(_leg.target_node):
 		_abort_job("work target freed")
 		return
+	if job.def != null and not job.def.can_progress_work(_colonist, _leg, job):
+		_blocked_timer += delta
+		if _blocked_timer >= _MAX_BLOCKED_WAIT_TIME:
+			_abort_job("target cell occupied timeout")
+		return
+	_blocked_timer = 0.0
 	_work_elapsed += delta
 	if _work_elapsed >= _work_duration:
 		job.def.complete(_colonist, _leg, job)
@@ -172,8 +180,8 @@ func _advance() -> void:
 ## the nearest walkable cell adjacent to its full footprint (multi-target A*).
 ## Falls back to find_path_to_adjacent for non-furniture / unknown targets.
 func _path_for_leg(leg: JobLeg) -> Array[Vector3]:
-	var furniture := leg.target_node as Furniture
-	if furniture != null and is_instance_valid(furniture):
+	if is_instance_valid(leg.target_node):
+		var furniture := leg.target_node as Furniture
 		var fp := furniture.get_footprint_cells()
 		if not fp.is_empty():
 			return _colonist.pathfinder.find_path_to_footprint_adjacent(
@@ -225,5 +233,6 @@ func _end_job(success: bool) -> void:
 	if _colonist.pathfinder != null:
 		_colonist.pathfinder.clear_diagnostics()
 	_work_elapsed = 0.0
+	_blocked_timer = 0.0
 	_state = State.IDLE
 	_poll_clock = 0.0
