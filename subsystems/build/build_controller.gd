@@ -166,14 +166,14 @@ func _physics_process(_delta: float) -> void:
 			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
 		var def := BuildLibrary.get_def(selected_id)
 		if def is BlockDef and def.mesh != null:
-			var cell_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
+			var cell_center := Vector3(cell) + Vector3.ONE
 			var rot_basis := Basis(Vector3.UP, deg_to_rad(rotation_state.get_yaw_degrees()))
 			var local_center := def.mesh.get_aabb().get_center()
 			ghost_pos = cell_center - rot_basis * local_center
 			_ghost.show_at(ghost_pos, valid)
 			_ghost.transform.basis = rot_basis
 		else:
-			ghost_pos = Vector3(cell)
+			ghost_pos = Vector3(cell) + Vector3.ONE
 			_ghost.show_at(ghost_pos, valid)
 			_ghost.rotation_degrees.y = 0.0
 		if DEBUG_RAYCAST:

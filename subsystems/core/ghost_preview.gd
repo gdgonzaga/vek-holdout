@@ -4,9 +4,8 @@ extends MeshInstance3D
 ## Carries no logic about *where* to be — BuildController positions it each frame.
 ## Tinted green (valid) / red (invalid) via material_override.
 ##
-## Mesh follows the voxel corner convention: it spans (0,0,0)->(1,1,1) in local
-## space, so the MeshInstance3D's origin is placed exactly at the integer voxel
-## cell (no centering offset). BuildController sets global_position to Vector3(cell).
+## Default BoxMesh is centered at (0,0,0), so BuildController positions block preview
+## ghosts at the cell center: Vector3(cell) + Vector3(0.5, 0.5, 0.5).
 
 const _COLOR_VALID_ABOVE := Color(0.2, 0.9, 0.3, 0.5)
 const _COLOR_VALID_UNDERGROUND := Color(1.0, 0.65, 0.15, 0.5)
