@@ -4,4 +4,11 @@
 
 [resource]
 script = ExtResource("1_34um5")
+default_labor_priorities = {
+"construction": 1,
+"crafting": 1,
+"harvesting": 1,
+"hauling": 1,
+"mining": 1
+}
 metadata/_custom_type_script = "uid://bh0hou41lremh"
