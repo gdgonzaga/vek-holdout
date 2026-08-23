@@ -151,7 +151,9 @@ func _physics_process(_delta: float) -> void:
 		# Furniture: footprint center on XZ; valid only if every covered cell is free
 		# (anchor-cell support when the hit was smooth ground).
 		ghost_pos = _furniture_ghost_pos(cell)
-		valid = _is_footprint_free(cell, BuildLibrary.get_def(selected_id)) \
+		var furn_def := BuildLibrary.get_def(selected_id)
+		_ghost.mesh = furn_def.mesh if furn_def != null else null
+		valid = _is_footprint_free(cell, furn_def) \
 			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
 		if DEBUG_RAYCAST:
 			print("[DEBUG] furniture ghost_pos=%s valid=%s" % [ghost_pos, valid])
@@ -165,6 +167,7 @@ func _physics_process(_delta: float) -> void:
 			and (blueprint_layer == null or not blueprint_layer.has_at(cell)) \
 			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
 		var def := BuildLibrary.get_def(selected_id)
+		_ghost.mesh = def.mesh if def != null else null
 		if def is BlockDef and def.mesh != null:
 			var cell_center := Vector3(cell) + Vector3.ONE
 			var rot_basis := Basis(Vector3.UP, deg_to_rad(rotation_state.get_yaw_degrees()))
@@ -235,9 +238,7 @@ func _on_buildable_selected(id: String) -> void:
 
 func _set_ghost_mesh():
 	var def := BuildLibrary.get_def(selected_id)
-	if def == null:
-		return
-	_ghost.mesh = def.mesh
+	_ghost.mesh = def.mesh if def != null else null
 
 func _try_commit() -> void:
 	if grid_adapter == null or _camera == null or strategy == null or selected_id == "":

@@ -42,7 +42,12 @@ func _ready() -> void:
 	_wire_instance.material_override = _wire_material
 	add_child(_wire_instance)
 
-	_default_mesh = mesh
+	if mesh != null:
+		_default_mesh = mesh
+	else:
+		var box := BoxMesh.new()
+		box.size = Vector3.ONE
+		_default_mesh = box
 	_sphere_mesh = SphereMesh.new()
 	_sphere_mesh.radius = 1.0
 	_sphere_mesh.height = 2.0
@@ -57,7 +62,8 @@ func _ready() -> void:
 func show_at(world_pos: Vector3, valid: bool) -> void:
 	if _wire_instance != null:
 		_wire_instance.hide()
-	mesh = _default_mesh
+	if mesh == null:
+		mesh = _default_mesh
 	global_position = world_pos
 	scale = Vector3.ONE
 	set_valid(valid)
