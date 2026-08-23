@@ -22,11 +22,20 @@ extends Node3D
 ## Uses Camera3D.v_offset.
 @export var v_offset := 0.4
 
+## Position smoothing settings:
+@export var smooth_enabled := true
+## Speed at which horizontal (X/Z) position catches up to target.
+@export var smooth_speed_horizontal := 24.0
+## Speed at which vertical (Y) position catches up to target (softer to absorb step teleports).
+@export var smooth_speed_vertical := 12.0
+
 var _yaw := 0.0
 var _pitch := -0.25
 var _spring: SpringArm3D
 
 func _ready() -> void:
+	# Decouple transform hierarchy so parent teleports (e.g. StepClimber) can be smoothed.
+	set_as_top_level(true)
 	# Build the rig as children so player.tscn only needs the CameraRig node.
 	_spring = SpringArm3D.new()
 	_spring.spring_length = spring_length
@@ -45,8 +54,33 @@ func _ready() -> void:
 	cam.v_offset = v_offset
 	_spring.add_child(cam)
 
-	# Raise the pivot to eye/shoulder height (capsule top is at 1.6 m).
-	position.y = height_offset
+
+	snap_to_target()
+
+func _physics_process(delta: float) -> void:
+	var target := get_target_position()
+	if not smooth_enabled:
+		global_position = target
+		return
+	var lerp_h := 1.0 - exp(-smooth_speed_horizontal * delta)
+	var lerp_v := 1.0 - exp(-smooth_speed_vertical * delta)
+	global_position.x = lerpf(global_position.x, target.x, lerp_h)
+	global_position.y = lerpf(global_position.y, target.y, lerp_v)
+	global_position.z = lerpf(global_position.z, target.z, lerp_h)
+
+
+## Target position in world space (parent position + vertical eye/shoulder offset).
+func get_target_position() -> Vector3:
+	var parent_node := get_parent() as Node3D
+	if parent_node != null:
+		return parent_node.global_position + Vector3(0.0, height_offset, 0.0)
+	return global_position
+
+
+## Snaps the camera rig immediately to the target position without smoothing.
+func snap_to_target() -> void:
+	global_position = get_target_position()
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:

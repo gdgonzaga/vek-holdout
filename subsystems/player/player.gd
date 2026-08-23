@@ -113,6 +113,7 @@ func deserialize(data: Dictionary) -> void:
 	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
 	_rig.set_orientation(float(data.get("cam_yaw", 0.0)), float(data.get("cam_pitch", -0.25)))
+	_rig.snap_to_target()
 	if data.has("inventory"):
 		inventory.deserialize(data["inventory"])
 

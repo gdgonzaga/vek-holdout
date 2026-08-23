@@ -184,6 +184,9 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `height_offset` | `float` | `[export default 1.4]` Pivot height above the Player (eye/shoulder height). |
 | `h_offset` | `float` | `[export default 0.5]` `Camera3D.h_offset` — horizontal frustum shift (body frames screen-left). |
 | `v_offset` | `float` | `[export default 0.4]` `Camera3D.v_offset` — vertical frustum shift. |
+| `smooth_enabled` | `bool` | `[export default true]` Enable/disable camera position smoothing. |
+| `smooth_speed_horizontal` | `float` | `[export default 24.0]` Lerp speed for horizontal tracking. |
+| `smooth_speed_vertical` | `float` | `[export default 12.0]` Lerp speed for vertical tracking (softer to absorb step teleports). |
 
 > Over-the-shoulder framing uses `h_offset`/`v_offset` (frustum shift) rather than rotating the camera, so the aim direction stays along the spring-arm axis.
 
@@ -194,6 +197,8 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `get_camera() -> Camera3D` | The active Camera3D (child of the spring arm). Returns null if the rig isn't ready yet (callers must wait for `_ready`). |
 | `get_yaw() -> float` / `get_pitch() -> float` | Current orbit yaw / pitch (radians). Save/load accessors for otherwise-private state. |
 | `set_orientation(yaw: float, pitch: float) -> void` | Restore the orbit (radians); pitch is clamped and applied immediately. Used by save/load. |
+| `get_target_position() -> Vector3` | Gets the target tracking position in world space (parent position + vertical height offset). |
+| `snap_to_target() -> void` | Snaps the rig immediately to the target position without smoothing. |
 
 ### Class: StepClimber
 
