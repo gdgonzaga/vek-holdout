@@ -109,10 +109,11 @@ func _update_animation_state() -> void:
 	
 	# Horizontal locomotion
 	var speed := Vector3(_colonist.velocity.x, 0.0, _colonist.velocity.z).length()
+	var is_following_path: bool = not _colonist.has_arrived() if (_colonist and _colonist.has_method("has_arrived")) else false
 	
 	if speed > 6.0:
 		_play_anim("Sprint")
-	elif speed > 0.1:
+	elif speed > 0.1 or is_following_path:
 		_play_anim("Walk")
 	else:
 		_play_anim("Idle")

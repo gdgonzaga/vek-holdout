@@ -98,11 +98,14 @@ func _follow_path(delta: float) -> void:
 
 	if to_target.length() <= threshold:
 		_path_index += 1
-		velocity.x = 0.0
-		velocity.z = 0.0
 		_stuck_timer = 0.0
 		_wiggle_timer = 0.0
-		return
+		if _path_index >= _path.size():
+			velocity.x = 0.0
+			velocity.z = 0.0
+			return
+		to_target = _path[_path_index] - global_position
+		to_target.y = 0.0
 	var dir: Vector3 = to_target.normalized()
 	var speed: float = colonist_def.base_move_speed
 	
