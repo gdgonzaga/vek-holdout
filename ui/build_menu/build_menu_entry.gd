@@ -11,6 +11,13 @@ extends Button
 signal pressed_id(id: String)
 
 var _id: String = ""
+var _display_name: String = ""
+
+var entry_id: String:
+	get: return _id
+
+var display_name: String:
+	get: return _display_name
 
 @onready var _icon: TextureRect = $HBox/Icon
 @onready var _label: Label = $HBox/Label
@@ -30,6 +37,7 @@ func setup(def: BuildableDef) -> void:
 ## default params only apply on argument *omission*, not on an explicit null.
 func setup_tool(id: String, label: String, icon: Texture2D = null) -> void:
 	_id = id
+	_display_name = label
 	# Defer the node setup to _ready if this entry hasn't entered the tree yet
 	# (populate() sets up before add_child triggers _ready).
 	if not is_node_ready():

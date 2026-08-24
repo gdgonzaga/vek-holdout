@@ -38,15 +38,23 @@ size_flags_horizontal = 3
 text = "Build menu."
 
 [node name="CloseButton" type="Button" parent="Panel/VBox/Header" unique_id=228745033]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 text = "x"
+
+[node name="SearchEdit" type="LineEdit" parent="Panel/VBox" unique_id=304928101]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Search buildables..."
+clear_button_enabled = true
 
 [node name="ScrollContainer" type="ScrollContainer" parent="Panel/VBox" unique_id=883508408]
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="List" type="VBoxContainer" parent="Panel/VBox/ScrollContainer" unique_id=1414058108]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
