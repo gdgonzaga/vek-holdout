@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="BlockDef" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="BlockDef" format=3]
 
-[ext_resource type="Script" path="res://data/blocks/block_def.gd" id="1_script"]
-[ext_resource type="Mesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="2_mesh"]
+[ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="1_script"]
+[ext_resource type="Mesh" uid="uid://cgliort6rskny" path="res://assets/custom_meshes/full-block.obj" id="2_mesh"]
 [ext_resource type="Texture2D" uid="uid://b1o54y7jqy7bq" path="res://assets/item_icons/stone_block.png" id="3_icon"]
 
 [resource]

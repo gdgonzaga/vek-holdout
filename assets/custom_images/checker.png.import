@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ckeuk3wa5tsxn"
-path.s3tc="res://.godot/imported/MT00374-Wood_Planks.png-744e7fa5c692ea1020c9f15b03d399cd.s3tc.ctex"
+uid="uid://c35n33ej8dlcy"
+path.s3tc="res://.godot/imported/checker.png-af18839d0526749f8ea4787c08148fae.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/realer_than_real_textures/MT00374-Wood_Planks.png"
-dest_files=["res://.godot/imported/MT00374-Wood_Planks.png-744e7fa5c692ea1020c9f15b03d399cd.s3tc.ctex"]
+source_file="res://assets/custom_images/checker.png"
+dest_files=["res://.godot/imported/checker.png-af18839d0526749f8ea4787c08148fae.s3tc.ctex"]
 
 [params]
 

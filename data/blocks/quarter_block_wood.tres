@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="BlockDef" format=3 uid="uid://dfx5ynleeps2g"]
+
+[ext_resource type="Texture2D" uid="uid://6hiebo0qqmyh" path="res://assets/custom_images/quarter_block_wood.png" id="1_xnwso"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_ulo7w"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_db84w"]
+[ext_resource type="ArrayMesh" uid="uid://b2bj01adumvn2" path="res://assets/custom_meshes/quarter-block.obj" id="4_ulo7w"]
+[ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="5_sasm5"]
+[ext_resource type="Texture2D" uid="uid://dbsuwwh1rn4ca" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_rd1dm"]
+
+[sub_resource type="Resource" id="Resource_s7pj6"]
+script = ExtResource("2_ulo7w")
+item_def = ExtResource("3_db84w")
+count = 4
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[resource]
+script = ExtResource("5_sasm5")
+rotation_mode = 24
+id = "quarter_block_wood"
+display_name = "quarter block wood"
+icon = ExtResource("1_xnwso")
+hp = 50
+mesh = ExtResource("4_ulo7w")
+texture = ExtResource("6_rd1dm")
+material_cost = Array[ExtResource("2_ulo7w")]([SubResource("Resource_s7pj6")])
+unlocked_by_default = true
+build_time = 2.0
+metadata/_custom_type_script = "uid://b174ngojt5ovy"

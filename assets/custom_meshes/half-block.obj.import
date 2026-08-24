@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://bhtlpungw81t7"
+path="res://.godot/imported/half-block.obj-f2ef01b45ed1eee235969ee6ec1956ae.mesh"
+
+[deps]
+
+files=["res://.godot/imported/half-block.obj-f2ef01b45ed1eee235969ee6ec1956ae.mesh"]
+
+source_file="res://assets/custom_meshes/half-block.obj"
+dest_files=["res://.godot/imported/half-block.obj-f2ef01b45ed1eee235969ee6ec1956ae.mesh", "res://.godot/imported/half-block.obj-f2ef01b45ed1eee235969ee6ec1956ae.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

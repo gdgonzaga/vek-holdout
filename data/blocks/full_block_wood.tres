@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="BlockDef" format=3 uid="uid://bdc3p2qr30wy1"]
+
+[ext_resource type="Texture2D" uid="uid://bo000vynx5y8" path="res://assets/custom_images/full_block_wood.png" id="1_hnq64"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_ho5v2"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_wuiq6"]
+[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/custom_meshes/full-block.obj" id="4_w6x1d"]
+[ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="5_3hvax"]
+[ext_resource type="Texture2D" uid="uid://dbsuwwh1rn4ca" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_hnq64"]
+
+[sub_resource type="Resource" id="Resource_s7pj6"]
+script = ExtResource("2_ho5v2")
+item_def = ExtResource("3_wuiq6")
+count = 4
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[resource]
+script = ExtResource("5_3hvax")
+id = "full_block_wood"
+display_name = "wood block"
+icon = ExtResource("1_hnq64")
+hp = 50
+mesh = ExtResource("4_w6x1d")
+texture = ExtResource("6_hnq64")
+material_cost = Array[ExtResource("2_ho5v2")]([SubResource("Resource_s7pj6")])
+unlocked_by_default = true
+build_time = 2.0
+metadata/_custom_type_script = "uid://b174ngojt5ovy"

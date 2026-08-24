@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://c3blud7kj7tqx"
+path="res://.godot/imported/stairs-corner-left.obj-947e4f2ff638fdbf48b0592396ce89cc.mesh"
+
+[deps]
+
+files=["res://.godot/imported/stairs-corner-left.obj-947e4f2ff638fdbf48b0592396ce89cc.mesh"]
+
+source_file="res://assets/custom_meshes/stairs-corner-left.obj"
+dest_files=["res://.godot/imported/stairs-corner-left.obj-947e4f2ff638fdbf48b0592396ce89cc.mesh", "res://.godot/imported/stairs-corner-left.obj-947e4f2ff638fdbf48b0592396ce89cc.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

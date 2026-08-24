@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_1d3ly"]
-[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/blocks/dirt.obj" id="2_mesh"]
+[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/custom_meshes/full-block.obj" id="2_mesh"]
 [ext_resource type="Texture2D" uid="uid://c4j4kkwdhgluf" path="res://assets/item_icons/metal_block.png" id="3_icon"]
 
 [resource]
