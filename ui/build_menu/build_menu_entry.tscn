@@ -3,7 +3,8 @@
 [ext_resource type="Script" uid="uid://bbngo8o2mhcpm" path="res://ui/build_menu/build_menu_entry.gd" id="1_entry"]
 
 [node name="BuildMenuEntry" type="Button" unique_id=2113437133]
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 42)
+size_flags_horizontal = 3
 script = ExtResource("1_entry")
 
 [node name="HBox" type="HBoxContainer" parent="." unique_id=15333013]
@@ -17,11 +18,13 @@ offset_right = -8.0
 offset_bottom = -4.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_constants/separation = 8
 
 [node name="Icon" type="TextureRect" parent="HBox" unique_id=1377248679]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
+mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
@@ -30,3 +33,5 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Entry"
 vertical_alignment = 1
+clip_text = true
+text_overrun_behavior = 3

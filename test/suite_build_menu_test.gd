@@ -29,7 +29,7 @@ func test_build_menu_populate_and_filter() -> void:
 	add_child(menu)
 	menu.populate()
 
-	var list: VBoxContainer = menu.get_node("%List") as VBoxContainer
+	var list: GridContainer = menu.get_node("%List") as GridContainer
 	assert_object(list).is_not_null()
 
 	var total_count: int = list.get_child_count()
@@ -82,7 +82,7 @@ func test_build_menu_alphabetical_sorting() -> void:
 	add_child(menu)
 	menu.populate()
 
-	var list: VBoxContainer = menu.get_node("%List") as VBoxContainer
+	var list: GridContainer = menu.get_node("%List") as GridContainer
 	assert_object(list).is_not_null()
 
 	# Verify default list (excluding Deconstruct at index 0) is fully sorted alphabetically

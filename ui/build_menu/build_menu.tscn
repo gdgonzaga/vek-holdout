@@ -19,15 +19,16 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -140.0
-offset_top = -220.0
-offset_right = 140.0
-offset_bottom = 220.0
+offset_left = -300.0
+offset_top = -260.0
+offset_right = 300.0
+offset_bottom = 260.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="Panel" unique_id=501894965]
 layout_mode = 2
+theme_override_constants/separation = 8
 
 [node name="Header" type="HBoxContainer" parent="Panel/VBox" unique_id=570246246]
 layout_mode = 2
@@ -35,7 +36,7 @@ layout_mode = 2
 [node name="TitleLabel" type="Label" parent="Panel/VBox/Header" unique_id=240920013]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Build menu."
+text = "Build Menu"
 
 [node name="CloseButton" type="Button" parent="Panel/VBox/Header" unique_id=228745033]
 unique_name_in_owner = true
@@ -53,8 +54,10 @@ clear_button_enabled = true
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="List" type="VBoxContainer" parent="Panel/VBox/ScrollContainer" unique_id=1414058108]
+[node name="List" type="GridContainer" parent="Panel/VBox/ScrollContainer" unique_id=1414058108]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 2

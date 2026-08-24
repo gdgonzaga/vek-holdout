@@ -15,7 +15,7 @@ signal closed()
 const _EntryScene := preload("res://ui/build_menu/build_menu_entry.tscn")
 const DECONSTRUCT_ICON = preload("res://assets/item_icons/__deconstruct__.png")
 
-@onready var _list: VBoxContainer = %List
+@onready var _list: GridContainer = %List
 @onready var _close_button: Button = %CloseButton
 @onready var _search_edit: LineEdit = %SearchEdit
 
