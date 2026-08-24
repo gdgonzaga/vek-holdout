@@ -7,6 +7,16 @@
 [ext_resource type="Script" uid="uid://dbsyrm1856fnh" path="res://subsystems/colonists/colonist_ai.gd" id="5_ai"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
 [ext_resource type="Script" uid="uid://bosg2otbbkcma" path="res://subsystems/colonists/colonist_debug_visualizer.gd" id="7_3o0mj"]
+[ext_resource type="Animation" uid="uid://bghj1lepfd7bt" path="res://assets/quaternius/animations/Interact.tres" id="8_ppfrl"]
+[ext_resource type="Animation" uid="uid://ctwfvf0u1qxsq" path="res://assets/quaternius/animations/Jog_Fwd.tres" id="9_3xw50"]
+[ext_resource type="Animation" uid="uid://ciu4d68tfdmg2" path="res://assets/quaternius/animations/Jump.tres" id="10_thjwc"]
+[ext_resource type="Animation" uid="uid://yp1heldq8q4c" path="res://assets/quaternius/animations/Jump_Land.tres" id="11_lxodo"]
+[ext_resource type="Animation" uid="uid://bur6sbiejduge" path="res://assets/quaternius/animations/Jump_Start.tres" id="12_kkt58"]
+[ext_resource type="Animation" uid="uid://cvggoeh7lh8pn" path="res://assets/quaternius/animations/Sprint.tres" id="13_ivbn6"]
+[ext_resource type="Animation" uid="uid://cuy3igakk6erc" path="res://assets/quaternius/animations/Walk.tres" id="14_vvkho"]
+[ext_resource type="Animation" uid="uid://gt538bg3ia6n" path="res://assets/quaternius/animations/Idle.tres" id="15_idle"]
+[ext_resource type="Script" path="res://subsystems/colonists/colonist_animation_controller.gd" id="16_animctrl"]
+[ext_resource type="PackedScene" uid="uid://kf6rxq8h05uf" path="res://assets/quaternius/character_model.glb" id="17_charactermodel"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3
@@ -16,6 +26,18 @@ height = 1.6
 radius = 0.3
 height = 1.6
 
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_gwypq"]
+_data = {
+&"Idle": ExtResource("15_idle"),
+&"Interact": ExtResource("8_ppfrl"),
+&"Jog_Fwd": ExtResource("9_3xw50"),
+&"Jump": ExtResource("10_thjwc"),
+&"Jump_Land": ExtResource("11_lxodo"),
+&"Jump_Start": ExtResource("12_kkt58"),
+&"Sprint": ExtResource("13_ivbn6"),
+&"Walk": ExtResource("14_vvkho")
+}
+
 [node name="Colonist" type="CharacterBody3D" unique_id=229374039]
 collision_layer = 32
 collision_mask = 7
@@ -24,6 +46,7 @@ script = ExtResource("1_34td1")
 
 [node name="Mesh" type="MeshInstance3D" parent="." unique_id=1576556896]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+visible = false
 mesh = SubResource("CapsuleMesh_q70a7")
 
 [node name="Collision" type="CollisionShape3D" parent="." unique_id=565503061]
@@ -51,3 +74,13 @@ hop_height = 1.3
 [node name="ColonistDebugVisualizer" type="Node3D" parent="." unique_id=1121441470]
 script = ExtResource("7_3o0mj")
 metadata/_custom_type_script = "uid://bosg2otbbkcma"
+
+[node name="Visuals" type="Node3D" parent="." unique_id=314291200]
+
+[node name="CharacterModel" parent="Visuals" unique_id=886965113 instance=ExtResource("17_charactermodel")]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=869776552]
+libraries/ual = SubResource("AnimationLibrary_gwypq")
+
+[node name="ColonistAnimationController" type="Node" parent="." unique_id=198273646]
+script = ExtResource("16_animctrl")
