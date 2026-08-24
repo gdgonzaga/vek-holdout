@@ -75,3 +75,24 @@ func test_build_menu_text_submitted_emits_selection() -> void:
 
 	assert_int(selected_ids.size()).is_equal(1)
 	assert_str(selected_ids[0]).is_equal(BuildLibrary.DECONSTRUCT_ID)
+
+
+func test_build_menu_alphabetical_sorting() -> void:
+	var menu: BuildMenu = auto_free(_BuildMenuScene.instantiate()) as BuildMenu
+	add_child(menu)
+	menu.populate()
+
+	var list: VBoxContainer = menu.get_node("%List") as VBoxContainer
+	assert_object(list).is_not_null()
+
+	# Verify default list (excluding Deconstruct at index 0) is fully sorted alphabetically
+	var last_name: String = ""
+	for i in range(1, list.get_child_count()):
+		var child = list.get_child(i)
+		if child is BuildMenuEntry and child.visible:
+			var name: String = (child as BuildMenuEntry).display_name.to_lower()
+			if name == "deconstruct":
+				continue
+			if not last_name.is_empty():
+				assert_bool(name >= last_name).is_true()
+			last_name = name

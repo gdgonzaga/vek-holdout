@@ -61,19 +61,41 @@ func _populate_default_list() -> void:
 	deconstruct.setup_tool(BuildLibrary.DECONSTRUCT_ID, "Deconstruct", DECONSTRUCT_ICON)
 	deconstruct.pressed_id.connect(_on_entry_pressed)
 
-	for def in BuildLibrary.get_unlocked():
+	# Collect all buildables and terrain materials into a unified array of items
+	# to sort alphabetically by display name.
+	var items: Array[Dictionary] = []
+
+	for def: BuildableDef in BuildLibrary.get_unlocked():
+		items.append({
+			"is_def": true,
+			"def": def,
+			"display_name": def.display_name
+		})
+
+	for mat: TerrainMaterialDef in BuildLibrary.get_terrain_materials():
+		items.append({
+			"is_def": false,
+			"mat": mat,
+			"display_name": mat.display_name
+		})
+
+	# Sort alphabetically case-insensitively
+	items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var name_a: String = a["display_name"]
+		var name_b: String = b["display_name"]
+		return name_a.to_lower() < name_b.to_lower()
+	)
+
+	# Instantiate and add to list in sorted order
+	for item: Dictionary in items:
 		var entry: BuildMenuEntry = _EntryScene.instantiate()
 		_list.add_child(entry)
-		entry.setup(def)
+		if item["is_def"]:
+			entry.setup(item["def"])
+		else:
+			var mat: TerrainMaterialDef = item["mat"]
+			entry.setup_tool(mat.id, mat.display_name, mat.icon)
 		entry.pressed_id.connect(_on_entry_pressed)
-
-	# Natural terrain materials (smooth placement, Phase 5): add-sphere blobs
-	# of ground material. Ambient content like the tools — not unlock-gated.
-	for mat in BuildLibrary.get_terrain_materials():
-		var mat_entry: BuildMenuEntry = _EntryScene.instantiate()
-		_list.add_child(mat_entry)
-		mat_entry.setup_tool(mat.id, mat.display_name, mat.icon)
-		mat_entry.pressed_id.connect(_on_entry_pressed)
 
 
 ## Filters visible menu entries based on fuzzy match score with query.
@@ -95,11 +117,15 @@ func filter_entries(query: String) -> void:
 				"score": max_score
 			})
 
-	# Sort descending by match score so top matches appear at top of list
+	# Sort descending by match score, and secondarily alphabetically by display name
 	scored_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var score_a: int = a["score"]
 		var score_b: int = b["score"]
-		return score_a > score_b
+		if score_a != score_b:
+			return score_a > score_b
+		var name_a: String = (a["entry"] as BuildMenuEntry).display_name.to_lower()
+		var name_b: String = (b["entry"] as BuildMenuEntry).display_name.to_lower()
+		return name_a < name_b
 	)
 
 	for item in scored_entries:
