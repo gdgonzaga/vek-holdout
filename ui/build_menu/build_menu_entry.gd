@@ -37,12 +37,13 @@ func setup(def: BuildableDef) -> void:
 ## default params only apply on argument *omission*, not on an explicit null.
 func setup_tool(id: String, label: String, icon: Texture2D = null) -> void:
 	_id = id
-	_display_name = label
+	var formatted_label := label.capitalize() if not label.is_empty() else label
+	_display_name = formatted_label
 	# Defer the node setup to _ready if this entry hasn't entered the tree yet
 	# (populate() sets up before add_child triggers _ready).
 	if not is_node_ready():
 		await ready
-	_label.text = label
+	_label.text = formatted_label
 	_icon.texture = icon if icon != null else DEFAULT_ICON
 	_icon.visible = true
 
