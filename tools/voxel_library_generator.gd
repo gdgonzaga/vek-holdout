@@ -24,7 +24,7 @@ static func create_block_model(block_def: BlockDef, ortho_index: int) -> VoxelBl
 	if block_def.texture != null:
 		if block_def.texture_variation:
 			var mat := ShaderMaterial.new()
-			mat.shader = preload("res://assets/blocks/block_shader.gdshader")
+			mat.shader = preload("res://assets/shaders/block_shader.gdshader")
 			mat.set_shader_parameter("albedo_tex", block_def.texture)
 			model.material_override_0 = mat
 		else:
