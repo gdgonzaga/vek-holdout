@@ -1,279 +1,1728 @@
 [gd_resource type="VoxelBlockyLibrary" format=3 uid="uid://cduhcel8sq7ud"]
 
+[ext_resource type="Texture2D" uid="uid://dbsuwwh1rn4ca" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="1_5l2ah"]
 [ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/custom_meshes/full-block.obj" id="1_84u81"]
-[ext_resource type="Texture2D" uid="uid://bfu0588dkiia3" path="res://assets/realer_than_real_textures/wood.png" id="4_1xm2f"]
-[ext_resource type="Texture2D" uid="uid://ckeuk3wa5tsxn" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks.png" id="5_mcmtk"]
+[ext_resource type="ArrayMesh" uid="uid://bhtlpungw81t7" path="res://assets/custom_meshes/half-block.obj" id="3_l2f63"]
+[ext_resource type="ArrayMesh" uid="uid://b2bj01adumvn2" path="res://assets/custom_meshes/quarter-block.obj" id="4_x3cxf"]
+[ext_resource type="ArrayMesh" uid="uid://c3blud7kj7tqx" path="res://assets/custom_meshes/stairs-corner-left.obj" id="5_bq6la"]
 [ext_resource type="ArrayMesh" uid="uid://c2bpkqv06me8d" path="res://assets/custom_meshes/stairs.obj" id="6_s4abc"]
+[ext_resource type="ArrayMesh" uid="uid://bk4qdt316sq45" path="res://assets/custom_meshes/stairs-corner-right.obj" id="6_tadqc"]
+[ext_resource type="ArrayMesh" uid="uid://bld80ohf82evw" path="res://assets/custom_meshes/wedge-corner-left.obj" id="8_rtyjc"]
+[ext_resource type="ArrayMesh" uid="uid://bwg61w4hrx0jq" path="res://assets/custom_meshes/wedge-corner-right.obj" id="9_m5j42"]
+[ext_resource type="ArrayMesh" uid="uid://bbik1ek726qyg" path="res://assets/custom_meshes/wedge.obj" id="10_whjjd"]
 
-[sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_rvp8c"]
+[sub_resource type="VoxelBlockyModelEmpty" id="VoxelBlockyModelEmpty_5cgqr"]
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_1xm2f"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vhteu"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_14gd4"]
+mesh = ExtResource("1_84u81")
+material_override_0 = SubResource("StandardMaterial3D_vhteu")
+collision_enabled_0 = true
+resource_name = "full_block_wood_0"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_b72rl"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_x7g0r"]
+mesh = ExtResource("3_l2f63")
+material_override_0 = SubResource("StandardMaterial3D_b72rl")
+collision_enabled_0 = true
+resource_name = "half_block_wood_0"
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_6ya18"]
 mesh = ExtResource("1_84u81")
 collision_enabled_0 = true
 resource_name = "metal_0"
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_mcmtk"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_k8nvv"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4ctxp"]
+mesh = ExtResource("4_x3cxf")
+material_override_0 = SubResource("StandardMaterial3D_k8nvv")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_0"
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2nw5o"]
 mesh = ExtResource("1_84u81")
 collision_enabled_0 = true
 resource_name = "reinforced_0"
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_s4abc"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_g4mc7"]
 mesh = ExtResource("1_84u81")
 collision_enabled_0 = true
 resource_name = "scrap_0"
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ryyfx"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1w3f5"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_7b1jy"]
+mesh = ExtResource("5_bq6la")
+material_override_0 = SubResource("StandardMaterial3D_1w3f5")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_0"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_f883h"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_1jhvg"]
+mesh = ExtResource("6_tadqc")
+material_override_0 = SubResource("StandardMaterial3D_f883h")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_0"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pkjy4"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_q6wlh"]
+mesh = ExtResource("6_s4abc")
+material_override_0 = SubResource("StandardMaterial3D_pkjy4")
+collision_enabled_0 = true
+resource_name = "wood_stairs_0"
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_rnth6"]
 mesh = ExtResource("1_84u81")
 collision_enabled_0 = true
 resource_name = "stone_0"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hmlhr"]
-albedo_texture = ExtResource("4_1xm2f")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6g035"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_5l2ah"]
-mesh = ExtResource("1_84u81")
-material_override_0 = SubResource("StandardMaterial3D_hmlhr")
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_xai7l"]
+mesh = ExtResource("8_rtyjc")
+material_override_0 = SubResource("StandardMaterial3D_6g035")
 collision_enabled_0 = true
-resource_name = "wood_0"
+resource_name = "wedge_corner_left_wood_0"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l2f63"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xevws"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_x3cxf"]
-mesh = ExtResource("6_s4abc")
-material_override_0 = SubResource("StandardMaterial3D_l2f63")
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fs5lr"]
+mesh = ExtResource("9_m5j42")
+material_override_0 = SubResource("StandardMaterial3D_xevws")
 collision_enabled_0 = true
-resource_name = "wood_stairs_0"
+resource_name = "wedge_corner_right_wood_0"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bq6la"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rpy4a"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_tadqc"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ctvbi"]
+mesh = ExtResource("10_whjjd")
+material_override_0 = SubResource("StandardMaterial3D_rpy4a")
+collision_enabled_0 = true
+resource_name = "wedge_wood_0"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7itvp"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_lornc"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 1
+material_override_0 = SubResource("StandardMaterial3D_7itvp")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_1"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ukqov"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ppydk"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 2
+material_override_0 = SubResource("StandardMaterial3D_ukqov")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_2"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5s8uf"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_a36rl"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 3
+material_override_0 = SubResource("StandardMaterial3D_5s8uf")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_3"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_khcat"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_twekg"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 4
+material_override_0 = SubResource("StandardMaterial3D_khcat")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_4"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o8tvr"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_hgn67"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 5
+material_override_0 = SubResource("StandardMaterial3D_o8tvr")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_5"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mvwv7"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_l3gpk"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 6
+material_override_0 = SubResource("StandardMaterial3D_mvwv7")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_6"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2tcq6"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fi2qe"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 7
+material_override_0 = SubResource("StandardMaterial3D_2tcq6")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_7"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cdwfc"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_5htor"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 8
+material_override_0 = SubResource("StandardMaterial3D_cdwfc")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_8"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u8yhl"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_pfgqo"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 9
+material_override_0 = SubResource("StandardMaterial3D_u8yhl")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_9"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3ls2s"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_hjrhc"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 10
+material_override_0 = SubResource("StandardMaterial3D_3ls2s")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_10"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wbayu"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_esilv"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 11
+material_override_0 = SubResource("StandardMaterial3D_wbayu")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_11"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tsg1h"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_10q7h"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 12
+material_override_0 = SubResource("StandardMaterial3D_tsg1h")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_12"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kqsot"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2mjh1"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 13
+material_override_0 = SubResource("StandardMaterial3D_kqsot")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_13"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mx1db"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_x3rxm"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 14
+material_override_0 = SubResource("StandardMaterial3D_mx1db")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_14"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_koql4"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_l05n7"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 15
+material_override_0 = SubResource("StandardMaterial3D_koql4")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_15"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dm4gv"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_6sxnk"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 16
+material_override_0 = SubResource("StandardMaterial3D_dm4gv")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_16"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_x3onc"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2e66g"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 17
+material_override_0 = SubResource("StandardMaterial3D_x3onc")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_17"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hl14e"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_sq36y"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 18
+material_override_0 = SubResource("StandardMaterial3D_hl14e")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_18"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yd6fy"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_5hn33"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 19
+material_override_0 = SubResource("StandardMaterial3D_yd6fy")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_19"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uclg4"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4w7do"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 20
+material_override_0 = SubResource("StandardMaterial3D_uclg4")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_20"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jgk1q"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_qwji6"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 21
+material_override_0 = SubResource("StandardMaterial3D_jgk1q")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_21"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o84xy"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_h17rd"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 22
+material_override_0 = SubResource("StandardMaterial3D_o84xy")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_22"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fyvb7"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_0cg2c"]
+mesh = ExtResource("4_x3cxf")
+mesh_ortho_rotation_index = 23
+material_override_0 = SubResource("StandardMaterial3D_fyvb7")
+collision_enabled_0 = true
+resource_name = "quarter_block_wood_23"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bjmh1"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_r3xjw"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 1
+material_override_0 = SubResource("StandardMaterial3D_bjmh1")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_1"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_q3i35"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_dohl3"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 2
+material_override_0 = SubResource("StandardMaterial3D_q3i35")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_2"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1x3pa"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_lgn1y"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 3
+material_override_0 = SubResource("StandardMaterial3D_1x3pa")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_3"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lsooo"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_nls5s"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 4
+material_override_0 = SubResource("StandardMaterial3D_lsooo")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_4"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8bg60"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4ik2b"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 5
+material_override_0 = SubResource("StandardMaterial3D_8bg60")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_5"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4t0q8"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2y278"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 6
+material_override_0 = SubResource("StandardMaterial3D_4t0q8")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_6"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l1p5y"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_c45be"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 7
+material_override_0 = SubResource("StandardMaterial3D_l1p5y")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_7"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_k0wig"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_0nd7k"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 8
+material_override_0 = SubResource("StandardMaterial3D_k0wig")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_8"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_c0jrf"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_0x1uj"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 9
+material_override_0 = SubResource("StandardMaterial3D_c0jrf")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_9"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ksanh"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_qqmbj"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 10
+material_override_0 = SubResource("StandardMaterial3D_ksanh")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_10"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qdygy"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_qpi54"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 11
+material_override_0 = SubResource("StandardMaterial3D_qdygy")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_11"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8j8jv"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_41fk4"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 12
+material_override_0 = SubResource("StandardMaterial3D_8j8jv")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_12"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8l3iu"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ph866"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 13
+material_override_0 = SubResource("StandardMaterial3D_8l3iu")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_13"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qd74g"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_do7ur"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 14
+material_override_0 = SubResource("StandardMaterial3D_qd74g")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_14"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gciys"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_x1boe"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 15
+material_override_0 = SubResource("StandardMaterial3D_gciys")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_15"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_01qol"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_qpegk"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 16
+material_override_0 = SubResource("StandardMaterial3D_01qol")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_16"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1na7x"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ruhlo"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 17
+material_override_0 = SubResource("StandardMaterial3D_1na7x")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_17"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6afm3"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_drhun"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 18
+material_override_0 = SubResource("StandardMaterial3D_6afm3")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_18"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_12u5t"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ux7vl"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 19
+material_override_0 = SubResource("StandardMaterial3D_12u5t")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_19"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4kdqo"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_rn07x"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 20
+material_override_0 = SubResource("StandardMaterial3D_4kdqo")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_20"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_g3s23"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_r64an"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 21
+material_override_0 = SubResource("StandardMaterial3D_g3s23")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_21"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_levl7"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_jq8dq"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 22
+material_override_0 = SubResource("StandardMaterial3D_levl7")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_22"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u2l1q"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ma8km"]
+mesh = ExtResource("5_bq6la")
+mesh_ortho_rotation_index = 23
+material_override_0 = SubResource("StandardMaterial3D_u2l1q")
+collision_enabled_0 = true
+resource_name = "stairs_corner_left_wood_23"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lb7g5"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_h0ymy"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 1
+material_override_0 = SubResource("StandardMaterial3D_lb7g5")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_1"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ynbii"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_wfrom"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 2
+material_override_0 = SubResource("StandardMaterial3D_ynbii")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_2"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mukuq"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_f0bej"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 3
+material_override_0 = SubResource("StandardMaterial3D_mukuq")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_3"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_seff5"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_eji3o"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 4
+material_override_0 = SubResource("StandardMaterial3D_seff5")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_4"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yufre"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_wbprj"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 5
+material_override_0 = SubResource("StandardMaterial3D_yufre")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_5"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_f684r"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_hal1k"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 6
+material_override_0 = SubResource("StandardMaterial3D_f684r")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_6"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qhr8t"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_taqmh"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 7
+material_override_0 = SubResource("StandardMaterial3D_qhr8t")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_7"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lwgru"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_jca6m"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 8
+material_override_0 = SubResource("StandardMaterial3D_lwgru")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_8"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fuwvq"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_bcrls"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 9
+material_override_0 = SubResource("StandardMaterial3D_fuwvq")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_9"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_du2my"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_tmq80"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 10
+material_override_0 = SubResource("StandardMaterial3D_du2my")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_10"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_x8v6b"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_gs73v"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 11
+material_override_0 = SubResource("StandardMaterial3D_x8v6b")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_11"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hl1c6"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_67yn4"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 12
+material_override_0 = SubResource("StandardMaterial3D_hl1c6")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_12"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_33bu8"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_tcdcr"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 13
+material_override_0 = SubResource("StandardMaterial3D_33bu8")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_13"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_khfcf"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_hbkci"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 14
+material_override_0 = SubResource("StandardMaterial3D_khfcf")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_14"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_r3sbt"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ujley"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 15
+material_override_0 = SubResource("StandardMaterial3D_r3sbt")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_15"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m03nh"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_7pdce"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 16
+material_override_0 = SubResource("StandardMaterial3D_m03nh")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_16"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rnw3y"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_gas3w"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 17
+material_override_0 = SubResource("StandardMaterial3D_rnw3y")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_17"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wp1qn"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ke716"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 18
+material_override_0 = SubResource("StandardMaterial3D_wp1qn")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_18"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_su6lp"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_mf2w5"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 19
+material_override_0 = SubResource("StandardMaterial3D_su6lp")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_19"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xh6sq"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_pjrep"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 20
+material_override_0 = SubResource("StandardMaterial3D_xh6sq")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_20"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1tjho"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_wq4ti"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 21
+material_override_0 = SubResource("StandardMaterial3D_1tjho")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_21"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7rbfo"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2qgoq"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 22
+material_override_0 = SubResource("StandardMaterial3D_7rbfo")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_22"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3j6n2"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_v40jx"]
+mesh = ExtResource("6_tadqc")
+mesh_ortho_rotation_index = 23
+material_override_0 = SubResource("StandardMaterial3D_3j6n2")
+collision_enabled_0 = true
+resource_name = "stairs_corner_right_wood_23"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_d5kao"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_bbp1i"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 1
-material_override_0 = SubResource("StandardMaterial3D_bq6la")
+material_override_0 = SubResource("StandardMaterial3D_d5kao")
 collision_enabled_0 = true
 resource_name = "wood_stairs_1"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rtyjc"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_opqpv"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_m5j42"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_w64oj"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 2
-material_override_0 = SubResource("StandardMaterial3D_rtyjc")
+material_override_0 = SubResource("StandardMaterial3D_opqpv")
 collision_enabled_0 = true
 resource_name = "wood_stairs_2"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_whjjd"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uotfe"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_5cgqr"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_qpvhw"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 3
-material_override_0 = SubResource("StandardMaterial3D_whjjd")
+material_override_0 = SubResource("StandardMaterial3D_uotfe")
 collision_enabled_0 = true
 resource_name = "wood_stairs_3"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vhteu"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4h4rc"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_14gd4"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_balwt"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 4
-material_override_0 = SubResource("StandardMaterial3D_vhteu")
+material_override_0 = SubResource("StandardMaterial3D_4h4rc")
 collision_enabled_0 = true
 resource_name = "wood_stairs_4"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_b72rl"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_a4nq7"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_x7g0r"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_p45hr"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 5
-material_override_0 = SubResource("StandardMaterial3D_b72rl")
+material_override_0 = SubResource("StandardMaterial3D_a4nq7")
 collision_enabled_0 = true
 resource_name = "wood_stairs_5"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6ya18"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_djq43"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_k8nvv"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_cvfwd"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 6
-material_override_0 = SubResource("StandardMaterial3D_6ya18")
+material_override_0 = SubResource("StandardMaterial3D_djq43")
 collision_enabled_0 = true
 resource_name = "wood_stairs_6"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4ctxp"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v10ga"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2nw5o"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_j44ca"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 7
-material_override_0 = SubResource("StandardMaterial3D_4ctxp")
+material_override_0 = SubResource("StandardMaterial3D_v10ga")
 collision_enabled_0 = true
 resource_name = "wood_stairs_7"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_g4mc7"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6ecsn"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_1w3f5"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_26rsh"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 8
-material_override_0 = SubResource("StandardMaterial3D_g4mc7")
+material_override_0 = SubResource("StandardMaterial3D_6ecsn")
 collision_enabled_0 = true
 resource_name = "wood_stairs_8"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7b1jy"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dokuq"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_f883h"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_87ssl"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 9
-material_override_0 = SubResource("StandardMaterial3D_7b1jy")
+material_override_0 = SubResource("StandardMaterial3D_dokuq")
 collision_enabled_0 = true
 resource_name = "wood_stairs_9"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1jhvg"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bxxad"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_pkjy4"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ypxng"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 10
-material_override_0 = SubResource("StandardMaterial3D_1jhvg")
+material_override_0 = SubResource("StandardMaterial3D_bxxad")
 collision_enabled_0 = true
 resource_name = "wood_stairs_10"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_q6wlh"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pgowu"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_rnth6"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_re7pe"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 11
-material_override_0 = SubResource("StandardMaterial3D_q6wlh")
+material_override_0 = SubResource("StandardMaterial3D_pgowu")
 collision_enabled_0 = true
 resource_name = "wood_stairs_11"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6g035"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i3426"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_xai7l"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_tw2j3"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 12
-material_override_0 = SubResource("StandardMaterial3D_6g035")
+material_override_0 = SubResource("StandardMaterial3D_i3426")
 collision_enabled_0 = true
 resource_name = "wood_stairs_12"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xevws"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m58le"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fs5lr"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_j4bxx"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 13
-material_override_0 = SubResource("StandardMaterial3D_xevws")
+material_override_0 = SubResource("StandardMaterial3D_m58le")
 collision_enabled_0 = true
 resource_name = "wood_stairs_13"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rpy4a"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_nimat"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ctvbi"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_jxilr"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 14
-material_override_0 = SubResource("StandardMaterial3D_rpy4a")
+material_override_0 = SubResource("StandardMaterial3D_nimat")
 collision_enabled_0 = true
 resource_name = "wood_stairs_14"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7itvp"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tycfe"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_lornc"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4ircc"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 15
-material_override_0 = SubResource("StandardMaterial3D_7itvp")
+material_override_0 = SubResource("StandardMaterial3D_tycfe")
 collision_enabled_0 = true
 resource_name = "wood_stairs_15"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ukqov"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kxd6p"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ppydk"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4ai25"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 16
-material_override_0 = SubResource("StandardMaterial3D_ukqov")
+material_override_0 = SubResource("StandardMaterial3D_kxd6p")
 collision_enabled_0 = true
 resource_name = "wood_stairs_16"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5s8uf"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_udci1"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_a36rl"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fwmnd"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 17
-material_override_0 = SubResource("StandardMaterial3D_5s8uf")
+material_override_0 = SubResource("StandardMaterial3D_udci1")
 collision_enabled_0 = true
 resource_name = "wood_stairs_17"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_khcat"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l0oae"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_twekg"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_kknku"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 18
-material_override_0 = SubResource("StandardMaterial3D_khcat")
+material_override_0 = SubResource("StandardMaterial3D_l0oae")
 collision_enabled_0 = true
 resource_name = "wood_stairs_18"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o8tvr"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_eni1d"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_hgn67"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_v6545"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 19
-material_override_0 = SubResource("StandardMaterial3D_o8tvr")
+material_override_0 = SubResource("StandardMaterial3D_eni1d")
 collision_enabled_0 = true
 resource_name = "wood_stairs_19"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mvwv7"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1fkkk"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_l3gpk"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_0l7ee"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 20
-material_override_0 = SubResource("StandardMaterial3D_mvwv7")
+material_override_0 = SubResource("StandardMaterial3D_1fkkk")
 collision_enabled_0 = true
 resource_name = "wood_stairs_20"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2tcq6"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_um46t"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fi2qe"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_hlyiq"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 21
-material_override_0 = SubResource("StandardMaterial3D_2tcq6")
+material_override_0 = SubResource("StandardMaterial3D_um46t")
 collision_enabled_0 = true
 resource_name = "wood_stairs_21"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cdwfc"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v2w4t"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_5htor"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_0u6gf"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 22
-material_override_0 = SubResource("StandardMaterial3D_cdwfc")
+material_override_0 = SubResource("StandardMaterial3D_v2w4t")
 collision_enabled_0 = true
 resource_name = "wood_stairs_22"
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u8yhl"]
-albedo_texture = ExtResource("5_mcmtk")
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wntih"]
+albedo_texture = ExtResource("1_5l2ah")
 
-[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_pfgqo"]
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_qfwdk"]
 mesh = ExtResource("6_s4abc")
 mesh_ortho_rotation_index = 23
-material_override_0 = SubResource("StandardMaterial3D_u8yhl")
+material_override_0 = SubResource("StandardMaterial3D_wntih")
 collision_enabled_0 = true
 resource_name = "wood_stairs_23"
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pf3ld"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2r3wj"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 1
+material_override_0 = SubResource("StandardMaterial3D_pf3ld")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_1"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jltuj"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ctldy"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 2
+material_override_0 = SubResource("StandardMaterial3D_jltuj")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_2"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cpqe2"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_xhi2y"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 3
+material_override_0 = SubResource("StandardMaterial3D_cpqe2")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_3"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sugnm"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_gt6u3"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 4
+material_override_0 = SubResource("StandardMaterial3D_sugnm")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_4"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_45w8v"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_b5cw4"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 5
+material_override_0 = SubResource("StandardMaterial3D_45w8v")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_5"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_doua0"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_f5dmb"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 6
+material_override_0 = SubResource("StandardMaterial3D_doua0")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_6"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_r7i0k"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_6mcnt"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 7
+material_override_0 = SubResource("StandardMaterial3D_r7i0k")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_7"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_oikr8"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_h3dgl"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 8
+material_override_0 = SubResource("StandardMaterial3D_oikr8")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_8"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_k50kx"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_8tmx6"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 9
+material_override_0 = SubResource("StandardMaterial3D_k50kx")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_9"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_y15vy"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_l6fg2"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 10
+material_override_0 = SubResource("StandardMaterial3D_y15vy")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_10"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3njiv"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_806od"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 11
+material_override_0 = SubResource("StandardMaterial3D_3njiv")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_11"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5gywj"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_k66rw"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 12
+material_override_0 = SubResource("StandardMaterial3D_5gywj")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_12"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pmc6u"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_t8xx8"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 13
+material_override_0 = SubResource("StandardMaterial3D_pmc6u")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_13"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v7jrq"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_7v7bt"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 14
+material_override_0 = SubResource("StandardMaterial3D_v7jrq")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_14"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_elw63"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_qq0ep"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 15
+material_override_0 = SubResource("StandardMaterial3D_elw63")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_15"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_a77at"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2yk2f"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 16
+material_override_0 = SubResource("StandardMaterial3D_a77at")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_16"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6fldn"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_7yyea"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 17
+material_override_0 = SubResource("StandardMaterial3D_6fldn")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_17"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_c04q0"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_bwmvi"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 18
+material_override_0 = SubResource("StandardMaterial3D_c04q0")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_18"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6x185"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_8f8n8"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 19
+material_override_0 = SubResource("StandardMaterial3D_6x185")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_19"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i8u1c"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_7iecx"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 20
+material_override_0 = SubResource("StandardMaterial3D_i8u1c")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_20"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_367nw"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_0nyrb"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 21
+material_override_0 = SubResource("StandardMaterial3D_367nw")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_21"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_x33ov"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ht0uu"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 22
+material_override_0 = SubResource("StandardMaterial3D_x33ov")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_22"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1w860"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_f54q8"]
+mesh = ExtResource("8_rtyjc")
+mesh_ortho_rotation_index = 23
+material_override_0 = SubResource("StandardMaterial3D_1w860")
+collision_enabled_0 = true
+resource_name = "wedge_corner_left_wood_23"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u6xuj"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_c4cl6"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 1
+material_override_0 = SubResource("StandardMaterial3D_u6xuj")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_1"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ag6oh"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_leve7"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 2
+material_override_0 = SubResource("StandardMaterial3D_ag6oh")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_2"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wgbmr"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_08q0p"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 3
+material_override_0 = SubResource("StandardMaterial3D_wgbmr")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_3"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_isw2g"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_7w6kc"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 4
+material_override_0 = SubResource("StandardMaterial3D_isw2g")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_4"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7fbuj"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ccfb8"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 5
+material_override_0 = SubResource("StandardMaterial3D_7fbuj")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_5"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gvj2n"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_q4ss8"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 6
+material_override_0 = SubResource("StandardMaterial3D_gvj2n")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_6"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bjyss"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_v8h7x"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 7
+material_override_0 = SubResource("StandardMaterial3D_bjyss")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_7"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4up6u"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_lip7w"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 8
+material_override_0 = SubResource("StandardMaterial3D_4up6u")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_8"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_whpjv"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_57v8i"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 9
+material_override_0 = SubResource("StandardMaterial3D_whpjv")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_9"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ikx23"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_kidba"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 10
+material_override_0 = SubResource("StandardMaterial3D_ikx23")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_10"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_clswn"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_mhiey"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 11
+material_override_0 = SubResource("StandardMaterial3D_clswn")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_11"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pcc4y"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_tsoxo"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 12
+material_override_0 = SubResource("StandardMaterial3D_pcc4y")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_12"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_arxy3"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_lyiwr"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 13
+material_override_0 = SubResource("StandardMaterial3D_arxy3")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_13"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_heqa4"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_g7am3"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 14
+material_override_0 = SubResource("StandardMaterial3D_heqa4")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_14"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_b4oga"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_n1jjk"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 15
+material_override_0 = SubResource("StandardMaterial3D_b4oga")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_15"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mdcy1"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_cy1dn"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 16
+material_override_0 = SubResource("StandardMaterial3D_mdcy1")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_16"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fflhb"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_2oe15"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 17
+material_override_0 = SubResource("StandardMaterial3D_fflhb")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_17"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2t2kc"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_egjs2"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 18
+material_override_0 = SubResource("StandardMaterial3D_2t2kc")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_18"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cbvve"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_u04ms"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 19
+material_override_0 = SubResource("StandardMaterial3D_cbvve")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_19"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wxv0o"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_i7ckd"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 20
+material_override_0 = SubResource("StandardMaterial3D_wxv0o")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_20"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ivp3y"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_yi0jb"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 21
+material_override_0 = SubResource("StandardMaterial3D_ivp3y")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_21"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7l2bq"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_drdu0"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 22
+material_override_0 = SubResource("StandardMaterial3D_7l2bq")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_22"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ybvtn"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4yagw"]
+mesh = ExtResource("9_m5j42")
+mesh_ortho_rotation_index = 23
+material_override_0 = SubResource("StandardMaterial3D_ybvtn")
+collision_enabled_0 = true
+resource_name = "wedge_corner_right_wood_23"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_un2vb"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4tn01"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 1
+material_override_0 = SubResource("StandardMaterial3D_un2vb")
+collision_enabled_0 = true
+resource_name = "wedge_wood_1"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7bojq"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_awex7"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 2
+material_override_0 = SubResource("StandardMaterial3D_7bojq")
+collision_enabled_0 = true
+resource_name = "wedge_wood_2"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kl4u2"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_pl7vy"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 3
+material_override_0 = SubResource("StandardMaterial3D_kl4u2")
+collision_enabled_0 = true
+resource_name = "wedge_wood_3"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ca782"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_7q5w7"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 4
+material_override_0 = SubResource("StandardMaterial3D_ca782")
+collision_enabled_0 = true
+resource_name = "wedge_wood_4"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5x1dn"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_37s1d"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 5
+material_override_0 = SubResource("StandardMaterial3D_5x1dn")
+collision_enabled_0 = true
+resource_name = "wedge_wood_5"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3tpab"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_vt76y"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 6
+material_override_0 = SubResource("StandardMaterial3D_3tpab")
+collision_enabled_0 = true
+resource_name = "wedge_wood_6"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kem8e"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_bcvj2"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 7
+material_override_0 = SubResource("StandardMaterial3D_kem8e")
+collision_enabled_0 = true
+resource_name = "wedge_wood_7"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u3i1h"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_6gkin"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 8
+material_override_0 = SubResource("StandardMaterial3D_u3i1h")
+collision_enabled_0 = true
+resource_name = "wedge_wood_8"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qk6bv"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_voib8"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 9
+material_override_0 = SubResource("StandardMaterial3D_qk6bv")
+collision_enabled_0 = true
+resource_name = "wedge_wood_9"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_x6u4h"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_ya4je"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 10
+material_override_0 = SubResource("StandardMaterial3D_x6u4h")
+collision_enabled_0 = true
+resource_name = "wedge_wood_10"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_405dc"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_gxoci"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 11
+material_override_0 = SubResource("StandardMaterial3D_405dc")
+collision_enabled_0 = true
+resource_name = "wedge_wood_11"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qb0q8"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_anirq"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 12
+material_override_0 = SubResource("StandardMaterial3D_qb0q8")
+collision_enabled_0 = true
+resource_name = "wedge_wood_12"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fg7pe"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_wtgr8"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 13
+material_override_0 = SubResource("StandardMaterial3D_fg7pe")
+collision_enabled_0 = true
+resource_name = "wedge_wood_13"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ft4wn"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_67ec5"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 14
+material_override_0 = SubResource("StandardMaterial3D_ft4wn")
+collision_enabled_0 = true
+resource_name = "wedge_wood_14"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5kp82"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fs4i8"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 15
+material_override_0 = SubResource("StandardMaterial3D_5kp82")
+collision_enabled_0 = true
+resource_name = "wedge_wood_15"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6masw"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_fd55l"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 16
+material_override_0 = SubResource("StandardMaterial3D_6masw")
+collision_enabled_0 = true
+resource_name = "wedge_wood_16"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_71mdb"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_8tp1c"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 17
+material_override_0 = SubResource("StandardMaterial3D_71mdb")
+collision_enabled_0 = true
+resource_name = "wedge_wood_17"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_awm45"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_dtrdr"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 18
+material_override_0 = SubResource("StandardMaterial3D_awm45")
+collision_enabled_0 = true
+resource_name = "wedge_wood_18"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_28a2i"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_efd7r"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 19
+material_override_0 = SubResource("StandardMaterial3D_28a2i")
+collision_enabled_0 = true
+resource_name = "wedge_wood_19"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_euj7j"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_3c4da"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 20
+material_override_0 = SubResource("StandardMaterial3D_euj7j")
+collision_enabled_0 = true
+resource_name = "wedge_wood_20"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_impis"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_3flps"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 21
+material_override_0 = SubResource("StandardMaterial3D_impis")
+collision_enabled_0 = true
+resource_name = "wedge_wood_21"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lblv2"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_4yhxy"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 22
+material_override_0 = SubResource("StandardMaterial3D_lblv2")
+collision_enabled_0 = true
+resource_name = "wedge_wood_22"
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_an4j6"]
+albedo_texture = ExtResource("1_5l2ah")
+
+[sub_resource type="VoxelBlockyModelMesh" id="VoxelBlockyModelMesh_w8gu3"]
+mesh = ExtResource("10_whjjd")
+mesh_ortho_rotation_index = 23
+material_override_0 = SubResource("StandardMaterial3D_an4j6")
+collision_enabled_0 = true
+resource_name = "wedge_wood_23"
+
 [resource]
-models = Array[VoxelBlockyModel]([SubResource("VoxelBlockyModelEmpty_rvp8c"), SubResource("VoxelBlockyModelMesh_1xm2f"), SubResource("VoxelBlockyModelMesh_mcmtk"), SubResource("VoxelBlockyModelMesh_s4abc"), SubResource("VoxelBlockyModelMesh_ryyfx"), SubResource("VoxelBlockyModelMesh_5l2ah"), SubResource("VoxelBlockyModelMesh_x3cxf"), SubResource("VoxelBlockyModelMesh_tadqc"), SubResource("VoxelBlockyModelMesh_m5j42"), SubResource("VoxelBlockyModelMesh_5cgqr"), SubResource("VoxelBlockyModelMesh_14gd4"), SubResource("VoxelBlockyModelMesh_x7g0r"), SubResource("VoxelBlockyModelMesh_k8nvv"), SubResource("VoxelBlockyModelMesh_2nw5o"), SubResource("VoxelBlockyModelMesh_1w3f5"), SubResource("VoxelBlockyModelMesh_f883h"), SubResource("VoxelBlockyModelMesh_pkjy4"), SubResource("VoxelBlockyModelMesh_rnth6"), SubResource("VoxelBlockyModelMesh_xai7l"), SubResource("VoxelBlockyModelMesh_fs5lr"), SubResource("VoxelBlockyModelMesh_ctvbi"), SubResource("VoxelBlockyModelMesh_lornc"), SubResource("VoxelBlockyModelMesh_ppydk"), SubResource("VoxelBlockyModelMesh_a36rl"), SubResource("VoxelBlockyModelMesh_twekg"), SubResource("VoxelBlockyModelMesh_hgn67"), SubResource("VoxelBlockyModelMesh_l3gpk"), SubResource("VoxelBlockyModelMesh_fi2qe"), SubResource("VoxelBlockyModelMesh_5htor"), SubResource("VoxelBlockyModelMesh_pfgqo")])
+models = Array[VoxelBlockyModel]([SubResource("VoxelBlockyModelEmpty_5cgqr"), SubResource("VoxelBlockyModelMesh_14gd4"), SubResource("VoxelBlockyModelMesh_x7g0r"), SubResource("VoxelBlockyModelMesh_6ya18"), SubResource("VoxelBlockyModelMesh_4ctxp"), SubResource("VoxelBlockyModelMesh_2nw5o"), SubResource("VoxelBlockyModelMesh_g4mc7"), SubResource("VoxelBlockyModelMesh_7b1jy"), SubResource("VoxelBlockyModelMesh_1jhvg"), SubResource("VoxelBlockyModelMesh_q6wlh"), SubResource("VoxelBlockyModelMesh_rnth6"), SubResource("VoxelBlockyModelMesh_xai7l"), SubResource("VoxelBlockyModelMesh_fs5lr"), SubResource("VoxelBlockyModelMesh_ctvbi"), SubResource("VoxelBlockyModelMesh_lornc"), SubResource("VoxelBlockyModelMesh_ppydk"), SubResource("VoxelBlockyModelMesh_a36rl"), SubResource("VoxelBlockyModelMesh_twekg"), SubResource("VoxelBlockyModelMesh_hgn67"), SubResource("VoxelBlockyModelMesh_l3gpk"), SubResource("VoxelBlockyModelMesh_fi2qe"), SubResource("VoxelBlockyModelMesh_5htor"), SubResource("VoxelBlockyModelMesh_pfgqo"), SubResource("VoxelBlockyModelMesh_hjrhc"), SubResource("VoxelBlockyModelMesh_esilv"), SubResource("VoxelBlockyModelMesh_10q7h"), SubResource("VoxelBlockyModelMesh_2mjh1"), SubResource("VoxelBlockyModelMesh_x3rxm"), SubResource("VoxelBlockyModelMesh_l05n7"), SubResource("VoxelBlockyModelMesh_6sxnk"), SubResource("VoxelBlockyModelMesh_2e66g"), SubResource("VoxelBlockyModelMesh_sq36y"), SubResource("VoxelBlockyModelMesh_5hn33"), SubResource("VoxelBlockyModelMesh_4w7do"), SubResource("VoxelBlockyModelMesh_qwji6"), SubResource("VoxelBlockyModelMesh_h17rd"), SubResource("VoxelBlockyModelMesh_0cg2c"), SubResource("VoxelBlockyModelMesh_r3xjw"), SubResource("VoxelBlockyModelMesh_dohl3"), SubResource("VoxelBlockyModelMesh_lgn1y"), SubResource("VoxelBlockyModelMesh_nls5s"), SubResource("VoxelBlockyModelMesh_4ik2b"), SubResource("VoxelBlockyModelMesh_2y278"), SubResource("VoxelBlockyModelMesh_c45be"), SubResource("VoxelBlockyModelMesh_0nd7k"), SubResource("VoxelBlockyModelMesh_0x1uj"), SubResource("VoxelBlockyModelMesh_qqmbj"), SubResource("VoxelBlockyModelMesh_qpi54"), SubResource("VoxelBlockyModelMesh_41fk4"), SubResource("VoxelBlockyModelMesh_ph866"), SubResource("VoxelBlockyModelMesh_do7ur"), SubResource("VoxelBlockyModelMesh_x1boe"), SubResource("VoxelBlockyModelMesh_qpegk"), SubResource("VoxelBlockyModelMesh_ruhlo"), SubResource("VoxelBlockyModelMesh_drhun"), SubResource("VoxelBlockyModelMesh_ux7vl"), SubResource("VoxelBlockyModelMesh_rn07x"), SubResource("VoxelBlockyModelMesh_r64an"), SubResource("VoxelBlockyModelMesh_jq8dq"), SubResource("VoxelBlockyModelMesh_ma8km"), SubResource("VoxelBlockyModelMesh_h0ymy"), SubResource("VoxelBlockyModelMesh_wfrom"), SubResource("VoxelBlockyModelMesh_f0bej"), SubResource("VoxelBlockyModelMesh_eji3o"), SubResource("VoxelBlockyModelMesh_wbprj"), SubResource("VoxelBlockyModelMesh_hal1k"), SubResource("VoxelBlockyModelMesh_taqmh"), SubResource("VoxelBlockyModelMesh_jca6m"), SubResource("VoxelBlockyModelMesh_bcrls"), SubResource("VoxelBlockyModelMesh_tmq80"), SubResource("VoxelBlockyModelMesh_gs73v"), SubResource("VoxelBlockyModelMesh_67yn4"), SubResource("VoxelBlockyModelMesh_tcdcr"), SubResource("VoxelBlockyModelMesh_hbkci"), SubResource("VoxelBlockyModelMesh_ujley"), SubResource("VoxelBlockyModelMesh_7pdce"), SubResource("VoxelBlockyModelMesh_gas3w"), SubResource("VoxelBlockyModelMesh_ke716"), SubResource("VoxelBlockyModelMesh_mf2w5"), SubResource("VoxelBlockyModelMesh_pjrep"), SubResource("VoxelBlockyModelMesh_wq4ti"), SubResource("VoxelBlockyModelMesh_2qgoq"), SubResource("VoxelBlockyModelMesh_v40jx"), SubResource("VoxelBlockyModelMesh_bbp1i"), SubResource("VoxelBlockyModelMesh_w64oj"), SubResource("VoxelBlockyModelMesh_qpvhw"), SubResource("VoxelBlockyModelMesh_balwt"), SubResource("VoxelBlockyModelMesh_p45hr"), SubResource("VoxelBlockyModelMesh_cvfwd"), SubResource("VoxelBlockyModelMesh_j44ca"), SubResource("VoxelBlockyModelMesh_26rsh"), SubResource("VoxelBlockyModelMesh_87ssl"), SubResource("VoxelBlockyModelMesh_ypxng"), SubResource("VoxelBlockyModelMesh_re7pe"), SubResource("VoxelBlockyModelMesh_tw2j3"), SubResource("VoxelBlockyModelMesh_j4bxx"), SubResource("VoxelBlockyModelMesh_jxilr"), SubResource("VoxelBlockyModelMesh_4ircc"), SubResource("VoxelBlockyModelMesh_4ai25"), SubResource("VoxelBlockyModelMesh_fwmnd"), SubResource("VoxelBlockyModelMesh_kknku"), SubResource("VoxelBlockyModelMesh_v6545"), SubResource("VoxelBlockyModelMesh_0l7ee"), SubResource("VoxelBlockyModelMesh_hlyiq"), SubResource("VoxelBlockyModelMesh_0u6gf"), SubResource("VoxelBlockyModelMesh_qfwdk"), SubResource("VoxelBlockyModelMesh_2r3wj"), SubResource("VoxelBlockyModelMesh_ctldy"), SubResource("VoxelBlockyModelMesh_xhi2y"), SubResource("VoxelBlockyModelMesh_gt6u3"), SubResource("VoxelBlockyModelMesh_b5cw4"), SubResource("VoxelBlockyModelMesh_f5dmb"), SubResource("VoxelBlockyModelMesh_6mcnt"), SubResource("VoxelBlockyModelMesh_h3dgl"), SubResource("VoxelBlockyModelMesh_8tmx6"), SubResource("VoxelBlockyModelMesh_l6fg2"), SubResource("VoxelBlockyModelMesh_806od"), SubResource("VoxelBlockyModelMesh_k66rw"), SubResource("VoxelBlockyModelMesh_t8xx8"), SubResource("VoxelBlockyModelMesh_7v7bt"), SubResource("VoxelBlockyModelMesh_qq0ep"), SubResource("VoxelBlockyModelMesh_2yk2f"), SubResource("VoxelBlockyModelMesh_7yyea"), SubResource("VoxelBlockyModelMesh_bwmvi"), SubResource("VoxelBlockyModelMesh_8f8n8"), SubResource("VoxelBlockyModelMesh_7iecx"), SubResource("VoxelBlockyModelMesh_0nyrb"), SubResource("VoxelBlockyModelMesh_ht0uu"), SubResource("VoxelBlockyModelMesh_f54q8"), SubResource("VoxelBlockyModelMesh_c4cl6"), SubResource("VoxelBlockyModelMesh_leve7"), SubResource("VoxelBlockyModelMesh_08q0p"), SubResource("VoxelBlockyModelMesh_7w6kc"), SubResource("VoxelBlockyModelMesh_ccfb8"), SubResource("VoxelBlockyModelMesh_q4ss8"), SubResource("VoxelBlockyModelMesh_v8h7x"), SubResource("VoxelBlockyModelMesh_lip7w"), SubResource("VoxelBlockyModelMesh_57v8i"), SubResource("VoxelBlockyModelMesh_kidba"), SubResource("VoxelBlockyModelMesh_mhiey"), SubResource("VoxelBlockyModelMesh_tsoxo"), SubResource("VoxelBlockyModelMesh_lyiwr"), SubResource("VoxelBlockyModelMesh_g7am3"), SubResource("VoxelBlockyModelMesh_n1jjk"), SubResource("VoxelBlockyModelMesh_cy1dn"), SubResource("VoxelBlockyModelMesh_2oe15"), SubResource("VoxelBlockyModelMesh_egjs2"), SubResource("VoxelBlockyModelMesh_u04ms"), SubResource("VoxelBlockyModelMesh_i7ckd"), SubResource("VoxelBlockyModelMesh_yi0jb"), SubResource("VoxelBlockyModelMesh_drdu0"), SubResource("VoxelBlockyModelMesh_4yagw"), SubResource("VoxelBlockyModelMesh_4tn01"), SubResource("VoxelBlockyModelMesh_awex7"), SubResource("VoxelBlockyModelMesh_pl7vy"), SubResource("VoxelBlockyModelMesh_7q5w7"), SubResource("VoxelBlockyModelMesh_37s1d"), SubResource("VoxelBlockyModelMesh_vt76y"), SubResource("VoxelBlockyModelMesh_bcvj2"), SubResource("VoxelBlockyModelMesh_6gkin"), SubResource("VoxelBlockyModelMesh_voib8"), SubResource("VoxelBlockyModelMesh_ya4je"), SubResource("VoxelBlockyModelMesh_gxoci"), SubResource("VoxelBlockyModelMesh_anirq"), SubResource("VoxelBlockyModelMesh_wtgr8"), SubResource("VoxelBlockyModelMesh_67ec5"), SubResource("VoxelBlockyModelMesh_fs4i8"), SubResource("VoxelBlockyModelMesh_fd55l"), SubResource("VoxelBlockyModelMesh_8tp1c"), SubResource("VoxelBlockyModelMesh_dtrdr"), SubResource("VoxelBlockyModelMesh_efd7r"), SubResource("VoxelBlockyModelMesh_3c4da"), SubResource("VoxelBlockyModelMesh_3flps"), SubResource("VoxelBlockyModelMesh_4yhxy"), SubResource("VoxelBlockyModelMesh_w8gu3")])

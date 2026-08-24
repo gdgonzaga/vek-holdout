@@ -25,4 +25,5 @@ texture = ExtResource("6_vyx6i")
 material_cost = Array[ExtResource("2_1mc8k")]([SubResource("Resource_s7pj6")])
 unlocked_by_default = true
 build_time = 2.0
+tags = Array[String](["wood", "basic"])
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

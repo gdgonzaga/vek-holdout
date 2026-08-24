@@ -33,3 +33,4 @@ class_name BuildableDef
 @export var material_cost: Array[ItemAmount] = []
 @export var unlocked_by_default: bool = false # available without earning an unlock this run
 @export var build_time: float = 0.0
+@export var tags: Array[String] = []
