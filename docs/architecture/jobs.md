@@ -61,9 +61,36 @@ Colony-wide registry owned by `Colony` autoload (`Colony.job_board`).
 
 ---
 
+## JobDef Virtual Contract
+
+Every job template (`data/jobs/*.gd` + `.tres`) implements the lifecycle below (base defaults in `data/jobs/job_def.gd`; base implementations are sane, defs override per labor). This is the contract the LimboAI work tree drives — see ARCH AI for the tree itself.
+
+| Virtual | Default | Purpose |
+| --- | --- | --- |
+| `is_available(job)` | `true` | Claimability beyond the board's slot gate. Drought-waiting defs (hauling) return `false` while unsatisfied but keep the job registered. |
+| `should_close(job)` | `not is_available(job)` | Board lifetime: `true` = leave the registry (checked by the prune when no assignees remain). Drought-persistent defs decouple this from availability. |
+| `job_complete(job)` | `true` | Did a finished run actually satisfy the work (vs. stalling short of it — a hauler that drained the crates). |
+| `begin(actor, job)` | `0.0` | Cycle duration in **unskilled** seconds (the tree applies the skill multiplier). Only consulted when `work_duration <= 0.0` — dynamic-duration defs (construction `build_time`, crafting `base_time`, crop-driven harvest) author the `.tres` with `work_duration = 0.0`. |
+| `complete(actor, job)` | `_finish` | Terminal effect of one PerformWork cycle (carve the voxel, materialize the blueprint, ...). `_finish` records skill XP and drops the job from the board; looping labors (hauling) skip `_finish`. |
+| `on_abort(actor, job, elapsed)` | no-op | The cycle was preempted mid-work (a need won the dynamic selector): persist partial progress, release held claims. |
+| `work_site(actor, job)` | `null` | Walk target for this cycle; `null` = the board default (anchor cell / target node). Multi-site labors override — hauling walks to a source crate while empty-handed and to the sink while carrying. |
+
+Content rule: durations/animations/units are authored in the `.tres` (`work_duration`, `work_animation`, `default_units_per_cycle`), never as script constants.
+
+### Def inventory
+
+- **DigJobDef** — emits `EventBus.dig_job_completed` (MiningSystem carves the voxel); claimable while the cell holds terrain AND has a walkable neighbour (buried cells wait).
+- **ConstructionJobDef** — materializes via `Blueprint.complete` (the colonist twin of the player's BuildAction); `begin` reads the target's `BuildableDef.build_time`; an occupied volume hides the job and blocks completion; aborts persist `Blueprint.work_done`.
+- **CraftingJobDef** — works a station's ready order, produces via `CraftingStation.produce`, resolves via `complete_order` (maintain orders requeue). Claims the station for the craft (arbitration vs. the player's CraftAction); claim races no-op and retry.
+- **HarvestJobDef** — resolves yields via `Harvestable.complete`; `begin` = crop-driven `effective_work_time()` minus persisted partial work.
+- **FarmingJobDef + Sow/Water/Tend** — one cycle against the plot's `Growable` (`_needs` predicate + `_apply` effect); availability tracks what the plot currently needs.
+- **HaulingJobDef** — repeated fetch/deliver cycles through the generic work tree (no dedicated leg tree): `work_site` picks crate-vs-sink by carry state, `complete` does the instant transfer, and the loop ends by satisfaction (`should_close`) — never a terminal `_finish`. Drought-persistent: unclaimable while no crate stocks a needed material, registered until the sink is satisfied. Surplus after a satisfied deliver returns to the nearest crate (tools exempt).
+
+---
+
 ## Behavior Tree Integration
 
 Behavior trees interact with jobs using dedicated custom tasks (`subsystems/ai/tasks/actions/`):
 
-- **`BTActionClaimJob`**: Ticked by `bt_generic_work.tres` / `bt_haul_single_trip.tres`. Queries `JobBoard.get_best_job_for()`, claims work units via `try_claim_units()`, populates blackboard variables (`active_job`, `target_pos`, `source_node`, `target_node`), and manages lazy tool retention.
-- **`BTActionPerformWork`**: Ticked while adjacent to work site. Plays `work_animation`, advances work units per cycle duration, and calls `complete_claim()`.
+- **`BTActionClaimJob`**: Ticked by `bt_generic_work.tres` / `bt_haul_single_trip.tres`. Queries `JobBoard.get_best_job_for()`, claims via `try_claim_units()` (fractional) or `try_assign()` (legacy `Job`), populates blackboard variables (`active_job`, `target_pos`, `source_node`, `target_node`), and manages lazy tool retention. Legacy claims consult `JobDef.work_site` for this cycle's walk target. Spent claims and completed/cancelled jobs on the blackboard are dropped so a fresh claim is made instead of re-satisfying finished work.
+- **`BTActionPerformWork`**: Ticked while adjacent to work site. Plays `work_animation`, runs for the def-derived duration (`work_duration`, dynamic `begin`, divided by the actor's skill multiplier), then fires the terminal effect — `apply_work_units()` on `JobInstance`/`WorkerClaim`, or `JobDef.complete(actor, job)` on legacy `Job`s — releasing the blackboard reference (and the legacy assignee slot) so the next tick claims fresh work. Preempted cycles fire `JobDef.on_abort`.
