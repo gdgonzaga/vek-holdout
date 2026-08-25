@@ -168,3 +168,7 @@ dig_box_toggle={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+
+[limbo_ai]
+
+user_tasks_directory="res://subsystems/ai/tasks"
