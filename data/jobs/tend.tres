@@ -5,7 +5,7 @@
 
 [resource]
 script = ExtResource("1_def")
-work_time = 3.0
+work_duration = 3.0
 id = "tend"
 display_name = "Tend Crop"
 labor_id = "farming"

@@ -25,6 +25,9 @@ const BTTreeFactoryScript = preload("res://subsystems/ai/bt_tree_factory.gd")
 const ColonistNeedsScript = preload("res://subsystems/ai/colonist_needs.gd")
 const ColonistBrainScript = preload("res://subsystems/ai/colonist_brain.gd")
 
+const CONSTRUCTION_DEF: JobDef = preload("res://data/jobs/construction.tres")
+const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
+
 var _sandbox: ColonySandbox
 var _blackboard: Blackboard
 var _actor: CharacterBody3D
@@ -192,6 +195,128 @@ func test_perform_work_releases_job_reference_on_terminal_complete() -> void:
 	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
 	assert_int(stub_def.complete_calls).is_equal(1)
 	assert_bool(_blackboard.has_var(&"active_job")).is_false()
+
+
+## Regression (blueprint never finishes): ConstructionJobDef.complete must
+## materialize the blueprint and drop the job from the board. Before the def
+## contract existed, PerformWork had no effect path for construction and
+## colonists looped at the blueprint forever.
+func test_construction_def_completes_blueprint_and_drops_job() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
+	_sandbox.container.add_child(bp)
+	var layer := StubBlueprintLayer.new()
+	bp.layer = layer
+
+	var job := Job.from_def(CONSTRUCTION_DEF)
+	job.target_node = bp
+	Colony.job_board.add_job(job)
+
+	CONSTRUCTION_DEF.complete(colonist, job)
+	assert_int(layer.completed.size()).is_equal(1)
+	assert_object(layer.completed[0]).is_same(bp)
+	assert_object(Colony.job_board.get_job(job.id)).is_null()
+
+
+## An occupied blueprint (someone standing in its volume) hides the job and
+## blocks complete() — the job waits on the board instead of entombing them.
+func test_construction_def_holds_job_while_blueprint_occupied() -> void:
+	var builder: Colonist = _sandbox.make_colonist()
+	var occupant: Colonist = _sandbox.make_colonist()
+	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
+	_sandbox.container.add_child(bp)
+	occupant.global_position = Vector3(0.5, 0.0, 0.5)  # inside cell (0,0,0)
+	var layer := StubBlueprintLayer.new()
+	bp.layer = layer
+
+	var job := Job.from_def(CONSTRUCTION_DEF)
+	job.target_node = bp
+	Colony.job_board.add_job(job)
+
+	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
+	CONSTRUCTION_DEF.complete(builder, job)
+	assert_int(layer.completed.size()).is_equal(0)
+	assert_object(Colony.job_board.get_job(job.id)).is_not_null()
+
+
+## The base JobDef contract's default terminal effect: drop the job from the
+## board so ClaimJob claims fresh work next tick.
+func test_base_def_complete_drops_job_from_board() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var def: JobDef = auto_free(JobDef.new()) as JobDef
+	def.labor_id = "hauling"  # unmapped labor: skill recording is a no-op
+	var job := Job.from_def(def)
+	Colony.job_board.add_job(job)
+
+	def.complete(colonist, job)
+	assert_object(Colony.job_board.get_job(job.id)).is_null()
+
+
+## Hauling picks its walk target from carry state: the stocking crate while
+## empty-handed, the sink while carrying a still-needed material.
+func test_hauling_def_picks_work_site_by_carry_state() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("plank", 5)
+	crate.global_position = Vector3(10.0, 0.0, 10.0)
+	var sink := FakeMaterialSink.new()
+	auto_free(sink)
+	_sandbox.container.add_child(sink)
+
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	job.location = Vector3(3.0, 0.0, 3.0)
+	Colony.job_board.add_job(job)
+
+	assert_bool(HAULING_DEF.is_available(job)).is_true()
+	assert_vector(HAULING_DEF.work_site(colonist, job) as Vector3).is_equal(Vector3(10.0, 0.0, 10.0))
+
+	colonist.inventory.add("plank", 2)
+	assert_vector(HAULING_DEF.work_site(colonist, job) as Vector3).is_equal(Vector3(3.0, 0.0, 3.0))
+
+
+## One full hauling run through the def's fetch/deliver cycles: withdraw up to
+## the sink's need from the crate, then deposit into the sink — the job ends by
+## satisfaction (should_close), never by a terminal complete.
+func test_hauling_def_complete_fetches_then_delivers() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("plank", 5)
+	crate.global_position = Vector3(10.0, 0.0, 10.0)
+	var sink := FakeMaterialSink.new()
+	auto_free(sink)
+	_sandbox.container.add_child(sink)
+
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	job.location = Vector3(3.0, 0.0, 3.0)
+
+	HAULING_DEF.complete(colonist, job)  # FETCH
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(3)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(2)
+
+	HAULING_DEF.complete(colonist, job)  # DELIVER
+	assert_int(sink.deposited).is_equal(3)
+	assert_bool(sink.satisfied).is_true()
+	assert_bool(HAULING_DEF.job_complete(job)).is_true()
+	assert_bool(HAULING_DEF.should_close(job)).is_true()
+
+
+## The work cycle releases the legacy multi-assign slot so the board's
+## should_close prune can retire a satisfied job and other colonists can take
+## the next cycle.
+func test_perform_work_unassigns_legacy_job_after_cycle() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var stub_def: StubCompletingJobDef = auto_free(StubCompletingJobDef.new()) as StubCompletingJobDef
+	stub_def.work_duration = 0.1
+	var job := Job.new()
+	job.def = stub_def
+	assert_bool(job.try_assign(colonist)).is_true()
+	_blackboard.set_var(&"active_job", job)
+
+	var task: BTAction = auto_free(BTActionPerformWorkScript.new()) as BTAction
+	task.initialize(colonist, _blackboard, colonist)
+
+	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
+	assert_bool(job.is_assigned(colonist.colonist_id)).is_false()
 
 
 # ── BTActionCalcHaulBatch ───────────────────────────────────────────────────
@@ -712,5 +837,43 @@ func test_stateless_colonist_save_load() -> void:
 class StubCompletingJobDef extends JobDef:
 	var complete_calls: int = 0
 
-	func complete(_actor: Node, _unused: Variant, _job: Variant) -> void:
+	func complete(_actor: Node, _job: Variant) -> void:
 		complete_calls += 1
+
+
+## Records BlueprintLayer.complete_blueprint calls without touching the voxel
+## world (construction def tests).
+class StubBlueprintLayer extends RefCounted:
+	var completed: Array = []
+
+	func complete_blueprint(bp: Blueprint, _builder: Node) -> bool:
+		completed.append(bp)
+		return true
+
+
+## MaterialSink duck-type for hauling def tests (the suite_jobs FakeSink
+## pattern, plus a real withdraw on deposit_from).
+class FakeMaterialSink extends Node:
+	var satisfied := false
+	var deposited := 0
+
+	func needed_item_ids() -> Array[String]:
+		var out: Array[String] = []
+		if not satisfied:
+			out.append("plank")
+		return out
+
+	func remaining_need(_item_id: String) -> int:
+		return 0 if satisfied else 3
+
+	func has_complete_materials() -> bool:
+		return satisfied
+
+	func deposit_from(actor: Node) -> int:
+		var need: int = remaining_need("plank")
+		var short: int = actor.remove_item("plank", need)
+		var taken: int = need - short
+		deposited += taken
+		if taken > 0:
+			satisfied = true
+		return taken

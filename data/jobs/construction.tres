@@ -6,4 +6,5 @@
 script = ExtResource("1_script")
 id = "construction"
 display_name = "Construction"
+work_duration = 0.0
 labor_id = "construction"

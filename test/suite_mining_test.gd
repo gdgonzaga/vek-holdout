@@ -452,13 +452,11 @@ func test_dig_job_def_checks_colony_is_terrain_at() -> void:
 	Colony.set_terrain_predicate(func(c: Vector3i) -> bool: return c == target_cell)
 	assert_bool(dig_def.is_available(job)).is_true()
 	assert_bool(dig_def.should_close(job)).is_false()
-	assert_object(dig_def.get_next_leg(colonist, job)).is_not_null()
 
 	# Terrain is mined to air
 	Colony.set_terrain_predicate(func(_c: Vector3i) -> bool: return false)
 	assert_bool(dig_def.is_available(job)).is_false()
 	assert_bool(dig_def.should_close(job)).is_true()
-	assert_object(dig_def.get_next_leg(colonist, job)).is_null()
 
 
 ## A buried underground dig job (no walkable adjacent cells) is unavailable
@@ -479,13 +477,11 @@ func test_dig_job_def_buried_job_gated_by_walkable_neighbor() -> void:
 	# Unreachable: not available, but should NOT close/cancel (waits for excavation)
 	assert_bool(dig_def.is_available(job)).is_false()
 	assert_bool(dig_def.should_close(job)).is_false()
-	assert_object(dig_def.get_next_leg(colonist, job)).is_null()
 
 	# Excavation carves the step above / adjacent at (1, 4, 7) into a walkable stand cell
 	walkable_cells[Vector3i(1, 4, 7)] = true
 	assert_bool(dig_def.is_available(job)).is_true()
 	assert_bool(dig_def.should_close(job)).is_false()
-	assert_object(dig_def.get_next_leg(colonist, job)).is_not_null()
 
 
 # ── Direct LMB Mining & Damage Tests ─────────────────────────────────────────

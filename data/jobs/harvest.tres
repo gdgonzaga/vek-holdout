@@ -6,4 +6,5 @@
 script = ExtResource("1_script")
 id = "harvest"
 display_name = "Harvest"
+work_duration = 0.0
 labor_id = "harvesting"

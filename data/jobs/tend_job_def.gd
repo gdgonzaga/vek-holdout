@@ -4,7 +4,7 @@ class_name TendJobDef
 ## Evaluates CropDef.tend_conditions (skills + tool requirements).
 
 func meets_requirements_any(actor: Node, job: Variant) -> bool:
-	if not super.meets_requirements_any(actor, job):
+	if not super(actor, job):
 		return false
 	var t_node: Node = job.target_node if job != null and "target_node" in job else null
 	var growable := FarmingJobDef.growable_from(t_node)
@@ -16,3 +16,11 @@ func meets_requirements_any(actor: Node, job: Variant) -> bool:
 			if not condition.is_met(actor, t_node):
 				return false
 	return true
+
+
+func _needs(growable: Growable) -> bool:
+	return growable.needs_tending()
+
+
+func _apply(growable: Growable, actor: Node) -> void:
+	growable.tend(actor)

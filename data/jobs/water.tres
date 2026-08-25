@@ -8,3 +8,4 @@ script = ExtResource("1_def")
 id = "water"
 display_name = "Water Crop"
 labor_id = "farming"
+work_duration = 2.0

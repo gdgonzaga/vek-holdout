@@ -7,4 +7,5 @@ script = ExtResource("1_script")
 id = "dig"
 display_name = "Dig"
 labor_id = "mining"
+work_duration = 2.0
 max_assignees = 1

@@ -8,3 +8,4 @@ id = "hauling"
 display_name = "Hauling"
 labor_id = "hauling"
 max_assignees = 3
+work_duration = 0.1

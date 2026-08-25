@@ -4,7 +4,7 @@ extends GdUnitTestSuite
 ## - HarvestParams capability sub-resource on FurnitureDef
 ## - FurnitureLayer attaching Harvestable and ToggleHarvestAction option
 ## - Toggling the harvest mark and Colony job board synchronization
-## - HarvestJobDef lifecycle (is_available, get_next_leg, begin, complete, XP)
+## - HarvestJobDef lifecycle (is_available, should_close, begin, complete)
 ## - Player direct harvesting via HarvestAction
 ## - Partial progress accumulation via set_work_done
 ## - Cleanup on furniture removal

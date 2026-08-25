@@ -218,15 +218,24 @@ func test_producer_spawns_haul_job_with_zero_stock() -> void:
 
 # ── Tool retention ────────────────────────────────────────────────────────────
 
-func test_on_end_dumps_materials_but_keeps_tools() -> void:
+## The deliver cycle deposits up to the sink's need and dumps the surplus back
+## to the nearest crate — carried TOOLS are exempt (a fetched axe must survive
+## a haul run).
+func test_deliver_cycle_dumps_surplus_but_keeps_tools() -> void:
 	var colonist := _sandbox.make_colonist()
-	colonist.inventory.add("plank", 2)
+	colonist.inventory.add("plank", 5)  # 3 deposited, 2 surplus
 	colonist.inventory.add("axe", 1) # data/items/axe.tres: tags ["tool", "axe"]
 	var crate := _sandbox.make_crate("plank", 0)
 	var crate_inv := _sandbox.test_registry.inventory_of(crate)
-	HAULING_DEF.on_end(false, colonist, null, null, 0.0)
-	assert_int(crate_inv.get_item_count("plank")).is_equal(2)
+	var sink := SatisfyingFakeSink.new()
+	auto_free(sink)
+	add_child(sink)
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	HAULING_DEF.complete(colonist, job)
+	assert_bool(sink.satisfied).is_true()
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+	assert_int(crate_inv.get_item_count("plank")).is_equal(2)
 	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
 	assert_int(crate_inv.get_item_count("axe")).is_equal(0)
 
@@ -409,3 +418,16 @@ class FakeSink extends Node:
 
 	func has_complete_materials() -> bool:
 		return satisfied
+
+
+## FakeSink that actually withdraws on deposit_from (the Blueprint.deposit_from
+## behavior) and flips satisfied on the first deposit — for exercising the
+## hauling def's full DELIVER cycle.
+class SatisfyingFakeSink extends FakeSink:
+	func deposit_from(actor: Node) -> int:
+		var need: int = remaining_need("plank")
+		var short: int = actor.remove_item("plank", need)
+		var taken: int = need - short
+		if taken > 0:
+			satisfied = true
+		return taken

@@ -17,6 +17,14 @@ var _elapsed: float = 0.0
 var _target_duration: float = 1.2
 var _anim_controller: Node = null
 
+## Job/claim resolved at _enter — _exit needs it for on_abort after the
+## blackboard reference was already released (or was never there).
+var _job_ref: Variant = null
+
+## False while the current work cycle is still pending; set once the terminal
+## effect ran. _exit fires def.on_abort only for preempted (mid-work) exits.
+var _cycle_finished: bool = false
+
 
 func _generate_name() -> String:
 	return "Perform Work  job: %s (%.1fs)" % [
@@ -29,13 +37,16 @@ func _enter() -> void:
 	_elapsed = 0.0
 	_target_duration = default_duration
 	var anim_to_play: StringName = default_animation
-	
+	_cycle_finished = false
+	_job_ref = null
+
 	var job: Variant = null
 	if blackboard:
 		if blackboard.has_var(job_var):
 			job = blackboard.get_var(job_var)
 		elif blackboard.has_var(&"active_claim"):
 			job = blackboard.get_var(&"active_claim")
+	_job_ref = job
 		
 	if job is Dictionary:
 		if job.has("work_animation") and job["work_animation"] != &"":
@@ -65,12 +76,14 @@ func _enter() -> void:
 		elif "job_def" in job and job.job_def != null and float(job.job_def.work_duration) > 0.0:
 			_target_duration = float(job.job_def.work_duration)
 		elif "def" in job and job.def != null:
-			if "work_duration" in job.def and float(job.def.work_duration) > 0.0:
-				_target_duration = float(job.def.work_duration)
-			elif job.def.has_method("begin"):
-				var duration: float = float(job.def.begin(agent, null, job))
-				if duration > 0.0:
-					_target_duration = duration
+				if "work_duration" in job.def and float(job.def.work_duration) > 0.0:
+					_target_duration = float(job.def.work_duration)
+				elif job.def.has_method("begin"):
+					# begin reports UNSKILLED seconds (JobDef contract) — the
+					# multiplier below does the scaling.
+					var duration: float = float(job.def.begin(agent, job))
+					if duration > 0.0:
+						_target_duration = duration
 					
 		# Factor in skill multiplier if present
 		var labor: String = ""
@@ -118,6 +131,9 @@ func _tick(delta: float) -> Status:
 
 		# Terminal effect paths complete the job outright; progressive paths
 		# only release the blackboard reference once nothing remains to work.
+		# Every def-level JobDef.complete IS terminal for the cycle (the def
+		# itself decides via _finish whether the job also leaves the board —
+		# hauling's fetch/deliver loop keeps it registered).
 		var finished: bool = false
 		if job.has_method("apply_work_units"):
 			job.apply_work_units(units, agent)
@@ -128,16 +144,17 @@ func _tick(delta: float) -> Status:
 		elif job.has_method("complete_work"):
 			job.complete_work(agent)
 			finished = true
-		elif "def" in job and job.def != null and job.def.has_method("complete"):
-			job.def.complete(agent, null, job)
+		elif "def" in job and job.def != null:
+			job.def.complete(agent, job)
 			finished = true
 		elif job.has_method("complete"):
 			job.complete(agent)
 			finished = true
 
 		if finished:
-			_release_job_reference()
+			_release_job_reference(job)
 
+	_cycle_finished = true
 	return SUCCESS
 
 
@@ -156,18 +173,34 @@ func _nothing_left_to_work(job: Variant) -> bool:
 ## Drop active_job/active_claim from the blackboard so the next ClaimJob tick
 ## claims fresh work. Without this the stale reference kept ClaimJob returning
 ## SUCCESS for a finished job and the work loop re-completed it forever at the
-## same spot.
-func _release_job_reference() -> void:
+## same spot. Legacy multi-assign jobs also release their slot, so the board's
+## should_close prune can retire a satisfied job and another colonist may take
+## the next cycle.
+func _release_job_reference(job: Variant = null) -> void:
 	if blackboard:
 		blackboard.erase_var(job_var)
 		blackboard.erase_var(&"active_claim")
 	if agent is Colonist:
 		(agent as Colonist).current_job = null
+		if job != null and job.has_method("unassign"):
+			job.unassign(agent)
 
 
 func _exit() -> void:
 	if _anim_controller and _anim_controller.has_method("clear_override"):
 		_anim_controller.clear_override()
+	# Preempted mid-cycle (a need won the dynamic selector, agent freed, ...):
+	# let the def persist partial progress / release held claims (JobDef
+	# on_abort). A finished cycle already resolved everything.
+	if not _cycle_finished and agent != null and _job_ref != null and is_instance_valid(_job_ref):
+		var def: Variant = null
+		if "def" in _job_ref and _job_ref.def != null:
+			def = _job_ref.def
+		elif "job_def" in _job_ref and _job_ref.job_def != null:
+			def = _job_ref.job_def
+		if def != null and def.has_method("on_abort"):
+			def.on_abort(agent, _job_ref, _elapsed)
+	_job_ref = null
 
 
 func _resolve_anim_controller() -> void:

@@ -6,22 +6,26 @@ class_name Job
 ## construction or hauling job) and resolved through the lifecycle in
 ## job_board.gd. This class is pure data + the multi-assign claim bookkeeping
 ## (try_assign/unassign/is_available/should_close); the JobBoard owns the
-## registry, ColonistAI drives the leg loop, and the JobDef owns the behaviour.
+## registry, the LimboAI work tree (ClaimJob → NavigateTo → PerformWork, see
+## docs/architecture/ai.md) drives the work cycle, and the JobDef owns the
+## behaviour (complete/begin/is_available/should_close — job_def.gd).
 ##
-## Multi-assign: up to `max_assignees` colonists may work one Job at once. A
-## colonist leaving (leg exhaustion or abort) calls unassign; the Job leaves the
-## board only when should_close() — no assignees left AND the def considers it
-## dead (e.g. a haul job whose blueprint is now satisfied or was cancelled; a
-## source drought deliberately outlives this check — see HaulingJobDef).
-## So one colonist finishing ≠ job done.
+## Multi-assign: up to `max_assignees` colonists may work one Job at once.
+## PerformWork releases the assignee after every completed cycle (so the next
+## ClaimJob re-claims fresh); the Job leaves the board only when
+## should_close() — no assignees left AND the def considers it dead (e.g. a
+## haul job whose blueprint is now satisfied or was cancelled; a source
+## drought deliberately outlives this check — see HaulingJobDef).
+## So one colonist finishing a cycle ≠ job done.
 ##
 ## Sprint scope: def/labor_id/anchor_cell/location/title/target_node are
 ## exercised by construction + hauling. base_rate remains forward-compat for the
 ## skill × stamina work-speed phase (GDD §6) and is unused.
 
 ## The JobDef template this job was built from (back-ref, like Furniture.def).
-## Owns the leg behaviour (get_next_leg/begin/complete/on_end/is_available). Set
-## by Job.from_def / the producer; null on ad-hoc jobs (treated as instant).
+## Owns the work behaviour (begin/complete/is_available/should_close — the
+## JobDef virtual contract in data/jobs/job_def.gd). Set by Job.from_def / the
+## producer; null on ad-hoc jobs (treated as instant).
 var def: JobDef = null
 
 ## Unique id (Tools.generate_uuid()). Set by the creator; the JobBoard keys on it.

@@ -92,7 +92,13 @@ func _tick(_delta: float) -> Status:
 			return FAILURE
 		blackboard.set_var(job_var, best_job)
 		colonist.current_job = best_job
-		if best_job.anchor_cell != Vector3i.MAX:
+		# Multi-site labors (hauling: crate vs sink by carry state) pick this
+		# cycle's walk target from the def; single-site defs return null and
+		# fall through to the anchor/target placement.
+		var site: Variant = best_job.def.work_site(colonist, best_job) if best_job.def != null else null
+		if site is Vector3:
+			blackboard.set_var(target_pos_var, site)
+		elif best_job.anchor_cell != Vector3i.MAX:
 			blackboard.set_var(target_pos_var, Vector3(best_job.anchor_cell) + Vector3(0.5, 0.5, 0.5))
 		elif best_job.target_node != null and is_instance_valid(best_job.target_node):
 			blackboard.set_var(target_pos_var, (best_job.target_node as Node3D).global_position if best_job.target_node is Node3D else Vector3.ZERO)

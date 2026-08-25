@@ -517,7 +517,6 @@ func test_paused_station_blocks_workable_and_persists() -> void:
 
 	var colonist := _sandbox.make_colonist()
 	var job := _workable_job(station)
-	assert_object(CRAFTING_DEF.get_next_leg(colonist, job)).is_null()
 	assert_bool(CRAFTING_DEF.is_available(job)).is_false()
 
 	# Verify state round-tripping through furniture serialize/deserialize
@@ -533,5 +532,4 @@ func test_paused_station_blocks_workable_and_persists() -> void:
 
 	station.set_paused(false)
 	assert_bool(station.is_paused()).is_false()
-	assert_object(CRAFTING_DEF.get_next_leg(colonist, job)).is_not_null()
 	assert_bool(CRAFTING_DEF.is_available(job)).is_true()
