@@ -22,6 +22,9 @@ const FEMALE_MESH_PATHS: Array[String] = [
 ## Cached parent Colonist reference
 var _colonist: CharacterBody3D
 
+## Optional forced animation override (driven by BT tasks during work/interaction)
+var _forced_anim: StringName = &""
+
 
 func _ready() -> void:
 	_colonist = get_parent() as CharacterBody3D
@@ -97,9 +100,24 @@ func _update_mesh_rotation(delta: float) -> void:
 		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, rotation_speed * delta)
 
 
-## Selects and plays animation based on parent velocity and floor status
+## Sets a forced animation override (e.g. from BT tasks during work/interaction)
+func play_animation_override(anim_name: StringName) -> void:
+	_forced_anim = anim_name
+	_play_anim(anim_name)
+
+
+## Clears any active animation override, returning to standard locomotion states
+func clear_override() -> void:
+	_forced_anim = &""
+
+
+## Selects and plays animation based on override, parent velocity and floor status
 func _update_animation_state() -> void:
 	if not anim_player:
+		return
+	
+	if not _forced_anim.is_empty():
+		_play_anim(_forced_anim)
 		return
 		
 	# Airborne / Jump state

@@ -1,0 +1,107 @@
+## Subsystem: AI Tasks
+## Plays a work animation for a specified or job-derived duration and applies work units / effects.
+@tool
+class_name BTActionPerformWork
+extends BTAction
+
+## Blackboard variable storing the active job or claim
+@export var job_var: StringName = &"active_job"
+
+## Default work cycle duration in seconds if not specified by the job definition
+@export var default_duration: float = 1.2
+
+## Default animation to play during work
+@export var default_animation: StringName = &"Interact"
+
+var _elapsed: float = 0.0
+var _target_duration: float = 1.2
+var _anim_controller: Node = null
+
+
+func _generate_name() -> String:
+	return "Perform Work  job: %s (%.1fs)" % [
+		LimboUtility.decorate_var(job_var),
+		default_duration
+	]
+
+
+func _enter() -> void:
+	_elapsed = 0.0
+	_target_duration = default_duration
+	var anim_to_play: StringName = default_animation
+	
+	var job: Variant = null
+	if blackboard:
+		if blackboard.has_var(job_var):
+			job = blackboard.get_var(job_var)
+		elif blackboard.has_var(&"active_claim"):
+			job = blackboard.get_var(&"active_claim")
+		
+	if job != null and is_instance_valid(job):
+		# Resolve animation name
+		if "work_animation" in job and job.work_animation != &"":
+			anim_to_play = job.work_animation
+		elif "def" in job and job.def != null and "work_animation" in job.def and job.def.work_animation != &"":
+			anim_to_play = job.def.work_animation
+			
+		# Resolve work duration
+		if "work_duration" in job and float(job.work_duration) > 0.0:
+			_target_duration = float(job.work_duration)
+		elif "def" in job and job.def != null:
+			if "work_duration" in job.def and float(job.def.work_duration) > 0.0:
+				_target_duration = float(job.def.work_duration)
+			elif job.def.has_method("begin"):
+				var duration: float = float(job.def.begin(agent, null, job))
+				if duration > 0.0:
+					_target_duration = duration
+					
+		# Factor in skill multiplier if present
+		if agent and "skill_set" in agent and agent.skill_set != null and "labor_id" in job and str(job.labor_id) != "":
+			var mult: float = float(agent.skill_set.get_multiplier(str(job.labor_id)))
+			if mult > 0.0:
+				_target_duration = _target_duration / mult
+
+	# Trigger animation override
+	_resolve_anim_controller()
+	if _anim_controller and _anim_controller.has_method("play_animation_override"):
+		_anim_controller.play_animation_override(anim_to_play)
+
+
+func _tick(delta: float) -> Status:
+	_elapsed += delta
+	if _elapsed < _target_duration:
+		return RUNNING
+		
+	# Complete work effect
+	var job: Variant = null
+	if blackboard:
+		if blackboard.has_var(job_var):
+			job = blackboard.get_var(job_var)
+		elif blackboard.has_var(&"active_claim"):
+			job = blackboard.get_var(&"active_claim")
+		
+	if job != null and is_instance_valid(job):
+		if job.has_method("apply_work_units"):
+			job.apply_work_units(20, agent)
+		elif job.has_method("complete_work"):
+			job.complete_work(agent)
+		elif "def" in job and job.def != null and job.def.has_method("complete"):
+			job.def.complete(agent, null, job)
+		elif job.has_method("complete"):
+			job.complete(agent)
+			
+	return SUCCESS
+
+
+func _exit() -> void:
+	if _anim_controller and _anim_controller.has_method("clear_override"):
+		_anim_controller.clear_override()
+
+
+func _resolve_anim_controller() -> void:
+	if _anim_controller and is_instance_valid(_anim_controller):
+		return
+	if agent:
+		_anim_controller = agent.get_node_or_null("ColonistAnimationController")
+		if not _anim_controller:
+			_anim_controller = agent.find_child("ColonistAnimationController", true, false)
