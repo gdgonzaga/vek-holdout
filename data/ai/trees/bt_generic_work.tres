@@ -1,0 +1,28 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="1_fs6vk"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="2_ase14"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="3_5clci"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="4_pm8y7"]
+
+[sub_resource type="BTAction" id="BTAction_smv1o"]
+script = ExtResource("1_fs6vk")
+
+[sub_resource type="BTCondition" id="BTCondition_pl514"]
+script = ExtResource("2_ase14")
+
+[sub_resource type="BTSelector" id="BTSelector_lq23x"]
+children = [SubResource("BTCondition_pl514")]
+
+[sub_resource type="BTAction" id="BTAction_18be8"]
+script = ExtResource("3_5clci")
+
+[sub_resource type="BTAction" id="BTAction_nlvq2"]
+script = ExtResource("4_pm8y7")
+
+[sub_resource type="BTSequence" id="BTSequence_mgwiw"]
+children = [SubResource("BTAction_smv1o"), SubResource("BTSelector_lq23x"), SubResource("BTAction_18be8"), SubResource("BTAction_nlvq2")]
+
+[resource]
+description = "Universal work sequence executing claims and work units"
+root_task = SubResource("BTSequence_mgwiw")

@@ -1,0 +1,57 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="1_11mb1"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd" id="2_5jm7j"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="3_mf76j"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="4_gfj54"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="5_6uv41"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_wander.gd" id="6_oxad6"]
+
+[sub_resource type="BTAction" id="BTAction_ftx7d"]
+script = ExtResource("1_11mb1")
+target_var = &"target_smart_object"
+arrival_distance = 1.5
+
+[sub_resource type="BTAction" id="BTAction_lkiyf"]
+script = ExtResource("2_5jm7j")
+
+[sub_resource type="BTSequence" id="BTSequence_gqtk8"]
+children = [SubResource("BTAction_ftx7d"), SubResource("BTAction_lkiyf")]
+
+[sub_resource type="BlackboardPlan" id="BlackboardPlan_e02yw"]
+
+[sub_resource type="BTAction" id="BTAction_smv1o"]
+script = ExtResource("3_mf76j")
+
+[sub_resource type="BTCondition" id="BTCondition_pl514"]
+script = ExtResource("4_gfj54")
+
+[sub_resource type="BTSelector" id="BTSelector_lq23x"]
+children = [SubResource("BTCondition_pl514")]
+
+[sub_resource type="BTAction" id="BTAction_18be8"]
+script = ExtResource("1_11mb1")
+
+[sub_resource type="BTAction" id="BTAction_nlvq2"]
+script = ExtResource("5_6uv41")
+
+[sub_resource type="BTSequence" id="BTSequence_mgwiw"]
+children = [SubResource("BTAction_smv1o"), SubResource("BTSelector_lq23x"), SubResource("BTAction_18be8"), SubResource("BTAction_nlvq2")]
+
+[sub_resource type="BehaviorTree" id="BehaviorTree_q8ysw"]
+description = "Universal work sequence executing claims and work units"
+root_task = SubResource("BTSequence_mgwiw")
+
+[sub_resource type="BTSubtree" id="BTSubtree_ekcvg"]
+subtree = SubResource("BehaviorTree_q8ysw")
+blackboard_plan = SubResource("BlackboardPlan_e02yw")
+
+[sub_resource type="BTAction" id="BTAction_2xrlx"]
+script = ExtResource("6_oxad6")
+
+[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_uia37"]
+children = [SubResource("BTSequence_gqtk8"), SubResource("BTSubtree_ekcvg"), SubResource("BTAction_2xrlx")]
+
+[resource]
+description = "Colonist master behavior tree with dynamic needs, work delegation, and idle wander"
+root_task = SubResource("BTDynamicSelector_uia37")

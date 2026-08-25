@@ -1,0 +1,34 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd" id="1_u6rff"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd" id="2_12841"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd" id="3_6h6l7"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="4_l4ix2"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="5_wr5rf"]
+
+[sub_resource type="BTCondition" id="BTCondition_22bkd"]
+script = ExtResource("1_u6rff")
+
+[sub_resource type="BTAction" id="BTAction_vfmmo"]
+script = ExtResource("2_12841")
+
+[sub_resource type="BTSequence" id="BTSequence_gfxbh"]
+children = [SubResource("BTCondition_22bkd"), SubResource("BTAction_vfmmo")]
+
+[sub_resource type="BTAction" id="BTAction_c2chi"]
+script = ExtResource("3_6h6l7")
+
+[sub_resource type="BTAction" id="BTAction_c83qn"]
+script = ExtResource("4_l4ix2")
+target_var = &"threat_target"
+arrival_distance = 1.5
+
+[sub_resource type="BTAction" id="BTAction_cd13x"]
+script = ExtResource("5_wr5rf")
+
+[sub_resource type="BTSelector" id="BTSelector_nintd"]
+children = [SubResource("BTSequence_gfxbh"), SubResource("BTAction_c2chi"), SubResource("BTAction_c83qn"), SubResource("BTAction_cd13x")]
+
+[resource]
+description = "Enemy swarmer tree with breach, attack, chase, and threat scan"
+root_task = SubResource("BTSelector_nintd")

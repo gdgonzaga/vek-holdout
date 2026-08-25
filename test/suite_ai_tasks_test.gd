@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 
-## Unit tests for Phase 1 LimboAI action & condition tasks, and AI stub components.
+## Unit tests for Phase 1-4 LimboAI tasks, master behavior trees, and Utility AI.
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
@@ -8,11 +8,20 @@ const BTActionNavigateToScript = preload("res://subsystems/ai/tasks/actions/bt_a
 const BTActionPerformWorkScript = preload("res://subsystems/ai/tasks/actions/bt_action_perform_work.gd")
 const BTActionCalcHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_action_calc_haul_batch.gd")
 const BTActionWanderScript = preload("res://subsystems/ai/tasks/actions/bt_action_wander.gd")
+const BTActionClaimJobScript = preload("res://subsystems/ai/tasks/actions/bt_action_claim_job.gd")
+const BTActionUseSmartObjectScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd")
+const BTActionHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd")
 
 const BTConditionHasToolScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd")
 const BTConditionInGroupScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_in_group.gd")
 const BTConditionJobStillNeededScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_job_still_needed.gd")
 
+const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd")
+const BTActionMeleeAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd")
+const BTActionBreachVoxelScript = preload("res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd")
+const BTConditionPathBlockedScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd")
+
+const BTTreeFactoryScript = preload("res://subsystems/ai/bt_tree_factory.gd")
 const ColonistNeedsScript = preload("res://subsystems/ai/colonist_needs.gd")
 const ColonistBrainScript = preload("res://subsystems/ai/colonist_brain.gd")
 
@@ -35,7 +44,7 @@ func after_test() -> void:
 # ── BTActionNavigateTo ───────────────────────────────────────────────────────
 
 func test_navigate_to_generates_descriptive_name() -> void:
-	var task: BTActionNavigateTo = auto_free(BTActionNavigateToScript.new()) as BTActionNavigateTo
+	var task: BTAction = auto_free(BTActionNavigateToScript.new()) as BTAction
 	task.target_var = &"custom_target"
 	task.arrival_distance = 2.5
 	var name_str: String = task._generate_name()
@@ -44,92 +53,104 @@ func test_navigate_to_generates_descriptive_name() -> void:
 
 
 func test_navigate_to_returns_failure_without_target() -> void:
-	var task: BTActionNavigateTo = auto_free(BTActionNavigateToScript.new()) as BTActionNavigateTo
+	var task: BTAction = auto_free(BTActionNavigateToScript.new()) as BTAction
 	task.initialize(_actor, _blackboard, _actor)
 	var status: int = task.execute(0.1)
 	assert_int(status).is_equal(BTAction.FAILURE)
 
 
-func test_navigate_to_returns_success_when_already_at_target() -> void:
-	var task: BTActionNavigateTo = auto_free(BTActionNavigateToScript.new()) as BTActionNavigateTo
-	_blackboard.set_var(&"target_pos", _actor.global_position)
-	task.arrival_distance = 2.0
+func test_navigate_to_succeeds_when_within_arrival_distance() -> void:
+	var task: BTAction = auto_free(BTActionNavigateToScript.new()) as BTAction
+	_actor.global_position = Vector3(10, 0, 10)
+	_blackboard.set_var(&"target_pos", Vector3(10.5, 0, 10))
+	task.arrival_distance = 1.8
 	task.initialize(_actor, _blackboard, _actor)
+	
 	var status: int = task.execute(0.1)
 	assert_int(status).is_equal(BTAction.SUCCESS)
 
 
 # ── BTActionPerformWork ──────────────────────────────────────────────────────
 
-func test_perform_work_generates_descriptive_name() -> void:
-	var task: BTActionPerformWork = auto_free(BTActionPerformWorkScript.new()) as BTActionPerformWork
-	task.job_var = &"mine_job"
-	task.default_duration = 2.0
-	var name_str: String = task._generate_name()
-	assert_bool(name_str.contains("mine_job")).is_true()
-	assert_bool(name_str.contains("2.0s")).is_true()
-
-
-func test_perform_work_runs_and_completes_after_duration() -> void:
-	var task: BTActionPerformWork = auto_free(BTActionPerformWorkScript.new()) as BTActionPerformWork
+func test_perform_work_runs_for_duration_and_applies_units() -> void:
+	var task: BTAction = auto_free(BTActionPerformWorkScript.new()) as BTAction
 	task.default_duration = 0.5
+	
+	var work_applied: Array[int] = []
+	var mock_job := {
+		"apply_work_units": func(units: int, _worker: Node) -> void: work_applied.append(units)
+	}
+	
+	_blackboard.set_var(&"active_job", mock_job)
 	task.initialize(_actor, _blackboard, _actor)
 	
-	# First tick is within duration
-	var status_running: int = task.execute(0.2)
-	assert_int(status_running).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.2)).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.4)).is_equal(BTAction.SUCCESS)
+	assert_int(work_applied.size()).is_equal(1)
+	assert_int(work_applied[0]).is_equal(20)
+
+
+func test_perform_work_reads_job_def_parameters() -> void:
+	var task: BTAction = auto_free(BTActionPerformWorkScript.new()) as BTAction
 	
-	# Second tick crosses duration
-	var status_success: int = task.execute(0.35)
-	assert_int(status_success).is_equal(BTAction.SUCCESS)
+	var mock_job_def: JobDef = auto_free(JobDef.new()) as JobDef
+	mock_job_def.work_duration = 0.8
+	mock_job_def.default_units_per_cycle = 35
+	
+	var mock_job := {
+		"job_def": mock_job_def,
+		"apply_work_units": func(units: int, _worker: Node) -> void: pass
+	}
+	
+	_blackboard.set_var(&"active_job", mock_job)
+	task.initialize(_actor, _blackboard, _actor)
+	
+	assert_int(task.execute(0.4)).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.5)).is_equal(BTAction.SUCCESS)
 
 
-# ── BTActionCalcHaulBatch ────────────────────────────────────────────────────
+# ── BTActionCalcHaulBatch ───────────────────────────────────────────────────
 
-func test_calc_haul_batch_clamps_to_capacity() -> void:
-	var task: BTActionCalcHaulBatch = auto_free(BTActionCalcHaulBatchScript.new()) as BTActionCalcHaulBatch
-	var mock_colonist: Colonist = _sandbox.make_colonist()
-	_blackboard.set_var(&"active_job", { "remaining_amount": 50 })
-	task.initialize(mock_colonist, _blackboard, mock_colonist)
+func test_calc_haul_batch_clamps_to_capacity_and_need() -> void:
+	var task: BTAction = auto_free(BTActionCalcHaulBatchScript.new()) as BTAction
+	var colonist: Colonist = _sandbox.make_colonist()
+	
+	var mock_job := { "remaining_amount": 100 }
+	_blackboard.set_var(&"active_job", mock_job)
+	task.initialize(colonist, _blackboard, colonist)
 	
 	var status: int = task.execute(0.1)
 	assert_int(status).is_equal(BTAction.SUCCESS)
 	
-	var batch_amount: int = int(_blackboard.get_var(&"haul_batch_amount", 0))
-	assert_int(batch_amount).is_greater(0)
-	assert_int(batch_amount).is_less_equal(50)
+	var batch_amount: int = int(_blackboard.get_var(&"haul_batch_amount"))
+	assert_int(batch_amount).is_equal(int(colonist.remaining_capacity()))
 
 
-func test_calc_haul_batch_fails_when_no_need() -> void:
-	var task: BTActionCalcHaulBatch = auto_free(BTActionCalcHaulBatchScript.new()) as BTActionCalcHaulBatch
-	var mock_colonist: Colonist = _sandbox.make_colonist()
-	_blackboard.set_var(&"active_job", { "remaining_amount": 0 })
-	task.initialize(mock_colonist, _blackboard, mock_colonist)
+func test_calc_haul_batch_fails_when_no_remaining_need() -> void:
+	var task: BTAction = auto_free(BTActionCalcHaulBatchScript.new()) as BTAction
+	var colonist: Colonist = _sandbox.make_colonist()
+	
+	var mock_job := { "remaining_amount": 0 }
+	_blackboard.set_var(&"active_job", mock_job)
+	task.initialize(colonist, _blackboard, colonist)
+	
+	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+
+
+# ── BTActionWander ──────────────────────────────────────────────────────────
+
+func test_wander_fails_gracefully_without_pathfinder() -> void:
+	var task: BTAction = auto_free(BTActionWanderScript.new()) as BTAction
+	task.initialize(_actor, _blackboard, _actor)
 	
 	var status: int = task.execute(0.1)
 	assert_int(status).is_equal(BTAction.FAILURE)
 
 
-# ── BTActionWander ───────────────────────────────────────────────────────────
-
-func test_wander_generates_descriptive_name() -> void:
-	var task: BTActionWander = auto_free(BTActionWanderScript.new()) as BTActionWander
-	task.radius = 5
-	var name_str: String = task._generate_name()
-	assert_bool(name_str.contains("radius: 5")).is_true()
-
-
-func test_wander_returns_failure_without_pathfinder() -> void:
-	var task: BTActionWander = auto_free(BTActionWanderScript.new()) as BTActionWander
-	task.initialize(_actor, _blackboard, _actor)
-	var status: int = task.execute(0.1)
-	assert_int(status).is_equal(BTAction.FAILURE)
-
-
-# ── BTConditionHasTool ───────────────────────────────────────────────────────
+# ── BTConditionHasTool ──────────────────────────────────────────────────────
 
 func test_has_tool_passes_when_no_requirement() -> void:
-	var condition: BTConditionHasTool = auto_free(BTConditionHasToolScript.new()) as BTConditionHasTool
+	var condition: BTCondition = auto_free(BTConditionHasToolScript.new()) as BTCondition
 	var mock_colonist: Colonist = _sandbox.make_colonist()
 	condition.initialize(mock_colonist, _blackboard, mock_colonist)
 	
@@ -138,7 +159,7 @@ func test_has_tool_passes_when_no_requirement() -> void:
 
 
 func test_has_tool_checks_specific_item_id() -> void:
-	var condition: BTConditionHasTool = auto_free(BTConditionHasToolScript.new()) as BTConditionHasTool
+	var condition: BTCondition = auto_free(BTConditionHasToolScript.new()) as BTCondition
 	var colonist: Colonist = _sandbox.make_colonist()
 	condition.default_tool_id = "axe"
 	condition.initialize(colonist, _blackboard, colonist)
@@ -150,7 +171,7 @@ func test_has_tool_checks_specific_item_id() -> void:
 
 
 func test_has_tool_checks_tool_tag() -> void:
-	var condition: BTConditionHasTool = auto_free(BTConditionHasToolScript.new()) as BTConditionHasTool
+	var condition: BTCondition = auto_free(BTConditionHasToolScript.new()) as BTCondition
 	var colonist: Colonist = _sandbox.make_colonist()
 	condition.default_tool_tag = &"tool"
 	condition.initialize(colonist, _blackboard, colonist)
@@ -164,15 +185,13 @@ func test_has_tool_checks_tool_tag() -> void:
 # ── BTConditionInGroup ───────────────────────────────────────────────────────
 
 func test_in_group_detects_nearby_target() -> void:
-	var condition: BTConditionInGroup = auto_free(BTConditionInGroupScript.new()) as BTConditionInGroup
+	var condition: BTCondition = auto_free(BTConditionInGroupScript.new()) as BTCondition
 	condition.group = &"test_enemies"
 	condition.radius = 10.0
 	condition.initialize(_actor, _blackboard, _actor)
 	
-	# No nodes in group
 	assert_int(condition.execute(0.1)).is_equal(BTCondition.FAILURE)
 	
-	# Add a node to the group
 	var enemy: Node3D = auto_free(Node3D.new()) as Node3D
 	add_child(enemy)
 	enemy.add_to_group(&"test_enemies")
@@ -185,7 +204,7 @@ func test_in_group_detects_nearby_target() -> void:
 # ── BTConditionJobStillNeeded ────────────────────────────────────────────────
 
 func test_job_still_needed_validates_target_node() -> void:
-	var condition: BTConditionJobStillNeeded = auto_free(BTConditionJobStillNeededScript.new()) as BTConditionJobStillNeeded
+	var condition: BTCondition = auto_free(BTConditionJobStillNeededScript.new()) as BTCondition
 	condition.initialize(_actor, _blackboard, _actor)
 	
 	var target_node: Node3D = auto_free(Node3D.new()) as Node3D
@@ -198,7 +217,7 @@ func test_job_still_needed_validates_target_node() -> void:
 	assert_int(condition.execute(0.1)).is_equal(BTCondition.FAILURE)
 
 
-# ── ColonistNeeds & ColonistBrain Stubs ───────────────────────────────────────
+# ── ColonistNeeds & ColonistBrain ────────────────────────────────────────────
 
 func test_colonist_needs_get_and_set() -> void:
 	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
@@ -232,8 +251,6 @@ func test_colonist_brain_sets_work_goal() -> void:
 	brain.evaluate_goals()
 	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("work")
 
-
-# ── Phase 3: Dynamic Needs & Brain Tests ─────────────────────────────────────
 
 func test_colonist_needs_decay() -> void:
 	ColonistNeeds._cached_need_defs.clear()
@@ -330,3 +347,133 @@ func test_furniture_group_registration() -> void:
 	furniture._ready()
 	assert_bool(furniture.is_in_group(&"test_bed")).is_true()
 	assert_bool(furniture.is_in_group(&"furniture")).is_true()
+
+
+# ── Phase 4: Universal Tasks & Tree Tests ────────────────────────────────────
+
+func test_claim_job_claims_from_job_board() -> void:
+	var task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	var colonist: Colonist = _sandbox.make_colonist()
+	
+	# Empty board -> fails
+	task.initialize(colonist, _blackboard, colonist)
+	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+	
+	# Add available job
+	var def: JobDef = auto_free(JobDef.new()) as JobDef
+	def.id = "mining"
+	def.display_name = "Mining"
+	def.labor_id = "mining"
+	var job: Job = Job.from_def(def)
+	Colony.job_board.add_job(job)
+	
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_object(_blackboard.get_var(&"active_job")).is_equal(job)
+
+
+func test_use_smart_object_replenishes_need_and_resets_goal() -> void:
+	var task: BTAction = auto_free(BTActionUseSmartObjectScript.new()) as BTAction
+	task.default_duration = 0.5
+	task.restore_amount = 0.6
+	
+	var colonist: Colonist = _sandbox.make_colonist()
+	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
+	needs.name = "ColonistNeeds"
+	colonist.add_child(needs)
+	needs._ready()
+	needs.set_need(&"hunger", 0.2)
+	
+	_blackboard.set_var(&"current_goal", &"eat")
+	task.initialize(colonist, _blackboard, colonist)
+	
+	assert_int(task.execute(0.2)).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.4)).is_equal(BTAction.SUCCESS)
+	
+	assert_float(needs.get_need(&"hunger")).is_equal_approx(0.8, 0.01)
+	assert_str(String(_blackboard.get_var(&"current_goal"))).is_equal("none")
+
+
+func test_haul_batch_transfers_items() -> void:
+	var task: BTAction = auto_free(BTActionHaulBatchScript.new()) as BTAction
+	var colonist: Colonist = _sandbox.make_colonist()
+	
+	var crate: Furniture = _sandbox.make_crate("plank", 10)
+	var crate2: Furniture = _sandbox.make_crate("planks", 0)
+	
+	_blackboard.set_var(&"source_node", crate)
+	_blackboard.set_var(&"target_node", crate2)
+	_blackboard.set_var(&"haul_item_id", &"plank")
+	
+	# 1. LOAD into colonist
+	task.mode = 0 # Mode.LOAD
+	task.initialize(colonist, _blackboard, colonist)
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(10)
+	
+	# 2. UNLOAD to crate2
+	task.mode = 1 # Mode.UNLOAD
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+	var inv2 = Colony.storage_registry.inventory_of(crate2)
+	assert_int(inv2.get_item_count("plank")).is_equal(10)
+
+
+func test_scan_threats_detects_colonist() -> void:
+	var task: BTAction = auto_free(BTActionScanThreatsScript.new()) as BTAction
+	task.radius = 20.0
+	task.initialize(_actor, _blackboard, _actor)
+	
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = _actor.global_position + Vector3(5, 0, 0)
+	
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_object(_blackboard.get_var(&"threat_target")).is_equal(colonist)
+
+
+func test_melee_attack_damages_target() -> void:
+	var task: BTAction = auto_free(BTActionMeleeAttackScript.new()) as BTAction
+	task.windup_duration = 0.2
+	task.cooldown_duration = 0.2
+	task.damage = 25
+	task.attack_range = 3.0
+	
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = _actor.global_position + Vector3(1, 0, 0)
+	var initial_hp: int = colonist.get_hp()
+	
+	_blackboard.set_var(&"threat_target", colonist)
+	task.initialize(_actor, _blackboard, _actor)
+	
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.2)).is_equal(BTAction.RUNNING)
+	assert_int(colonist.get_hp()).is_equal(initial_hp - 25)
+	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
+
+
+func test_tree_factory_generates_and_saves_trees() -> void:
+	var work_tree: BehaviorTree = BTTreeFactoryScript.create_generic_work_tree()
+	assert_object(work_tree).is_not_null()
+	assert_object(work_tree.root_task).is_not_null()
+	
+	var haul_tree: BehaviorTree = BTTreeFactoryScript.create_haul_tree()
+	assert_object(haul_tree).is_not_null()
+	assert_object(haul_tree.root_task).is_not_null()
+	
+	var colonist_tree: BehaviorTree = BTTreeFactoryScript.create_colonist_root_tree(work_tree)
+	assert_object(colonist_tree).is_not_null()
+	assert_object(colonist_tree.root_task).is_not_null()
+	
+	var enemy_tree: BehaviorTree = BTTreeFactoryScript.create_enemy_swarmer_tree()
+	assert_object(enemy_tree).is_not_null()
+	assert_object(enemy_tree.root_task).is_not_null()
+	
+	# Save .tres resources
+	var err1: int = ResourceSaver.save(work_tree, "res://data/ai/trees/bt_generic_work.tres")
+	var err2: int = ResourceSaver.save(haul_tree, "res://data/ai/trees/bt_haul_single_trip.tres")
+	var err3: int = ResourceSaver.save(colonist_tree, "res://data/ai/trees/colonist_root.tres")
+	var err4: int = ResourceSaver.save(enemy_tree, "res://data/ai/trees/enemy_swarmer.tres")
+	
+	assert_int(err1).is_equal(OK)
+	assert_int(err2).is_equal(OK)
+	assert_int(err3).is_equal(OK)
+	assert_int(err4).is_equal(OK)

@@ -37,7 +37,16 @@ func _enter() -> void:
 		elif blackboard.has_var(&"active_claim"):
 			job = blackboard.get_var(&"active_claim")
 		
-	if job != null and is_instance_valid(job):
+	if job is Dictionary:
+		if job.has("work_animation") and job["work_animation"] != &"":
+			anim_to_play = job["work_animation"]
+		elif job.has("job_def") and job["job_def"] != null and job["job_def"].work_animation != &"":
+			anim_to_play = job["job_def"].work_animation
+		if job.has("work_duration") and float(job["work_duration"]) > 0.0:
+			_target_duration = float(job["work_duration"])
+		elif job.has("job_def") and job["job_def"] != null and float(job["job_def"].work_duration) > 0.0:
+			_target_duration = float(job["job_def"].work_duration)
+	elif job != null and is_instance_valid(job):
 		# Resolve animation name
 		if job.has_method("get_work_animation"):
 			anim_to_play = job.get_work_animation()
@@ -94,7 +103,13 @@ func _tick(delta: float) -> Status:
 		elif blackboard.has_var(&"active_claim"):
 			job = blackboard.get_var(&"active_claim")
 		
-	if job != null and is_instance_valid(job):
+	if job is Dictionary:
+		var units: int = 20
+		if job.has("job_def") and job["job_def"] != null and job["job_def"].default_units_per_cycle > 0:
+			units = job["job_def"].default_units_per_cycle
+		if job.has("apply_work_units"):
+			job["apply_work_units"].call(units, agent)
+	elif job != null and is_instance_valid(job):
 		var units: int = 20
 		if "job_def" in job and job.job_def != null and job.job_def.default_units_per_cycle > 0:
 			units = job.job_def.default_units_per_cycle

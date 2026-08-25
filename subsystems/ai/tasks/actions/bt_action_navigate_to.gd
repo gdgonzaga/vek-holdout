@@ -1,10 +1,10 @@
 ## Subsystem: AI Tasks
-## Moves the agent towards a target position, node, or job using VoxelPathfinder.
+## Moves the agent towards a target position, node, job, claim, or group using VoxelPathfinder.
 @tool
 class_name BTActionNavigateTo
 extends BTAction
 
-## Blackboard variable storing the target (Vector3, Vector3i, Node3D, or Job)
+## Blackboard variable storing the target (Vector3, Vector3i, Node3D, Job, Claim, or Group StringName)
 @export var target_var: StringName = &"target_pos"
 
 ## Distance to target required to consider arrival successful
@@ -33,10 +33,16 @@ func _enter() -> void:
 	var target: Variant = null
 	if blackboard.has_var(target_var):
 		target = blackboard.get_var(target_var)
+	elif blackboard.has_var(&"target_smart_object"):
+		target = blackboard.get_var(&"target_smart_object")
+	elif blackboard.has_var(&"active_claim"):
+		target = blackboard.get_var(&"active_claim")
 	elif blackboard.has_var(&"active_job"):
 		target = blackboard.get_var(&"active_job")
 	elif blackboard.has_var(&"target_node"):
 		target = blackboard.get_var(&"target_node")
+	elif blackboard.has_var(&"threat_target"):
+		target = blackboard.get_var(&"threat_target")
 			
 	if target == null:
 		return
@@ -89,7 +95,23 @@ func _resolve_path_to_target(target: Variant) -> Array[Vector3]:
 		
 	var agent_pos: Vector3 = (agent as Node3D).global_position
 	
-	# First extract target position
+	# Group name string / StringName resolution
+	if target is StringName or target is String:
+		var group_name := StringName(str(target))
+		if agent.get_tree():
+			var nodes := agent.get_tree().get_nodes_in_group(group_name)
+			var closest: Node3D = null
+			var min_d_sq := INF
+			for n in nodes:
+				if is_instance_valid(n) and not n.is_queued_for_deletion() and n is Node3D:
+					var d_sq := agent_pos.distance_squared_to((n as Node3D).global_position)
+					if d_sq < min_d_sq:
+						min_d_sq = d_sq
+						closest = n as Node3D
+			if closest != null:
+				target = closest
+	
+	# Extract target position
 	if target is Vector3:
 		_target_world_pos = target
 		_has_target_pos = true
@@ -100,7 +122,16 @@ func _resolve_path_to_target(target: Variant) -> Array[Vector3]:
 		_target_world_pos = (target as Node3D).global_position
 		_has_target_pos = true
 	elif target is Object and is_instance_valid(target):
-		if "target_node" in target and target.target_node != null and is_instance_valid(target.target_node):
+		if "target_pos" in target and target.target_pos is Vector3:
+			_target_world_pos = target.target_pos
+			_has_target_pos = true
+		elif "world_position" in target and target.world_position is Vector3:
+			_target_world_pos = target.world_position
+			_has_target_pos = true
+		elif "target_position" in target and target.target_position is Vector3:
+			_target_world_pos = target.target_position
+			_has_target_pos = true
+		elif "target_node" in target and target.target_node != null and is_instance_valid(target.target_node):
 			var node3d: Node3D = target.target_node as Node3D
 			if node3d != null:
 				_target_world_pos = node3d.global_position

@@ -11,6 +11,12 @@ var current_job: Job
 var skill_set: SkillSet
 var stamina_component: StaminaComponent
 var pathfinder: VoxelPathfinder
+
+## LimboAI / Utility AI components
+var needs: ColonistNeeds
+var brain: ColonistBrain
+var bt_player: BTPlayer
+
 ## Carry inventory (materials hauled to blueprints, etc.). Created in _ready so
 ## Blueprint.deposit_from(self) works unchanged — it calls actor.remove_item,
 ## which the Player has via the same CharacterInventory pattern (player.gd).
@@ -42,6 +48,30 @@ func _ready() -> void:
 	skill_set.seed(colonist_def.starting_skills)
 	stamina_component = $StaminaComponent
 	pathfinder = $VoxelPathfinder
+	
+	# Resolve or initialize AI components
+	needs = get_node_or_null("ColonistNeeds") as ColonistNeeds
+	if not needs:
+		needs = ColonistNeeds.new()
+		needs.name = "ColonistNeeds"
+		add_child(needs)
+		
+	brain = get_node_or_null("ColonistBrain") as ColonistBrain
+	if not brain:
+		brain = ColonistBrain.new()
+		brain.name = "ColonistBrain"
+		add_child(brain)
+		
+	bt_player = get_node_or_null("BTPlayer") as BTPlayer
+	if not bt_player:
+		bt_player = BTPlayer.new()
+		bt_player.name = "BTPlayer"
+		var tree_res: BehaviorTree = load("res://data/ai/trees/colonist_root.tres") as BehaviorTree
+		if tree_res:
+			bt_player.behavior_tree = tree_res
+		add_child(bt_player)
+	brain.bt_player = bt_player
+	
 	# Carry inventory: code-created (mirrors Player's scene-placed CharacterInventory)
 	# so this stays a script-only change. CharacterInventory._ready recalc's capacity
 	# on enter-tree, so add_child before any hauler reads it.
@@ -203,11 +233,7 @@ func remaining_capacity() -> float:
 
 
 # --- SaveSystem contract -----------------------------------------------------
-# Owned scalar/dict state + world position + skill state. Component sub-state
-# (StaminaComponent, VoxelPathfinder) and current_job are excluded — they are
-# stubs / not yet live. ColonistDef is static data (re-resolved from the def at
-# spawn), not persisted here. NOTE: colonists are not yet spawned by Colony
-# (roster is a stub), so this is future-ready plumbing.
+# Owned scalar/dict state + world position + skill state + needs state.
 
 func serialize() -> Dictionary:
 	return {
@@ -218,6 +244,7 @@ func serialize() -> Dictionary:
 		"hp": _current_hp,
 		"is_dead": _is_dead,
 		"skills": skill_set.serialize() if skill_set != null else {},
+		"needs": needs.serialize() if needs != null else {},
 		"pos": [global_position.x, global_position.y, global_position.z],
 	}
 
@@ -231,5 +258,7 @@ func deserialize(data: Dictionary) -> void:
 	_is_dead = bool(data.get("is_dead", false))
 	if skill_set != null and data.has("skills"):
 		skill_set.deserialize(data["skills"])
+	if needs != null and data.has("needs"):
+		needs.deserialize(data["needs"])
 	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))

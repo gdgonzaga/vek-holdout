@@ -1,0 +1,30 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="1_1k4sd"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="2_dq3kl"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd" id="3_jsp2s"]
+
+[sub_resource type="BTAction" id="BTAction_qbobv"]
+script = ExtResource("1_1k4sd")
+
+[sub_resource type="BTAction" id="BTAction_fq4f1"]
+script = ExtResource("2_dq3kl")
+target_var = &"source_node"
+
+[sub_resource type="BTAction" id="BTAction_6lqt2"]
+script = ExtResource("3_jsp2s")
+
+[sub_resource type="BTAction" id="BTAction_g3mtb"]
+script = ExtResource("2_dq3kl")
+target_var = &"target_node"
+
+[sub_resource type="BTAction" id="BTAction_7ys7m"]
+script = ExtResource("3_jsp2s")
+mode = 1
+
+[sub_resource type="BTSequence" id="BTSequence_pep28"]
+children = [SubResource("BTAction_qbobv"), SubResource("BTAction_fq4f1"), SubResource("BTAction_6lqt2"), SubResource("BTAction_g3mtb"), SubResource("BTAction_7ys7m")]
+
+[resource]
+description = "Single-trip hauling sequence for material transport"
+root_task = SubResource("BTSequence_pep28")

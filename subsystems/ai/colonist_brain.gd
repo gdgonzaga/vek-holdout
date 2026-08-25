@@ -27,7 +27,7 @@ func _process(delta: float) -> void:
 		evaluate_goals()
 
 
-## Evaluates current desires and writes winning goal to LimboAI Blackboard.
+## Evaluates current desires and writes winning goal and target to LimboAI Blackboard.
 func evaluate_goals() -> void:
 	var colonist := get_parent()
 	if colonist and _needs == null:
@@ -39,6 +39,7 @@ func evaluate_goals() -> void:
 		return
 
 	var scores: Dictionary = {}
+	var best_targets: Dictionary = {}
 
 	# 1. Evaluate need-based goals
 	if _needs != null:
@@ -54,6 +55,7 @@ func evaluate_goals() -> void:
 			base_score = clampf(base_score, 0.0, 1.0)
 
 			var dist_penalty: float = 1.0
+			var nearest_target: Node3D = null
 			if is_inside_tree() and colonist and colonist is Node3D and def.target_group != &"":
 				var objects := get_tree().get_nodes_in_group(def.target_group)
 				if not objects.is_empty():
@@ -64,6 +66,7 @@ func evaluate_goals() -> void:
 							var d := parent_pos.distance_to(obj.global_position)
 							if d < min_dist:
 								min_dist = d
+								nearest_target = obj as Node3D
 					if min_dist != INF:
 						dist_penalty = clampf(1.0 - (min_dist / 100.0), 0.2, 1.0)
 
@@ -71,6 +74,10 @@ func evaluate_goals() -> void:
 			var goal_name: StringName = def.goal_name
 			if not scores.has(goal_name) or final_score > scores[goal_name]:
 				scores[goal_name] = final_score
+				if nearest_target != null:
+					best_targets[goal_name] = nearest_target
+				elif def.target_group != &"":
+					best_targets[goal_name] = def.target_group
 
 	# 2. Evaluate work goal
 	var work_score := _get_work_score(colonist)
@@ -106,6 +113,10 @@ func evaluate_goals() -> void:
 			winning_goal = goal
 
 	bt_player.blackboard.set_var(&"current_goal", winning_goal)
+	if best_targets.has(winning_goal):
+		bt_player.blackboard.set_var(&"target_smart_object", best_targets[winning_goal])
+	elif winning_goal == &"work":
+		bt_player.blackboard.set_var(&"target_smart_object", null)
 
 
 func _get_work_score(actor: Node) -> float:
