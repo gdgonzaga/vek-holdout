@@ -1,6 +1,6 @@
 # Architecture — Vek: Holdout
 
-Last updated: 2026-08-17 (doc-vs-code audit: as-built pages synced with the code — EventBus registry, farming/harvesting coverage, labor/skill/action counts, UI inventory incl. colony_management; the unbuilt subsystem pages (combat, equipment, energy, permadeath-memorial, raids, loot, debug console/commands) now carry "planned — not yet built" banners and live in the Planned nav group; log_history screen moved to ui/log_history/ so the H key works. Prior: job-system extension foundations built — JobDef requirement gating, MaterialSink haul contract, ItemDef tags + tool retention, Furniture state bag, Skills live; harvesting + farming features built)
+Last updated: 2026-08-25 (AI Subsystem & Behavior Trees integration complete — LimboAI behavior tree engine, ColonistBrain Utility AI goal arbitration, ColonistNeeds dynamic needs management, Fractional Job system with JobInstance and WorkerClaim, custom BTTask action/condition library, and data schema updates for JobDef and NeedDef).
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
@@ -25,6 +25,7 @@ Last updated: 2026-08-17 (doc-vs-code audit: as-built pages synced with the code
 | [Functional Rooms](functional-rooms.md) | Furniture-count tracking, capability unlocks | §7.8 |
 | [Colonists](colonists.md) | Roster, labor AI, raid stances | §6 |
 | [Jobs](jobs.md) | Job Board, hauling, construction, farming, JobDef contract | §6 |
+| [AI & Behavior Trees](ai.md) | LimboAI engine, ColonistBrain, ColonistNeeds, custom tasks | §6 |
 | [Pathfinding & Navigation](pathfinding.md) | Voxel A*, hybrid walkability, stepped 3D locomotion, physics assist | §6 |
 | [Skills](skills.md) | Per-entity L1–L5 progression, work-speed multipliers | §6.3 |
 | [Maps](maps.md) | MapLibrary, wiring, per-map scenes, authoring | — |

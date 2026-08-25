@@ -34,6 +34,7 @@ nav:
     - "Functional Rooms": architecture/functional-rooms.md
     - Colonists: architecture/colonists.md
     - Jobs: architecture/jobs.md
+    - "AI & Behavior Trees": architecture/ai.md
     - "Pathfinding & Navigation": architecture/pathfinding.md
     - Skills: architecture/skills.md
     - Maps: architecture/maps.md
@@ -60,10 +61,13 @@ nav:
     - "Open world": architecture/open-world.md
     - "Job system extensions": architecture/job-extensions.md
   - How tos:
+    - "Authoring Behavior Trees": HOWTO-author-behavior-trees.md
     - "Authoring Blocks": HOWTO-author-blocks.md
     - "Authoring Crops": HOWTO-author-crops.md
     - "Authoring Interactions": HOWTO-author-interactions.md
+    - "Authoring Job Definitions": HOWTO-author-job-defs.md
     - "Authoring Maps": HOWTO-author-maps.md
+    - "Authoring Need Definitions": HOWTO-author-need-defs.md
     - "Transferring Animpic models": HOWTO-transfer-animpic-models.md
   - About:
     - "Adding a page": architecture/contributing.md
