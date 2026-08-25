@@ -166,15 +166,21 @@ func _get_blueprint_cells(bp: Blueprint) -> Array[Vector3i]:
 	if bp.def == null and bp.target_def_id != "":
 		bp.def = BuildLibrary.get_def(bp.target_def_id)
 	if bp.def != null and not bp.def is FurnitureDef:
-		return [bp.anchor_cell]
+		var out: Array[Vector3i] = [bp.anchor_cell]
+		return out
 
 	var footprint := bp.get_footprint_cells()
 	if footprint.is_empty():
-		return []
+		var out: Array[Vector3i] = []
+		if bp.anchor_cell != Vector3i.MAX:
+			out.append(bp.anchor_cell)
+		return out
 	var fdef := bp.def as FurnitureDef
 	var h := fdef.dimensions.y if fdef != null else 1
 	if h <= 1:
-		return footprint
+		var out: Array[Vector3i] = []
+		out.assign(footprint)
+		return out
 	var cells: Array[Vector3i] = []
 	for cell in footprint:
 		for dy in range(h):

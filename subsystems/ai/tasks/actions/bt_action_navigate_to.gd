@@ -66,6 +66,7 @@ func _enter() -> void:
 
 func _tick(_delta: float) -> Status:
 	if not agent or not _has_valid_target:
+		_handle_navigation_failure()
 		return FAILURE
 		
 	# Check distance to target
@@ -162,3 +163,59 @@ func _resolve_path_to_target(target: Variant) -> Array[Vector3]:
 		return pathfinder.find_path_to_adjacent(agent_pos, _target_world_pos)
 		
 	return []
+
+
+func _handle_navigation_failure() -> void:
+	if not agent or not blackboard:
+		return
+
+	var colonist_id: String = ""
+	if agent is Colonist:
+		colonist_id = (agent as Colonist).colonist_id
+	elif "colonist_id" in agent:
+		colonist_id = str(agent.colonist_id)
+
+	var job_id: String = ""
+	
+	# 1. Release active claim
+	if blackboard.has_var(&"active_claim"):
+		var claim: Variant = blackboard.get_var(&"active_claim")
+		if claim != null and is_instance_valid(claim):
+			if "job_instance" in claim and claim.job_instance != null and is_instance_valid(claim.job_instance):
+				job_id = str(claim.job_instance.id)
+			if claim.has_method("abandon"):
+				claim.abandon()
+		blackboard.erase_var(&"active_claim")
+
+	# 2. Release active job
+	if blackboard.has_var(&"active_job"):
+		var job: Variant = blackboard.get_var(&"active_job")
+		if job != null and is_instance_valid(job):
+			if job_id == "" and "id" in job:
+				job_id = str(job.id)
+			if job.has_method("abandon_claim") and colonist_id != "":
+				job.abandon_claim(colonist_id)
+			elif agent is Colonist and job.has_method("unassign"):
+				job.unassign(agent as Colonist)
+		blackboard.erase_var(&"active_job")
+
+	if blackboard.has_var(target_var):
+		blackboard.erase_var(target_var)
+
+	if agent is Colonist:
+		(agent as Colonist).current_job = null
+
+	# 3. Register blacklist on JobBoard
+	if job_id != "" and colonist_id != "":
+		var colony: Node = agent.get_node_or_null("/root/Colony")
+		if colony != null and "job_board" in colony and colony.job_board != null:
+			colony.job_board.blacklist_job_for(job_id, colonist_id, 10.0)
+
+	# 4. Trigger immediate goal re-evaluation
+	var brain: ColonistBrain = null
+	if agent is Node:
+		brain = (agent as Node).get_node_or_null("ColonistBrain") as ColonistBrain
+		if not brain and "brain" in agent:
+			brain = agent.brain
+	if brain != null:
+		brain.evaluate_goals()

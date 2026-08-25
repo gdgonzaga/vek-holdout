@@ -7,7 +7,7 @@ var colonist_id: String
 var display_name: String
 var labor_priorities: Dictionary
 var raid_stance: int
-var current_job: Job
+var current_job: Variant = null
 var skill_set: SkillSet
 var stamina_component: StaminaComponent
 var pathfinder: VoxelPathfinder
@@ -228,6 +228,25 @@ func can_carry(item_id: String, count: int) -> bool:
 ## Free weight left in the carry inventory (capacity − current_weight). Not
 ## exercised by the haul loop yet (transfer_to enforces capacity at fetch) —
 ## kept for future capacity-aware assignment.
+func drop_held_item(item_id: String = "") -> String:
+	if inventory == null:
+		return ""
+	if item_id != "":
+		if inventory.has_item(item_id, 1):
+			inventory.remove(item_id, 1)
+			return item_id
+		return ""
+	if not inventory.items.is_empty():
+		var first_item: String = str(inventory.items.keys()[0])
+		inventory.remove(first_item, 1)
+		return first_item
+	return ""
+
+
+func hands_full() -> bool:
+	return inventory != null and not inventory.items.is_empty()
+
+
 func remaining_capacity() -> float:
 	return inventory.capacity - inventory.current_weight()
 
@@ -245,6 +264,7 @@ func serialize() -> Dictionary:
 		"is_dead": _is_dead,
 		"skills": skill_set.serialize() if skill_set != null else {},
 		"needs": needs.serialize() if needs != null else {},
+		"inventory": inventory.serialize() if inventory != null else {},
 		"pos": [global_position.x, global_position.y, global_position.z],
 	}
 
@@ -260,5 +280,11 @@ func deserialize(data: Dictionary) -> void:
 		skill_set.deserialize(data["skills"])
 	if needs != null and data.has("needs"):
 		needs.deserialize(data["needs"])
+	if inventory != null and data.has("inventory"):
+		inventory.deserialize(data["inventory"])
 	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
+	if bt_player != null:
+		bt_player.restart()
+	if brain != null:
+		brain.evaluate_goals()

@@ -21,6 +21,9 @@ signal job_failed(job_id: String, reason: String)
 # job.id (String) -> Job.
 var _jobs: Dictionary = {}
 
+# job_id (String) -> Dictionary of { colonist_id (String): expiry_msec (int) }
+var _colonist_blacklists: Dictionary = {}
+
 
 func _ready() -> void:
 	EventBus.dig_job_completed.connect(_on_world_changed.unbind(1))
@@ -33,12 +36,12 @@ func _ready() -> void:
 func _on_world_changed() -> void:
 	var now := Time.get_ticks_msec()
 	for job_id in _jobs:
-		var job: Job = _jobs[job_id]
+		var job: Variant = _jobs[job_id]
 		if job.sleep_until_msec > now:
 			job.sleep_until_msec = 0
 
 
-func add_job(job: Job) -> void:
+func add_job(job: RefCounted) -> void:
 	# Assign an id if the creator didn't, so two id-less jobs can't collide.
 	if job.id == "":
 		job.id = Tools.generate_uuid()
@@ -49,7 +52,7 @@ func remove_job(job_id: String) -> void:
 	_jobs.erase(job_id)
 
 
-func get_job(job_id: String) -> Job:
+func get_job(job_id: String) -> RefCounted:
 	return _jobs.get(job_id)
 
 
@@ -60,6 +63,15 @@ func has_jobs() -> bool:
 ## All current jobs. For inspection/debug + future UI.
 func get_jobs() -> Array[Job]:
 	var out: Array[Job] = []
+	for job in _jobs.values():
+		if job is Job:
+			out.append(job as Job)
+	return out
+
+
+## All registered jobs (including fractional JobInstance).
+func get_all_jobs() -> Array:
+	var out: Array = []
 	out.assign(_jobs.values())
 	return out
 
@@ -77,30 +89,50 @@ func get_jobs() -> Array[Job]:
 ## source-drought haul job is NOT dead: selection skips it via is_available
 ## while JobDef.should_close keeps it registered, and a restocked crate makes
 ## it claimable again on a later poll.
-func get_best_job_for(colonist: Colonist) -> Job:
+func get_best_job_for(colonist: Colonist) -> RefCounted:
 	_prune_dead_jobs()
-	var best: Job = null
+	var best: RefCounted = null
 	var best_priority: int = -1
 	var best_dist_sq: float = 0.0
 	var from: Vector3 = colonist.global_position
 	for job_id in _jobs:
-		var job: Job = _jobs[job_id]
+		var job: Variant = _jobs[job_id]
+		if "target_node" in job and job.target_node != null and (not is_instance_valid(job.target_node) or job.target_node.is_queued_for_deletion()):
+			continue
 		if not job.is_available():
 			continue
-		var priority: int = int(colonist.labor_priorities.get(job.labor_id, 0))
+		if is_job_blacklisted_for(job_id, colonist.colonist_id):
+			continue
+		var labor_id_str: String = str(job.labor_id) if "labor_id" in job else ""
+		var priority: int = int(colonist.labor_priorities.get(labor_id_str, colonist.labor_priorities.get(StringName(labor_id_str), 0)))
 		if priority <= 0:
 			continue
-		if job.def != null and not job.def.meets_requirements(colonist, job):
-			continue
+		var def_obj: Resource = null
+		if "def" in job:
+			def_obj = job.def
+		elif "job_def" in job:
+			def_obj = job.job_def
+		if def_obj != null:
+			if def_obj.has_method("meets_requirements_any"):
+				if not def_obj.meets_requirements_any(colonist, job):
+					continue
+			elif job is Job and def_obj.has_method("meets_requirements"):
+				if not def_obj.meets_requirements(colonist, job):
+					continue
+		var loc: Vector3 = Vector3.ZERO
+		if "world_position" in job:
+			loc = job.world_position
+		elif "location" in job:
+			loc = job.location
+		var dist_sq: float = from.distance_squared_to(loc)
 		if priority > best_priority:
 			best = job
 			best_priority = priority
-			best_dist_sq = from.distance_squared_to(job.location)
+			best_dist_sq = dist_sq
 		elif priority == best_priority:
-			var d: float = from.distance_squared_to(job.location)
-			if d < best_dist_sq:
+			if dist_sq < best_dist_sq:
 				best = job
-				best_dist_sq = d
+				best_dist_sq = dist_sq
 	return best
 
 
@@ -114,9 +146,15 @@ func _prune_dead_jobs() -> void:
 		return
 	var dead: Array[String] = []
 	for job_id in _jobs:
-		var job: Job = _jobs[job_id]
-		if job.should_close():
+		var job: Variant = _jobs[job_id]
+		if "target_node" in job and job.target_node != null and (not is_instance_valid(job.target_node) or job.target_node.is_queued_for_deletion()):
 			dead.append(job_id)
+		elif job.has_method("should_close"):
+			if job.should_close():
+				dead.append(job_id)
+		elif "is_completed" in job and "is_cancelled" in job:
+			if job.is_completed or job.is_cancelled:
+				dead.append(job_id)
 	for job_id in dead:
 		_jobs.erase(job_id)
 
@@ -151,3 +189,31 @@ func fail(job_id: String, reason: String) -> void:
 
 	if delay_ms > 0:
 		job.sleep_until_msec = Time.get_ticks_msec() + delay_ms
+
+
+## Blacklists a job temporarily for a specific colonist (e.g. after unreachable pathfinding).
+func blacklist_job_for(job_id: String, colonist_id: String, duration_sec: float = 10.0) -> void:
+	if job_id == "" or colonist_id == "":
+		return
+	var expiry: int = Time.get_ticks_msec() + int(duration_sec * 1000.0)
+	if not _colonist_blacklists.has(job_id):
+		_colonist_blacklists[job_id] = {}
+	_colonist_blacklists[job_id][colonist_id] = expiry
+
+
+## True if this job is currently on unreachable cooldown for this colonist.
+func is_job_blacklisted_for(job_id: String, colonist_id: String) -> bool:
+	if not _colonist_blacklists.has(job_id):
+		return false
+	var expiry: int = int(_colonist_blacklists[job_id].get(colonist_id, 0))
+	if Time.get_ticks_msec() < expiry:
+		return true
+	_colonist_blacklists[job_id].erase(colonist_id)
+	if _colonist_blacklists[job_id].is_empty():
+		_colonist_blacklists.erase(job_id)
+	return false
+
+
+## Clears all colonist blacklists (e.g. on map load or test reset).
+func clear_blacklists() -> void:
+	_colonist_blacklists.clear()

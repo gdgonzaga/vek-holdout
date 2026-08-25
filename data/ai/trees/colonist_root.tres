@@ -7,18 +7,18 @@
 [ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="5_6uv41"]
 [ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_wander.gd" id="6_oxad6"]
 
-[sub_resource type="BTAction" id="BTAction_ftx7d"]
+[sub_resource type="BTAction" id="BTAction_11mb1"]
 script = ExtResource("1_11mb1")
 target_var = &"target_smart_object"
 arrival_distance = 1.5
 
-[sub_resource type="BTAction" id="BTAction_lkiyf"]
+[sub_resource type="BTAction" id="BTAction_5jm7j"]
 script = ExtResource("2_5jm7j")
 
-[sub_resource type="BTSequence" id="BTSequence_gqtk8"]
-children = [SubResource("BTAction_ftx7d"), SubResource("BTAction_lkiyf")]
+[sub_resource type="BTSequence" id="BTSequence_mf76j"]
+children = [SubResource("BTAction_11mb1"), SubResource("BTAction_5jm7j")]
 
-[sub_resource type="BlackboardPlan" id="BlackboardPlan_e02yw"]
+[sub_resource type="BlackboardPlan" id="BlackboardPlan_gfj54"]
 
 [sub_resource type="BTAction" id="BTAction_smv1o"]
 script = ExtResource("3_mf76j")
@@ -38,20 +38,20 @@ script = ExtResource("5_6uv41")
 [sub_resource type="BTSequence" id="BTSequence_mgwiw"]
 children = [SubResource("BTAction_smv1o"), SubResource("BTSelector_lq23x"), SubResource("BTAction_18be8"), SubResource("BTAction_nlvq2")]
 
-[sub_resource type="BehaviorTree" id="BehaviorTree_q8ysw"]
+[sub_resource type="BehaviorTree" id="BehaviorTree_6uv41"]
 description = "Universal work sequence executing claims and work units"
 root_task = SubResource("BTSequence_mgwiw")
 
-[sub_resource type="BTSubtree" id="BTSubtree_ekcvg"]
-subtree = SubResource("BehaviorTree_q8ysw")
-blackboard_plan = SubResource("BlackboardPlan_e02yw")
+[sub_resource type="BTSubtree" id="BTSubtree_oxad6"]
+subtree = SubResource("BehaviorTree_6uv41")
+blackboard_plan = SubResource("BlackboardPlan_gfj54")
 
-[sub_resource type="BTAction" id="BTAction_2xrlx"]
+[sub_resource type="BTAction" id="BTAction_ftx7d"]
 script = ExtResource("6_oxad6")
 
-[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_uia37"]
-children = [SubResource("BTSequence_gqtk8"), SubResource("BTSubtree_ekcvg"), SubResource("BTAction_2xrlx")]
+[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_lkiyf"]
+children = [SubResource("BTSequence_mf76j"), SubResource("BTSubtree_oxad6"), SubResource("BTAction_ftx7d")]
 
 [resource]
 description = "Colonist master behavior tree with dynamic needs, work delegation, and idle wander"
-root_task = SubResource("BTDynamicSelector_uia37")
+root_task = SubResource("BTDynamicSelector_lkiyf")

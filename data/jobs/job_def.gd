@@ -43,8 +43,14 @@ class_name JobDef
 ## True if `actor` satisfies every `conditions` entry, evaluated fresh against
 ## the job's target node. Empty conditions (the default) mean any colonist.
 func meets_requirements(actor: Node, job: Job) -> bool:
+	return meets_requirements_any(actor, job)
+
+
+## Supports both legacy Job and modern JobInstance.
+func meets_requirements_any(actor: Node, job: Variant) -> bool:
 	for condition in conditions:
-		if not condition.is_met(actor, job.target_node):
+		var t_node: Node = job.target_node if job != null and "target_node" in job else null
+		if not condition.is_met(actor, t_node):
 			return false
 	return true
 

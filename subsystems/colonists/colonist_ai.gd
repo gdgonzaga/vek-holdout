@@ -112,7 +112,7 @@ func _is_in_work_range() -> bool:
 
 
 func _begin_work() -> void:
-	var job := _colonist.current_job
+	var job: Variant = _colonist.current_job
 	if job == null or job.def == null or _leg == null:
 		_end_job(true) # nothing to work — close out cleanly
 		return
@@ -128,7 +128,7 @@ func _begin_work() -> void:
 ## WORK tick: accumulate elapsed against the def's duration; on elapse, fire the
 ## def's complete() and advance. If the leg's target was freed mid-build, abort.
 func _tick_work(delta: float) -> void:
-	var job := _colonist.current_job
+	var job: Variant = _colonist.current_job
 	if job == null or _leg == null:
 		_end_job(false)
 		return
@@ -148,7 +148,7 @@ func _tick_work(delta: float) -> void:
 ## crate below the sink's need) is logged, not booked as success. An unreachable
 ## next leg aborts the job.
 func _advance() -> void:
-	var job := _colonist.current_job
+	var job: Variant = _colonist.current_job
 	if job == null or job.def == null:
 		_end_job(true)
 		return
@@ -189,7 +189,7 @@ func _path_for_leg(leg: JobLeg) -> Array[Vector3]:
 ## job _end_job already removed. Multi-assign note: fail clears the remaining
 ## assignees too; their own AI loops self-correct on their next tick.
 func _abort_job(reason: String) -> void:
-	var job := _colonist.current_job
+	var job: Variant = _colonist.current_job
 	_end_job(false)
 	if job != null:
 		Colony.job_board.fail(job.id, reason)
@@ -202,7 +202,7 @@ func _abort_job(reason: String) -> void:
 ## should now close (last assignee out AND the def says dead). Then return to
 ## the idle poll.
 func _end_job(success: bool) -> void:
-	var job := _colonist.current_job
+	var job: Variant = _colonist.current_job
 	if job != null:
 		# on_end is per-leg cleanup; skip it on the degenerate no-leg path (and
 		# for ad-hoc def-less jobs) so a def that reads leg.target_node can't crash.

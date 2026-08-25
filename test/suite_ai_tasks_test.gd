@@ -35,10 +35,18 @@ func before_test() -> void:
 	_blackboard = Blackboard.new()
 	_actor = auto_free(CharacterBody3D.new()) as CharacterBody3D
 	add_child(_actor)
+	ColonistNeeds._defs_loaded = false
+	ColonistNeeds._cached_need_defs.clear()
+	if Colony.job_board != null:
+		Colony.job_board.clear_blacklists()
 
 
 func after_test() -> void:
 	_sandbox.restore()
+	ColonistNeeds._defs_loaded = false
+	ColonistNeeds._cached_need_defs.clear()
+	if Colony.job_board != null:
+		Colony.job_board.clear_blacklists()
 
 
 # ── BTActionNavigateTo ───────────────────────────────────────────────────────
@@ -377,11 +385,7 @@ func test_use_smart_object_replenishes_need_and_resets_goal() -> void:
 	task.restore_amount = 0.6
 	
 	var colonist: Colonist = _sandbox.make_colonist()
-	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
-	needs.name = "ColonistNeeds"
-	colonist.add_child(needs)
-	needs._ready()
-	needs.set_need(&"hunger", 0.2)
+	colonist.needs.set_need(&"hunger", 0.2)
 	
 	_blackboard.set_var(&"current_goal", &"eat")
 	task.initialize(colonist, _blackboard, colonist)
@@ -389,7 +393,7 @@ func test_use_smart_object_replenishes_need_and_resets_goal() -> void:
 	assert_int(task.execute(0.2)).is_equal(BTAction.RUNNING)
 	assert_int(task.execute(0.4)).is_equal(BTAction.SUCCESS)
 	
-	assert_float(needs.get_need(&"hunger")).is_equal_approx(0.8, 0.01)
+	assert_float(colonist.needs.get_need(&"hunger")).is_equal_approx(0.8, 0.01)
 	assert_str(String(_blackboard.get_var(&"current_goal"))).is_equal("none")
 
 
@@ -477,3 +481,99 @@ func test_tree_factory_generates_and_saves_trees() -> void:
 	assert_int(err2).is_equal(OK)
 	assert_int(err3).is_equal(OK)
 	assert_int(err4).is_equal(OK)
+
+
+# ── Phase 5: Hardening, Persistence & Verification Tests ─────────────────────
+
+func test_unreachable_navigation_blacklists_job_for_colonist() -> void:
+	var colonist_a: Colonist = _sandbox.make_colonist()
+	var colonist_b: Colonist = _sandbox.make_colonist()
+	colonist_a.set_labor_priority("mining", 3)
+	colonist_b.set_labor_priority("mining", 3)
+	
+	var def: JobDef = auto_free(JobDef.new()) as JobDef
+	def.id = "mine_ore"
+	def.display_name = "Mine Ore"
+	def.labor_id = "mining"
+	def.work_animation = &"digging"
+	def.default_units_per_cycle = 20
+	
+	var job = preload("res://subsystems/jobs/job_instance.gd").create(def, 100, Vector3(999, 999, 999))
+	job.id = "mine_ore_1"
+	Colony.job_board.add_job(job)
+	
+	# Colonist A claims the job
+	var claim_task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	claim_task.initialize(colonist_a, _blackboard, colonist_a)
+	assert_int(claim_task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_object(_blackboard.get_var(&"active_claim")).is_not_null()
+	
+	# Colonist A attempts to navigate to unreachable location (pathfinder will fail)
+	var nav_task: BTAction = auto_free(BTActionNavigateToScript.new()) as BTAction
+	nav_task.initialize(colonist_a, _blackboard, colonist_a)
+	assert_int(nav_task.execute(0.1)).is_equal(BTAction.FAILURE)
+	
+	# Assert claim was abandoned, blackboard cleared, and job blacklisted for Colonist A only
+	assert_bool(_blackboard.has_var(&"active_claim")).is_false()
+	assert_bool(_blackboard.has_var(&"active_job")).is_false()
+	assert_bool(Colony.job_board.is_job_blacklisted_for("mine_ore_1", colonist_a.colonist_id)).is_true()
+	assert_bool(Colony.job_board.is_job_blacklisted_for("mine_ore_1", colonist_b.colonist_id)).is_false()
+	
+	# Colonist A cannot claim it again during blacklist cooldown
+	assert_object(Colony.job_board.get_best_job_for(colonist_a)).is_null()
+	
+	# Colonist B CAN claim it
+	var best_b = Colony.job_board.get_best_job_for(colonist_b)
+	assert_object(best_b).is_equal(job)
+
+
+func test_interruption_contract_and_lazy_tool_drop() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.set_labor_priority("farming", 3)
+	
+	# Add a pruning kit (tag: gardening_tool) to inventory
+	colonist.add_item("pruning_kit", 1)
+	assert_bool(colonist.inventory.has_item("pruning_kit", 1)).is_true()
+	assert_bool(colonist.hands_full()).is_true()
+	
+	# Simulate interruption / combat flee: tool is NOT dropped
+	assert_bool(colonist.inventory.has_item("pruning_kit", 1)).is_true()
+	
+	# Now claim a job requiring an 'axe' tool tag
+	var def: JobDef = auto_free(JobDef.new()) as JobDef
+	def.id = "chop_wood"
+	def.display_name = "Chop Wood"
+	def.labor_id = "farming"
+	def.required_tool_tag = &"axe"
+	var job: Job = Job.from_def(def)
+	Colony.job_board.add_job(job)
+	
+	var claim_task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	claim_task.initialize(colonist, _blackboard, colonist)
+	assert_int(claim_task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	
+	# Lazy cleanup dropped incompatible pruning kit
+	assert_bool(colonist.inventory.has_item("pruning_kit", 1)).is_false()
+
+
+func test_stateless_colonist_save_load() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(12.0, 3.5, -8.0)
+	colonist.inventory.items["wood_plank"] = 7
+	colonist.needs.set_need(&"hunger", 0.42)
+	colonist.needs.set_need(&"rest", 0.88)
+	
+	var data: Dictionary = colonist.serialize()
+	assert_bool(data.has("needs")).is_true()
+	assert_bool(data.has("inventory")).is_true()
+	assert_bool(data.has("pos")).is_true()
+	assert_int(data["inventory"]["items"]["wood_plank"]).is_equal(7)
+	
+	# Deserialize into another colonist
+	var loaded_colonist: Colonist = _sandbox.make_colonist()
+	loaded_colonist.deserialize(data)
+	
+	assert_vector(loaded_colonist.global_position).is_equal(Vector3(12.0, 3.5, -8.0))
+	assert_int(loaded_colonist.inventory.get_item_count("wood_plank")).is_equal(7)
+	assert_float(loaded_colonist.needs.get_need(&"hunger")).is_equal_approx(0.42, 0.001)
+	assert_float(loaded_colonist.needs.get_need(&"rest")).is_equal_approx(0.88, 0.001)

@@ -147,6 +147,8 @@ func _is_tool(item_id: String) -> bool:
 ## registered until restock.
 func is_available(job: Job) -> bool:
 	var sink := job.target_node
+	if sink == null or not is_instance_valid(sink) or sink.is_queued_for_deletion():
+		return false
 	if not MaterialSink.is_material_sink(sink):
 		return false
 	if sink.has_complete_materials():
@@ -162,6 +164,8 @@ func is_available(job: Job) -> bool:
 ## persistence job-extensions.md defers for scheduled labors.
 func should_close(job: Job) -> bool:
 	var sink := job.target_node
+	if sink == null or not is_instance_valid(sink) or sink.is_queued_for_deletion():
+		return true
 	if not MaterialSink.is_material_sink(sink):
 		return true
 	return sink.has_complete_materials()

@@ -25,15 +25,19 @@ func _tick(_delta: float) -> Status:
 	if not agent or not blackboard:
 		return FAILURE
 		
+	var colonist: Colonist = agent as Colonist if agent is Colonist else null
+	
 	# Check if we already hold a valid active claim or job
 	if blackboard.has_var(claim_var):
 		var existing_claim: Variant = blackboard.get_var(claim_var)
 		if existing_claim != null and is_instance_valid(existing_claim):
+			_cleanup_incompatible_held_items(colonist)
 			return SUCCESS
 			
 	if blackboard.has_var(job_var):
 		var existing_job: Variant = blackboard.get_var(job_var)
 		if existing_job != null and is_instance_valid(existing_job):
+			_cleanup_incompatible_held_items(colonist)
 			return SUCCESS
 
 	var colony: Node = agent.get_node_or_null("/root/Colony")
@@ -44,7 +48,6 @@ func _tick(_delta: float) -> Status:
 	if not (agent is Colonist):
 		return FAILURE
 		
-	var colonist := agent as Colonist
 	var best_job = job_board.get_best_job_for(colonist)
 	if best_job == null:
 		return FAILURE
@@ -66,6 +69,7 @@ func _tick(_delta: float) -> Status:
 			
 		if "job_def" in best_job and best_job.job_def != null and "required_tool_tag" in best_job.job_def:
 			blackboard.set_var(&"required_tool_tag", best_job.job_def.required_tool_tag)
+			_cleanup_incompatible_held_items(colonist)
 		return SUCCESS
 		
 	# Legacy Job support
@@ -80,6 +84,18 @@ func _tick(_delta: float) -> Status:
 			blackboard.set_var(target_pos_var, (best_job.target_node as Node3D).global_position if best_job.target_node is Node3D else Vector3.ZERO)
 		if best_job.def != null and "required_tool_tag" in best_job.def:
 			blackboard.set_var(&"required_tool_tag", best_job.def.required_tool_tag)
+			_cleanup_incompatible_held_items(colonist)
 		return SUCCESS
 		
 	return FAILURE
+
+
+func _cleanup_incompatible_held_items(colonist: Colonist) -> void:
+	if colonist == null or colonist.inventory == null or not colonist.hands_full():
+		return
+	var req_tag: StringName = &""
+	if blackboard.has_var(&"required_tool_tag"):
+		req_tag = blackboard.get_var(&"required_tool_tag")
+	if req_tag != &"":
+		if not colonist.inventory.has_item_tag(String(req_tag)):
+			colonist.drop_held_item()
