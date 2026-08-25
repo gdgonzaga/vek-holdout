@@ -73,9 +73,9 @@ Custom tasks extend `BTAction` or `BTCondition` and reside in `subsystems/ai/tas
 
 | Task Class | Script | Description |
 |---|---|---|
-| `BTActionClaimJob` | `bt_action_claim_job.gd` | Queries `JobBoard.get_best_job_for()`, reserves a `WorkerClaim`, sets blackboard variables (`active_job`, `target_pos`, `source_node`, `target_node`), and manages lazy tool acquisition. |
-| `BTActionNavigateTo` | `bt_action_navigate_to.gd` | Navigates the agent to `target_var` (Vector3 or Node3D) using `INavigationGrid`, checking arrival distance and applying blacklists on stuck/unreachable paths. |
-| `BTActionPerformWork` | `bt_action_perform_work.gd` | Executes work cycles on a claimed `JobInstance`, triggering animations (`work_animation`), progressing work units, and handling completion. |
+| `BTActionClaimJob` | `bt_action_claim_job.gd` | Queries `JobBoard.get_best_job_for()`, reserves a `WorkerClaim`, sets blackboard variables (`active_job`, `target_pos`, `source_node`, `target_node`), and manages lazy tool acquisition. Spent claims and completed/cancelled jobs on the blackboard are dropped so a fresh claim is made instead of re-satisfying finished work. |
+| `BTActionNavigateTo` | `bt_action_navigate_to.gd` | Navigates the agent to `target_var` (Vector3 or Node3D) using VoxelPathfinder, checking arrival distance and applying blacklists on stuck/unreachable paths. The task's own variable is authoritative when it exists (a null value means "no target" and never falls through to the generic fallback vars), and only the task instance that last set the agent's path (the `bt_nav_path_owner` agent meta, shared with `BTActionWander`) may clear it on exit — sibling branches under the root `BTDynamicSelector` re-tick every frame and must not wipe each other's path. |
+| `BTActionPerformWork` | `bt_action_perform_work.gd` | Executes work cycles on a claimed `JobInstance`, triggering animations (`work_animation`), progressing work units, and handling completion. Releases `active_job`/`active_claim` from the blackboard once the job is finished so the next tick claims new work. |
 | `BTActionHaulBatch` | `bt_action_haul_batch.gd` | Executes item pickup (mode 0) and deposit (mode 1) between inventory and storage targets. |
 | `BTActionCalcHaulBatch` | `bt_action_calc_haul_batch.gd` | Calculates optimal haul item count based on worker capacity and unclaimed job units. |
 | `BTActionUseSmartObject` | `bt_action_use_smart_object.gd` | Interacts with smart objects (beds, dining tables, chairs) to satisfy colonist needs and play interaction animations. |
