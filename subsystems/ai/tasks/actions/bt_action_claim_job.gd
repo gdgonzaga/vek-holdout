@@ -27,18 +27,32 @@ func _tick(_delta: float) -> Status:
 		
 	var colonist: Colonist = agent as Colonist if agent is Colonist else null
 	
-	# Check if we already hold a valid active claim or job
+	# Check if we already hold a valid active claim or job. Spent ones (claim
+	# finished, parent job completed/cancelled/freed) are dropped so a fresh
+	# claim is made next — holding them made this task return SUCCESS forever
+	# for work that was already done.
 	if blackboard.has_var(claim_var):
 		var existing_claim: Variant = blackboard.get_var(claim_var)
 		if existing_claim != null and is_instance_valid(existing_claim):
-			_cleanup_incompatible_held_items(colonist)
-			return SUCCESS
-			
+			if _claim_is_spent(existing_claim):
+				blackboard.erase_var(claim_var)
+				blackboard.erase_var(job_var)
+				if agent is Colonist:
+					(agent as Colonist).current_job = null
+			else:
+				_cleanup_incompatible_held_items(colonist)
+				return SUCCESS
+
 	if blackboard.has_var(job_var):
 		var existing_job: Variant = blackboard.get_var(job_var)
 		if existing_job != null and is_instance_valid(existing_job):
-			_cleanup_incompatible_held_items(colonist)
-			return SUCCESS
+			if _job_is_dead(existing_job):
+				blackboard.erase_var(job_var)
+				if agent is Colonist:
+					(agent as Colonist).current_job = null
+			else:
+				_cleanup_incompatible_held_items(colonist)
+				return SUCCESS
 
 	var colony: Node = agent.get_node_or_null("/root/Colony")
 	if colony == null or not "job_board" in colony or colony.job_board == null:
@@ -99,3 +113,25 @@ func _cleanup_incompatible_held_items(colonist: Colonist) -> void:
 	if req_tag != &"":
 		if not colonist.inventory.has_item_tag(String(req_tag)):
 			colonist.drop_held_item()
+
+
+## True when a held claim can no longer be worked: its units are finished, or
+## its parent job is freed/completed/cancelled.
+func _claim_is_spent(claim: Variant) -> bool:
+	if claim.has_method("is_finished") and bool(claim.is_finished()):
+		return true
+	if "job" in claim:
+		var claim_job: Variant = claim.job
+		if claim_job == null or not is_instance_valid(claim_job):
+			return true
+		return _job_is_dead(claim_job)
+	return false
+
+
+## True when a job object is completed or cancelled (missing flags = alive).
+func _job_is_dead(job: Variant) -> bool:
+	if "is_completed" in job and bool(job.is_completed):
+		return true
+	if "is_cancelled" in job and bool(job.is_cancelled):
+		return true
+	return false

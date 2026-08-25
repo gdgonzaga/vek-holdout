@@ -13,6 +13,17 @@ extends BTAction
 var _target_world_pos: Vector3 = Vector3.ZERO
 var _has_target_pos: bool = false
 var _has_valid_target: bool = false
+## True when _enter resolved no target at all (expected no-op — do NOT call
+## _handle_navigation_failure in this case, or it will erase active_job for
+## other subtrees sharing the same blackboard).
+var _no_target: bool = false
+## Meta key on the agent holding the instance id of the NavigateTo/Wander task
+## that most recently fed it a path. The agent's path is a single shared slot
+## and several task instances (needs branch, work branch, wander) can set it;
+## without ownership a failing sibling's _exit wiped the active path every
+## tick, which degenerated into claim -> wipe -> has_arrived() -> instant
+## "arrive" while the colonist never moved.
+const _PATH_OWNER_META := &"bt_nav_path_owner"
 
 
 func _generate_name() -> String:
@@ -26,25 +37,33 @@ func _enter() -> void:
 	_has_valid_target = false
 	_has_target_pos = false
 	_target_world_pos = Vector3.ZERO
-	
+	_no_target = false
+
 	if not agent or not blackboard:
 		return
-		
+
+	# The task's own variable is authoritative WHEN it exists — including when
+	# its value is null: the brain writes target_smart_object = null whenever
+	# the winning goal has no smart object, and the generic fallbacks below
+	# would otherwise make the needs-branch instance steal the work branch's
+	# active_job/active_claim and fight over the agent's single path slot.
 	var target: Variant = null
 	if blackboard.has_var(target_var):
 		target = blackboard.get_var(target_var)
-	elif blackboard.has_var(&"target_smart_object"):
-		target = blackboard.get_var(&"target_smart_object")
-	elif blackboard.has_var(&"active_claim"):
-		target = blackboard.get_var(&"active_claim")
-	elif blackboard.has_var(&"active_job"):
-		target = blackboard.get_var(&"active_job")
-	elif blackboard.has_var(&"target_node"):
-		target = blackboard.get_var(&"target_node")
-	elif blackboard.has_var(&"threat_target"):
-		target = blackboard.get_var(&"threat_target")
-			
+	else:
+		if blackboard.has_var(&"target_smart_object"):
+			target = blackboard.get_var(&"target_smart_object")
+		elif blackboard.has_var(&"active_claim"):
+			target = blackboard.get_var(&"active_claim")
+		elif blackboard.has_var(&"active_job"):
+			target = blackboard.get_var(&"active_job")
+		elif blackboard.has_var(&"target_node"):
+			target = blackboard.get_var(&"target_node")
+		elif blackboard.has_var(&"threat_target"):
+			target = blackboard.get_var(&"threat_target")
+
 	if target == null:
+		_no_target = true
 		return
 		
 	var path: Array[Vector3] = _resolve_path_to_target(target)
@@ -62,11 +81,19 @@ func _enter() -> void:
 	_has_valid_target = true
 	if agent.has_method("set_path"):
 		agent.set_path(path)
+		if agent is Node:
+			(agent as Node).set_meta(_PATH_OWNER_META, get_instance_id())
 
 
 func _tick(_delta: float) -> Status:
 	if not agent or not _has_valid_target:
-		_handle_navigation_failure()
+		## Only treat this as a real nav failure (and clean up job state) when we
+		## actually had a target to navigate to. A null target means the
+		## need-satisfier branch has nothing to do — return FAILURE quietly so
+		## the BTDynamicSelector falls through to the work subtree without
+		## touching active_job / active_claim on the shared blackboard.
+		if not _no_target:
+			_handle_navigation_failure()
 		return FAILURE
 		
 	# Check distance to target
@@ -83,11 +110,23 @@ func _tick(_delta: float) -> Status:
 
 
 func _exit() -> void:
-	if agent:
-		if agent.has_method("set_path"):
-			agent.set_path([])
-		if "pathfinder" in agent and agent.pathfinder != null and agent.pathfinder.has_method("clear_diagnostics"):
-			agent.pathfinder.clear_diagnostics()
+	# Only the task instance that owns the agent's current path may clear it
+	# (see _PATH_OWNER_META). A failing no-target instance — the needs branch
+	# under the root BTDynamicSelector re-ticks every frame — must leave the
+	# path (and the pathfinder telemetry it didn't produce) alone.
+	if agent == null or not _owns_agent_path():
+		return
+	if agent.has_method("set_path"):
+		agent.set_path([])
+	if "pathfinder" in agent and agent.pathfinder != null and agent.pathfinder.has_method("clear_diagnostics"):
+		agent.pathfinder.clear_diagnostics()
+
+
+## True when this instance was the last task to feed the agent a path.
+func _owns_agent_path() -> bool:
+	return agent is Node \
+			and (agent as Node).has_meta(_PATH_OWNER_META) \
+			and (agent as Node).get_meta(_PATH_OWNER_META) == get_instance_id()
 
 
 func _resolve_path_to_target(target: Variant) -> Array[Vector3]:

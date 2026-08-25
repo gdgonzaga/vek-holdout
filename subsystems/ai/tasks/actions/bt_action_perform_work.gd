@@ -115,19 +115,54 @@ func _tick(delta: float) -> Status:
 			units = job.job_def.default_units_per_cycle
 		elif "job" in job and job.job != null and job.job.job_def != null and job.job.job_def.default_units_per_cycle > 0:
 			units = job.job.job_def.default_units_per_cycle
-			
+
+		# Terminal effect paths complete the job outright; progressive paths
+		# only release the blackboard reference once nothing remains to work.
+		var finished: bool = false
 		if job.has_method("apply_work_units"):
 			job.apply_work_units(units, agent)
+			finished = _nothing_left_to_work(job)
 		elif job.has_method("apply_work"):
 			job.apply_work(units, agent)
+			finished = _nothing_left_to_work(job)
 		elif job.has_method("complete_work"):
 			job.complete_work(agent)
+			finished = true
 		elif "def" in job and job.def != null and job.def.has_method("complete"):
 			job.def.complete(agent, null, job)
+			finished = true
 		elif job.has_method("complete"):
 			job.complete(agent)
-			
+			finished = true
+
+		if finished:
+			_release_job_reference()
+
 	return SUCCESS
+
+
+## True when the worked object has no remaining progress: a JobInstance that
+## is_completed, or a WorkerClaim whose reserved units are done. Objects with
+## no progress flags (legacy Jobs completed via def.complete) are handled by
+## the caller treating their effect path as terminal.
+func _nothing_left_to_work(job: Variant) -> bool:
+	if "is_completed" in job:
+		return bool(job.is_completed)
+	if job.has_method("is_finished"):
+		return bool(job.is_finished())
+	return false
+
+
+## Drop active_job/active_claim from the blackboard so the next ClaimJob tick
+## claims fresh work. Without this the stale reference kept ClaimJob returning
+## SUCCESS for a finished job and the work loop re-completed it forever at the
+## same spot.
+func _release_job_reference() -> void:
+	if blackboard:
+		blackboard.erase_var(job_var)
+		blackboard.erase_var(&"active_claim")
+	if agent is Colonist:
+		(agent as Colonist).current_job = null
 
 
 func _exit() -> void:

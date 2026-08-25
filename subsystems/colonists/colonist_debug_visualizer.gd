@@ -164,9 +164,12 @@ func _resolve_colonist_state() -> String:
 		if _bt_player.blackboard.has_var(&"current_goal"):
 			var goal: StringName = _bt_player.blackboard.get_var(&"current_goal")
 			if goal == &"work":
-				var active_job = _bt_player.blackboard.get_var(&"active_job")
-				if active_job != null and "completed_units" in active_job and "total_units" in active_job:
-					return "WORK (%d/%d)" % [active_job.completed_units, active_job.total_units]
+				# active_job lives in the work subtree's scope and is absent
+				# between cycles — read only when present.
+				if _bt_player.blackboard.has_var(&"active_job"):
+					var active_job = _bt_player.blackboard.get_var(&"active_job")
+					if active_job != null and "completed_units" in active_job and "total_units" in active_job:
+						return "WORK (%d/%d)" % [active_job.completed_units, active_job.total_units]
 				return "WORK"
 			elif goal != &"none":
 				return String(goal).to_upper()

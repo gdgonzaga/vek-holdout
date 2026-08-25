@@ -8,7 +8,11 @@ const EVAL_INTERVAL: float = 1.5
 @export var bt_player: BTPlayer
 
 var _needs: ColonistNeeds
-var _poll_timer: float = 0.0
+## Starts at EVAL_INTERVAL so the very first _process frame evaluates goals:
+## until it runs, current_goal/target_smart_object don't exist on the
+## blackboard, and the needs-branch NavigateTo's generic fallbacks would grab
+## active_job the instant the work branch claims one.
+var _poll_timer: float = EVAL_INTERVAL
 
 
 func _ready() -> void:
@@ -71,13 +75,14 @@ func evaluate_goals() -> void:
 						dist_penalty = clampf(1.0 - (min_dist / 100.0), 0.2, 1.0)
 
 			var final_score: float = base_score * dist_penalty
+			if nearest_target == null:
+				final_score = 0.0
+
 			var goal_name: StringName = def.goal_name
 			if not scores.has(goal_name) or final_score > scores[goal_name]:
 				scores[goal_name] = final_score
 				if nearest_target != null:
 					best_targets[goal_name] = nearest_target
-				elif def.target_group != &"":
-					best_targets[goal_name] = def.target_group
 
 	# 2. Evaluate work goal
 	var work_score := _get_work_score(colonist)
@@ -115,7 +120,7 @@ func evaluate_goals() -> void:
 	bt_player.blackboard.set_var(&"current_goal", winning_goal)
 	if best_targets.has(winning_goal):
 		bt_player.blackboard.set_var(&"target_smart_object", best_targets[winning_goal])
-	elif winning_goal == &"work":
+	else:
 		bt_player.blackboard.set_var(&"target_smart_object", null)
 
 

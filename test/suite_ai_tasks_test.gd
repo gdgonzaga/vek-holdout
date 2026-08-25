@@ -100,21 +100,98 @@ func test_perform_work_runs_for_duration_and_applies_units() -> void:
 
 func test_perform_work_reads_job_def_parameters() -> void:
 	var task: BTAction = auto_free(BTActionPerformWorkScript.new()) as BTAction
-	
+
 	var mock_job_def: JobDef = auto_free(JobDef.new()) as JobDef
 	mock_job_def.work_duration = 0.8
 	mock_job_def.default_units_per_cycle = 35
-	
+
 	var mock_job := {
 		"job_def": mock_job_def,
 		"apply_work_units": func(units: int, _worker: Node) -> void: pass
 	}
-	
+
 	_blackboard.set_var(&"active_job", mock_job)
 	task.initialize(_actor, _blackboard, _actor)
-	
+
 	assert_int(task.execute(0.4)).is_equal(BTAction.RUNNING)
 	assert_int(task.execute(0.5)).is_equal(BTAction.SUCCESS)
+
+
+## Regression (colonists stuck in WORK, walking in place): a needs-branch
+## NavigateTo failing on a null target must not clear the agent's path owned
+## by the work branch, and must not erase the work branch's job state.
+func test_navigate_failure_does_not_clear_path_owned_by_another_branch() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	_blackboard.set_var(&"target_smart_object", null)
+	_blackboard.set_var(&"active_job", {"keep": true})
+	colonist.set_path([Vector3(5.0, 0.0, 5.0)])
+
+	# Simulate the work branch's NavigateTo owning the path slot.
+	colonist.set_meta(BTActionNavigateToScript._PATH_OWNER_META, 999999)
+
+	var needs_nav: BTAction = auto_free(BTActionNavigateToScript.new()) as BTAction
+	needs_nav.target_var = &"target_smart_object"
+	needs_nav.initialize(colonist, _blackboard, colonist)
+
+	assert_int(needs_nav.execute(0.1)).is_equal(BTAction.FAILURE)
+	assert_bool(colonist.has_arrived()).is_false()
+	assert_array(colonist.get("_path")).is_not_empty()
+	assert_bool(_blackboard.has_var(&"active_job")).is_true()
+
+	# Same protection without any owner meta set (pre-first-path state).
+	colonist.set_path([Vector3(6.0, 0.0, 6.0)])
+	colonist.remove_meta(BTActionNavigateToScript._PATH_OWNER_META)
+	assert_int(needs_nav.execute(0.1)).is_equal(BTAction.FAILURE)
+	assert_bool(colonist.has_arrived()).is_false()
+
+
+## Regression (colonists stuck in WORK): a completed job left on the
+## blackboard must be dropped and replaced by a fresh claim, not re-satisfied
+## forever.
+func test_claim_job_drops_completed_job_and_claims_fresh() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.set_labor_priority("mining", 3)
+
+	var def: JobDef = auto_free(JobDef.new()) as JobDef
+	def.id = "dig"
+	def.display_name = "Dig"
+	def.labor_id = "mining"
+
+	var done_job: JobInstance = preload("res://subsystems/jobs/job_instance.gd").create(def, 10, Vector3(2, 1, 2))
+	done_job.is_completed = true
+	_blackboard.set_var(&"active_job", done_job)
+
+	var fresh_job: JobInstance = preload("res://subsystems/jobs/job_instance.gd").create(def, 10, Vector3(4, 1, 4))
+	Colony.job_board.add_job(fresh_job)
+
+	var claim_task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	claim_task.initialize(colonist, _blackboard, colonist)
+
+	assert_int(claim_task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_object(_blackboard.get_var(&"active_job")).is_same(fresh_job)
+	assert_bool(_blackboard.get_var(&"active_job") == done_job).is_false()
+
+
+## Regression (colonists stuck in WORK): completing a terminal (legacy) job
+## must release active_job so the next tick claims new work instead of
+## re-completing the finished one at the same spot forever.
+func test_perform_work_releases_job_reference_on_terminal_complete() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+
+	var stub_def: StubCompletingJobDef = auto_free(StubCompletingJobDef.new()) as StubCompletingJobDef
+	stub_def.work_duration = 0.2
+	var job := Job.new()
+	job.def = stub_def
+	job.labor_id = "mining"
+	_blackboard.set_var(&"active_job", job)
+
+	var task: BTAction = auto_free(BTActionPerformWorkScript.new()) as BTAction
+	task.initialize(colonist, _blackboard, colonist)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
+	assert_int(stub_def.complete_calls).is_equal(1)
+	assert_bool(_blackboard.has_var(&"active_job")).is_false()
 
 
 # ── BTActionCalcHaulBatch ───────────────────────────────────────────────────
@@ -276,6 +353,46 @@ func test_colonist_needs_decay() -> void:
 	assert_float(needs.get_need(&"hunger")).is_less(1.0)
 
 
+func test_colonist_brain_ignores_unfulfillable_need_without_smart_object() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+	
+	var brain: ColonistBrain = auto_free(ColonistBrainScript.new()) as ColonistBrain
+	var bt_player: BTPlayer = auto_free(BTPlayer.new()) as BTPlayer
+	bt_player.blackboard = Blackboard.new()
+	brain.bt_player = bt_player
+	
+	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
+	needs.name = "ColonistNeeds"
+	
+	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
+	mock_def.id = &"rest"
+	mock_def.decay_per_second = 0.05
+	mock_def.goal_name = &"sleep"
+	mock_def.target_group = &"non_existent_bed_group"
+	var curve: Curve = Curve.new()
+	curve.add_point(Vector2(0, 0))
+	curve.add_point(Vector2(1, 1))
+	mock_def.response_curve = curve
+	
+	ColonistNeeds._cached_need_defs[&"rest"] = mock_def
+	
+	var parent: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(parent)
+	parent.add_child(needs)
+	parent.add_child(brain)
+	var mock_target = auto_free(Node3D.new())
+	mock_target.add_to_group(&"test_food")
+	parent.add_child(mock_target)
+	brain._ready()
+	
+	needs.set_need(&"rest", 0.0) # Fully depleted rest
+	brain.evaluate_goals()
+	
+	# Since no smart object in group "non_existent_bed_group" exists, goal stays "work"
+	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("work")
+	assert_object(bt_player.blackboard.get_var(&"target_smart_object")).is_null()
+
 func test_colonist_brain_utility_scoring() -> void:
 	ColonistNeeds._cached_need_defs.clear()
 	ColonistNeeds._defs_loaded = true
@@ -292,6 +409,7 @@ func test_colonist_brain_utility_scoring() -> void:
 	mock_def.id = &"hunger"
 	mock_def.decay_per_second = 0.05
 	mock_def.goal_name = &"eat"
+	mock_def.target_group = &"test_food"
 	var curve: Curve = Curve.new()
 	curve.add_point(Vector2(0, 0))
 	curve.add_point(Vector2(1, 1))
@@ -300,8 +418,12 @@ func test_colonist_brain_utility_scoring() -> void:
 	ColonistNeeds._cached_need_defs[&"hunger"] = mock_def
 	
 	var parent: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(parent)
 	parent.add_child(needs)
 	parent.add_child(brain)
+	var mock_target = auto_free(Node3D.new())
+	mock_target.add_to_group(&"test_food")
+	parent.add_child(mock_target)
 	brain._ready()
 	
 	needs.set_need(&"hunger", 1.0)
@@ -328,23 +450,31 @@ func test_colonist_brain_commitment_bonus() -> void:
 	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
 	mock_def.id = &"hunger"
 	mock_def.decay_per_second = 0.05
+	mock_def.target_group = &"test_food"
 	mock_def.goal_name = &"eat"
 	mock_def.emergency_threshold = 0.10
+	# Linear response curve: Curve's default zero tangents bend sample() below
+	# the diagonal, which made the +0.30 commitment bonus (0.1137 + 0.30) lose
+	# to the 0.5 work fallback this test exists to flip (0.21 + 0.30 = 0.51).
 	var curve: Curve = Curve.new()
-	curve.add_point(Vector2(0, 0))
-	curve.add_point(Vector2(1, 1))
+	curve.add_point(Vector2(0, 0), 0.0, 1.0)
+	curve.add_point(Vector2(1, 1), 1.0, 0.0)
 	mock_def.response_curve = curve
 	
 	ColonistNeeds._cached_need_defs[&"hunger"] = mock_def
 	
 	var parent: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(parent)
 	parent.add_child(needs)
 	parent.add_child(brain)
+	var mock_target = auto_free(Node3D.new())
+	mock_target.add_to_group(&"test_food")
+	parent.add_child(mock_target)
 	brain._ready()
 	
 	bt_player.blackboard.set_var(&"current_goal", &"eat")
 	
-	needs.set_need(&"hunger", 0.8)
+	needs.set_need(&"hunger", 0.79)
 	brain.evaluate_goals()
 	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("eat")
 
@@ -577,3 +707,10 @@ func test_stateless_colonist_save_load() -> void:
 	assert_int(loaded_colonist.inventory.get_item_count("wood_plank")).is_equal(7)
 	assert_float(loaded_colonist.needs.get_need(&"hunger")).is_equal_approx(0.42, 0.001)
 	assert_float(loaded_colonist.needs.get_need(&"rest")).is_equal_approx(0.88, 0.001)
+
+
+class StubCompletingJobDef extends JobDef:
+	var complete_calls: int = 0
+
+	func complete(_actor: Node, _unused: Variant, _job: Variant) -> void:
+		complete_calls += 1

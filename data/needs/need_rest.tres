@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="NeedDef" format=3]
+[gd_resource type="Resource" script_class="NeedDef" format=3 uid="uid://dkw14u46et0o"]
 
-[ext_resource type="Script" path="res://data/schemas/need_def.gd" id="1_um80y"]
+[ext_resource type="Script" uid="uid://b2hdwuy8ryie0" path="res://data/schemas/need_def.gd" id="1_um80y"]
 
 [sub_resource type="Curve" id="Curve_isdmp"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]

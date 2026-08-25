@@ -42,6 +42,8 @@ func _enter() -> void:
 	_has_valid_path = true
 	if agent.has_method("set_path"):
 		agent.set_path(path)
+		if agent is Node:
+			(agent as Node).set_meta(BTActionNavigateTo._PATH_OWNER_META, get_instance_id())
 
 
 func _tick(_delta: float) -> Status:
@@ -60,7 +62,13 @@ func _tick(_delta: float) -> Status:
 
 
 func _exit() -> void:
-	if agent:
+	# Only clear the agent's path when this instance owns it (the meta token is
+	# shared with BTActionNavigateTo): the root BTDynamicSelector ticks sibling
+	# branches and a wander exit must not wipe a path another branch set.
+	if agent == null or not agent is Node:
+		return
+	if (agent as Node).has_meta(BTActionNavigateTo._PATH_OWNER_META) \
+			and (agent as Node).get_meta(BTActionNavigateTo._PATH_OWNER_META) == get_instance_id():
 		if agent.has_method("set_path"):
 			agent.set_path([])
 		if "pathfinder" in agent and agent.pathfinder != null and agent.pathfinder.has_method("clear_diagnostics"):
