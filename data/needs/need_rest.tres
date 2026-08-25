@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="NeedDef" format=3]
+
+[ext_resource type="Script" path="res://data/schemas/need_def.gd" id="1_um80y"]
+
+[sub_resource type="Curve" id="Curve_isdmp"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[resource]
+script = ExtResource("1_um80y")
+id = &"rest"
+decay_per_second = 0.03
+response_curve = SubResource("Curve_isdmp")
+emergency_threshold = 0.15
+goal_name = &"sleep"
+target_group = &"bed"

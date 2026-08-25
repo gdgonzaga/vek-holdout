@@ -31,6 +31,12 @@ var state: Dictionary = {}
 		return def.display_name if def != null else ""
 
 
+func _ready() -> void:
+	if def_id != "":
+		add_to_group(StringName(def_id))
+	add_to_group(&"furniture")
+
+
 ## All voxel cells this furniture occupies. Derived from global_position and
 ## def.dimensions so ColonistAI can query the full footprint without reaching
 ## into FurnitureLayer's internal maps.
@@ -86,7 +92,13 @@ func serialize() -> Dictionary:
 ## right after FurnitureLayer.spawn (which creates the StorageInventory child)
 ## as well as standalone.
 func deserialize(data: Dictionary) -> void:
+	var old_def_id := def_id
 	def_id = data.get("def_id", def_id)
+	if old_def_id != def_id:
+		if old_def_id != "" and is_in_group(StringName(old_def_id)):
+			remove_from_group(StringName(old_def_id))
+		if def_id != "":
+			add_to_group(StringName(def_id))
 	var saved_state: Dictionary = data.get("state", {})
 	state = saved_state.duplicate(true)
 	var storage_data: Variant = data.get("storage", null)

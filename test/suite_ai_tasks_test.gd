@@ -231,3 +231,102 @@ func test_colonist_brain_sets_work_goal() -> void:
 	
 	brain.evaluate_goals()
 	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("work")
+
+
+# ── Phase 3: Dynamic Needs & Brain Tests ─────────────────────────────────────
+
+func test_colonist_needs_decay() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+	
+	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
+	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
+	mock_def.id = &"hunger"
+	mock_def.decay_per_second = 0.1
+	ColonistNeeds._cached_need_defs[&"hunger"] = mock_def
+		
+	needs._ready()
+	needs.set_need(&"hunger", 1.0)
+	needs._process(1.0)
+	assert_float(needs.get_need(&"hunger")).is_less(1.0)
+
+
+func test_colonist_brain_utility_scoring() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+	
+	var brain: ColonistBrain = auto_free(ColonistBrainScript.new()) as ColonistBrain
+	var bt_player: BTPlayer = auto_free(BTPlayer.new()) as BTPlayer
+	bt_player.blackboard = Blackboard.new()
+	brain.bt_player = bt_player
+	
+	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
+	needs.name = "ColonistNeeds"
+	
+	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
+	mock_def.id = &"hunger"
+	mock_def.decay_per_second = 0.05
+	mock_def.goal_name = &"eat"
+	var curve: Curve = Curve.new()
+	curve.add_point(Vector2(0, 0))
+	curve.add_point(Vector2(1, 1))
+	mock_def.response_curve = curve
+	
+	ColonistNeeds._cached_need_defs[&"hunger"] = mock_def
+	
+	var parent: Node3D = auto_free(Node3D.new()) as Node3D
+	parent.add_child(needs)
+	parent.add_child(brain)
+	brain._ready()
+	
+	needs.set_need(&"hunger", 1.0)
+	brain.evaluate_goals()
+	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("work")
+	
+	needs.set_need(&"hunger", 0.0)
+	brain.evaluate_goals()
+	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("eat")
+
+
+func test_colonist_brain_commitment_bonus() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+	
+	var brain: ColonistBrain = auto_free(ColonistBrainScript.new()) as ColonistBrain
+	var bt_player: BTPlayer = auto_free(BTPlayer.new()) as BTPlayer
+	bt_player.blackboard = Blackboard.new()
+	brain.bt_player = bt_player
+	
+	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
+	needs.name = "ColonistNeeds"
+	
+	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
+	mock_def.id = &"hunger"
+	mock_def.decay_per_second = 0.05
+	mock_def.goal_name = &"eat"
+	mock_def.emergency_threshold = 0.10
+	var curve: Curve = Curve.new()
+	curve.add_point(Vector2(0, 0))
+	curve.add_point(Vector2(1, 1))
+	mock_def.response_curve = curve
+	
+	ColonistNeeds._cached_need_defs[&"hunger"] = mock_def
+	
+	var parent: Node3D = auto_free(Node3D.new()) as Node3D
+	parent.add_child(needs)
+	parent.add_child(brain)
+	brain._ready()
+	
+	bt_player.blackboard.set_var(&"current_goal", &"eat")
+	
+	needs.set_need(&"hunger", 0.8)
+	brain.evaluate_goals()
+	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("eat")
+
+
+func test_furniture_group_registration() -> void:
+	var furniture: Furniture = auto_free(preload("res://subsystems/furniture/furniture.gd").new()) as Furniture
+	furniture.def_id = "test_bed"
+	furniture._ready()
+	assert_bool(furniture.is_in_group(&"test_bed")).is_true()
+	assert_bool(furniture.is_in_group(&"furniture")).is_true()
