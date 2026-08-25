@@ -39,14 +39,22 @@ func _enter() -> void:
 		
 	if job != null and is_instance_valid(job):
 		# Resolve animation name
-		if "work_animation" in job and job.work_animation != &"":
+		if job.has_method("get_work_animation"):
+			anim_to_play = job.get_work_animation()
+		elif "work_animation" in job and job.work_animation != &"":
 			anim_to_play = job.work_animation
+		elif "job_def" in job and job.job_def != null and job.job_def.work_animation != &"":
+			anim_to_play = job.job_def.work_animation
 		elif "def" in job and job.def != null and "work_animation" in job.def and job.def.work_animation != &"":
 			anim_to_play = job.def.work_animation
 			
 		# Resolve work duration
-		if "work_duration" in job and float(job.work_duration) > 0.0:
+		if job.has_method("get_work_duration"):
+			_target_duration = float(job.get_work_duration())
+		elif "work_duration" in job and float(job.work_duration) > 0.0:
 			_target_duration = float(job.work_duration)
+		elif "job_def" in job and job.job_def != null and float(job.job_def.work_duration) > 0.0:
+			_target_duration = float(job.job_def.work_duration)
 		elif "def" in job and job.def != null:
 			if "work_duration" in job.def and float(job.def.work_duration) > 0.0:
 				_target_duration = float(job.def.work_duration)
@@ -56,8 +64,14 @@ func _enter() -> void:
 					_target_duration = duration
 					
 		# Factor in skill multiplier if present
-		if agent and "skill_set" in agent and agent.skill_set != null and "labor_id" in job and str(job.labor_id) != "":
-			var mult: float = float(agent.skill_set.get_multiplier(str(job.labor_id)))
+		var labor: String = ""
+		if job.has_method("get_labor_id"):
+			labor = str(job.get_labor_id())
+		elif "labor_id" in job:
+			labor = str(job.labor_id)
+			
+		if agent and "skill_set" in agent and agent.skill_set != null and labor != "":
+			var mult: float = float(agent.skill_set.get_multiplier(labor))
 			if mult > 0.0:
 				_target_duration = _target_duration / mult
 
@@ -81,8 +95,16 @@ func _tick(delta: float) -> Status:
 			job = blackboard.get_var(&"active_claim")
 		
 	if job != null and is_instance_valid(job):
+		var units: int = 20
+		if "job_def" in job and job.job_def != null and job.job_def.default_units_per_cycle > 0:
+			units = job.job_def.default_units_per_cycle
+		elif "job" in job and job.job != null and job.job.job_def != null and job.job.job_def.default_units_per_cycle > 0:
+			units = job.job.job_def.default_units_per_cycle
+			
 		if job.has_method("apply_work_units"):
-			job.apply_work_units(20, agent)
+			job.apply_work_units(units, agent)
+		elif job.has_method("apply_work"):
+			job.apply_work(units, agent)
 		elif job.has_method("complete_work"):
 			job.complete_work(agent)
 		elif "def" in job and job.def != null and job.def.has_method("complete"):

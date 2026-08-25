@@ -80,3 +80,11 @@ These data folders are *referenced* in Files tables but have no formal schema in
 - **C7** `data/starting_conditions.tres` — Day-1 resources/equipment/structure (GDD §9). Referenced in Core Files but never schema'd.
 - **C8** ~~`data/pois/`~~ — **Resolved.** POI/map definitions now live in `data/maps/<id>/map_def.tres` as `MapDef` resources (schema'd below). `data/pois/` is no longer used.
 - **C9** Schemas for already-referenced folders: `data/labors/`, `data/weapons/`, `data/armor/`. **Partially resolved:** `data/labors/` now has `labor_def.gd` + 7 `LaborDef` instances (schema in [Data Schemas](data-schemas.md)); `data/weapons/` + `data/armor/` are still pending (folders don't exist yet).
+
+### Legacy Job System & JobLeg State Machine Deprecation (LimboAI Migration)
+
+**Legacy JobLeg state machine** — ARCH §Colonists + §Jobs
+The original colonist job architecture relied on procedural leg loops (`JobLeg`, `get_next_leg`, `begin`, `complete`, `on_end`, `is_available`, `should_close`, `job_complete`) evaluated inside `ColonistAI`'s state machine.
+**Status:** Deprecated in Phase 2 of LimboAI + Fractional Job System overhaul.
+**Replacement:** Declarative `JobDef` data resources + `JobInstance` with `WorkerClaim` unit reservations, executed via LimboAI Behavior Trees (`BTActionPerformWork`, `BTActionCalcHaulBatch`, `bt_generic_work.tres`).
+**Retirement Plan:** Legacy `JobLeg` methods on `JobDef` are marked `@deprecated` and will be fully removed alongside `ColonistAI` in Phase 4 when master behavior trees land.

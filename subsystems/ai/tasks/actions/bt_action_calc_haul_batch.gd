@@ -35,7 +35,11 @@ func _tick(_delta: float) -> Status:
 	if job is Dictionary:
 		remaining_need = int(job.get("remaining_amount", 0))
 	elif is_instance_valid(job):
-		if "remaining_amount" in job:
+		if job.has_method("get_remaining_units"):
+			remaining_need = int(job.get_remaining_units())
+		elif "unclaimed_units" in job:
+			remaining_need = int(job.unclaimed_units)
+		elif "remaining_amount" in job:
 			remaining_need = int(job.remaining_amount)
 		elif "target_node" in job and job.target_node != null and is_instance_valid(job.target_node):
 			var sink = job.target_node
