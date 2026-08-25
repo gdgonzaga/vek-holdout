@@ -62,11 +62,11 @@ func _start_timed_craft(actor: Node, station: CraftingStation, recipe: RecipeDef
 	ui.setup("Crafting %s" % recipe.label(), duration, station.work_done())
 
 
-## Produce (pocket-first — the player crafting personally is how the player
-## gets the item), resolve the order (complete_order requeues a colony maintain
-## order still short of target), and grant the player crafting XP.
+## Produce (the player's order routes pocket-first — station.produce reads the
+## worker off the order), resolve the order (complete_order requeues a colony
+## maintain order still short of target), and grant the player crafting XP.
 func _apply(actor: Node, station: CraftingStation, recipe: RecipeDef) -> void:
-	var produced: bool = CRAFTING_DEF.produce(actor, station, recipe, true)
+	var produced := station.produce(actor)
 	station.complete_order()
 	if produced:
 		GameLog.craft("Crafted %s" % recipe.label())

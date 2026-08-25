@@ -198,6 +198,61 @@ func can_player_work() -> bool:
 	return not is_claimed() or claim_owner() == PLAYER_CLAIM
 
 
+## Produce the active order's outputs. Routing follows the order's worker:
+## player-worked orders prefer the crafter's pocket (the player crafting
+## personally is how the player gets the item); colony orders deposit to the
+## nearest crate FIRST (a maintain order's stock counter only sees what's
+## physically in storage) with the pocket taking the overflow — and each
+## target overflowing into the other (no crate → pocket; no pocket → crate;
+## neither → dropped, hauling's known gap). Returns true when at least one
+## item landed somewhere. CraftingJobDef.complete and CraftAction both end
+## here (after their own claim guards) before complete_order.
+func produce(worker: Node) -> bool:
+	var recipe := active_recipe()
+	if recipe == null:
+		return false
+	var pocket := _pocket_of(worker)
+	var crate_inv := _crate_near()
+	var pocket_first: bool = worker() == WORKER_PLAYER
+	var produced := false
+	for entry in recipe.outputs:
+		var id := entry.item_def.id
+		var overflow: int = entry.count
+		if pocket_first and pocket != null:
+			overflow = pocket.add(id, entry.count)
+		elif crate_inv != null:
+			overflow = crate_inv.add(id, entry.count)
+		if overflow > 0:
+			if pocket_first and crate_inv != null:
+				crate_inv.add(id, overflow)
+			elif not pocket_first and pocket != null:
+				pocket.add(id, overflow)
+		if overflow < entry.count:
+			produced = true
+	return produced
+
+
+## The nearest crate's storage inventory from this station's furniture
+## position (the Colony autoload registry — sandbox-swappable in tests).
+func _crate_near() -> StorageInventory:
+	var origin := Vector3.ZERO
+	var furniture := get_parent() as Node3D
+	if furniture != null:
+		origin = furniture.global_position
+	return Colony.storage_registry.inventory_of(
+		Colony.storage_registry.nearest_crate(origin))
+
+
+func _pocket_of(actor: Node) -> Inventory:
+	var colonist := actor as Colonist
+	if colonist != null and colonist.inventory != null:
+		return colonist.inventory
+	var player := actor as Player
+	if player != null and player.inventory != null:
+		return player.inventory
+	return null
+
+
 ## Resolve the order after a craft applied its effects (CraftingJobDef.complete
 ## and CraftAction both end here). A maintain order short of its stock target
 ## requeues itself — through queue_recipe, so the haul producer fires again and
