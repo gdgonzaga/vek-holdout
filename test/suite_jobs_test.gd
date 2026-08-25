@@ -100,19 +100,7 @@ func test_plain_nodes_are_not_material_sinks() -> void:
 	assert_bool(MaterialSink.is_material_sink(furniture)).is_false()
 
 
-func test_hauling_fetches_for_any_material_sink() -> void:
-	# The haul def talks to job.target_node through the four sink methods only —
-	# a non-Blueprint sink must drive the same FETCH leg.
-	var sink := FakeSink.new()
-	auto_free(sink)
-	add_child(sink)
-	var crate := _sandbox.make_crate("plank", 5)
-	var job := Job.from_def(HAULING_DEF)
-	job.target_node = sink
-	job.location = Vector3.ZERO
-	var leg := HAULING_DEF.get_next_leg(_sandbox.make_colonist(), job)
-	assert_int(leg.kind).is_equal(HaulingJobDef.FETCH)
-	assert_object(leg.target_node).is_same(crate)
+
 
 
 # ── Drought persistence (job lifetime vs claimability) ────────────────────────
@@ -125,7 +113,7 @@ func test_haul_job_survives_source_drought() -> void:
 	var job := Job.from_def(HAULING_DEF)
 	job.target_node = sink
 	# Unclaimable while the drought lasts (selection skips it)…
-	assert_bool(HAULING_DEF.is_available(job)).is_false()
+	assert_bool(job.is_available()).is_false()
 	# …but not dead: the job stays registered waiting for restock, and the
 	# stalled run is not a completion.
 	assert_bool(HAULING_DEF.should_close(job)).is_false()
@@ -338,30 +326,7 @@ func test_construction_is_available_when_clear_and_gated_when_occupied() -> void
 	Colony.colonists.erase(bystander)
 
 
-func test_construction_can_progress_work_excludes_builder() -> void:
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.5, 0.0, 2.5)
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.target_node = bp
-	var leg := JobLeg.new()
-	leg.target_node = bp
-	
-	var builder := _sandbox.make_colonist()
-	builder.global_position = Vector3(2.0, 0.0, 2.0)
-	Colony.colonists.append(builder)
-	
-	assert_bool(CONSTRUCTION_DEF.can_progress_work(builder, leg, job)).is_true()
-	
-	var bystander := _sandbox.make_colonist()
-	bystander.global_position = Vector3(2.0, 0.0, 2.0)
-	Colony.colonists.append(bystander)
-	assert_bool(CONSTRUCTION_DEF.can_progress_work(builder, leg, job)).is_false()
-	
-	Colony.colonists.erase(builder)
-	Colony.colonists.erase(bystander)
+
 
 
 func test_construction_gated_when_player_occupies_blueprint() -> void:

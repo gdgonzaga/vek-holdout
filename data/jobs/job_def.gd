@@ -4,8 +4,6 @@ class_name JobDef
 ## GDD §6.10). In the LimboAI + Fractional Job architecture, JobDef serves as a
 ## declarative data resource configuring required tool tags, animations, duration,
 ## work units, priority, and optional custom behavior trees.
-##
-## Legacy JobLeg methods are preserved for backward compatibility and marked @deprecated.
 
 @export var id: String             # "construction" / "hauling" — identifies this template.
 @export var display_name: String   # "Construction" — Job Log / UI label.
@@ -42,7 +40,7 @@ class_name JobDef
 
 ## True if `actor` satisfies every `conditions` entry, evaluated fresh against
 ## the job's target node. Empty conditions (the default) mean any colonist.
-func meets_requirements(actor: Node, job: Job) -> bool:
+func meets_requirements(actor: Node, job: Variant) -> bool:
 	return meets_requirements_any(actor, job)
 
 
@@ -52,44 +50,4 @@ func meets_requirements_any(actor: Node, job: Variant) -> bool:
 		var t_node: Node = job.target_node if job != null and "target_node" in job else null
 		if not condition.is_met(actor, t_node):
 			return false
-	return true
-
-
-# ==============================================================================
-# LEGACY / DEPRECATED: JobLeg procedural state machine methods
-# Kept for backward compatibility during LimboAI migration (see tech-debt.md).
-# ==============================================================================
-
-## @deprecated Use LimboAI behavior trees and JobInstance instead.
-func get_next_leg(_actor: Node, _job: Job) -> JobLeg:
-	return null
-
-
-## @deprecated Use BTActionPerformWork and JobInstance instead.
-func begin(_actor: Node, _leg: JobLeg, _job: Job) -> float:
-	return 0.0
-
-
-## @deprecated Use JobInstance.complete_claim / apply_work_units instead.
-func complete(_actor: Node, _leg: JobLeg, _job: Job) -> void:
-	pass
-
-
-## @deprecated Use WorkerClaim.abandon / complete_claim instead.
-func on_end(_success: bool, _actor: Node, _leg: JobLeg, _job: Job, _elapsed: float) -> void:
-	pass
-
-
-## @deprecated Use JobInstance.is_available instead.
-func is_available(_job: Job) -> bool:
-	return true
-
-
-## @deprecated Use JobInstance.should_close / is_completed instead.
-func should_close(job: Job) -> bool:
-	return not is_available(job)
-
-
-## @deprecated Use JobInstance.is_completed instead.
-func job_complete(_job: Job) -> bool:
 	return true

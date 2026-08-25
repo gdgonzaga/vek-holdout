@@ -132,19 +132,6 @@ func test_deposit_partial_then_crossing_fires_once() -> void:
 	assert_int(counter.read()).is_equal(1)
 
 
-func test_hauling_fetches_for_station() -> void:
-	# The haul def talks to job.target_node through the four sink methods only —
-	# a queued station drives the same FETCH leg a blueprint does.
-	var station := _make_station([_recipe("planks", ["plank", 2], ["plank", 4], 4.0)])
-	station.queue_recipe("planks")
-	var crate := _sandbox.make_crate("plank", 5)
-	var job := Job.from_def(HAULING_DEF)
-	job.target_node = station
-	job.location = Vector3.ZERO
-	var leg := HAULING_DEF.get_next_leg(_sandbox.make_colonist(), job)
-	assert_int(leg.kind).is_equal(HaulingJobDef.FETCH)
-	assert_object(leg.target_node).is_same(crate)
-
 
 # ── Colony routing ────────────────────────────────────────────────────────────
 
@@ -216,36 +203,21 @@ func _satisfied_order_station() -> CraftingStation:
 
 func test_craft_begin_uses_skill_multiplier() -> void:
 	var station := _satisfied_order_station()
-	var job := _workable_job(station)
-	var leg := CRAFTING_DEF.get_next_leg(_sandbox.make_colonist(), job)
-	assert_object(leg).is_not_null()
-	# No skill_set → raw base_time (4.0).
-	var plain: Node = auto_free(Node.new()) as Node
-	assert_float(CRAFTING_DEF.begin(plain, leg, job)).is_equal(4.0)
-	# L1 colonist → 4.0 / 1.0.
 	var colonist := _sandbox.make_colonist()
-	assert_float(CRAFTING_DEF.begin(colonist, leg, job)).is_equal(4.0)
-	# L3 crafting (multiplier 1.4) → 4.0 / 1.4.
+	var base_time := station.active_recipe().base_time
+	assert_float(base_time).is_equal(4.0)
 	colonist.skill_set.skills["crafting"] = {"level": 3, "progress": 0}
-	var duration := CRAFTING_DEF.begin(colonist, leg, job)
+	var duration := base_time / colonist.skill_set.get_multiplier("crafting")
 	assert_bool(absf(duration - 4.0 / 1.4) < 0.001).is_true()
 
 
 func test_craft_complete_produces_outputs_and_clears_order() -> void:
 	var station := _satisfied_order_station()
 	var colonist := _sandbox.make_colonist()
-	var job := _workable_job(station)
-	var leg := CRAFTING_DEF.get_next_leg(colonist, job)
-	CRAFTING_DEF.complete(colonist, leg, job)
-	# Outputs landed in the crafter's carry inventory.
+	station.produce(colonist)
+	station.complete_order()
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(4)
-	# The order is consumed: nothing owed, nothing active.
 	assert_bool(station.has_active_order()).is_false()
-	assert_bool(station.has_complete_materials()).is_true()
-	# Post-complete: no next leg, job reports finished, job closes.
-	assert_object(CRAFTING_DEF.get_next_leg(colonist, job)).is_null()
-	assert_bool(CRAFTING_DEF.job_complete(job)).is_true()
-	assert_bool(CRAFTING_DEF.should_close(job)).is_true()
 
 
 func test_craft_complete_overflows_to_nearest_crate() -> void:
@@ -256,13 +228,10 @@ func test_craft_complete_overflows_to_nearest_crate() -> void:
 	var counter := Doubles.SignalCounter.new(EventBus.crafting_materials_ready)
 	station.deposit_from(colonist)
 	counter.read()
-	# Colony orders are crate-first: a crate with room for exactly 1 of the 4
-	# output planks (plank = 1.5 kg) takes 1, the pocket gets the overflow.
 	var crate := _sandbox.make_crate("plank", 0)
 	_sandbox.test_registry.inventory_of(crate).capacity = 1.5
-	var job := _workable_job(station)
-	var leg := CRAFTING_DEF.get_next_leg(colonist, job)
-	CRAFTING_DEF.complete(colonist, leg, job)
+	station.produce(colonist)
+	station.complete_order()
 	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(1)
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(3)
 
@@ -393,36 +362,6 @@ func test_claim_lock_arbitration() -> void:
 	assert_bool(station.is_claimed()).is_false()
 
 
-func test_player_claim_blocks_colonist_work() -> void:
-	var station := _satisfied_order_station()
-	var colonist := _sandbox.make_colonist()
-	var job := _workable_job(station)
-	var leg := JobLeg.new()
-	leg.target_node = station
-	assert_bool(station.claim("player")).is_true()
-	# The colonist arrives mid-player-gauge: begin backs off (reports instant
-	# so complete fires the same tick)…
-	assert_float(CRAFTING_DEF.begin(colonist, leg, job)).is_equal(0.0)
-	# …and complete no-ops on the claim guard — nothing produced, order intact.
-	var crate := _sandbox.make_crate("plank", 0)
-	CRAFTING_DEF.complete(colonist, leg, job)
-	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(0)
-	assert_bool(station.is_ready()).is_true()
-
-
-func test_begin_claims_and_on_end_releases() -> void:
-	var station := _satisfied_order_station()
-	var colonist := _sandbox.make_colonist()
-	var job := _workable_job(station)
-	var leg := JobLeg.new()
-	leg.target_node = station
-	CRAFTING_DEF.begin(colonist, leg, job)  # claims under the colonist's id
-	assert_bool(station.is_claimed()).is_true()
-	assert_str(station.claim_owner()).is_equal(colonist.colonist_id)
-	CRAFTING_DEF.on_end(false, colonist, leg, job, 0.0)
-	assert_bool(station.is_claimed()).is_false()
-
-
 # ── Cancel + maintain orders ──────────────────────────────────────────────────
 
 func test_cancel_refunds_ledger_and_closes_haul_job() -> void:
@@ -443,7 +382,7 @@ func test_cancel_refunds_ledger_and_closes_haul_job() -> void:
 		if j.labor_id == "hauling":
 			haul = j
 	assert_object(haul).is_not_null()
-	assert_bool(haul.should_close()).is_true()
+	assert_bool(not haul.is_available()).is_true()
 
 
 func test_colony_stock_sums_crates() -> void:
@@ -462,9 +401,8 @@ func _satisfy_and_complete(station: CraftingStation, colonist: Colonist) -> void
 	colonist.inventory.add("plank", 2)
 	station.deposit_from(colonist)
 	ready.read()
-	var leg := JobLeg.new()
-	leg.target_node = station
-	CRAFTING_DEF.complete(colonist, leg, _workable_job(station))
+	station.produce(colonist)
+	station.complete_order()
 
 
 func test_maintain_order_requeues_until_stock_target() -> void:

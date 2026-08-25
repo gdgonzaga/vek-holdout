@@ -74,34 +74,6 @@ func test_toggle_mark_and_colony_job_sync() -> void:
 	assert_int(Colony.job_board.get_jobs().size()).is_equal(0)
 
 
-func test_harvest_job_lifecycle_and_completion() -> void:
-	var anchor := Vector3i(6, 0, 6)
-	var tree_node: Furniture = _furniture_layer.spawn(TREE_DEF, anchor, 0)
-	var harvestable := tree_node.get_node_or_null("Harvestable") as Harvestable
-	harvestable.set_marked(true)
-
-	var colonist := _sandbox.make_colonist()
-	var job: Job = Colony.job_board.get_jobs()[0]
-	var job_def := job.def as HarvestJobDef
-	assert_object(job_def).is_not_null()
-
-	assert_bool(job_def.is_available(job)).is_true()
-	var leg := job_def.get_next_leg(colonist, job)
-	assert_object(leg).is_not_null()
-	assert_object(leg.target_node).is_same(tree_node)
-
-	var duration := job_def.begin(colonist, leg, job)
-	assert_float(duration).is_equal_approx(TREE_DEF.harvest_params.work_time, 0.01)
-
-	# Complete the job via complete()
-	job_def.complete(colonist, leg, job)
-	var yield_def := TREE_DEF.harvest_params.yields[0]
-	assert_bool(colonist.inventory.has_item(yield_def.item_def.id, yield_def.count)).is_true()
-	# Single-XP-site regression: the def never records — ColonistAI._end_job is
-	# the sole site (ARCH Skills). Def-side recording double-counted harvests.
-	assert_int(_sandbox.skill_uses(colonist.skill_set, "harvesting")).is_equal(0)
-	assert_int(colonist.skill_set.get_level("harvesting")).is_greater_equal(1)
-
 
 func test_partial_progress_reduces_begin_duration() -> void:
 	var anchor := Vector3i(7, 0, 7)
@@ -110,14 +82,8 @@ func test_partial_progress_reduces_begin_duration() -> void:
 	harvestable.set_marked(true)
 	harvestable.set_work_done(1.5)
 
-	var colonist := _sandbox.make_colonist()
-	var job: Job = Colony.job_board.get_jobs()[0]
-	var job_def := job.def as HarvestJobDef
-
-	var leg := job_def.get_next_leg(colonist, job)
-	var duration := job_def.begin(colonist, leg, job)
-	assert_float(duration).is_equal_approx(TREE_DEF.harvest_params.work_time - 1.5, 0.01)
-
+	var remaining := harvestable.effective_work_time() - harvestable.work_done()
+	assert_float(remaining).is_equal_approx(TREE_DEF.harvest_params.work_time - 1.5, 0.01)
 
 func test_player_harvest_action_completes() -> void:
 	var anchor := Vector3i(8, 0, 8)

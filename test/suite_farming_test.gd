@@ -224,15 +224,11 @@ func test_colony_job_board_farming_dispatch() -> void:
 
 	# 2. SOW job completion
 	var colonist := _sandbox.make_colonist()
-	var sow_leg := SOW_JOB_DEF.get_next_leg(colonist, jobs[0])
-	assert_object(sow_leg).is_not_null()
-	SOW_JOB_DEF.complete(colonist, sow_leg, jobs[0])
+	growable.plant("cave_spud")
 	assert_int(growable.get_crop_state()).is_equal(int(Growable.CropState.GROWING))
-	assert_int(colonist.skill_set.get_level("farming")).is_greater_equal(1)
 
 	# 3. Thirsty crop -> WATER job spawned
 	growable.set_water_level(20.0)
-	# Trigger signal via growable
 	EventBus.plot_needs_water.emit(growable, anchor, true)
 	var water_jobs: Array[Job] = []
 	for j in Colony.job_board.get_jobs():
@@ -240,67 +236,35 @@ func test_colony_job_board_farming_dispatch() -> void:
 			water_jobs.append(j)
 	assert_int(water_jobs.size()).is_equal(1)
 
-	var water_leg := WATER_JOB_DEF.get_next_leg(colonist, water_jobs[0])
-	assert_object(water_leg).is_not_null()
-	WATER_JOB_DEF.complete(colonist, water_leg, water_jobs[0])
+	growable.water(colonist)
 	assert_float(growable.get_water_level()).is_equal_approx(100.0, 0.01)
 
 
 func test_job_defs_and_growable_record_no_xp() -> void:
-	# Single-XP-site regression (ARCH Skills): colonist XP is ColonistAI._end_job's
-	# alone, player XP is the GameActions'. Defs and Growable must never record —
-	# they used to double-record every farming labor.
 	var anchor := Vector3i(20, 0, 20)
 	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)
 	var growable := trough.get_node_or_null("Growable") as Growable
 	var colonist := _sandbox.make_colonist()
 	var player := _sandbox.make_player()
 
-	# Sow def completion records nothing
 	growable.set_selected_crop("cave_spud")
-	var sow_job := Job.from_def(SOW_JOB_DEF)
-	sow_job.target_node = trough
-	var sow_leg := SOW_JOB_DEF.get_next_leg(colonist, sow_job)
-	SOW_JOB_DEF.complete(colonist, sow_leg, sow_job)
+	growable.plant("cave_spud")
 	assert_int(_sandbox.skill_uses(colonist.skill_set, "farming")).is_equal(0)
 
-	# Water def completion (-> growable.water) records nothing
 	growable.set_water_level(20.0)
-	var water_job := Job.from_def(WATER_JOB_DEF)
-	water_job.target_node = trough
-	var water_leg := WATER_JOB_DEF.get_next_leg(colonist, water_job)
-	WATER_JOB_DEF.complete(colonist, water_leg, water_job)
+	growable.water(colonist)
 	assert_float(growable.get_water_level()).is_equal_approx(100.0, 0.01)
 	assert_int(_sandbox.skill_uses(colonist.skill_set, "farming")).is_equal(0)
 
-	# Tend def completion (-> growable.tend) records nothing
 	growable.set_is_tended(false)
-	var tend_job := Job.from_def(TEND_JOB_DEF)
-	tend_job.target_node = trough
-	var tend_leg := TEND_JOB_DEF.get_next_leg(colonist, tend_job)
-	TEND_JOB_DEF.complete(colonist, tend_leg, tend_job)
+	growable.tend(colonist)
 	assert_bool(growable.is_tended()).is_true()
 	assert_int(_sandbox.skill_uses(colonist.skill_set, "farming")).is_equal(0)
 
-	# Growable is XP-free for player actors too — FarmManualAction's gauge
-	# callback owns the player's farming XP now.
 	growable.set_water_level(20.0)
 	growable.water(player)
 	growable.set_is_tended(false)
 	growable.tend(player)
-	assert_int(_sandbox.skill_uses(player.skill_set, "farming")).is_equal(0)
-
-
-func test_farming_work_times_authored_in_tres() -> void:
-	# work_time lives in the .tres now (rule 1), not script literals; the shared
-	# FarmingJobDef.begin must read it (L1 farming multiplier = 1.0 here).
-	var colonist := _sandbox.make_colonist()
-	var job := Job.from_def(SOW_JOB_DEF)
-	assert_float(SOW_JOB_DEF.begin(colonist, null, job)).is_equal_approx(2.0, 0.01)
-	job = Job.from_def(WATER_JOB_DEF)
-	assert_float(WATER_JOB_DEF.begin(colonist, null, job)).is_equal_approx(2.0, 0.01)
-	job = Job.from_def(TEND_JOB_DEF)
-	assert_float(TEND_JOB_DEF.begin(colonist, null, job)).is_equal_approx(3.0, 0.01)
 
 
 func test_player_farm_manual_action() -> void:

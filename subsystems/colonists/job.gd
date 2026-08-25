@@ -119,7 +119,10 @@ func clear_assigned() -> void:
 func is_available() -> bool:
 	if Time.get_ticks_msec() < sleep_until_msec:
 		return false
-	return _assigned_colonists.size() < max_assignees and (def == null or def.is_available(self))
+	var def_ok := true
+	if def != null and def.has_method("is_available"):
+		def_ok = bool(def.call("is_available", self))
+	return _assigned_colonists.size() < max_assignees and def_ok
 
 
 ## True when the job should leave the board: no colonists left AND the def
@@ -130,8 +133,8 @@ func is_available() -> bool:
 func should_close() -> bool:
 	if not _assigned_colonists.is_empty():
 		return false
-	if def != null:
-		return def.should_close(self)
+	if def != null and def.has_method("should_close"):
+		return bool(def.call("should_close", self))
 	return not is_available()
 
 

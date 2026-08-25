@@ -10,13 +10,12 @@ extends Node3D
 @export var target_color: Color = Color(1.0, 0.6, 0.0, 1.0)    ## Orange
 
 ## How long pathfinder telemetry (A* boxes, ring candidates, status) stays
-## drawable after the query that produced it. A frozen query — a failed claim
-## whose job went to backoff-sleep — must not leave phantom boxes at dead
-## targets; same self-expiry idea as the StepClimber probe window below.
+## drawable after the query that produced it.
 const _TELEMETRY_TTL_SEC: float = 5.0
 
 var _parent_body: CharacterBody3D
-var _colonist_ai: Node
+var _bt_player: BTPlayer
+var _brain: ColonistBrain
 var _pathfinder: VoxelPathfinder
 var _step_climber: StepClimber
 var _nav_agent: NavigationAgent3D
@@ -36,10 +35,11 @@ func _ready() -> void:
 		queue_free()
 		return
 
-	# Resolve ColonistAI child
-	_colonist_ai = _parent_body.get_node_or_null("ColonistAI")
-	if _colonist_ai == null:
-		_colonist_ai = _parent_body.find_child("ColonistAI", false, false)
+	# Resolve BTPlayer & ColonistBrain
+	_bt_player = _parent_body.get_node_or_null("BTPlayer") as BTPlayer
+	if _bt_player == null:
+		_bt_player = _parent_body.find_child("BTPlayer", false, false) as BTPlayer
+	_brain = _parent_body.get_node_or_null("ColonistBrain") as ColonistBrain
 
 	# Resolve VoxelPathfinder child
 	if "pathfinder" in _parent_body and _parent_body.pathfinder != null:
@@ -75,9 +75,6 @@ func _process(_delta: float) -> void:
 	_draw_navigation_path()
 
 
-## True while the pathfinder's last query is recent enough to still be drawn.
-## Stale telemetry (no query ran within the TTL — e.g. every job failed to
-## claim and went to sleep) renders nothing so dead targets leave no phantoms.
 func _telemetry_is_fresh() -> bool:
 	if _pathfinder == null or _pathfinder.last_query_time < 0.0:
 		return false
@@ -88,7 +85,7 @@ func _telemetry_is_fresh() -> bool:
 func _setup_billboard_label() -> void:
 	_label = Label3D.new()
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.no_depth_test = true  # Visible through terrain/mined blocks
+	_label.no_depth_test = true
 	_label.font_size = 18
 	_label.pixel_size = 0.0035
 	_label.outline_size = 4
@@ -101,37 +98,36 @@ func _setup_path_mesh() -> void:
 	_immediate_mesh = ImmediateMesh.new()
 	_material = StandardMaterial3D.new()
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_material.albedo_color = Color.WHITE
 	_material.vertex_color_use_as_albedo = true
-	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_material.no_depth_test = true  # Always visible through terrain
-	_material.render_priority = 10
+	_material.no_depth_test = true
 	_mesh_instance = MeshInstance3D.new()
 	_mesh_instance.mesh = _immediate_mesh
 	_mesh_instance.material_override = _material
-	_mesh_instance.top_level = true  # Global world coordinates
+	_mesh_instance.top_level = true
+	_mesh_instance.global_position = Vector3.ZERO
 	add_child(_mesh_instance)
 
 
 func _update_label() -> void:
-	if _label == null or not is_instance_valid(_parent_body):
+	if _label == null or _parent_body == null:
 		return
-
 	var text_lines: Array[String] = []
 
-	# 1. Identity & State
-	var colonist_name: String = str(_parent_body.get("display_name")) if "display_name" in _parent_body and not str(_parent_body.get("display_name")).is_empty() else _parent_body.name
-	var hp: int = _parent_body.get_hp() if _parent_body.has_method("get_hp") else (int(_parent_body.get("_current_hp")) if "_current_hp" in _parent_body else -1)
-	var max_hp: int = _parent_body.get_max_hp() if _parent_body.has_method("get_max_hp") else 100
+	# 1. State + Job info
+	var name_str: String = str(_parent_body.get("display_name")) if "display_name" in _parent_body and not str(_parent_body.display_name).is_empty() else _parent_body.name
 	var state_str: String = _resolve_colonist_state()
-	text_lines.append("%s (%d/%d HP) | %s" % [colonist_name, hp, max_hp, state_str])
+	text_lines.append("%s [%s]" % [name_str, state_str])
 
-	# 2. Compact Job & Target
-	var job_str: String = _resolve_colonist_job_compact()
+	var job_str: String = _resolve_colonist_job()
 	if not job_str.is_empty():
 		text_lines.append(job_str)
 
-	# 3. Path & Start/Goal Cells (unified)
+	# 2. Locomotion / Path Info
+	var path_info: String = _resolve_path_info()
+	if not path_info.is_empty():
+		text_lines.append(path_info)
+
+	# 3. Path & Start/Goal Cells
 	if _pathfinder != null and _telemetry_is_fresh() and _pathfinder.last_query_start != Vector3i.MAX:
 		var s_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_start) else "BLOCKED"
 		var t_w: String = "OK" if _pathfinder.is_walkable(_pathfinder.last_query_target) else "BLOCKED"
@@ -150,7 +146,7 @@ func _update_label() -> void:
 		climber_status
 	])
 
-	# 5. Inventory (only if carrying)
+	# 5. Inventory
 	var carry_str: String = _resolve_carried_items()
 	if not carry_str.is_empty():
 		text_lines.append("Carry: %s" % carry_str)
@@ -158,54 +154,38 @@ func _update_label() -> void:
 	_label.text = "\n".join(text_lines)
 
 
-## Inspects ColonistAI or parent body and child nodes for state variables
 func _resolve_colonist_state() -> String:
-	if _colonist_ai != null and is_instance_valid(_colonist_ai):
-		var state_val = _colonist_ai.get("_state")
-		if state_val != null:
-			match int(state_val):
-				0:
-					return "IDLE"
-				1:
-					var path: Array = _parent_body.get("_path") if "_path" in _parent_body else []
-					var path_idx: int = int(_parent_body.get("_path_index")) if "_path_index" in _parent_body else 0
-					if not path.is_empty() and path_idx < path.size():
-						return "MOVE (wp %d/%d)" % [path_idx + 1, path.size()]
-					return "MOVE"
-				2:
-					var elapsed: float = float(_colonist_ai.get("_work_elapsed"))
-					var dur: float = float(_colonist_ai.get("_work_duration"))
-					if dur > 0.0:
-						return "WORK (%.1fs / %.1fs)" % [elapsed, dur]
-					return "WORK"
-				_:
-					return "STATE_%d" % int(state_val)
+	var path: Array = _parent_body.get("_path") if "_path" in _parent_body else []
+	var path_idx: int = int(_parent_body.get("_path_index")) if "_path_index" in _parent_body else 0
+	if not path.is_empty() and path_idx < path.size():
+		return "MOVE (wp %d/%d)" % [path_idx + 1, path.size()]
 
-	for prop in ["current_state", "_current_state", "state", "_state", "action_state", "_action_state", "status"]:
-		if prop in _parent_body:
-			var val = _parent_body.get(prop)
-			if val != null:
-				return str(val)
+	if _bt_player != null and _bt_player.blackboard != null:
+		if _bt_player.blackboard.has_var(&"current_goal"):
+			var goal: StringName = _bt_player.blackboard.get_var(&"current_goal")
+			if goal == &"work":
+				var active_job = _bt_player.blackboard.get_var(&"active_job")
+				if active_job != null and "completed_units" in active_job and "total_units" in active_job:
+					return "WORK (%d/%d)" % [active_job.completed_units, active_job.total_units]
+				return "WORK"
+			elif goal != &"none":
+				return String(goal).to_upper()
 
-	for child_name in ["StateMachine", "FSM", "State", "Brain", "JobController"]:
-		var child := _parent_body.find_child(child_name, false, false)
-		if child != null:
-			for prop in ["current_state", "state", "_state", "state_name", "active_state"]:
-				if prop in child:
-					var val = child.get(prop)
-					if val != null:
-						return "%s (%s)" % [str(val), child_name]
-
-	return "UNKNOWN"
+	return "IDLE"
 
 
 func _resolve_colonist_job_compact() -> String:
 	var job_obj = null
-	for prop in ["current_job", "_current_job", "job", "_job", "active_job"]:
-		if prop in _parent_body:
-			job_obj = _parent_body.get(prop)
-			if job_obj != null:
-				break
+	if _bt_player != null and _bt_player.blackboard != null and _bt_player.blackboard.has_var(&"active_job"):
+		job_obj = _bt_player.blackboard.get_var(&"active_job")
+
+	if job_obj == null:
+		for prop in ["current_job", "_current_job", "job", "_job"]:
+			if prop in _parent_body:
+				job_obj = _parent_body.get(prop)
+				if job_obj != null:
+					break
+
 	if job_obj == null:
 		return ""
 	var title: String = ""
@@ -221,20 +201,25 @@ func _resolve_colonist_job_compact() -> String:
 		target_str = " @ %s" % str(job_obj.anchor_cell)
 	elif "target_node" in job_obj and job_obj.target_node != null and is_instance_valid(job_obj.target_node):
 		target_str = " -> %s" % job_obj.target_node.name
+	elif "world_position" in job_obj and job_obj.world_position != Vector3.ZERO:
+		target_str = " @ (%.1f, %.1f, %.1f)" % [job_obj.world_position.x, job_obj.world_position.y, job_obj.world_position.z]
 	elif "location" in job_obj and job_obj.location != Vector3.ZERO:
 		target_str = " @ (%.1f, %.1f, %.1f)" % [job_obj.location.x, job_obj.location.y, job_obj.location.z]
 
 	return "Job: %s%s" % [title, target_str]
 
 
-## Inspects parent for active job, leg, and target coordinates
 func _resolve_colonist_job() -> String:
 	var job_obj = null
-	for prop in ["current_job", "_current_job", "job", "_job", "active_job"]:
-		if prop in _parent_body:
-			job_obj = _parent_body.get(prop)
-			if job_obj != null:
-				break
+	if _bt_player != null and _bt_player.blackboard != null and _bt_player.blackboard.has_var(&"active_job"):
+		job_obj = _bt_player.blackboard.get_var(&"active_job")
+
+	if job_obj == null:
+		for prop in ["current_job", "_current_job", "job", "_job"]:
+			if prop in _parent_body:
+				job_obj = _parent_body.get(prop)
+				if job_obj != null:
+					break
 
 	var lines: Array[String] = []
 
@@ -257,35 +242,14 @@ func _resolve_colonist_job() -> String:
 
 		if "anchor_cell" in job_obj and job_obj.anchor_cell != Vector3i.ZERO:
 			lines.append("Anchor: %s" % str(job_obj.anchor_cell))
+		elif "world_position" in job_obj and job_obj.world_position != Vector3.ZERO:
+			lines.append("Target Pos: (%.1f, %.1f, %.1f)" % [job_obj.world_position.x, job_obj.world_position.y, job_obj.world_position.z])
 		elif "location" in job_obj and job_obj.location != Vector3.ZERO:
 			lines.append("Target Pos: (%.1f, %.1f, %.1f)" % [job_obj.location.x, job_obj.location.y, job_obj.location.z])
 		elif "target_node" in job_obj and job_obj.target_node != null and is_instance_valid(job_obj.target_node):
 			lines.append("Target: %s" % job_obj.target_node.name)
 
-	# Active Leg info from ColonistAI
-	if _colonist_ai != null and is_instance_valid(_colonist_ai):
-		var leg = _colonist_ai.get("_leg")
-		if leg != null:
-			var leg_str: String = ""
-			var kind_name: String = _format_leg_kind(int(leg.kind)) if "kind" in leg else ""
-			if "target_node" in leg and leg.target_node != null and is_instance_valid(leg.target_node):
-				leg_str = "Leg: %s -> %s" % [kind_name, leg.target_node.name]
-			elif "location" in leg and leg.location != Vector3.ZERO:
-				leg_str = "Leg: %s @ (%.1f, %.1f, %.1f)" % [kind_name, leg.location.x, leg.location.y, leg.location.z]
-			if not leg_str.is_empty():
-				lines.append(leg_str)
-
 	return "\n".join(lines)
-
-
-func _format_leg_kind(kind: int) -> String:
-	match kind:
-		1:
-			return "FETCH"
-		2:
-			return "DELIVER"
-		_:
-			return "Kind %d" % kind if kind != 0 else "MOVE"
 
 
 func _resolve_path_info() -> String:
@@ -332,173 +296,53 @@ func _draw_navigation_path() -> void:
 	var path_idx: int = int(_parent_body.get("_path_index")) if "_path_index" in _parent_body else 0
 	var target_pos: Vector3 = Vector3.ZERO
 
-	# 1. Resolve Target Position
-	if _colonist_ai != null and is_instance_valid(_colonist_ai):
-		var leg = _colonist_ai.get("_leg")
-		if leg != null:
-			if "location" in leg and leg.location != Vector3.ZERO:
-				target_pos = leg.location
-			elif "target_node" in leg and leg.target_node != null and is_instance_valid(leg.target_node) and leg.target_node is Node3D:
-				target_pos = (leg.target_node as Node3D).global_position
+	if _bt_player != null and _bt_player.blackboard != null:
+		if _bt_player.blackboard.has_var(&"target_pos"):
+			var tp = _bt_player.blackboard.get_var(&"target_pos")
+			if tp is Vector3 and tp != Vector3.ZERO:
+				target_pos = tp
+		if target_pos == Vector3.ZERO and _bt_player.blackboard.has_var(&"target_smart_object"):
+			var obj = _bt_player.blackboard.get_var(&"target_smart_object")
+			if obj is Node3D and is_instance_valid(obj):
+				target_pos = obj.global_position
 
-	if target_pos == Vector3.ZERO and "current_job" in _parent_body and _parent_body.current_job != null:
-		var job = _parent_body.current_job
-		if "location" in job and job.location != Vector3.ZERO:
-			target_pos = job.location
-		elif "anchor_cell" in job and job.anchor_cell != Vector3i.ZERO:
-			target_pos = Vector3(job.anchor_cell) + Vector3(0.5, 0.5, 0.5)
-		elif "target_node" in job and job.target_node != null and is_instance_valid(job.target_node) and job.target_node is Node3D:
-			target_pos = (job.target_node as Node3D).global_position
+	if target_pos == Vector3.ZERO and _pathfinder != null and _telemetry_is_fresh() and _pathfinder.last_query_target != Vector3i.MAX:
+		target_pos = Vector3(_pathfinder.last_query_target) + Vector3(0.5, 0.0, 0.5)
 
-	if target_pos == Vector3.ZERO and _pathfinder != null and _telemetry_is_fresh() \
-			and _pathfinder.last_query_target != Vector3i.MAX:
-		target_pos = Vector3(_pathfinder.last_query_target) + Vector3(0.5, 0.5, 0.5)
-
-	if target_pos == Vector3.ZERO and not path.is_empty():
-		target_pos = path[-1]
-
-	# 2. Fallback to NavigationAgent3D
-	if path.is_empty() and _nav_agent != null:
-		var nav_path: PackedVector3Array = _nav_agent.get_current_navigation_path()
-		if not nav_path.is_empty():
-			for p in nav_path:
-				path.append(p)
-			path_idx = 0
-		if target_pos == Vector3.ZERO:
-			target_pos = _nav_agent.target_position
-
-	# 3. Draw Direct Tether Line linking Colonist directly to Target
-	if target_pos != Vector3.ZERO and colonist_pos.distance_to(target_pos) > 0.3:
-		_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-		var tether_color := target_color
-		if _pathfinder != null and _telemetry_is_fresh() \
-				and _pathfinder.last_query_target != Vector3i.MAX \
-				and not _pathfinder.is_walkable(_pathfinder.last_query_target):
-			tether_color = Color(1.0, 0.2, 0.2, 0.9) # Red if target is unwalkable/blocked
-		elif path.is_empty():
-			tether_color = Color(1.0, 0.4, 0.0, 0.9) # Orange warning if no path exists
-		else:
-			tether_color = Color(target_color.r, target_color.g, target_color.b, 0.75)
-
-		_immediate_mesh.surface_set_color(tether_color)
-		_immediate_mesh.surface_add_vertex(colonist_pos + Vector3.UP * 0.8)
-		_immediate_mesh.surface_set_color(tether_color)
-		_immediate_mesh.surface_add_vertex(target_pos + Vector3.UP * 0.5)
-		_immediate_mesh.surface_end()
-
-	# 4. Draw Waypoint Path Wireframe (if path exists)
+	# Draw active locomotion path
 	if not path.is_empty() and path_idx < path.size():
-		# Remaining active path on ground
-		_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+		var prev_point := colonist_pos
+		_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 		_immediate_mesh.surface_set_color(path_color)
-		_immediate_mesh.surface_add_vertex(colonist_pos + Vector3.UP * 0.15)
 		for i in range(path_idx, path.size()):
-			var pt: Vector3 = path[i]
-			_immediate_mesh.surface_set_color(path_color)
-			_immediate_mesh.surface_add_vertex(pt + Vector3.UP * 0.15)
+			var wp: Vector3 = path[i]
+			_immediate_mesh.surface_add_vertex(prev_point)
+			_immediate_mesh.surface_add_vertex(wp)
+			prev_point = wp
 		_immediate_mesh.surface_end()
 
-		# Passed waypoints in dim color
-		if path_idx > 0:
-			_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-			var dim_color := Color(0.4, 0.4, 0.4, 0.5)
-			for i in range(0, mini(path_idx + 1, path.size())):
-				var pt: Vector3 = path[i]
-				_immediate_mesh.surface_set_color(dim_color)
-				_immediate_mesh.surface_add_vertex(pt + Vector3.UP * 0.08)
-			_immediate_mesh.surface_end()
-
-		# Waypoint markers
 		for i in range(path_idx, path.size()):
 			_draw_waypoint_marker(path[i], path_color)
 
-	# 5. Draw 3D Target Marker
 	if target_pos != Vector3.ZERO:
 		_draw_target_marker(target_pos)
 
-	# 6. Diagnostic: Draw A* Start / Goal Cell Wireframes
 	if _pathfinder != null and _telemetry_is_fresh():
 		if _pathfinder.last_query_start != Vector3i.MAX:
-			var s_color := Color(0.1, 1.0, 0.1, 0.7) if _pathfinder.is_walkable(_pathfinder.last_query_start) else Color(1.0, 0.1, 0.1, 0.7)
-			_draw_cell_box(_pathfinder.last_query_start, s_color)
-		if _pathfinder.last_query_target != Vector3i.MAX and _pathfinder.last_query_target != _pathfinder.last_query_start:
-			var t_color := Color(0.1, 1.0, 0.1, 0.7) if _pathfinder.is_walkable(_pathfinder.last_query_target) else Color(1.0, 0.1, 0.1, 0.7)
-			_draw_cell_box(_pathfinder.last_query_target, t_color)
-
-			# 6.5 Draw Ring Stand Candidates
-		if not _pathfinder.last_stand_candidates.is_empty():
-			for cand in _pathfinder.last_stand_candidates:
-				var c_cell: Vector3i = cand.get("cell", Vector3i.ZERO)
-				var is_chosen: bool = cand.get("chosen", false)
-				var is_walk: bool = cand.get("walkable", false)
-				if is_chosen:
-					_draw_cell_box(c_cell, Color(1.0, 0.8, 0.0, 0.8)) # Yellow for chosen
-				elif is_walk:
-					_draw_small_cell_box(c_cell, Color(0.2, 1.0, 0.2, 0.5)) # Green for walkable candidate
-				else:
-					_draw_small_cell_box(c_cell, Color(1.0, 0.2, 0.2, 0.3)) # Dim red for rejected candidate
-
-	# 7. Diagnostic: Draw StepClimber Probes
-	if _step_climber != null:
-		var now := float(Time.get_ticks_msec()) * 0.001
-		if now - _step_climber.last_probe_time < 2.0 and _step_climber.last_raised_origin != Vector3.ZERO:
-			var is_overhang: bool = "FAIL_OVERHANG" in _step_climber.last_probe_status
-			var probe_color := Color.RED if is_overhang else Color.GREEN
-			_draw_probe_box(_step_climber.last_raised_origin, _step_climber.last_shape_radius, _step_climber.last_shape_height, probe_color)
-			
-			if _step_climber.last_over_origin != Vector3.ZERO:
-				_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-				_immediate_mesh.surface_set_color(Color.YELLOW)
-				_immediate_mesh.surface_add_vertex(_step_climber.last_raised_origin)
-				_immediate_mesh.surface_add_vertex(_step_climber.last_over_origin)
-				_immediate_mesh.surface_end()
-			
-			if _step_climber.last_landing_origin != Vector3.ZERO:
-				var is_ok: bool = "OK" in _step_climber.last_probe_status
-				var land_color := Color.CYAN if is_ok else Color.MAGENTA
-				_draw_probe_box(_step_climber.last_landing_origin, _step_climber.last_shape_radius, _step_climber.last_shape_height, land_color)
-
-
-func _draw_small_cell_box(cell: Vector3i, color: Color) -> void:
-	var pos := Vector3(cell) + Vector3(0.2, 0.05, 0.2)
-	var sz := Vector3(0.6, 0.4, 0.6)
-	_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	_immediate_mesh.surface_set_color(color)
-	# Bottom rect
-	_immediate_mesh.surface_add_vertex(pos)
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, sz.z))
-	_immediate_mesh.surface_add_vertex(pos)
-	# Top rect
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, 0))
-	# Pillars
-	_immediate_mesh.surface_add_vertex(pos)
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, 0))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, 0, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(sz.x, sz.y, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, sz.z))
-	_immediate_mesh.surface_add_vertex(pos + Vector3(0, sz.y, sz.z))
-	_immediate_mesh.surface_end()
+			_draw_cell_box(_pathfinder.last_query_start, Color.GREEN)
+		if _pathfinder.last_query_target != Vector3i.MAX:
+			_draw_cell_box(_pathfinder.last_query_target, Color.RED)
+		for candidate in _pathfinder.last_stand_candidates:
+			if candidate is Dictionary and candidate.has("cell"):
+				var cell: Vector3i = candidate.get("cell", Vector3i.ZERO)
+				var color: Color = Color.YELLOW if candidate.get("chosen", false) else Color.ORANGE
+				_draw_cell_box(cell, color)
 
 
 func _draw_cell_box(cell: Vector3i, color: Color) -> void:
 	var pos := Vector3(cell)
 	_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	_immediate_mesh.surface_set_color(color)
-	# Bottom square
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(1, 0, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(1, 0, 0))
@@ -507,7 +351,6 @@ func _draw_cell_box(cell: Vector3i, color: Color) -> void:
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, 1))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, 1))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, 0))
-	# Top square
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 1, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(1, 1, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(1, 1, 0))
@@ -516,7 +359,6 @@ func _draw_cell_box(cell: Vector3i, color: Color) -> void:
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 1, 1))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 1, 1))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 1, 0))
-	# Pillars
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 1, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(1, 0, 0))
@@ -525,41 +367,6 @@ func _draw_cell_box(cell: Vector3i, color: Color) -> void:
 	_immediate_mesh.surface_add_vertex(pos + Vector3(1, 1, 1))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, 1))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 1, 1))
-	_immediate_mesh.surface_end()
-
-
-func _draw_probe_box(origin: Vector3, radius: float, height: float, color: Color) -> void:
-	var half_h := height * 0.5
-	var r := radius
-	_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	_immediate_mesh.surface_set_color(color)
-	# Bottom cross/square
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, -half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, -half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, -half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, -half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, -half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, -half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, -half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, -half_h, -r))
-	# Top cross/square
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, half_h, -r))
-	# Vertical edges
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, -half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, -half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, half_h, -r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, -half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(r, half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, -half_h, r))
-	_immediate_mesh.surface_add_vertex(origin + Vector3(-r, half_h, r))
 	_immediate_mesh.surface_end()
 
 
@@ -567,12 +374,10 @@ func _draw_waypoint_marker(pos: Vector3, color: Color) -> void:
 	var s: float = 0.15
 	_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	_immediate_mesh.surface_set_color(color)
-	# Horizontal cross
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, 0.05, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s, 0.05, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0.05, -s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0.05, s))
-	# Vertical tick
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, s * 2.0, 0))
 	_immediate_mesh.surface_end()
@@ -582,7 +387,6 @@ func _draw_target_marker(pos: Vector3) -> void:
 	var s: float = 0.35
 	_immediate_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	_immediate_mesh.surface_set_color(target_color)
-	# Bottom square
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, 0.05, -s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s, 0.05, -s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s, 0.05, -s))
@@ -591,7 +395,6 @@ func _draw_target_marker(pos: Vector3) -> void:
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, 0.05, s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, 0.05, s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, 0.05, -s))
-	# Top square
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, s * 2.0, -s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s, s * 2.0, -s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s, s * 2.0, -s))
@@ -600,7 +403,6 @@ func _draw_target_marker(pos: Vector3) -> void:
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, s * 2.0, s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, s * 2.0, s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, s * 2.0, -s))
-	# Vertical pillars
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, 0.05, -s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, s * 2.0, -s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s, 0.05, -s))
@@ -609,7 +411,6 @@ func _draw_target_marker(pos: Vector3) -> void:
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s, s * 2.0, s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, 0.05, s))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s, s * 2.0, s))
-	# Crosshair on ground
 	_immediate_mesh.surface_add_vertex(pos + Vector3(-s * 1.5, 0.05, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(s * 1.5, 0.05, 0))
 	_immediate_mesh.surface_add_vertex(pos + Vector3(0, 0.05, -s * 1.5))

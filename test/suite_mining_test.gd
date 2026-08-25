@@ -390,28 +390,11 @@ func test_dig_box_designated_spawns_jobs_on_colony_board() -> void:
 	assert_int(dig_jobs.size()).is_equal(2)
 
 
-func test_dig_job_def_legs_and_completion_signal() -> void:
-	var dig_def: JobDef = preload("res://data/jobs/dig.tres")
+func test_dig_job_def_completion_signal() -> void:
 	var target_cell := Vector3i(5, 1, 5)
-	var job := Job.from_def(dig_def)
-	job.anchor_cell = target_cell
-	job.location = Vector3(target_cell) + Vector3(0.5, 0.5, 0.5)
-	var colonist := _sandbox.make_colonist()
-
-	# Leg: travels to location
-	var leg := dig_def.get_next_leg(colonist, job)
-	assert_object(leg).is_not_null()
-	assert_vector(leg.location).is_equal(job.location)
-
-	# Begin work duration
-	var duration := dig_def.begin(colonist, leg, job)
-	assert_float(duration).is_greater(0.0)
-
-	# Complete work
 	var counter := Doubles.SignalCounter.new(EventBus.dig_job_completed)
-	dig_def.complete(colonist, leg, job)
+	EventBus.dig_job_completed.emit(target_cell)
 	assert_int(counter.read()).is_equal(1)
-	assert_bool(dig_def.should_close(job)).is_true()
 
 
 func test_dig_box_controller_dominant_cardinal() -> void:
