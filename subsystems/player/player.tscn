@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://dpyvcpfh0aifs" path="res://subsystems/inventory/character_inventory.gd" id="4_inv"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="5_step"]
 [ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="6_6her4"]
-[ext_resource type="AnimationLibrary" uid="uid://clvpicnscyxo4" path="res://assets/mixamo/mixamo.res" id="7_efqes"]
+[ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="7_efqes"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
@@ -50,7 +50,7 @@ script = ExtResource("5_step")
 [node name="man2" parent="Visuals" unique_id=762226860 instance=ExtResource("6_6her4")]
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=869776551]
-libraries/mixamo = ExtResource("7_efqes")
+libraries/animations = ExtResource("7_efqes")
 
 [node name="AnimationController" type="Node" parent="." unique_id=198273645]
 script = ExtResource("14_animctrl")

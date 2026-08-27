@@ -7,7 +7,7 @@
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
 [ext_resource type="Script" uid="uid://bosg2otbbkcma" path="res://subsystems/colonists/colonist_debug_visualizer.gd" id="7_3o0mj"]
 [ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="10_p62sj"]
-[ext_resource type="AnimationLibrary" uid="uid://clvpicnscyxo4" path="res://assets/mixamo/mixamo.res" id="11_ghy6r"]
+[ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="11_ghy6r"]
 [ext_resource type="Script" uid="uid://b6618sv10mkib" path="res://subsystems/colonists/colonist_animation_controller.gd" id="16_animctrl"]
 [ext_resource type="Script" uid="uid://cxe5kqjdff8h4" path="res://subsystems/ai/colonist_needs.gd" id="18_needs"]
 [ext_resource type="Script" uid="uid://nv5v5unavf1x" path="res://subsystems/ai/colonist_brain.gd" id="19_brain"]
@@ -73,7 +73,7 @@ metadata/_custom_type_script = "uid://bosg2otbbkcma"
 [node name="man2" parent="Visuals" unique_id=762226860 instance=ExtResource("10_p62sj")]
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=869776552]
-libraries/mixamo = ExtResource("11_ghy6r")
+libraries/animations = ExtResource("11_ghy6r")
 
 [node name="ColonistAnimationController" type="Node" parent="." unique_id=198273646]
 script = ExtResource("16_animctrl")

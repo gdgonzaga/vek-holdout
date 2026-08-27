@@ -105,10 +105,10 @@ func _update_animation_state() -> void:
 		_play_anim("Idle")
 
 
-## Animations live in the scene AnimationPlayer's "mixamo" library, so playback
-## names are library-qualified: "Idle" resolves as "mixamo/Idle".
+## Animations live in the scene AnimationPlayer's "animations" library, so playback
+## names are library-qualified: "Idle" resolves as "animations/Idle".
 func _play_anim(anim_name: StringName) -> void:
-	var target_anim := StringName("mixamo/" + anim_name)
+	var target_anim := StringName("animations/" + anim_name)
 	if not anim_player.has_animation(target_anim):
 		target_anim = _fallback_anim(anim_name)
 		if target_anim == &"":
