@@ -115,7 +115,7 @@ func _follow_path(delta: float) -> void:
 		_wiggle_timer = 0.0
 		return
 	var to_target: Vector3 = _path[_path_index] - global_position
-	to_target.y = 0.0  # navigate on the horizontal plane
+	to_target.y = 0.0 # navigate on the horizontal plane
 
 	# Enforce tight arrival threshold on vertical steps and ramp transitions
 	# so the colonist capsule (radius 0.3m) reaches the cell center and fully
@@ -155,7 +155,7 @@ func _follow_path(delta: float) -> void:
 					wall_normal = wall_normal.normalized()
 					var tangent := Vector3(wall_normal.z, 0, -wall_normal.x)
 					if tangent.dot(dir) < 0:
-						tangent = -tangent
+						tangent = - tangent
 					_wiggle_dir = (tangent + wall_normal * 0.5).normalized()
 				else:
 					var angle := randf() * TAU

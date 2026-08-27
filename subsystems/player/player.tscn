@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="5_step"]
 [ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="6_6her4"]
 [ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="7_efqes"]
+[ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="8_ip60t"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
@@ -54,3 +55,6 @@ libraries/animations = ExtResource("7_efqes")
 
 [node name="AnimationController" type="Node" parent="." unique_id=198273645]
 script = ExtResource("14_animctrl")
+
+[node name="GroundSafetyGuard" type="Node" parent="." unique_id=2025990310]
+script = ExtResource("8_ip60t")
