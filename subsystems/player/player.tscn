@@ -5,16 +5,9 @@
 [ext_resource type="Script" uid="uid://dkc21ixx51cg2" path="res://subsystems/player/input_component.gd" id="3_input"]
 [ext_resource type="Script" uid="uid://dpyvcpfh0aifs" path="res://subsystems/inventory/character_inventory.gd" id="4_inv"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="5_step"]
-[ext_resource type="Animation" uid="uid://bghj1lepfd7bt" path="res://assets/quaternius/animations/Interact.tres" id="6_ppfrl"]
-[ext_resource type="Animation" uid="uid://ctwfvf0u1qxsq" path="res://assets/quaternius/animations/Jog_Fwd.tres" id="7_3xw50"]
-[ext_resource type="Animation" uid="uid://ciu4d68tfdmg2" path="res://assets/quaternius/animations/Jump.tres" id="8_thjwc"]
-[ext_resource type="Animation" uid="uid://yp1heldq8q4c" path="res://assets/quaternius/animations/Jump_Land.tres" id="9_lxodo"]
-[ext_resource type="Animation" uid="uid://bur6sbiejduge" path="res://assets/quaternius/animations/Jump_Start.tres" id="10_kkt58"]
-[ext_resource type="Animation" uid="uid://cvggoeh7lh8pn" path="res://assets/quaternius/animations/Sprint.tres" id="11_ivbn6"]
-[ext_resource type="Animation" uid="uid://cuy3igakk6erc" path="res://assets/quaternius/animations/Walk.tres" id="12_vvkho"]
-[ext_resource type="Animation" uid="uid://gt538bg3ia6n" path="res://assets/quaternius/animations/Idle.tres" id="13_idle"]
+[ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="6_6her4"]
+[ext_resource type="AnimationLibrary" uid="uid://bdwesrxie3r26" path="res://assets/mixamo/mixamo.res" id="7_efqes"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
-[ext_resource type="PackedScene" uid="uid://kf6rxq8h05uf" path="res://assets/quaternius/character_model.glb" id="15_charactermodel"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
@@ -24,19 +17,8 @@ height = 1.6
 radius = 0.3
 height = 1.6
 
-[sub_resource type="AnimationLibrary" id="AnimationLibrary_gwypq"]
-_data = {
-&"Idle": ExtResource("13_idle"),
-&"Interact": ExtResource("6_ppfrl"),
-&"Jog_Fwd": ExtResource("7_3xw50"),
-&"Jump": ExtResource("8_thjwc"),
-&"Jump_Land": ExtResource("9_lxodo"),
-&"Jump_Start": ExtResource("10_kkt58"),
-&"Sprint": ExtResource("11_ivbn6"),
-&"Walk": ExtResource("12_vvkho")
-}
-
 [node name="Player" type="CharacterBody3D" unique_id=348076264]
+transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 1, -2.068668e-05, 0.009543855, 1.6087066e-05)
 collision_layer = 8
 collision_mask = 7
 floor_snap_length = 0.5
@@ -65,10 +47,10 @@ script = ExtResource("5_step")
 
 [node name="Visuals" type="Node3D" parent="." unique_id=314291199]
 
-[node name="CharacterModel" parent="Visuals" unique_id=886965112 instance=ExtResource("15_charactermodel")]
+[node name="man2" parent="Visuals" unique_id=762226860 instance=ExtResource("6_6her4")]
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=869776551]
-libraries/ual = SubResource("AnimationLibrary_gwypq")
+libraries/mixamo = ExtResource("7_efqes")
 
 [node name="AnimationController" type="Node" parent="." unique_id=198273645]
 script = ExtResource("14_animctrl")

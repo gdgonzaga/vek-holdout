@@ -1,0 +1,6 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://c8io020ogglu3"]
+
+[ext_resource type="Texture2D" uid="uid://bvqiye7fhtp5m" path="res://assets/makehuman/textures/male_casualsuit06_diffuse.png" id="1_s6t3i"]
+
+[resource]
+albedo_texture = ExtResource("1_s6t3i")

@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://chuajw20m02p5"]
+
+[ext_resource type="Texture2D" uid="uid://hfapkf6wx6w8" path="res://assets/makehuman/textures/young_lightskinned_male_diffuse3.png" id="1_6nq20"]
+
+[resource]
+cull_mode = 2
+albedo_texture = ExtResource("1_6nq20")

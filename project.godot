@@ -163,7 +163,8 @@ dig_box_toggle={
 
 [limbo_ai]
 
-user_tasks_directory="res://subsystems/ai/tasks"
+behavior_tree/user_task_dirs=PackedStringArray("res://subsystems/ai/tasks")
+behavior_tree/behavior_tree_default_dir="res://data/ai/trees"
 
 [physics]
 

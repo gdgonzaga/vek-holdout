@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://d2b5a0fjuqq47"]
+
+[ext_resource type="Texture2D" uid="uid://clsqy57xii4sc" path="res://assets/makehuman/textures/short01_diffuse.png" id="1_vuvv0"]
+
+[resource]
+transparency = 1
+albedo_texture = ExtResource("1_vuvv0")

@@ -1,0 +1,6 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://blkj0mjckuicq"]
+
+[ext_resource type="Texture2D" uid="uid://bbsarffujamib" path="res://assets/quaternius/textures/T_Eye_Brown.png" id="1_scp0d"]
+
+[resource]
+albedo_texture = ExtResource("1_scp0d")

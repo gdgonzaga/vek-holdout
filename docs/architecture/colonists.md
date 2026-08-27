@@ -55,7 +55,7 @@ The **Colonists** subsystem (`subsystems/colonists/`) manages colonist entity in
 
 **Extends:** Node  
 **Script:** `subsystems/colonists/colonist_animation_controller.gd`  
-**Description:** Manages animation playback, blending locomotion states with interaction loops. Supports behavior tree animation overrides via `play_bt_animation(anim_name)` and `stop_bt_animation()`.
+**Description:** Manages animation playback, blending locomotion states with interaction loops. Supports behavior tree animation overrides via `play_animation_override(anim_name)` and `clear_override()`. Animations resolve through the scene AnimationPlayer's `mixamo` library (`assets/mixamo/mixamo.res`); missing keys fall back (Sprint to Walk, otherwise Idle) with a one-time warning. `_setup_skeleton()` re-homes the BoneMap-retargeted model skeleton's unique name (`GeneralSkeleton`) to the colonist scene root so library tracks like `%GeneralSkeleton:Hips` bind at runtime.
 
 ### Class: ColonistAI (Deprecated)
 

@@ -4,12 +4,6 @@
 class_name ColonistAnimationController
 extends Node
 
-const FEMALE_MESH_PATHS: Array[String] = [
-	"res://assets/quaternius/meshes/female/Superhero_Female_FullBody_Superhero_Female.res",
-	"res://assets/quaternius/meshes/female/Superhero_Female_FullBody_Eyes.res",
-	"res://assets/quaternius/meshes/female/Superhero_Female_FullBody_Eyebrows.res"
-]
-
 ## Reference to AnimationPlayer (auto-resolves if empty)
 @export var anim_player: AnimationPlayer
 
@@ -24,6 +18,14 @@ var _colonist: CharacterBody3D
 
 ## Optional forced animation override (driven by BT tasks during work/interaction)
 var _forced_anim: StringName = &""
+
+## Substitutions for library keys the asset pack has not provided yet
+const _ANIM_FALLBACKS: Dictionary = {
+	&"Sprint": &"Walk",
+}
+
+## Missing-animation names already warned about (avoid per-frame warning spam)
+var _warned_missing: Array[StringName] = []
 
 
 func _ready() -> void:
@@ -47,34 +49,17 @@ func _ready() -> void:
 		_setup_skeleton()
 
 
+## Re-homes the imported model skeleton's unique name into this scene's scope.
+## BoneMap-retargeted models name their skeleton GeneralSkeleton and register the
+## unique name only inside the model's own scene; AnimationLibrary tracks use
+## "%GeneralSkeleton:<bone>" paths that resolve once owner points at the body root.
 func _setup_skeleton() -> void:
 	if not _colonist:
 		return
-		
-	var skeleton: Skeleton3D = _colonist.find_child("*Skeleton*", true, false) as Skeleton3D
+
+	var skeleton := _colonist.find_child("*Skeleton*", true, false) as Skeleton3D
 	if skeleton:
-		skeleton.name = "GeneralSkeleton"
 		skeleton.owner = _colonist
-		skeleton.unique_name_in_owner = true
-		
-		# Hide default imported meshes (e.g. Mannequin) under the skeleton
-		for child in skeleton.get_children():
-			if child is MeshInstance3D:
-				(child as MeshInstance3D).visible = false
-				
-		# Attach the female meshes if they haven't been added yet
-		if not skeleton.has_node("FemaleMesh_0"):
-			for i in range(FEMALE_MESH_PATHS.size()):
-				var path := FEMALE_MESH_PATHS[i]
-				var mesh_res := load(path) as ArrayMesh
-				if mesh_res:
-					var mi := MeshInstance3D.new()
-					mi.name = "FemaleMesh_" + str(i)
-					mi.mesh = mesh_res
-					mi.skeleton = NodePath("..")
-					skeleton.add_child(mi)
-		
-		# Force AnimationPlayer to re-resolve node paths after renaming/adding meshes
 		if anim_player:
 			anim_player.clear_caches()
 
@@ -137,17 +122,29 @@ func _update_animation_state() -> void:
 		_play_anim("Idle")
 
 
+## Animations live in the scene AnimationPlayer's "mixamo" library, so playback
+## names are library-qualified: "Idle" resolves as "mixamo/Idle".
 func _play_anim(anim_name: StringName) -> void:
-	var target_anim := anim_name
+	var target_anim := StringName("mixamo/" + anim_name)
 	if not anim_player.has_animation(target_anim):
-		target_anim = StringName("ual/" + anim_name)
-		if not anim_player.has_animation(target_anim):
-			if anim_name == &"Walk" and anim_player.has_animation("ual/Jog_Fwd"):
-				target_anim = &"ual/Jog_Fwd"
-			elif anim_name == &"Jog_Fwd" and anim_player.has_animation("ual/Walk"):
-				target_anim = &"ual/Walk"
-			else:
-				return
+		target_anim = _fallback_anim(anim_name)
+		if target_anim == &"":
+			return
 
 	if anim_player.current_animation != target_anim:
 		anim_player.play(target_anim)
+
+
+## Resolves a substitute when the library lacks a key (asset not provided yet).
+## Falls back per _ANIM_FALLBACKS, then to Idle; warns once per missing name.
+func _fallback_anim(anim_name: StringName) -> StringName:
+	var fallback: StringName = _ANIM_FALLBACKS.get(anim_name, &"Idle")
+	var fallback_anim := StringName("mixamo/" + fallback)
+	var has_fallback := anim_player.has_animation(fallback_anim)
+	if anim_name not in _warned_missing:
+		_warned_missing.append(anim_name)
+		if has_fallback:
+			push_warning("ColonistAnimationController: '" + anim_name + "' missing from 'mixamo' library, falling back to '" + fallback + "'.")
+		else:
+			push_warning("ColonistAnimationController: '" + anim_name + "' missing from 'mixamo' library.")
+	return fallback_anim if has_fallback else &""
