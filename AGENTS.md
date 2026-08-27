@@ -67,6 +67,7 @@ Preferences: prefer **scene files over dynamically created nodes** for any non-t
 ## Testing & commits
 
 - gdUnit4 suites in `test/`: `suite_<name>_test.gd`, `test_*` methods, `auto_free()` everything allocated, fluent asserts (`assert_int(x).is_equal(1)`). Autoloads persist across suites — clear or swap-and-restore global state (e.g. `GameLog.clear()`).
+- **Do not test for content**: Tests must be content-agnostic. Do not assert specific game content IDs (e.g. `"wood"`), counts, or indices of active `.tres` data in `res://data/` as they are subject to design adjustments. Use in-memory or directory fixtures (via test helpers) to verify system logic invariants.
 - Shared test helpers in `test/helpers/`: Colony-backed suites use `ColonySandbox` (swaps `Colony.storage_registry`/`job_board` + actor/crate factories); common doubles (`SignalCounter`, `MockInventory`) live in `doubles.gd`. Plain scripts, never `extends GdUnitTestSuite` — the runner would scan them as suites.
 - Run: `addons/gdUnit4/runtest.sh` (needs `GODOT_BIN`).
 - Conventional Commits: `type(scope): lowercase imperative subject` — feat/fix/chore/refactor/docs/wip; scope = subsystem (`arch` for architecture docs). Detailed bodies explaining what/why; end with the test tally (e.g. "132/132 green").
