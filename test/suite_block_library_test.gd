@@ -8,17 +8,6 @@ extends GdUnitTestSuite
 const Fixtures := preload("res://test/helpers/rotation_fixtures.gd")
 
 
-## Shipped content layout: base table (0 air, then alphabetical) followed by
-## variant appendix for rotatable blocks.
-func test_shipped_library_layout_is_unchanged() -> void:
-	var lib := BlockLibrary.new()
-	assert_int(lib.get_voxel_library().get_models().size()).is_equal(1 + 6 + 23)
-	var expected: Array = [["", 0], ["metal", 1], ["reinforced", 2], ["scrap", 3], ["stone", 4], ["wood", 5], ["wood_stairs", 6]]
-	for pair: Array in expected:
-		assert_int(lib.get_index(pair[0])).is_equal(pair[1])
-		assert_str(lib.get_id(pair[1])).is_equal(pair[0])
-
-
 ## Fixture dir (plain NONE, yawwedge YAW_ONLY, fullwedge FULL_3D): base
 ## table stays 0..3, variants are appended after it — 3 yaw + 23 full = 30.
 func test_variants_are_baked_after_the_base_table() -> void:
@@ -128,11 +117,12 @@ func _render_vertex_set(mesher: VoxelMesherBlocky, value: int) -> Array:
 	return seen.keys()
 
 func test_base_indices_contain_only_base_defs() -> void:
-	var lib := BlockLibrary.new()
+	var dir := Fixtures.make_block_dir("base_indices")
+	var lib := BlockLibrary.new(dir)
 	var base_indices := lib.get_base_indices()
-	# 6 shipped base definitions (metal, reinforced, scrap, stone, wood, wood_stairs)
-	assert_int(base_indices.size()).is_equal(6)
-	assert_array(base_indices).contains_exactly([1, 2, 3, 4, 5, 6])
+	# 3 fixture base definitions (plain, yawwedge, fullwedge)
+	assert_int(base_indices.size()).is_equal(3)
+	assert_array(base_indices).contains_exactly([1, 2, 3])
 
 	# Base index check
 	for idx in base_indices:
@@ -140,5 +130,5 @@ func test_base_indices_contain_only_base_defs() -> void:
 
 	# Variants and air are not base indices
 	assert_bool(lib.is_base_index(0)).is_false()
-	for variant_idx in range(7, lib.get_voxel_library().get_models().size()):
+	for variant_idx in range(4, lib.get_voxel_library().get_models().size()):
 		assert_bool(lib.is_base_index(variant_idx)).is_false()

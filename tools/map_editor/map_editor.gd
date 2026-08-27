@@ -143,13 +143,10 @@ func _ready() -> void:
 	_setup_delete_dialog()
 
 
-## Default palette selection: wood (the ubiquitous authoring block), falling
-## back to the first base block when absent. Indices shift whenever the block
-## set changes, so the default resolves by id — never a hardcoded number.
+## Default palette selection: first base block when present, else air (0).
+## Indices shift whenever the block set changes, so the default resolves
+## from the active base table rather than a hardcoded string.
 func _default_block_index() -> int:
-	var wood := _block_library.get_index("wood")
-	if wood > 0:
-		return wood
 	var base := _block_library.get_base_indices()
 	return base[0] if not base.is_empty() else 0
 

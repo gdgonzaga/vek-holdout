@@ -79,8 +79,11 @@ func test_height_at_nan_without_blocky_ground() -> void:
 func test_set_block_at_stores_renderable_library_index() -> void:
 	var grid := _build_grid()
 	var lib: BlockLibrary = auto_free(BlockLibrary.new())
-	var wood_index := lib.get_index("wood")
-	assert_int(wood_index).is_greater(0)
+	var base_indices := lib.get_base_indices()
+	assert_bool(base_indices.is_empty()).is_false()
+	var target_index: int = base_indices[0]
+	var target_id := lib.get_id(target_index)
+	assert_str(target_id).is_not_empty()
 
 	# Writes only land where blocks are streamed in (F3) — a generator-less,
 	# stream-less terrain never materializes editable blocks, so attach a
@@ -98,16 +101,16 @@ func test_set_block_at_stores_renderable_library_index() -> void:
 	for _i in range(20):
 		await get_tree().physics_frame
 
-	grid.set_block_at(Vector3i(3, 4, 3), "wood")
+	grid.set_block_at(Vector3i(3, 4, 3), target_id)
 	for _i in range(60):
 		if grid.get_raw_voxel(Vector3i(3, 4, 3)) != 0:
 			break
 		await get_tree().physics_frame
 
 	var raw := grid.get_raw_voxel(Vector3i(3, 4, 3))
-	assert_int(raw).is_equal(wood_index)
+	assert_int(raw).is_equal(target_index)
 	assert_int(raw).is_less(lib.get_voxel_library().get_models().size())
-	assert_str(grid.get_block_at(Vector3i(3, 4, 3))).is_equal("wood")
+	assert_str(grid.get_block_at(Vector3i(3, 4, 3))).is_equal(target_id)
 	assert_int(grid.get_block_rotation(Vector3i(3, 4, 3))).is_equal(0)
 
 

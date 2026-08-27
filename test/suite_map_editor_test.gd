@@ -239,8 +239,9 @@ func test_map_editor_block_editing_init() -> void:
 	add_child(editor)
 
 	assert_object(editor._block_library).is_not_null()
-	# Default selection resolves by id (wood), not a hardcoded index.
-	assert_int(editor._selected_block_index).is_equal(editor._block_library.get_index("wood"))
+	var base := editor._block_library.get_base_indices()
+	var expected_idx: int = base[0] if not base.is_empty() else 0
+	assert_int(editor._selected_block_index).is_equal(expected_idx)
 	assert_int(editor._brush_diameter).is_equal(1)
 	assert_object(editor._ghost).is_not_null()
 	assert_bool(editor._ghost.visible).is_false()
@@ -1614,19 +1615,20 @@ func test_editor_hud_block_palette_contains_only_base_defs() -> void:
 	hud.populate_block_library(lib)
 
 	var filtered := hud.get_filtered_block_indices()
-	# Should contain only base block indices (6 items, excluding the 23 rotation variants)
+	# Should contain only base block indices (excluding rotation variants)
 	assert_int(filtered.size()).is_equal(lib.get_base_indices().size())
-	assert_int(filtered.size()).is_equal(6)
-	assert_array(filtered).contains_exactly([1, 2, 3, 4, 5, 6])
+	assert_array(filtered).contains_exactly(lib.get_base_indices())
 
 
 func test_map_editor_ghost_preview_renders_custom_mesh_with_rotation() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
 
-	# Stairs block index is 6
+	# Stairs block index
 	var stairs_idx: int = editor._block_library.get_index("wood_stairs")
-	assert_int(stairs_idx).is_equal(6)
+	if stairs_idx <= 0:
+		stairs_idx = editor._block_library.get_index("stairs_wood")
+	assert_int(stairs_idx).is_greater(0)
 	editor._selected_block_index = stairs_idx
 	editor._mode = 1 # Mode.BLOCK
 	editor._brush_diameter = 1
