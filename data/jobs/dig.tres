@@ -1,11 +1,12 @@
-[gd_resource type="Resource" script_class="DigJobDef" format=3]
+[gd_resource type="Resource" script_class="DigJobDef" format=3 uid="uid://djp3mrxcsroy1"]
 
-[ext_resource type="Script" path="res://data/jobs/dig_job_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://c0gp5a05d4pg5" path="res://data/jobs/dig_job_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_wkr3a"]
 
 [resource]
 script = ExtResource("1_script")
 id = "dig"
 display_name = "Dig"
 labor_id = "mining"
+work_animation = &"Digging"
 work_duration = 2.0
-max_assignees = 1
