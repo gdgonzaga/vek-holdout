@@ -43,7 +43,11 @@ MakeHuman base characters contain hidden helper geometry (face rigs, tongue/teet
 2. Scale the imported `Armature` to human height (Z about 1.8m).
 3. Keep the **Reduced Doll flesh mesh** and the textured asset meshes. Delete the raw MPFB human/flesh meshes and the old `Human.rig` armature.
 4. Clear old parents (`Alt + P` -> Clear and Keep Transformation) and **delete all vertex groups** on the asset meshes.
-5. **Hair, eyes, eyebrows:** assign 100% weight to `mixamorig:Head` (or parent to the Head bone AND weight it). Plain object parenting to a bone does not survive glTF export.
+5. **Hair, eyes, eyebrows:** rigid parts must be skinned to `mixamorig:Head` by vertex group — plain object parenting to a bone does not survive glTF export:
+   - Object Data Properties (green triangle) -> Vertex Groups -> dropdown -> **Delete All Groups**.
+   - Create a new group (**+**) and name it by **copying the bone name exactly**: select the Armature, Pose Mode, click the head bone, copy the name from Bone Properties (`mixamorig:Head`), paste it onto the new group. A group whose name matches no bone is not an error in Blender — the exporter dumps those vertices onto a dummy `neutral_bone` that never moves.
+   - With the accessory selected, `Tab` -> Edit Mode -> `A` (select all) -> click the `mixamorig:Head` group to make it active -> set **Weight = 1.0** -> **Assign**.
+   - Verify in Weight Paint mode: the whole mesh must be solid red with `mixamorig:Head` active.
 6. **Body and clothing meshes:** Shift-select meshes then the `Armature` -> `Ctrl + P` -> **With Automatic Weights**.
 7. Select all -> `Ctrl + A` -> **All Transforms**; in Pose Mode clear pose (`Alt + R`, `Alt + G`, `Alt + S`).
 8. Export **glTF 2.0 (.glb)**: select the `Armature` **and all character meshes**; **Include -> Selected Objects**; armature must be **visible** (the Visible Objects filter drops hidden objects); Skinning on; **Animation off** (animations come from the separate Mixamo FBXs). Export into `res://assets/makehuman/<id>/`.
@@ -86,5 +90,6 @@ Run a scene with the character visible. **No `couldn't resolve track` warnings i
 - **`FBX conversion to glTF failed with error: 127`:** the file's importer is FBX2glTF and the external binary is missing. Switch to ufbx (Phase 5 step 1).
 - **One-time `missing from 'mixamo' library` warning:** the requested key is absent or miscapitalized (`interact` vs `Interact`). Check Phase 6 key naming.
 - **Invisible skinned mesh after import:** meshes lost their skeleton binding — usually caused by renaming/moving the skeleton after import, or by applying a BoneMap to the model with mismatched weights. Re-import and let the importer do the renaming.
-- **Hair stretching to feet:** hair/eyelashes weighted across the whole armature. Give them 100% weight on `mixamorig:Head` (Phase 3 step 5).
+- **Hair/accessory floats (stays put while the head animates away):** its vertices were exported bound to Blender's dummy `neutral_bone` because its vertex group name matched no bone. Re-do the accessory weighting (Phase 3 step 5) and re-export.
+- **Hair stretching to feet:** hair/eyelashes weighted across the whole armature instead of just the head. Give them 100% weight on `mixamorig:Head` (Phase 3 step 5).
 - **Magenta textures:** texture not plugged into Principled BSDF Base Color before glTF export.
