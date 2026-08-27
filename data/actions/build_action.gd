@@ -39,9 +39,10 @@ func _start_timed_build(actor: Node, bp: Blueprint, duration: float) -> void:
 	ui.completed.connect(func() -> void:
 		actor.set_busy(false)
 		if not is_instance_valid(bp):
-			return  # freed mid-gauge (built/cancelled out from under us)
+			return # freed mid-gauge (built/cancelled out from under us)
 		bp.work_done = 0.0
-		bp.complete(actor))
+		bp.complete(actor)
+		actor.set_busy(false))
 	ui.cancelled.connect(func(elapsed: float) -> void:
 		actor.set_busy(false)
 		if is_instance_valid(bp):
