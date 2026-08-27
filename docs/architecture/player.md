@@ -7,6 +7,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | File | Type | Responsibility |
 |---|---|---|
 | `player.tscn` / `player.gd` | Scene/Script | CharacterBody3D + camera rig. Owns movement physics (WASD + sprint + jump with mid-air momentum preservation), inline Mode+State enums, build menu interaction (opens `build_menu.tscn` on a CanvasLayer), blueprint mode entry via menu selection + B-driven navigation across three states (Normal → Menu → Placement). Exposes `get_camera()` for BuildController raycasts. Does NOT own raw input reading (delegates to InputComponent), combat resolution (delegates to Combat), or build UX (delegates to Build when in Blueprint mode). **TODO:** source movement stats from CharacterDef instead of `@export` vars. |
+| `player_animation_controller.gd` | Script (Node component) | Child node on the Player. Drives the scene `AnimationPlayer`'s `mixamo` library (`assets/mixamo/mixamo.res`) from body velocity/floor state (airborne → `Jump`, speed > 6 → `Sprint`, moving → `Walk`, else `Idle`; library-qualified names `mixamo/<key>`, missing keys fall back `Sprint`→`Walk` then `Idle` with a one-time warning). Rotates the `Visuals` mesh toward the travel direction. `_setup_skeleton()` re-homes the imported model skeleton's unique name (`GeneralSkeleton`) to the player scene root so `%GeneralSkeleton:<bone>` tracks bind — see `docs/HOWTO-use-makehuman-mixamo.md`. |
 | `input_component.gd` | Script (Node) | Child node on the Player. Reads all raw player input and exposes it via signals (discrete actions: build toggle, primary action (LMB), interact press/release, mouse recapture, ui cancel) and per-frame query methods (`get_movement_input()`, `wants_jump()`, `wants_sprint()`). Does NOT own mouse-motion (CameraRig handles that) or mouse-mode management (Player owns that as a game-state concern). |
 | `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). **Over-the-shoulder framing** via `Camera3D.h_offset`/`v_offset` (export `h_offset`/`v_offset`): the frustum shifts so the body sits screen-left/bottom while the aim direction stays along the spring-arm axis (no camera rotation). LMB/RMB reserved for item actions, not consumed here. |
 | `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Build Menu/Build Placement × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
@@ -199,6 +200,12 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `set_orientation(yaw: float, pitch: float) -> void` | Restore the orbit (radians); pitch is clamped and applied immediately. Used by save/load. |
 | `get_target_position() -> Vector3` | Gets the target tracking position in world space (parent position + vertical height offset). |
 | `snap_to_target() -> void` | Snaps the rig immediately to the target position without smoothing. |
+
+### Class: PlayerAnimationController
+
+**Extends:** Node  
+**Script:** `subsystems/player/player_animation_controller.gd`  
+**Description:** Modular animation component attached as an `AnimationController` child of `player.tscn`. Selects and plays locomotion states from the parent CharacterBody3D's velocity and floor status through the scene AnimationPlayer's `mixamo` library, and rotates `Visuals` to face the travel direction. `_setup_skeleton()` re-homes the BoneMap-retargeted model skeleton's unique name (`GeneralSkeleton`) to the player scene root so library tracks like `%GeneralSkeleton:Hips` bind at runtime. Missing library keys degrade gracefully (`Sprint` to `Walk`, anything else to `Idle`) with a one-time warning. Asset pipeline: `docs/HOWTO-use-makehuman-mixamo.md`.
 
 ### Class: StepClimber
 

@@ -18,7 +18,7 @@ A `JobDef` is a text-based Godot `.tres` Resource (`data/jobs/*.tres` extending 
 | `display_name` | `String` | `""` | Human-readable label shown in UI and debug logs (e.g. `"Construction"`). |
 | `labor_id` | `String` | `""` | The labor category ID matching colonist labor priorities (e.g. `"mining"`, `"hauling"`). |
 | `required_tool_tag` | `StringName` | `&""` | Equipment tag required for this job (e.g. `&"pickaxe"`, `&"axe"`, `&"pruning_kit"`). |
-| `work_animation` | `StringName` | `&"interact"` | Animation state played during work execution cycles (e.g. `&"digging"`, `&"hammering"`). |
+| `work_animation` | `StringName` | `&"Interact"` | Animation played during work execution cycles. Must match a key in the shared mixamo AnimationLibrary (`assets/mixamo/mixamo.res`) exactly, case included — currently `Idle`, `Walk`, `Jump`, `Digging`, `Interact` (see `docs/HOWTO-use-makehuman-mixamo.md`). Unknown keys warn once and fall back (`Sprint`→`Walk`, else `Idle`). |
 | `work_duration` | `float` | `1.2` | Duration in seconds per work cycle/swing, before the worker's skill multiplier. Author `0.0` for dynamic-duration labors — the def's `begin(actor, job)` then supplies the per-target duration (construction's `build_time`, crafting's recipe `base_time`, crop-driven harvest). |
 | `default_units_per_cycle` | `int` | `20` | Default work units accomplished per swing cycle. |
 | `base_priority` | `float` | `0.5` | Base score multiplier evaluated by Utility AI (`ColonistBrain`). |
@@ -68,7 +68,7 @@ id = "construction"
 display_name = "Build Structure"
 labor_id = "construction"
 required_tool_tag = &"hammer"
-work_animation = &"interact"
+work_animation = &"Interact"
 work_duration = 1.0
 default_units_per_cycle = 25
 base_priority = 0.8

@@ -18,6 +18,9 @@ The **Colonists** subsystem (`subsystems/colonists/`) manages colonist entity in
 | ColonistBrain |   | ColonistNeeds |               |   BTPlayer    |   |VoxelPathfinder|
 +---------------+   +---------------+               +---------------+   +---------------+
 (Utility AI)        (Hunger/Rest/Rec)               (LimboAI Engine)    (Voxel A* Path)
+
+(Scene also mounts: ColonistAnimationController + AnimationPlayer [mixamo library] —
+see the class reference below and docs/HOWTO-use-makehuman-mixamo.md.)
 ```
 
 ---

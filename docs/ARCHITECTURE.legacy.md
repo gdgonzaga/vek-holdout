@@ -2,6 +2,8 @@
 
 Last updated: 2026-07-31 (Map authoring system + runtime map loader landed)
 
+> **SUPERSEDED — historical snapshot.** The live architecture reference is `docs/architecture/` (start at `overview.md`). Statements below do not necessarily reflect current code — e.g. characters are no longer capsule prototypes but MakeHuman/Mixamo rigs (see `docs/HOWTO-use-makehuman-mixamo.md`).
+
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
 ---

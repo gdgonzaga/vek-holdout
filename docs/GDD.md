@@ -1097,7 +1097,7 @@ See *Colony Management → Loadouts* tab above. Per-colonist assignment in MVP; 
 - **Visual style:** Realistic-styled assets on a voxel block grid (purchased asset bundles dropped into the voxel world). Theme is scrappunk / xeno-tech (alien invasion) — improvised human tech vs. alien aesthetics. MVP uses purchased asset bundles as **placeholder-final**: good enough to ship, replaced only where clearly wrong.
 - **Colour palette:** No mandate for MVP. (Designer's call during the art pass.)
 - **Art for v1.0 (MVP):** Placeholder-final via asset bundles. Block damage states accept placeholder textures per §7.7.
-- **Notes:** The full MVP asset manifest lives at `tmp/required_models.md` (a cross-check surface against the designer's purchased bundles — characters, alien enemies, voxel blocks, furniture, storage, defenses, weapons, resources, POI, environment, UI, animation rigs). Enemies are **aliens, not zombies** — Brawler/Shooter read as a melee/ranged alien caste.
+- **Notes:** Character/animation assets follow the MakeHuman/Mixamo pipeline (see `docs/HOWTO-use-makehuman-mixamo.md`); current character models live in `assets/makehuman/` and shared animations in `assets/mixamo/`. Enemies are **aliens, not zombies** — Brawler/Shooter read as a melee/ranged alien caste.
 
 ---
 

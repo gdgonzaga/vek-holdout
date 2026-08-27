@@ -14,7 +14,7 @@ Reusable declarative template for one kind of colonist work (`data/jobs/*.tres`)
 | `display_name` | `String` | Human-readable label shown in UI and logs. |
 | `labor_id` | `String` | A `LaborDef.id`; gates `JobBoard.get_best_job_for` filtering. |
 | `required_tool_tag` | `StringName` | Equipment tag required for this job (e.g. `&"pickaxe"`, `&"axe"`, `&"hammer"`). |
-| `work_animation` | `StringName` | Animation played during work execution cycles (default `&"interact"`). |
+| `work_animation` | `StringName` | Animation played during work execution cycles (default `&"Interact"`; must match a case-sensitive key in `assets/mixamo/mixamo.res`). |
 | `work_duration` | `float` | Duration in seconds per work cycle/swing (default `1.2`). |
 | `default_units_per_cycle` | `int` | Work units completed per cycle/swing (default `20`). |
 | `base_priority` | `float` | Base priority score evaluated by Utility AI (`ColonistBrain`) (default `0.5`). |
