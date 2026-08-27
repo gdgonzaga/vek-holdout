@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="ConstructionJobDef" format=3]
+[gd_resource type="Resource" script_class="ConstructionJobDef" format=3 uid="uid://cfo0iefqlqdom"]
 
-[ext_resource type="Script" path="res://data/jobs/construction_job_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_kp078"]
+[ext_resource type="Script" uid="uid://b6dh6m2mff52j" path="res://data/jobs/construction_job_def.gd" id="1_script"]
 
 [resource]
 script = ExtResource("1_script")
 id = "construction"
 display_name = "Construction"
-work_duration = 0.0
 labor_id = "construction"
+work_duration = 0.0

@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://dpyvcpfh0aifs" path="res://subsystems/inventory/character_inventory.gd" id="4_inv"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="5_step"]
 [ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="6_6her4"]
-[ext_resource type="AnimationLibrary" uid="uid://bdwesrxie3r26" path="res://assets/mixamo/mixamo.res" id="7_efqes"]
+[ext_resource type="AnimationLibrary" uid="uid://clvpicnscyxo4" path="res://assets/mixamo/mixamo.res" id="7_efqes"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]

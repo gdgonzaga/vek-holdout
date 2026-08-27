@@ -38,7 +38,7 @@ class_name JobDef
 @export var required_tool_tag: StringName = &""
 
 ## Animation to play during work execution (e.g. &"interact", &"digging").
-@export var work_animation: StringName = &"interact"
+@export var work_animation: StringName = &"Interact"
 
 ## Default work cycle duration in seconds if not dynamically scaled.
 @export var work_duration: float = 1.2

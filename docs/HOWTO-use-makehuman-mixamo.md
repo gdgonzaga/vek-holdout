@@ -1,154 +1,90 @@
 # HOWTO: Integrate MakeHuman (MPFB) and Mixamo Characters
 
-This guide outlines the complete pipeline for generating a character with the **MakeHuman Plugin for Blender (MPFB2)**, auto-rigging it with **Mixamo**, assembling textured meshes in **Blender**, exporting as **glTF 2.0 (.glb)**, and integrating the model into Godot 4.7.
+Complete pipeline for producing a character with the **MakeHuman Plugin for Blender (MPFB)**, auto-rigging it on **Mixamo**, assembling it in **Blender**, and wiring model + animations into Godot 4.7 so they actually play.
 
----
-
-## High-Level Pipeline Overview
+The single most important rule: **the model glb AND every animation FBX must be retargeted with the same `SkeletonProfileHumanoid` bone map in Godot.** Retargeting only the model leaves the animations addressing `mixamorig_*` bones that no longer exist — that is the classic T-pose failure.
 
 ```
- [ Blender (MPFB2) ]
-        │ (1. T-Pose ➔ 2. Reduced Doll ➔ 3. Export OBJ)
-        ▼
-   [ Mixamo ]  ───► Auto-rig mesh & download T-Pose FBX + skinless animations
-        │
-        ▼
- [ Blender Assembly ] ➔ Re-parent Reduced Doll & textured asset meshes to Mixamo Armature
-        │ (Apply All Transforms ➔ Set Rest Pose ➔ Export .glb)
-        ▼
- [ Godot 4.7 Importer ] ➔ Model (.glb) BoneMap: None | Animation FBXs ➔ SkeletonProfileHumanoid (.tres)
-        │
-        ▼
- [ Vek Holdout Gameplay ]
+ [ Blender (MPFB) ]  create human, rig, assets, T-pose rest, reduced doll
+        |
+   [ Mixamo ]  auto-rig reduced doll -> T-Pose FBX (armature source) + skinless animation FBXs
+        |
+ [ Blender assembly ]  reparent meshes to the Mixamo armature -> export .glb
+        |
+ [ Godot import ]  model glb + every animation FBX: BoneMap = SkeletonProfileHumanoid
+        |
+ [ Library ]  extract .tres, add to assets/mixamo/mixamo.res under canonical keys
 ```
 
 ---
 
-## Phase 1: Blender & MPFB2 Setup
+## Phase 1: Author the character in Blender (MPFB)
 
-MakeHuman base characters contain hidden helper geometries (genital/body proxy meshes, face rigs, tongue/teeth) that cause skin bleeding/glitches if exported raw. We use MPFB2's **Reduced Doll** to create a clean base mesh.
+MakeHuman base characters contain hidden helper geometry (face rigs, tongue/teeth, body proxies) that breaks skinning if exported raw. The Reduced Doll solves this.
 
-### 1. T-Pose Requirement & Rest Pose Application
-Godot 4's humanoid retargeting profile (`SkeletonProfileHumanoid`) assumes a default T-pose rest pose.
+1. **Create human** in the MPFB panel.
+2. **Add the standard rig** and **rig helpers**.
+3. **Add assets** (clothes, hair, eyes, eyebrows).
+4. **Save the preset** (so the character can be regenerated later).
+5. Enter **Pose Mode** (`Ctrl + Tab`) and rotate the upper arms until they are parallel to the ground with palms facing down (T-pose).
+6. MPFB sidebar (`N`) -> **Operations -> Poses -> Apply as rest pose** (synchronizes the armature rest state and attached meshes).
+7. **Operations -> Animation -> Reduced Doll** to generate the clean, watertight body mesh used for Mixamo rigging. No export is needed at this point.
 
-1. Select the character's armature and enter **Pose Mode** (`Ctrl + Tab`).
-2. Rotate upper arms upward (~45 degrees) until arms are parallel to the ground and palms face down.
-3. Open the **MPFB** sidebar tab (`N` panel) ➔ **Operations** ➔ **Poses**.
-4. Click **`Apply as rest pose`** (synchronizes armature rest state and attached meshes).
+## Phase 2: Auto-rig on Mixamo
 
----
+1. Export the **Reduced Doll mesh only** as OBJ (`File -> Export -> Wavefront (.obj)`, **Selected Only**).
+2. On [Mixamo](https://www.mixamo.com/), **Upload Character**, place the chin/wrist/elbow/knee/groin markers, auto-rig.
+3. Download the **T-Pose character, FBX Binary, With Skin, 30 FPS, Keyframe Reduction None**. This FBX is the **armature source**: it carries the `mixamorig:*` bone rig used in Phase 3. The rig is fitted to *this* character's proportions — do not reuse a previous character's T-Pose FBX.
+4. Download each animation (**Walk**, **Idle**, **Sprint**, **Jump**, **Interact**, **Digging**, ...) as **Without Skin**, FBX Binary, 30 FPS, Keyframe Reduction None.
 
-### 2. Create the "Reduced Doll" Mesh
-To avoid body mesh glitches (e.g. genital/helper geometry rendering over clothing):
-1. Select your character in Object Mode.
-2. In the MPFB sidebar panel (`N`), go to **Operations** ➔ **Animation** ➔ **Reduced Doll**.
-3. Click **Reduced Doll** to generate a clean, watertight single-surface body mesh.
+## Phase 3: Assemble in Blender
 
----
+1. Import the Mixamo **T-Pose FBX** into the character's `.blend` — its purpose is to bring in the Mixamo armature.
+2. Scale the imported `Armature` to human height (Z about 1.8m).
+3. Keep the **Reduced Doll flesh mesh** and the textured asset meshes. Delete the raw MPFB human/flesh meshes and the old `Human.rig` armature.
+4. Clear old parents (`Alt + P` -> Clear and Keep Transformation) and **delete all vertex groups** on the asset meshes.
+5. **Hair, eyes, eyebrows:** assign 100% weight to `mixamorig:Head` (or parent to the Head bone AND weight it). Plain object parenting to a bone does not survive glTF export.
+6. **Body and clothing meshes:** Shift-select meshes then the `Armature` -> `Ctrl + P` -> **With Automatic Weights**.
+7. Select all -> `Ctrl + A` -> **All Transforms**; in Pose Mode clear pose (`Alt + R`, `Alt + G`, `Alt + S`).
+8. Export **glTF 2.0 (.glb)**: select the `Armature` **and all character meshes**; **Include -> Selected Objects**; armature must be **visible** (the Visible Objects filter drops hidden objects); Skinning on; **Animation off** (animations come from the separate Mixamo FBXs). Export into `res://assets/makehuman/<id>/`.
 
-### 3. Export OBJ for Mixamo
-1. Select **only** the Reduced Doll body mesh in **Object Mode**.
-2. Go to **File** ➔ **Export** ➔ **Wavefront (.obj)**.
-3. In export settings:
-   - Check **Selected Only** (excludes cameras, lights, and extra objects).
-   - Ensure **Write Materials** is checked.
-4. Export the `.obj` file.
+## Phase 4: Import the model in Godot (BoneMap retarget)
 
----
+1. Double-click the `.glb` in the FileSystem dock -> **Advanced Import Settings**.
+2. Select the `Skeleton3D` node in the dialog's scene tree -> **Retarget -> Bone Map** -> **New SkeletonProfileHumanoid** (the mapping to `mixamorig_*` bones auto-fills).
+3. **Reimport**.
+4. **Expected outcome — this is the contract the gameplay code relies on:** the skeleton node is renamed to `GeneralSkeleton` with *Access as Unique Name* enabled, and bones are renamed to profile names (`Hips`, `Spine`, `LeftUpperLeg`, ...). Unmapped extras (e.g. `mixamorig_HeadTop_End`) keep their names — harmless. Do not "fix" the rename.
+5. Instance the glb under `Visuals/` in `player.tscn` / `colonist.tscn`. No code changes are needed: the animation controllers re-home `GeneralSkeleton`'s unique name at runtime so `%GeneralSkeleton:<bone>` tracks bind.
 
-## Phase 2: Rigging and Animating in Mixamo
+## Phase 5: Import animations in Godot (the half that causes T-pose when skipped)
 
-1. **Auto-Rig the Character:**
-   - Open [Mixamo](https://www.mixamo.com/) and click **Upload Character**.
-   - Upload the `.obj` exported from Blender.
-   - Place the chin, wrist, elbow, knee, and groin markers. Click **Next** to rig.
+Per animation `.fbx` in `assets/mixamo/`:
 
-2. **Download T-Pose Character Model:**
-   - Download setting: Format: **FBX Binary**, Skin: **With Skin**, FPS: **30**, Keyframe Reduction: **None**.
+1. Import dock on the file: **FBX Importer = ufbx**. (FBX2glTF requires an external converter binary; if it is missing you get `FBX conversion to glTF failed with error: 127`.)
+2. **Advanced Import Settings -> Skeleton3D -> Retarget -> Bone Map = New SkeletonProfileHumanoid** — the **same profile** as the model. This renames the animation's bones to match the model and rewrites track paths to `%GeneralSkeleton:<BoneName>`.
+3. In the dialog's animation list: **Save to File -> Enabled**, path `res://assets/mixamo/<Name>.tres`.
+4. **Reimport**. The extracted `.tres` now contains `%GeneralSkeleton:Hips`-style tracks.
 
-3. **Download Locomotion & Interaction Animations:**
-   - Search Mixamo for `Walk`, `Idle`, `Sprint`, `Jump`, `Interact`/`Digging`.
-   - Download settings for each: Format: **FBX Binary**, Skin: **Without Skin**, FPS: **30**.
+## Phase 6: Register in the shared library
 
----
+1. Open `player.tscn`, select the `AnimationPlayer`, and edit the `mixamo` library (Animation panel).
+2. Add the extracted animation under its **canonical key — case-sensitive**: `Idle`, `Walk`, `Sprint`, `Jump`, `Interact`, `Digging`.
+3. Save `mixamo.res` (same file). If its uid changes, let the editor update `player.tscn`/`colonist.tscn` references and re-save them.
+4. Missing keys degrade gracefully at runtime: `Sprint` falls back to `Walk`, anything else falls back to `Idle`, with a one-time warning per name.
 
-## Phase 3: Blender Assembly & `.glb` Export
-
-Rather than fixing materials in Godot, assemble the textured asset meshes (clothes, hair, eyes) and Reduced Doll body with the Mixamo armature in Blender for 1-click automatic texture export.
-
-### 1. Assemble in Blender
-1. Open the original `.blend` file containing your textured MakeHuman character.
-2. Go to **File** ➔ **Import** ➔ **FBX** and select the Mixamo T-pose FBX (`character_model.fbx`).
-3. Scale the imported Mixamo **`Armature`** to match human height (Z: ~1.8m).
-4. Use the **Reduced Doll** body mesh + asset meshes (clothing, hair, eyes, eyebrows) — delete the raw un-reduced body mesh and old `Human.rig` armature.
-
-### 2. Weighting & Re-parenting
-1. **Clear Old Parent Offsets:** Select the textured asset meshes ➔ press **`Alt + P`** ➔ **Clear and Keep Transformation**.
-2. **Clear Old Vertex Groups:** For each mesh, go to **Object Data Properties** (green triangle) ➔ **Vertex Groups** dropdown ➔ **Delete All Groups**.
-3. **Head Assets (Hair, Eyes, Eyebrows):** Parent directly to the **Head** bone (`Ctrl + P` ➔ **Bone**) or assign 100% weight to `mixamorig:Head` to prevent hair from stretching down to the feet.
-4. **Body & Clothing Meshes:** Select meshes, hold `Shift` + click Mixamo **`Armature`** ➔ **`Ctrl + P`** ➔ **With Automatic Weights**.
-
-### 3. Apply Transforms & Set Rest Pose
-1. In Object Mode, select all ➔ **`Ctrl + A`** ➔ **All Transforms**.
-2. In Pose Mode (`Ctrl + Tab`), select all bones (`A`) ➔ **`Alt + R`**, **`Alt + G`**, **`Alt + S`**.
-3. Go to **Armature Data Properties** (green running-man icon) ➔ expand the **Pose** section ➔ click **`Rest Position`** (or `Pose` ➔ `Apply` ➔ `Apply Pose as Rest Pose`).
-
-### 4. Export as `.glb` (glTF 2.0)
-1. In Object Mode, select the Mixamo **`Armature`** and the character meshes (`A`).
-2. Go to **File** ➔ **Export** ➔ **glTF 2.0 (.glb)**.
-3. Export settings:
-   - **Include:** Check **Selected Objects**.
-   - **Data ➔ Mesh:** Ensure **Skinning** is checked.
-   - **Data ➔ Material:** Ensure **Materials** is set to `Export`.
-4. Export as `man1_rigged.glb` directly into `res://assets/makehuman/`.
+JobDefs pick work animations via `work_animation` on the JobDef `.tres` (default on `data/jobs/job_def.gd` is `&"Interact"`); the key must match the library exactly, including capitalization.
 
 ---
 
-## Phase 4: Godot 4.7 Import & Code Integration
+## Verification
 
-### 1. Import Settings in Godot
-- **`man1_rigged.glb` (Character Model):** Keep **`Bone Map` = `<null>` / None** (do NOT apply BoneMap to character models).
-- **Animation FBX Files (`Walk.fbx`, `Digging.fbx`):**
-  1. Select animation file in FileSystem dock ➔ open **Advanced Import Settings**.
-  2. Under `Skeleton3D`, set **Retarget ➔ Bone Map** to **`New SkeletonProfileHumanoid`**.
-  3. Under `AnimationPlayer`, check **Save to File: Enabled** and extract to `res://assets/makehuman/animations/Walk.tres`.
-  4. Click **Reimport**.
+Run a scene with the character visible. **No `couldn't resolve track` warnings in the console means the whole pipeline is healthy.** That warning is the T-pose signature: the library's tracks do not match the scene's skeleton.
 
-### 2. Scene Setup (`player.tscn` & `colonist.tscn`)
-1. Replace `%CharacterModel` under `Visuals` with `res://assets/makehuman/man1_rigged.glb`.
-2. In `AnimationPlayer`:
-   - Add/configure `mixamo` library with `Walk` (`Walk.tres`) and `Idle` (`Idle.tres`).
+## Troubleshooting
 
-### 3. Animation Controller Skeleton Rebinding
-Because `PlayerAnimationController` and `ColonistAnimationController` rename the skeleton node to `GeneralSkeleton` at runtime, you must re-bind all imported `MeshInstance3D.skeleton` paths so the skinned meshes remain visible:
-
-```gdscript
-func _setup_skeleton() -> void:
-	if not _player:
-		return
-		
-	var skeleton: Skeleton3D = _player.find_child("*Skeleton*", true, false) as Skeleton3D
-	if skeleton:
-		skeleton.name = "GeneralSkeleton"
-		skeleton.owner = _player
-		skeleton.unique_name_in_owner = true
-		
-		# Re-bind all imported meshes to the renamed skeleton so skinned meshes stay visible
-		for child in _player.find_children("*", "MeshInstance3D", true, false):
-			var mi := child as MeshInstance3D
-			if mi and mi != _player.get_node_or_null("MeshInstance3D"):
-				mi.skeleton = mi.get_path_to(skeleton)
-				mi.visible = true
-		
-		if anim_player:
-			anim_player.clear_caches()
-```
-
----
-
-## Troubleshooting & Tips
-
-- **Invisible Skinned Mesh:** Occurs when `skeleton.name = "GeneralSkeleton"` runs at runtime without re-binding `mi.skeleton = mi.get_path_to(skeleton)`, or if `Bone Map` was mistakenly applied to the character `.glb` model instead of `None`.
-- **Hair Stretching to Feet:** Caused by running Automatic Weights on hair/eyebrows across the whole armature. Parent hair/eyebrows/eyes directly to the `Head` bone (`mixamorig:Head`).
-- **Magenta / Bright Pink Textures:** Universal missing texture color. Ensure textures are plugged into `Principled BSDF ➔ Base Color` in Blender before glTF export.
-- **Pink warning in console (`couldn't resolve track: %GeneralSkeleton:...`):** Non-fatal warning when an extracted Mixamo animation includes tracks for extra finger/face bones not mapped on the model. Safe to ignore or delete the unused track in the Animation editor.
+- **Character frozen in T-pose:** an animation was imported *without* the BoneMap (tracks address `Skeleton3D:mixamorig_*`), so bones do not match the retargeted model. Redo Phase 5.
+- **`FBX conversion to glTF failed with error: 127`:** the file's importer is FBX2glTF and the external binary is missing. Switch to ufbx (Phase 5 step 1).
+- **One-time `missing from 'mixamo' library` warning:** the requested key is absent or miscapitalized (`interact` vs `Interact`). Check Phase 6 key naming.
+- **Invisible skinned mesh after import:** meshes lost their skeleton binding — usually caused by renaming/moving the skeleton after import, or by applying a BoneMap to the model with mismatched weights. Re-import and let the importer do the renaming.
+- **Hair stretching to feet:** hair/eyelashes weighted across the whole armature. Give them 100% weight on `mixamorig:Head` (Phase 3 step 5).
+- **Magenta textures:** texture not plugged into Principled BSDF Base Color before glTF export.
