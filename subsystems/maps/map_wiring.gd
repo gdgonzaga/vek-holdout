@@ -299,3 +299,32 @@ static func compose_walkability(ground_probe: Callable, fl: FurnitureLayer, bl: 
 		if bl != null and bl.has_at(cell + UP):       # blueprint overhead
 			return false
 		return true
+
+
+## Instantiate enemy prototypes into the map's EnemyContainer from authored EnemySpawn* markers or MapDef.enemy_spawns.
+static func wire_enemies(map: Map, map_def: MapDef = null) -> Node3D:
+	var container := map.get_enemy_container()
+	if container == null:
+		return null
+	var spawns := SpawnHelpers.read_spawns(map)
+	var enemy_positions: Array = spawns.get("enemies", [])
+	if enemy_positions.is_empty() and map_def != null and not map_def.enemy_spawns.is_empty():
+		for entry in map_def.enemy_spawns:
+			if entry is Dictionary and entry.has("pos"):
+				enemy_positions.append(entry["pos"])
+
+	for child in container.get_children():
+		child.queue_free()
+
+	var enemy_scene := preload("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
+	for spawn_pos in enemy_positions:
+		var pos: Vector3 = spawn_pos
+		var ground_y := map.ground_height_at(pos.x, pos.z)
+		if not is_nan(ground_y):
+			pos.y = ground_y + 1.0
+		else:
+			pos.y += 1.0
+		var enemy := enemy_scene.instantiate() as Node3D
+		enemy.position = pos
+		container.add_child(enemy)
+	return container

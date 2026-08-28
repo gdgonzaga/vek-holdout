@@ -117,8 +117,18 @@ func ground_height_at(x: float, z: float) -> float:
 
 ## Parent Node3D for free-standing furniture placed at runtime (build subsystem).
 func get_furniture_container() -> Node3D:
+	if furniture_container == null:
+		furniture_container = get_node_or_null(^"FurnitureContainer") as Node3D
 	return furniture_container
 
 ## Parent Node3D for colonist entities spawned by Colony at map load.
 func get_colonist_container() -> Node3D:
+	if colonist_container == null:
+		colonist_container = get_node_or_null(^"ColonistContainer") as Node3D
 	return colonist_container
+
+## Parent Node3D for enemy entities spawned at map load.
+func get_enemy_container() -> Node3D:
+	if enemy_container == null:
+		enemy_container = get_node_or_null(^"EnemyContainer") as Node3D
+	return enemy_container
