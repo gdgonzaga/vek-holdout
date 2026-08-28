@@ -9,3 +9,11 @@ extends Resource
 ## (HaulingJobDef.on_end's surplus dump) must leave with the colonist. Author
 ## tools with a small weight so one doesn't clog the carry capacity.
 @export var tags: Array[String] = []
+
+## Nullable equippable capability. If set, this item can be held/equipped by
+## players or colonists.
+@export var equippable: EquippableParams = null
+
+
+func is_equippable() -> bool:
+	return equippable != null

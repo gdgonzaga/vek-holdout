@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_item_def"]
+[ext_resource type="Script" path="res://data/capability_params/equippable_params.gd" id="2_equip_params"]
+[ext_resource type="Script" path="res://data/capability_params/combat_action_params.gd" id="3_combat_params"]
+
+[sub_resource type="Resource" id="Resource_combat_action"]
+script = ExtResource("3_combat_params")
+id = "rifle_fire"
+cooldown_seconds = 0.15
+use_animation = "fire"
+audio_event = "gun_shot_rifle"
+damage = 15.0
+range_meters = 100.0
+is_hitscan = true
+spread_angle_degrees = 1.5
+
+[sub_resource type="Resource" id="Resource_equippable"]
+script = ExtResource("2_equip_params")
+slot_type = 2
+animation_stance = "rifle"
+primary_action = SubResource("Resource_combat_action")
+
+[resource]
+resource_name = "Assault Rifle"
+script = ExtResource("1_item_def")
+id = "assault_rifle"
+weight = 3.5
+tags = Array[String](["weapon", "gun", "ranged"])
+equippable = SubResource("Resource_equippable")
