@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://3htfqff0fdho"]
+
+[ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="1_wu0xy"]
+
+[node name="AssaultRifle" type="Node3D" unique_id=1660166280]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=549660965]
+mesh = ExtResource("1_wu0xy")

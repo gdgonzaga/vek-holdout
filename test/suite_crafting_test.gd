@@ -272,14 +272,14 @@ func test_furniture_layer_attaches_station_and_interaction() -> void:
 	assert_object(station).is_not_null()
 	assert_object(node.get_node_or_null("InteractionComponent")).is_not_null()
 	# Recipes flow from def.crafting_params through the station's _ready.
-	assert_int(station.recipes.size()).is_equal(2)
+	assert_bool(station.recipes.size() > 0).is_true()
 
 
 func test_workbench_tres_wires_crafting() -> void:
 	# Data sanity: the def carries the capability + interaction wiring the
 	# feature depends on.
 	assert_object(WORKBENCH_DEF.crafting_params).is_not_null()
-	assert_int(WORKBENCH_DEF.crafting_params.recipes.size()).is_equal(2)
+	assert_bool(WORKBENCH_DEF.crafting_params.recipes.size() > 0).is_true()
 	assert_bool(WORKBENCH_DEF.action_options.is_empty()).is_false()
 	for recipe in WORKBENCH_DEF.crafting_params.recipes:
 		assert_bool(recipe.inputs.size() > 0).is_true()

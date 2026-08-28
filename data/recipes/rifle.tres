@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3 uid="uid://b2f15sf3qnkfv"]
+
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_amagi"]
+[ext_resource type="Script" uid="uid://rh0pdi6nw3n2" path="res://data/conditions/min_skill_condition.gd" id="2_8stsr"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_644ub"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="4_wrbun"]
+[ext_resource type="Resource" uid="uid://eglva2vlk36t" path="res://data/items/assault_rifle.tres" id="5_w2nyf"]
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="7_gsdya"]
+
+[sub_resource type="Resource" id="Resource_gate"]
+script = ExtResource("2_8stsr")
+skill_id = "crafting"
+
+[sub_resource type="Resource" id="Resource_in1"]
+script = ExtResource("3_644ub")
+item_def = ExtResource("4_wrbun")
+count = 2
+
+[sub_resource type="Resource" id="Resource_out"]
+script = ExtResource("3_644ub")
+item_def = ExtResource("5_w2nyf")
+
+[resource]
+script = ExtResource("7_gsdya")
+id = "assault_rifle"
+display_name = "assault rifle"
+inputs = Array[ExtResource("3_644ub")]([SubResource("Resource_in1")])
+outputs = Array[ExtResource("3_644ub")]([SubResource("Resource_out")])
+base_time = 8.0
+conditions = Array[ExtResource("1_amagi")]([SubResource("Resource_gate")])
