@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://cg242wnu8rs2s"]
+
+[ext_resource type="Script" uid="uid://bs6r1lteu8wbo" path="res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="2_health"]
+[ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="3_s35gj"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_shape"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_mesh"]
+
+[node name="EnemySwarmer" type="CharacterBody3D" unique_id=1248216305]
+collision_layer = 4
+collision_mask = 7
+script = ExtResource("1_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1067627258]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("CapsuleShape3D_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=494605295]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("CapsuleMesh_mesh")
+
+[node name="HealthComponent" type="Node" parent="." unique_id=177552004]
+script = ExtResource("2_health")
+max_hp = 50
+max_durability = 10
+
+[node name="GroundSafetyGuard" type="Node" parent="." unique_id=1171943373]
+script = ExtResource("3_s35gj")
+metadata/_custom_type_script = "uid://b0iy3iwbh347j"
