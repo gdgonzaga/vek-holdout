@@ -9,4 +9,11 @@ id = "base"
 display_name = "Base"
 scene_path = "res://data/maps/base/map.tscn"
 player_spawn = Vector3(3.6486742, 13.02, 3.162125)
+enemy_spawns = Array[Dictionary]([{
+"count": 1,
+"pos": Vector3(4.2863436, 13.02, -10.89009)
+}, {
+"count": 1,
+"pos": Vector3(6.9709454, 13.02, -10.046645)
+}])
 terrain_gen = ExtResource("2_2lq4g")
