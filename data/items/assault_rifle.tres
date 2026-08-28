@@ -1,5 +1,6 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://eglva2vlk36t"]
 
+[ext_resource type="PackedScene" uid="uid://3htfqff0fdho" path="res://assets/custom_meshes/assault_rifle.tscn" id="1_8t7c7"]
 [ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_item_def"]
 [ext_resource type="Script" uid="uid://dyh6tnhsxf1ie" path="res://data/capability_params/equippable_params.gd" id="2_equip_params"]
 [ext_resource type="Script" uid="uid://dhm7xh7fd7bfv" path="res://data/capability_params/combat_action_params.gd" id="3_combat_params"]
@@ -17,6 +18,7 @@ audio_event = "gun_shot_rifle"
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip_params")
 slot_type = 2
+mesh_scene = ExtResource("1_8t7c7")
 animation_stance = "rifle"
 primary_action = SubResource("Resource_combat_action")
 

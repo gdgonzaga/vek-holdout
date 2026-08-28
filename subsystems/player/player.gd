@@ -46,6 +46,10 @@ signal interactable_changed(component: InteractionComponent)
 @onready var _camera: Camera3D = _rig.get_camera()
 @onready var inventory: CharacterInventory = $Inventory
 
+## The item currently equipped by the player (null if empty).
+var equipped_item: ItemDef = null
+var _equipped_action_cooldown: float = 0.0
+
 ## Player skill progression (the same SkillSet colonists use — GDD §6.3).
 ## Code-created (the Colonist's code-created-inventory precedent; script-only,
 ## no scene edit) and unseeded: every skill reads L1 until trained by use
@@ -310,6 +314,8 @@ func _find_interaction_component(node: Node) -> InteractionComponent:
 
 
 func _physics_process(delta: float) -> void:
+	if _equipped_action_cooldown > 0.0:
+		_equipped_action_cooldown -= delta
 	_update_interaction_target()
 	_handle_move_keys(delta)
 	_handle_jump()
@@ -454,9 +460,39 @@ func _resolve_air_axis(neg_held: bool, pos_held: bool, momentum: float) -> float
 		return momentum if momentum < 0.0 else -jump_move_speed
 	return 0.0 # released -> axis stops dead
 
+## Equip an item to the player.
+func equip_item(item: ItemDef) -> void:
+	equipped_item = item
+
+
+## Unequip the player's current item.
+func unequip_item() -> void:
+	equipped_item = null
+
+
+## Execute the equipped item's primary action.
+func _execute_equipped_primary_action() -> void:
+	if equipped_item == null or not equipped_item.is_equippable():
+		return
+	var equip_params: EquippableParams = equipped_item.equippable
+	if equip_params == null or equip_params.primary_action == null:
+		return
+	if _equipped_action_cooldown > 0.0:
+		return
+
+	var action: EquipActionParams = equip_params.primary_action
+	_equipped_action_cooldown = action.cooldown_seconds
+	action.execute(self)
+
+
 func _on_primary_action() -> void:
 	if _busy or mode != Mode.NORMAL or UiGate.is_input_blocked():
 		return
+
+	if equipped_item != null and equipped_item.is_equippable():
+		_execute_equipped_primary_action()
+		return
+
 	if _current_interactable != null:
 		var target := _current_interactable.get_parent()
 		if target != null:

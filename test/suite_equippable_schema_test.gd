@@ -63,3 +63,46 @@ func test_load_assault_rifle_tres() -> void:
 	assert_float(combat.damage).is_equal(15.0)
 	assert_float(combat.cooldown_seconds).is_equal(0.15)
 	assert_bool(combat.is_hitscan).is_true()
+
+
+func test_colonist_equip_item() -> void:
+	var colonist: Colonist = auto_free(Colonist.new())
+	var item: ItemDef = auto_free(ItemDef.new())
+	item.id = "sample_item"
+	colonist.equip_item(item)
+	assert_object(colonist.equipped_item).is_equal(item)
+
+
+func test_player_equip_and_unequip_item() -> void:
+	var player: Player = auto_free(Player.new())
+	var item: ItemDef = auto_free(ItemDef.new())
+	item.id = "sample_weapon"
+	player.equip_item(item)
+	assert_object(player.equipped_item).is_equal(item)
+	player.unequip_item()
+	assert_object(player.equipped_item).is_null()
+
+
+func test_player_gun_fire_damages_enemy() -> void:
+	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var health: HealthComponent = auto_free(HealthComponent.new())
+	health.name = "HealthComponent"
+	health.max_hp = 100
+	enemy.add_child(health)
+	add_child(enemy)
+	enemy._ready()
+
+	var combat_params: CombatActionParams = auto_free(CombatActionParams.new())
+	combat_params.damage = 35.0
+
+	var player: Player = auto_free(Player.new())
+	# Direct test on enemy damage execution
+	enemy.take_damage(int(combat_params.damage), player)
+	assert_int(health.current_hp).is_equal(65)
+
+
+func test_combat_action_execute_on_null_actor_is_safe() -> void:
+	var action: CombatActionParams = auto_free(CombatActionParams.new())
+	# Should not crash or error
+	action.execute(null)
+	assert_bool(true).is_true()

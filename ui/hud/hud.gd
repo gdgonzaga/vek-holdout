@@ -172,4 +172,24 @@ func _refresh_inventory() -> void:
 		weight_label.text = "%.1f" % (def.weight * count)
 		weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(weight_label)
+
+		# Equip button for equippable items
+		if def.is_equippable():
+			var equip_btn := Button.new()
+			if _player != null and _player.equipped_item == def:
+				equip_btn.text = "Equipped"
+				equip_btn.pressed.connect(func() -> void:
+					if _player != null:
+						_player.unequip_item()
+					_refresh_inventory()
+				)
+			else:
+				equip_btn.text = "Equip"
+				equip_btn.pressed.connect(func() -> void:
+					if _player != null:
+						_player.equip_item(def)
+					_refresh_inventory()
+				)
+			row.add_child(equip_btn)
+
 		_item_list.add_child(row)

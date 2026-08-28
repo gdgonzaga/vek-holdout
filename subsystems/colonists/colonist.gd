@@ -36,6 +36,7 @@ var _wiggle_dir: Vector3 = Vector3.ZERO
 
 var _current_hp: int = 100
 var _is_dead: bool = false
+var equipped_item: ItemDef = null
 
 func _ready() -> void:
 	add_to_group("colonists")
@@ -267,6 +268,11 @@ func serialize() -> Dictionary:
 		"inventory": inventory.serialize() if inventory != null else {},
 		"pos": [global_position.x, global_position.y, global_position.z],
 	}
+
+
+## Stubbed equip item function for colonists.
+func equip_item(item: ItemDef) -> void:
+	equipped_item = item
 
 
 func deserialize(data: Dictionary) -> void:
