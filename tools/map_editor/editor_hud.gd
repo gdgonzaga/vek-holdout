@@ -21,6 +21,7 @@ signal clear_trees_requested()
 signal terrain_apply_requested()
 ## The user asked for a heightmap image file — the editor owns the FileDialog.
 signal terrain_pick_image_requested()
+signal spawn_type_selected(type: String)
 
 var _mode_badge: PanelContainer
 var _mode_label: Label
@@ -58,6 +59,9 @@ var _selected_global_idx: int = 0
 
 var _spawn_info_panel: PanelContainer
 var _spawn_hint_label: Label
+var _spawn_item_list: ItemList
+var _spawn_summary_label: Label
+const SPAWN_TYPES: Array[String] = ["player", "colonist", "enemy", "remove"]
 
 var _metadata_panel: PanelContainer
 var _meta_display_name_input: LineEdit
@@ -99,7 +103,7 @@ const MODE_HOTKEYS: Array[String] = [
 	"[LMB] Paint   [Shift+LMB] Erase   [Wheel] Rotate   [R] Axis   [I] Pick   [B+Wheel] Size   [Ctrl+Z] Undo   [G] Grid",
 	"[LMB] Add   [Shift+LMB] Carve   [[/]] Radius   [B+Wheel] Radius   [Ctrl+Z] Undo   [Ctrl+S] Save   [G] Grid",
 	"[LMB] Place   [Shift+LMB] Remove   [Wheel] Rotate   [R] Axis   [Tab/List] Select   [Ctrl+S] Save   [G] Grid",
-	"[LMB] Player Spawn   [Shift+LMB] Colonist Spawn   [Ctrl+S] Save   [G] Grid   [F1-F6] Modes",
+	"[LMB] Place/Remove   [Tab / 1-4] Select Type   [Shift+LMB] Remove   [Ctrl+S] Save   [G] Grid   [F1-F6] Modes",
 	"[LMB] Stamp   [Wheel] Rotate   [Ctrl+Wheel] Y-Offset   [Arrows] Nudge   [Tab/List] Select   [Ctrl+Z] Undo   [G] Grid",
 ]
 
@@ -302,27 +306,58 @@ func _build_ui() -> void:
 	_spawn_info_panel.offset_left = 16.0
 	_spawn_info_panel.offset_top = 16.0
 	_spawn_info_panel.offset_right = 260.0
+	_spawn_info_panel.custom_minimum_size = Vector2(244, 260)
 	_spawn_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_spawn_info_panel.visible = false
 
 	var spawn_style := StyleBoxFlat.new()
-	spawn_style.bg_color = Color(0.08, 0.1, 0.14, 0.8)
-	spawn_style.border_color = Color(0.4, 0.2, 0.2, 0.8)
+	spawn_style.bg_color = Color(0.08, 0.1, 0.14, 0.92)
+	spawn_style.border_color = Color(0.9, 0.3, 0.3, 0.8)
 	spawn_style.set_border_width_all(1)
-	spawn_style.set_corner_radius_all(4)
-	spawn_style.set_content_margin_all(8)
+	spawn_style.set_corner_radius_all(6)
+	spawn_style.set_content_margin_all(10)
 	_spawn_info_panel.add_theme_stylebox_override("panel", spawn_style)
 
 	var spawn_vbox := VBoxContainer.new()
 	spawn_vbox.name = "SpawnInfoVBox"
 	spawn_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	spawn_vbox.add_theme_constant_override("separation", 8)
 	_spawn_info_panel.add_child(spawn_vbox)
+
+	var spawn_title := Label.new()
+	spawn_title.name = "SpawnTitle"
+	spawn_title.text = "SPAWN POINTS"
+	spawn_title.add_theme_font_size_override("font_size", 13)
+	spawn_title.add_theme_color_override("font_color", Color(0.95, 0.6, 0.6))
+	spawn_vbox.add_child(spawn_title)
+
+	_spawn_item_list = ItemList.new()
+	_spawn_item_list.name = "SpawnItemList"
+	_spawn_item_list.focus_mode = Control.FOCUS_NONE
+	_spawn_item_list.select_mode = ItemList.SELECT_SINGLE
+	_spawn_item_list.allow_reselect = true
+	_spawn_item_list.custom_minimum_size = Vector2(0, 120)
+	_spawn_item_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_spawn_item_list.add_item("Player Spawn")
+	_spawn_item_list.add_item("Colonist Spawn")
+	_spawn_item_list.add_item("Enemy Spawn")
+	_spawn_item_list.add_item("Remove Spawn")
+	_spawn_item_list.select(0)
+	_spawn_item_list.item_selected.connect(_on_spawn_list_selected)
+	spawn_vbox.add_child(_spawn_item_list)
+
+	_spawn_summary_label = Label.new()
+	_spawn_summary_label.name = "SpawnSummaryLabel"
+	_spawn_summary_label.text = "Player: (set)\nColonists: 0\nEnemies: 0"
+	_spawn_summary_label.add_theme_font_size_override("font_size", 11)
+	_spawn_summary_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.85))
+	spawn_vbox.add_child(_spawn_summary_label)
 
 	_spawn_hint_label = Label.new()
 	_spawn_hint_label.name = "SpawnHintLabel"
 	_spawn_hint_label.text = "LMB: Player Spawn\nShift+LMB: Colonist Spawn"
-	_spawn_hint_label.add_theme_font_size_override("font_size", 13)
-	_spawn_hint_label.add_theme_color_override("font_color", Color(0.85, 0.9, 0.95))
+	_spawn_hint_label.add_theme_font_size_override("font_size", 11)
+	_spawn_hint_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
 	_spawn_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	spawn_vbox.add_child(_spawn_hint_label)
 
@@ -1210,3 +1245,37 @@ func set_crosshair_color(color: Color) -> void:
 	for child in _crosshair.get_children():
 		if child is ColorRect:
 			child.color = color
+
+
+func _on_spawn_list_selected(idx: int) -> void:
+	if idx >= 0 and idx < SPAWN_TYPES.size():
+		var type := SPAWN_TYPES[idx]
+		_update_spawn_hint(type)
+		spawn_type_selected.emit(type)
+
+
+func set_spawn_type(type: String) -> void:
+	var idx := SPAWN_TYPES.find(type)
+	if idx != -1 and _spawn_item_list != null:
+		_spawn_item_list.select(idx)
+		_update_spawn_hint(type)
+
+
+func _update_spawn_hint(type: String) -> void:
+	if _spawn_hint_label == null:
+		return
+	match type:
+		"player":
+			_spawn_hint_label.text = "LMB: Place Player Spawn\nShift+LMB: Remove"
+		"colonist":
+			_spawn_hint_label.text = "LMB: Place Colonist Spawn\nShift+LMB: Remove"
+		"enemy":
+			_spawn_hint_label.text = "LMB: Place Enemy Spawn\nShift+LMB: Remove"
+		"remove":
+			_spawn_hint_label.text = "LMB: Click spawn to remove\nTab / 1-4: Select type"
+
+
+func set_spawn_counts(player_set: bool, colonist_count: int, enemy_count: int) -> void:
+	if _spawn_summary_label != null:
+		var p_status := "Set" if player_set else "Not set"
+		_spawn_summary_label.text = "Player: %s\nColonists: %d\nEnemies: %d" % [p_status, colonist_count, enemy_count]

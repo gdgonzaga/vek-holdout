@@ -54,6 +54,7 @@ MapEditor (Node3D, tools/map_editor/map_editor.gd)
     └── SpawnPoints (Node3D)
         ├── PlayerSpawn (Marker3D)
         ├── ColonistSpawn_* (Marker3D)
+        ├── EnemySpawn_* (Marker3D)
         └── Furniture_* (Marker3D)
 ```
 
@@ -93,7 +94,7 @@ sequenceDiagram
 
 `TreeScatterer` (`subsystems/map_authoring/tree_scatterer.gd`) procedurally scatters harvestable trees (`data/furniture/tree1.tres`) onto the map surface during creation or in-session:
 - **3-Layer Density Model:** Macro clustering via 2D `FastNoiseLite` (forest groves vs meadows), micro minimum trunk spacing ($\ge 4.5\,	ext{m}$), and target count budgets (Sparse ~30, Normal ~75, Dense ~150).
-- **Placement Constraints:** Slope gating ($\le 25^\circ$), clearance from `PlayerSpawn` ($\ge 8\,	ext{m}$), and surface queries across `SmoothGrid` / `Map.ground_height_at`.
+- **Placement Constraints:** Slope gating (<= 25 deg), clearance from `PlayerSpawn` ($\ge 8\,	ext{m}$), and surface queries across `SmoothGrid` / `Map.ground_height_at`.
 - **Extensible Weighted Definitions:** `tree_types: Array[Dictionary] = [{"id": "tree1", "weight": 1.0}]` supports multi-flora authoring with cumulative weight rolls.
 - **Authoring Model:** Authored as `Furniture_*` markers in `map.tscn` via `FurnitureAuthoring`, allowing in-editor inspection, F4 removal, and save persistence. In-editor actions: **"🌳 Scatter Trees"** and **"✕ Clear Trees"** in the F4 Furniture footer.
 
@@ -112,6 +113,18 @@ A toolbar toggle opens the `TerrainDrawer` (top-right; mutually exclusive with t
 - Shows mode, def id, and for heightmap maps a read-only minimap with the axis contract (image +x → world +x, image +y → world +z, 1 px = 1 m).
 - Edits `height_start`/`height_range` and `snap_to_grid` (heightmap maps) or seed/frequency (noise maps); **Replace Image…/Convert to Heightmap…/Add Heightmap…** picks a new image (pending until Apply); **Remove Terrain** strips `terrain_gen`.
 - **Apply = write def(s) + reload the map.** Deliberately not a live generator hot-swap — already-streamed blocks keep stale generated data under a swap, while the reload path (flush streams, re-attach, re-inject def) is known-consistent and cheap in the editor. Streams flush first so pending sculpts survive the reload. Standing warning in the drawer: sculpted edits keep their absolute heights, so changing the base may float or bury them (sqlite overrides are absolute, F2/F8).
+
+
+### A5. Spawn Point Placement & Actor Authoring
+
+Mode F5 (`Mode.SPAWN`) provides an interactive selector sidebar for configuring map entry points:
+- **Spawn Type Selector**: Switch between `Player Spawn`, `Colonist Spawn`, `Enemy Spawn`, and `Remove Spawn` via the UI list, number keys `1..4`, or `Tab` cycling.
+- **Actor Markers**:
+  - **Player**: Single `PlayerSpawn` marker (Green capsule visualizer); synced to `MapDef.player_spawn`.
+  - **Colonist**: Multi-marker `ColonistSpawn_N` (Blue capsule visualizer).
+  - **Enemy**: Multi-marker `EnemySpawn_N` (Red capsule visualizer); synced to `MapDef.enemy_spawns`.
+  - **Removal**: Selecting Remove or holding `Shift+LMB` deletes the nearest spawn marker within range.
+- **Runtime Consumption**: `SpawnHelpers.read_spawns()` scans `SpawnPoints` markers to instantiate actors at authored world positions.
 
 ### B. Dual-Voxel Editing & Undo Pipeline
 
@@ -143,7 +156,7 @@ Every modification records its reverse operation in a bounded undo buffer (`_und
 
 When `save_map()` is triggered (`Ctrl+S` or UI Save button):
 1. **Flush Voxel Streams**: Calls `Map.flush_voxel_streams()` to persist uncommitted voxel blocks to SQLite.
-2. **Update MapDef**: Reads metadata edits (`display_name`, `description`, `map_type`, `difficulty`) and `PlayerSpawn` position, then saves `map_def.tres` via `ResourceSaver`.
+2. **Update MapDef**: Reads metadata edits (`display_name`, `description`, `map_type`, `difficulty`), `PlayerSpawn` position, and `EnemySpawn_*` positions (`enemy_spawns: Array[Dictionary]`), then saves `map_def.tres` via `ResourceSaver`.
 3. **Pack Scene**: Packs `_map_root` (excluding editor camera and UI scaffolding) into `PackedScene` and saves `map.tscn`.
 4. **Update HUD**: Clears the dirty indicator flag.
 

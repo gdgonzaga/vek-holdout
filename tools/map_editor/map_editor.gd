@@ -84,7 +84,8 @@ var _structure_defs: Array[StructureDef] = []
 var _selected_structure_idx: int = 0
 var _structure_tool: StructureToolClass = null
 var _yaw: int = 0 # Quarter turns (0..3)
-var _spawn_markers: Dictionary = {"player": null, "colonists": []}
+var _spawn_markers: Dictionary = {"player": null, "colonists": [], "enemies": []}
+var _selected_spawn_type: String = "player"
 
 var _ghost: MeshInstance3D = null
 var _ghost_mat: StandardMaterial3D = null
@@ -123,6 +124,7 @@ func _ready() -> void:
 	_hud.scatter_trees_requested.connect(_on_hud_scatter_trees_requested)
 	_hud.clear_trees_requested.connect(_on_hud_clear_trees_requested)
 	_hud.save_requested.connect(save_map)
+	_hud.spawn_type_selected.connect(_on_spawn_type_selected)
 	_hud.terrain_apply_requested.connect(_on_terrain_apply)
 	_hud.terrain_pick_image_requested.connect(_on_terrain_pick_image)
 	_hud.set_mode(_mode)
@@ -262,6 +264,9 @@ func _input(event: InputEvent) -> void:
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(dir)
 					get_viewport().set_input_as_handled()
+				elif _mode == Mode.SPAWN:
+					_cycle_spawn_type(dir)
+					get_viewport().set_input_as_handled()
 				elif _mode == Mode.STRUCTURE:
 					_cycle_structure(dir)
 					get_viewport().set_input_as_handled()
@@ -308,10 +313,10 @@ func _input(event: InputEvent) -> void:
 						get_viewport().set_input_as_handled()
 					elif _mode == Mode.SPAWN:
 						var hit := _raycast_from_camera()
-						if mb.shift_pressed:
-							_do_spawn_place("colonist", hit)
+						if mb.shift_pressed or _selected_spawn_type == "remove":
+							_do_spawn_remove(hit)
 						else:
-							_do_spawn_place("player", hit)
+							_do_spawn_place(_selected_spawn_type, hit)
 						get_viewport().set_input_as_handled()
 					elif _mode == Mode.STRUCTURE:
 						var hit := _raycast_from_camera()
@@ -360,6 +365,18 @@ func _input(event: InputEvent) -> void:
 					Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 				else:
 					_request_exit()
+			elif _mode == Mode.SPAWN and k.keycode == KEY_1:
+				_set_spawn_type_direct("player")
+				get_viewport().set_input_as_handled()
+			elif _mode == Mode.SPAWN and k.keycode == KEY_2:
+				_set_spawn_type_direct("colonist")
+				get_viewport().set_input_as_handled()
+			elif _mode == Mode.SPAWN and k.keycode == KEY_3:
+				_set_spawn_type_direct("enemy")
+				get_viewport().set_input_as_handled()
+			elif _mode == Mode.SPAWN and k.keycode == KEY_4:
+				_set_spawn_type_direct("remove")
+				get_viewport().set_input_as_handled()
 			elif k.keycode == KEY_F1:
 				_set_mode(Mode.NAVIGATE)
 			elif k.keycode == KEY_F2:
@@ -405,6 +422,9 @@ func _input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 				elif _mode == Mode.FURNITURE:
 					_cycle_furniture(dir)
+					get_viewport().set_input_as_handled()
+				elif _mode == Mode.SPAWN:
+					_cycle_spawn_type(dir)
 					get_viewport().set_input_as_handled()
 				elif _mode == Mode.STRUCTURE:
 					_cycle_structure(dir)
@@ -667,7 +687,7 @@ func unload_map() -> void:
 		_furniture_auth.unbind()
 	if _structure_tool != null:
 		_structure_tool.hide_ghost()
-	_spawn_markers = {"player": null, "colonists": []}
+	_spawn_markers = {"player": null, "colonists": [], "enemies": []}
 
 	if _map_root != null:
 		_map_root.queue_free()
@@ -1245,11 +1265,20 @@ func _update_ghost(hit: Dictionary) -> void:
 			return
 		_ghost.mesh = _capsule_mesh
 		_ghost.scale = Vector3.ONE
-		var is_colonist := Input.is_key_pressed(KEY_SHIFT)
+		var is_remove := Input.is_key_pressed(KEY_SHIFT) or _selected_spawn_type == "remove"
 		var pos := _get_surface_hit_point(hit)
 		_ghost.global_position = pos + Vector3(0, 0.9, 0)
 		_ghost.global_rotation = Vector3.ZERO
-		_ghost_mat.albedo_color = Color(0.2, 0.5, 1.0, 0.5) if is_colonist else Color(0.2, 1.0, 0.2, 0.5)
+		if is_remove:
+			_ghost_mat.albedo_color = Color(1.0, 0.4, 0.1, 0.6)
+		elif _selected_spawn_type == "player":
+			_ghost_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.5)
+		elif _selected_spawn_type == "colonist":
+			_ghost_mat.albedo_color = Color(0.2, 0.5, 1.0, 0.5)
+		elif _selected_spawn_type == "enemy":
+			_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5)
+		else:
+			_ghost_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.5)
 		_ghost.visible = true
 
 	elif _mode == Mode.STRUCTURE:
@@ -1586,8 +1615,98 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 		_spawn_markers["colonists"] = col_list
 		_dirty = true
 
+	elif type == "enemy":
+		var next_idx := 1
+		for child in spawn_points.get_children():
+			if child.name.begins_with("EnemySpawn"):
+				var suffix := child.name.trim_prefix("EnemySpawn_").trim_prefix("EnemySpawn")
+				if suffix.is_valid_int():
+					next_idx = maxi(next_idx, int(suffix) + 1)
+				else:
+					next_idx = maxi(next_idx, 2)
+		var marker := Marker3D.new()
+		marker.name = "EnemySpawn_%d" % next_idx
+		spawn_points.add_child(marker)
+		marker.owner = _map_root
+		marker.global_position = target_pos
+		_visualize_spawn(marker, Color(1.0, 0.2, 0.2, 0.5))
+		var enemy_list: Array = _spawn_markers.get("enemies", [])
+		enemy_list.append(marker)
+		_spawn_markers["enemies"] = enemy_list
+		_dirty = true
+
+	_update_spawn_hud_counts()
 	if _hud != null and _map_def != null:
 		_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _do_spawn_remove(hit: Dictionary) -> void:
+	if _map_root == null or not hit.get("hit", false):
+		return
+	var spawn_points: Node3D = _map_root.find_child("SpawnPoints") as Node3D
+	if spawn_points == null:
+		return
+
+	var target_pos := _get_surface_hit_point(hit)
+	var closest_marker: Marker3D = null
+	var closest_dist := 4.0
+
+	for child in spawn_points.get_children():
+		if child is Marker3D:
+			var marker_node := child as Marker3D
+			var dist: float = marker_node.global_position.distance_to(target_pos)
+			if dist < closest_dist:
+				closest_dist = dist
+				closest_marker = child
+
+	if closest_marker != null:
+		if closest_marker == _spawn_markers.get("player"):
+			_spawn_markers["player"] = null
+			if _map_def != null:
+				_map_def.player_spawn = Vector3.ZERO
+		elif closest_marker.name.begins_with("ColonistSpawn"):
+			var col_list: Array = _spawn_markers.get("colonists", [])
+			col_list.erase(closest_marker)
+			_spawn_markers["colonists"] = col_list
+		elif closest_marker.name.begins_with("EnemySpawn"):
+			var enemy_list: Array = _spawn_markers.get("enemies", [])
+			enemy_list.erase(closest_marker)
+			_spawn_markers["enemies"] = enemy_list
+		closest_marker.queue_free()
+		_dirty = true
+		_update_spawn_hud_counts()
+		if _hud != null and _map_def != null:
+			_hud.set_map_info(_map_def.id, _dirty)
+
+
+func _on_spawn_type_selected(type: String) -> void:
+	_selected_spawn_type = type
+
+
+func _cycle_spawn_type(dir: int) -> void:
+	var types := ["player", "colonist", "enemy", "remove"]
+	var idx := types.find(_selected_spawn_type)
+	if idx == -1:
+		idx = 0
+	idx = posmod(idx + dir, types.size())
+	_selected_spawn_type = types[idx]
+	if _hud != null:
+		_hud.set_spawn_type(_selected_spawn_type)
+
+
+func _set_spawn_type_direct(type: String) -> void:
+	_selected_spawn_type = type
+	if _hud != null:
+		_hud.set_spawn_type(_selected_spawn_type)
+
+
+func _update_spawn_hud_counts() -> void:
+	if _hud == null:
+		return
+	var player_set := _spawn_markers.get("player") != null and is_instance_valid(_spawn_markers["player"])
+	var col_count := (_spawn_markers.get("colonists", []) as Array).size()
+	var enemy_count := (_spawn_markers.get("enemies", []) as Array).size()
+	_hud.set_spawn_counts(player_set, col_count, enemy_count)
 
 
 func _do_structure_stamp(hit: Dictionary) -> void:
@@ -1651,6 +1770,7 @@ func _cache_spawn_markers() -> void:
 	_spawn_markers = {
 		"player": null,
 		"colonists": [],
+		"enemies": [],
 	}
 	if _map_root == null:
 		return
@@ -1665,6 +1785,10 @@ func _cache_spawn_markers() -> void:
 			elif child.name.begins_with("ColonistSpawn"):
 				_spawn_markers["colonists"].append(child)
 				_visualize_spawn(child, Color(0.2, 0.5, 1.0, 0.5))
+			elif child.name.begins_with("EnemySpawn"):
+				_spawn_markers["enemies"].append(child)
+				_visualize_spawn(child, Color(1.0, 0.2, 0.2, 0.5))
+	_update_spawn_hud_counts()
 
 
 func _visualize_spawn(marker: Marker3D, color: Color) -> void:
@@ -1797,6 +1921,13 @@ func save_map() -> void:
 			if _spawn_markers.get("player") != null and is_instance_valid(_spawn_markers["player"]):
 				var ppos: Vector3 = (_spawn_markers["player"] as Marker3D).global_position
 				_map_def.player_spawn = ppos
+
+			var enemy_list: Array = _spawn_markers.get("enemies", [])
+			var enemy_spawns_data: Array[Dictionary] = []
+			for emarker in enemy_list:
+				if emarker != null and is_instance_valid(emarker):
+					enemy_spawns_data.append({"pos": (emarker as Marker3D).global_position, "count": 1})
+			_map_def.enemy_spawns = enemy_spawns_data
 			if _hud != null:
 				var meta_edits := _hud.get_metadata_edits()
 				if meta_edits.has("display_name"):

@@ -6,6 +6,7 @@ const EditorHUDClass = preload("res://tools/map_editor/editor_hud.gd")
 const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
 const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
 const EditorPalettePanelClass = preload("res://tools/map_editor/editor_palette_panel.gd")
+const Doubles = preload("res://test/helpers/doubles.gd")
 
 
 func test_editor_hud_modes_and_info() -> void:
@@ -1811,3 +1812,44 @@ func test_map_editor_new_map_with_scatter_trees() -> void:
 
 	await _dispose_test_editor(editor)
 	_remove_test_map(TEST_TREE_MAP)
+
+
+func test_map_editor_enemy_spawn_place_and_remove() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.load_map("base")
+	editor._set_mode(MapEditorClass.Mode.SPAWN)
+
+	var hit_enemy := {
+		"hit": true,
+		"surface": "blocky",
+		"position": Vector3i(12, 0, 12),
+		"normal": Vector3i(0, 1, 0),
+	}
+	var initial_enemy_count: int = (editor._spawn_markers.get("enemies", []) as Array).size()
+	editor._do_spawn_place("enemy", hit_enemy)
+
+	var enemies: Array = editor._spawn_markers.get("enemies", [])
+	assert_int(enemies.size()).is_equal(initial_enemy_count + 1)
+	var last_enemy: Marker3D = enemies[enemies.size() - 1]
+	assert_str(last_enemy.name).contains("EnemySpawn")
+	assert_object(last_enemy.get_node_or_null("SpawnVisualizer")).is_not_null()
+
+	# Test spawn removal
+	editor._do_spawn_remove(hit_enemy)
+	enemies = editor._spawn_markers.get("enemies", [])
+	assert_int(enemies.size()).is_equal(initial_enemy_count)
+
+
+func test_map_editor_spawn_selector_hud_interaction() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+	hud.set_mode(MapEditorClass.Mode.SPAWN)
+
+	var counter := Doubles.SignalCounter.new(hud.spawn_type_selected)
+	hud.set_spawn_type("enemy")
+	hud.set_spawn_counts(true, 3, 5)
+
+	assert_str(hud._spawn_summary_label.text).contains("Player: Set")
+	assert_str(hud._spawn_summary_label.text).contains("Colonists: 3")
+	assert_str(hud._spawn_summary_label.text).contains("Enemies: 5")
