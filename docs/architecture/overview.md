@@ -1,4 +1,4 @@
-# Architecture — Vek: Holdout — Overview
+# Architecture — Rust Frontier: Colony Defense — Overview
 
 > Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 

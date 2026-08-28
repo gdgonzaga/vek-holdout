@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Vek Holdout"
+config/name="Rust Frontier: Colony Defense"
 run/main_scene="res://subsystems/core/boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
