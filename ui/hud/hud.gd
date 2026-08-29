@@ -192,4 +192,24 @@ func _refresh_inventory() -> void:
 				)
 			row.add_child(equip_btn)
 
+		# Drop button to drop 1 item into the world
+		var drop_btn := Button.new()
+		drop_btn.text = "Drop"
+		drop_btn.pressed.connect(func() -> void:
+			if _player != null:
+				_player.drop_item(item_id, 1)
+			_refresh_inventory()
+		)
+		row.add_child(drop_btn)
+
+		# Drop All button to drop the full stack into the world
+		var drop_all_btn := Button.new()
+		drop_all_btn.text = "Drop All"
+		drop_all_btn.pressed.connect(func() -> void:
+			if _player != null:
+				_player.drop_item(item_id, count)
+			_refresh_inventory()
+		)
+		row.add_child(drop_all_btn)
+
 		_item_list.add_child(row)

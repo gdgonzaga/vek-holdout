@@ -140,3 +140,29 @@ func test_wake_up_and_wake_items_near() -> void:
 	assert_bool(item.sleeping).is_false()
 
 	get_tree().root.remove_child(parent)
+
+
+func test_player_drop_item_spawns_world_item() -> void:
+	var player_scene: PackedScene = load("res://subsystems/player/player.tscn")
+	var player: Player = auto_free(player_scene.instantiate())
+	get_tree().root.add_child(player)
+
+	player.add_item("dirt", 2)
+	assert_bool(player.has_item("dirt", 2)).is_true()
+
+	var dropped: WorldItem = player.drop_item("dirt", 1)
+	if dropped != null:
+		auto_free(dropped)
+		assert_str(dropped.item_id).is_equal("dirt")
+		assert_int(dropped.count).is_equal(1)
+	assert_bool(player.has_item("dirt", 1)).is_true()
+	assert_bool(player.has_item("dirt", 2)).is_false()
+
+	var dropped_all: WorldItem = player.drop_item("dirt", 1)
+	if dropped_all != null:
+		auto_free(dropped_all)
+		assert_str(dropped_all.item_id).is_equal("dirt")
+		assert_int(dropped_all.count).is_equal(1)
+	assert_bool(player.has_item("dirt", 1)).is_false()
+
+	get_tree().root.remove_child(player)

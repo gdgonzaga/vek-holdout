@@ -87,6 +87,27 @@ func remove_item(item_id: String, count: int) -> int:
 	return inventory.remove(item_id, count)
 
 
+## Drops `count` of `item_id` from the player's inventory into the world in front of the player.
+## Returns the created WorldItem entity (or null if item wasn't carried).
+func drop_item(item_id: String, count: int = 1) -> WorldItem:
+	if inventory == null or not inventory.has_item(item_id, count):
+		return null
+	var removed := inventory.remove(item_id, count)
+	var dropped_count := count - removed
+	if dropped_count <= 0:
+		return null
+
+	if equipped_item != null and equipped_item.id == item_id and not inventory.has_item(item_id, 1):
+		unequip_item()
+
+	var forward := -global_transform.basis.z
+	var spawn_pos := global_position + Vector3(0.0, 1.2, 0.0) + forward * 0.8
+	var impulse_dir := forward + Vector3(0.0, 0.3, 0.0)
+	var tree := get_tree() if is_inside_tree() else null
+	var dropped_item := WorldItem.spawn_at(tree, item_id, dropped_count, spawn_pos, impulse_dir, 2.5)
+	return dropped_item
+
+
 ## Check whether the player is carrying at least `count` of the given item.
 func has_item(item_id: String, count: int) -> bool:
 	return inventory.has_item(item_id, count)
