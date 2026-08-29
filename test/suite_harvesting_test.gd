@@ -97,6 +97,16 @@ func test_player_harvest_action_completes() -> void:
 	var action := HarvestAction.new()
 	action._apply(player, harvestable)
 
+	# Verify WorldItem drop was spawned in the world
+	var world_items := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items.size()).is_greater_equal(1)
+	var dropped_item := world_items[-1] as WorldItem
+	assert_str(dropped_item.item_id).is_equal(yield_def.item_def.id)
+	assert_int(dropped_item.count).is_equal(yield_def.count)
+
+	# Verify player picking up the dropped item
+	var pickup := PickupAction.new()
+	pickup.execute(player, dropped_item)
 	assert_bool(player.inventory.has_item(yield_def.item_def.id, yield_def.count)).is_true()
 	assert_int(player.skill_set.get_level("harvesting")).is_greater_equal(1)
 

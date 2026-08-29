@@ -88,16 +88,15 @@ func effective_work_time() -> float:
 ## Resolve the harvest: grant yields to actor's inventory and either reset the plot
 ## or remove the furniture node. Returns true if successfully harvested.
 func complete(actor: Node) -> bool:
-	var pocket := _pocket_of(actor)
 	var growable := _furniture.get_node_or_null("Growable") as Growable if _furniture != null else null
+	var drop_pos := _get_drop_pos(actor)
 
 	if growable != null:
 		var yields := growable.get_harvest_yields()
 		for entry in yields:
 			if entry == null or entry.item_def == null:
 				continue
-			if pocket != null:
-				pocket.add(entry.item_def.id, entry.count)
+			_spawn_drop(entry.item_def.id, entry.count, drop_pos)
 		if _furniture != null:
 			GameLog.info("Harvested %s" % _furniture.label)
 		growable.on_harvested(actor)
@@ -111,8 +110,7 @@ func complete(actor: Node) -> bool:
 		if entry == null or entry.item_def == null:
 			continue
 		var id := entry.item_def.id
-		if pocket != null:
-			pocket.add(id, entry.count)
+		_spawn_drop(id, entry.count, drop_pos)
 	if _furniture != null:
 		GameLog.info("Harvested %s" % _furniture.label)
 	var anchor := anchor_cell()
@@ -125,6 +123,25 @@ func complete(actor: Node) -> bool:
 			_furniture.queue_free()
 		EventBus.furniture_removed.emit(def_id, anchor)
 	return true
+
+
+func _spawn_drop(item_id: String, count: int, pos: Vector3) -> void:
+	if count <= 0 or item_id == "":
+		return
+	var tree := get_tree()
+	if tree != null:
+		WorldItem.spawn_at(tree, item_id, count, pos)
+	elif _furniture != null and _furniture.get_parent() != null:
+		WorldItem.spawn_at(_furniture.get_parent(), item_id, count, pos)
+
+
+func _get_drop_pos(actor: Node) -> Vector3:
+	if _furniture != null and _furniture.is_inside_tree():
+		return _furniture.global_position + Vector3(0.0, 0.5, 0.0)
+	var node3d := actor as Node3D
+	if node3d != null and node3d.is_inside_tree():
+		return node3d.global_position + Vector3(0.0, 0.5, 0.0)
+	return Vector3.ZERO
 
 
 func _pocket_of(actor: Node) -> Inventory:

@@ -167,10 +167,20 @@ func test_early_harvest_dynamic_yields_and_neglect_penalty() -> void:
 	wheat_trough.state["growable"]["neglect_time"] = 30.0
 	assert_int(wheat_growable.get_harvest_yields().size()).is_equal(0)
 
-	# Complete harvest via Harvestable
+	# Complete harvest via Harvestable (spawns WorldItem on ground)
 	var colonist := _sandbox.make_colonist()
 	var completed := harvestable.complete(colonist)
 	assert_bool(completed).is_true()
+
+	var world_items := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items.size()).is_greater_equal(1)
+	var dropped_item := world_items[-1] as WorldItem
+	assert_str(dropped_item.item_id).is_equal("cave_spud")
+	assert_int(dropped_item.count).is_equal(10)
+
+	# Verify pickup into inventory
+	var pickup := PickupAction.new()
+	pickup.execute(colonist, dropped_item)
 	assert_bool(colonist.inventory.has_item("cave_spud", 10)).is_true()
 
 	# Farm plot remains intact and resets to EMPTY
