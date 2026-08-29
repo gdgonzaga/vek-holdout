@@ -68,7 +68,10 @@ func test_apply_box_carves_and_grants_yields() -> void:
 	assert_vector(grid.box_carves[0]["min"]).is_equal(Vector3(4.0, 2.0, 4.0))
 	assert_vector(grid.box_carves[0]["max"]).is_equal(Vector3(5.0, 3.0, 5.0))
 	var yield_entry: ItemAmount = GROUND.yields[0]
-	assert_bool(player.inventory.has_item(yield_entry.item_def.id, yield_entry.count)).is_true()
+	var world_items := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items.size()).is_greater_equal(1)
+	var dropped_item := world_items[-1] as WorldItem
+	assert_str(dropped_item.item_id).is_equal(yield_entry.item_def.id)
 	assert_int(_sandbox.skill_uses(player.skill_set, "mining")).is_equal(1)
 
 
@@ -107,7 +110,10 @@ func test_apply_yields_come_from_the_dig_position_not_the_default() -> void:
 	var ground_yield: ItemAmount = GROUND.yields[0]
 	assert_bool(player.inventory.has_item(ground_yield.item_def.id, ground_yield.count)).is_false()
 	var rock_yield: ItemAmount = ROCK.yields[0]
-	assert_bool(player.inventory.has_item(rock_yield.item_def.id, rock_yield.count)).is_true()
+	var world_items_rock := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items_rock.size()).is_greater_equal(1)
+	var dropped_rock := world_items_rock[-1] as WorldItem
+	assert_str(dropped_rock.item_id).is_equal(rock_yield.item_def.id)
 
 
 func test_apply_without_default_material_still_carves() -> void:
@@ -153,7 +159,10 @@ func test_timed_dig_locks_busy_then_carves_on_completion() -> void:
 	assert_vector(grid.box_carves[0]["min"]).is_equal(Vector3(1.0, 3.0, 1.0))
 	assert_vector(grid.box_carves[0]["max"]).is_equal(Vector3(2.0, 4.0, 2.0))
 	var yield_entry: ItemAmount = GROUND.yields[0]
-	assert_bool(player.inventory.has_item(yield_entry.item_def.id, yield_entry.count)).is_true()
+	var world_items := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items.size()).is_greater_equal(1)
+	var dropped_item := world_items[-1] as WorldItem
+	assert_str(dropped_item.item_id).is_equal(yield_entry.item_def.id)
 
 
 ## box_samples: a snapped 1x1x1 dig (bounds exactly on cell edges) clears ALL
@@ -510,7 +519,10 @@ func test_smooth_grid_apply_damage_multi_hit_destroys_dirt() -> void:
 	assert_int(grid.box_carves.size()).is_equal(1)
 	assert_vector(grid.box_carves[0]["min"]).is_equal(Vector3(2, 3, 4))
 	assert_vector(grid.box_carves[0]["max"]).is_equal(Vector3(3, 4, 5))
-	assert_bool(player.inventory.has_item(yield_entry.item_def.id, yield_entry.count)).is_true()
+	var world_items := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items.size()).is_greater_equal(1)
+	var dropped_item := world_items[-1] as WorldItem
+	assert_str(dropped_item.item_id).is_equal(yield_entry.item_def.id)
 	assert_int(_sandbox.skill_uses(player.skill_set, "mining")).is_equal(1)
 
 
@@ -533,7 +545,10 @@ func test_smooth_grid_apply_damage_on_rock_takes_6_hits() -> void:
 	assert_bool(res6["destroyed"]).is_true()
 	assert_int(grid.box_carves.size()).is_equal(1)
 	var rock_yield: ItemAmount = ROCK.yields[0]
-	assert_bool(player.inventory.has_item(rock_yield.item_def.id, rock_yield.count)).is_true()
+	var world_items_rock := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items_rock.size()).is_greater_equal(1)
+	var dropped_rock := world_items_rock[-1] as WorldItem
+	assert_str(dropped_rock.item_id).is_equal(rock_yield.item_def.id)
 
 
 func test_smooth_grid_damage_decay_heals_over_time() -> void:

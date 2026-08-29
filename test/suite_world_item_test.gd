@@ -115,3 +115,28 @@ func test_spawn_at_adds_to_parent_node() -> void:
 	assert_int(item.count).is_equal(8)
 	assert_object(item.get_parent()).is_same(parent)
 	assert_vector(item.position).is_equal(spawn_pos)
+
+
+func test_wake_up_and_wake_items_near() -> void:
+	var parent: Node3D = auto_free(Node3D.new())
+	var item: WorldItem = WorldItemScript.spawn_at(parent, "stone", 1, Vector3(2.0, 1.0, 2.0), Vector3.UP, 0.0)
+	auto_free(item)
+	item.freeze = true
+	item.sleeping = true
+
+	item.wake_up()
+	assert_bool(item.freeze).is_false()
+	assert_bool(item.sleeping).is_false()
+
+	item.freeze = true
+	item.sleeping = true
+
+	# Put parent in tree so get_nodes_in_group works
+	get_tree().root.add_child(parent)
+	item.add_to_group("world_items")
+
+	WorldItemScript.wake_items_near(get_tree(), Vector3(2.0, 1.0, 2.0), 3.0)
+	assert_bool(item.freeze).is_false()
+	assert_bool(item.sleeping).is_false()
+
+	get_tree().root.remove_child(parent)

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://cjt4sw4frgw7o"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="2_4n0ob"]
+
+[resource]
+resource_name = "dirt"
+script = ExtResource("2_4n0ob")
+id = "dirt"
+weight = 0.5
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

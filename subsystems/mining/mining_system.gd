@@ -32,7 +32,8 @@ func _bind_grid_signals() -> void:
 		smooth.material_carved.connect(_on_material_carved)
 
 
-func _on_material_carved(_pos: Vector3) -> void:
+func _on_material_carved(pos: Vector3) -> void:
+	WorldItem.wake_items_near(get_tree(), pos, 2.5)
 	clean_air_markers()
 
 
@@ -115,9 +116,21 @@ func _on_dig_job_completed(cell: Vector3i) -> void:
 			marker.queue_free()
 
 	if grid_adapter != null:
-		grid_adapter.remove_block_at(cell)
 		var smooth: SmoothGrid = grid_adapter.get_smooth_grid()
+		var material: TerrainMaterialDef = null
+		if smooth != null:
+			material = smooth.get_material_def_at(cell)
+		grid_adapter.remove_block_at(cell)
 		if smooth != null:
 			smooth.carve_box(Vector3(cell), Vector3(cell) + Vector3.ONE)
-	
+
+		if material != null:
+			var tree := get_tree()
+			var parent: Variant = tree if tree != null else self
+			var drop_pos := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
+			for entry: ItemAmount in material.yields:
+				if entry != null and entry.item_def != null and entry.count > 0:
+					WorldItem.spawn_at(parent, entry.item_def.id, entry.count, drop_pos)
+
+	WorldItem.wake_items_near(get_tree(), Vector3(cell) + Vector3(0.5, 0.5, 0.5), 2.5)
 	clean_air_markers()

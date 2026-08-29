@@ -100,6 +100,22 @@ func _apply_mesh(def: ItemDef) -> void:
 		mat.albedo_color = Color(0.8, 0.65, 0.4)
 
 
+func wake_up() -> void:
+	freeze = false
+	sleeping = false
+
+
+static func wake_items_near(tree: SceneTree, center: Vector3, radius: float = 2.5) -> void:
+	if tree == null:
+		return
+	var radius_sq := radius * radius
+	for node in tree.get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item != null and is_instance_valid(item) and item.is_inside_tree():
+			if item.global_position.distance_squared_to(center) <= radius_sq:
+				item.wake_up()
+
+
 static func spawn_at(
 	tree_or_node: Variant,
 	p_item_id: String,
@@ -133,7 +149,7 @@ static func spawn_at(
 		else:
 			parent.add_child(item)
 
-	if strength > 0.0:
+	if strength > 0.0 and item.is_inside_tree() and item.get_world_3d() != null:
 		var rand_offset := Vector3(randf_range(-0.3, 0.3), randf_range(0.5, 1.0), randf_range(-0.3, 0.3)).normalized()
 		var final_impulse := (impulse_dir.normalized() + rand_offset).normalized() * strength
 		item.apply_central_impulse(final_impulse)

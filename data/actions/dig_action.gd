@@ -72,10 +72,14 @@ func _apply(actor: Node, grid: SmoothGrid, center: Vector3, tool: DigToolParams)
 	else:
 		grid.carve(center, tool.carve_radius)
 	if material != null:
-		var pocket := _pocket_of(actor)
-		if pocket != null:
-			for entry: ItemAmount in material.yields:
-				pocket.add(entry.item_def.id, entry.count)
+		var tree := actor.get_tree() if actor != null else null
+		var parent: Variant = tree if tree != null else actor
+		for entry: ItemAmount in material.yields:
+			if entry != null and entry.item_def != null and entry.count > 0:
+				WorldItem.spawn_at(parent, entry.item_def.id, entry.count, center)
+	var tree := actor.get_tree() if actor != null else null
+	if tree != null:
+		WorldItem.wake_items_near(tree, center, 3.0)
 	var skill_set := _skills_of(actor)
 	if skill_set != null:
 		skill_set.record_use_for_labor("mining")

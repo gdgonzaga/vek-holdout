@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://iof1bkwop4r6"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_pc3sn"]
+
+[resource]
+resource_name = "rock"
+script = ExtResource("1_pc3sn")
+id = "rock"
+weight = 1.0
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

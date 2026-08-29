@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Texture2D" uid="uid://c6qmmviopv38w" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground.png" id="3_3dd2e"]
-[ext_resource type="Resource" uid="uid://cbbmspbau1te5" path="res://data/items/dirt_block.tres" id="3_dirt"]
+[ext_resource type="Resource" uid="uid://cjt4sw4frgw7o" path="res://data/items/dirt.tres" id="3_dirt"]
 [ext_resource type="Texture2D" uid="uid://hwdw331xed34" path="res://assets/item_icons/dirt_block.png" id="4_icon"]
 
 [sub_resource type="Resource" id="Resource_dirt_yield"]

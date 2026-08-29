@@ -825,11 +825,15 @@ func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null, normal: Vec
 		_hp_by_pos.erase(pos)
 		_remove_damage_decal(pos)
 		carve_box(Vector3(pos), Vector3(pos) + Vector3.ONE)
+		if is_inside_tree():
+			WorldItem.wake_items_near(get_tree(), Vector3(pos) + Vector3(0.5, 0.5, 0.5), 2.5)
 		if material != null and actor != null:
-			var pocket := _pocket_of(actor)
-			if pocket != null:
-				for entry: ItemAmount in material.yields:
-					pocket.add(entry.item_def.id, entry.count)
+			var tree := actor.get_tree() if (actor != null and actor.is_inside_tree()) else (get_tree() if is_inside_tree() else null)
+			var parent: Variant = tree if tree != null else (actor if actor != null else self)
+			var drop_pos := Vector3(pos) + Vector3(0.5, 0.5, 0.5)
+			for entry: ItemAmount in material.yields:
+				if entry != null and entry.item_def != null and entry.count > 0:
+					WorldItem.spawn_at(parent, entry.item_def.id, entry.count, drop_pos)
 			var skill_set := _skills_of(actor)
 			if skill_set != null:
 				skill_set.record_use_for_labor("mining")
