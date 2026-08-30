@@ -97,8 +97,10 @@ func _refresh_order_section() -> void:
 	var maintain := _station.maintain_goal()
 	if not maintain.is_empty():
 		var item_id: String = maintain.get("item_id", "")
+		var furniture := _station.get_parent() as Node3D if _station != null else null
+		var pos: Variant = furniture.global_position if furniture != null and furniture.is_inside_tree() else null
 		tag += " · stock %d/%d" % [
-			Colony.storage_registry.colony_stock(item_id),
+			Colony.storage_registry.colony_stock(item_id, pos),
 			int(maintain.get("count", 0)),
 		]
 	if _station.is_claimed() and _station.claim_owner() != CraftingStation.PLAYER_CLAIM:

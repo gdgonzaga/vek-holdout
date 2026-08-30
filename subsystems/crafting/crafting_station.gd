@@ -318,7 +318,7 @@ func complete_order() -> void:
 	if not maintain.is_empty():
 		var item_id: String = maintain.get("item_id", "")
 		var target: int = int(maintain.get("count", 0))
-		if item_id != "" and Colony.storage_registry.colony_stock(item_id) < target:
+		if item_id != "" and Colony.storage_registry.colony_stock(item_id, _station_pos()) < target:
 			var recipe_id: String = _order().get("recipe_id", "")
 			release_claim()
 			clear_order()
@@ -326,6 +326,13 @@ func complete_order() -> void:
 			return
 	release_claim()
 	clear_order()
+
+
+func _station_pos() -> Vector3:
+	var furniture := get_parent() as Node3D
+	if furniture != null:
+		return furniture.global_position if furniture.is_inside_tree() else furniture.position
+	return Vector3.ZERO
 
 
 ## Player-abandon path: refund the deposit ledger to the nearest crate (the

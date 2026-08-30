@@ -65,16 +65,58 @@ func nearest_crate(near: Vector3) -> Furniture:
 	return best
 
 
-## Colony-wide stock of `item_id` across all crates (a maintain-order's
-## "craft until storage has N" reads this — pockets/actors don't count, only
-## what's physically in storage). Same live-scan idiom as the other queries.
-func colony_stock(item_id: String) -> int:
+const DEFAULT_STOCK_RADIUS := 50.0
+
+## Colony-wide stock of `item_id`:
+## 1. All storage crates in the colony.
+## 2. Unforbidden WorldItems (filtered within `radius` of `near_pos` when `near_pos` is a Vector3).
+## 3. Items carried by colonists and the player.
+func colony_stock(item_id: String, near_pos: Variant = null, radius: float = DEFAULT_STOCK_RADIUS) -> int:
 	var total := 0
+	# 1. Storage crates
 	for crate in _crates():
 		var inv := inventory_of(crate)
 		if inv != null:
 			total += inv.get_item_count(item_id)
+
+	var tree := _get_tree_context()
+	if tree == null:
+		return total
+
+	# 2. WorldItems (unforbidden, distance-filtered when near_pos is Vector3)
+	var radius_sq := radius * radius if radius > 0.0 else INF
+	var check_dist := (near_pos is Vector3) and radius > 0.0
+	for node in tree.get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item == null or not is_instance_valid(item) or not item.is_inside_tree():
+			continue
+		if item.is_forbidden() or item.item_id != item_id:
+			continue
+		if check_dist and item.global_position.distance_squared_to(near_pos as Vector3) > radius_sq:
+			continue
+		total += item.count
+
+	# 3. Carried items on Colonists
+	for node in tree.get_nodes_in_group("colonists"):
+		var colonist := node as Colonist
+		if colonist != null and is_instance_valid(colonist) and colonist.inventory != null:
+			total += colonist.inventory.get_item_count(item_id)
+
+	# 4. Carried items on Player
+	for node in tree.get_nodes_in_group("player"):
+		var player := node as Player
+		if player != null and is_instance_valid(player) and player.inventory != null:
+			total += player.inventory.get_item_count(item_id)
+
 	return total
+
+
+func _get_tree_context() -> SceneTree:
+	if is_inside_tree():
+		return get_tree()
+	if is_instance_valid(_container) and _container.is_inside_tree():
+		return _container.get_tree()
+	return Engine.get_main_loop() as SceneTree
 
 
 ## All live crate Furniture in the current map (Furniture nodes with a

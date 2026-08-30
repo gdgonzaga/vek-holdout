@@ -121,9 +121,11 @@ func _refresh_order_section() -> void:
 	if not maintain.is_empty():
 		var item_id: String = maintain.get("item_id", "")
 		var target: int = int(maintain.get("count", 0))
-		var current_stock: int = Colony.storage_registry.colony_stock(item_id)
+		var furniture := _station.get_parent() as Node3D if _station != null else null
+		var pos: Variant = furniture.global_position if furniture != null and furniture.is_inside_tree() else null
+		var current_stock: int = Colony.storage_registry.colony_stock(item_id, pos)
 		_maintain_status_label.visible = true
-		_maintain_status_label.text = "Maintain Target: %d %s (Storage Stock: %d / %d)" % [
+		_maintain_status_label.text = "Maintain Target: %d %s (Stock: %d / %d)" % [
 			target, _item_name(item_id), current_stock, target
 		]
 	else:

@@ -405,7 +405,7 @@ func test_cancel_refunds_ledger_and_closes_haul_job() -> void:
 	assert_bool(not haul.is_available()).is_true()
 
 
-func test_colony_stock_sums_crates() -> void:
+func test_colony_stock_sums_crates_worlditems_and_carried() -> void:
 	_sandbox.make_crate("plank", 3)
 	_sandbox.make_crate("plank", 4)
 	_sandbox.make_crate("axe", 1)
@@ -413,18 +413,41 @@ func test_colony_stock_sums_crates() -> void:
 	assert_int(_sandbox.test_registry.colony_stock("axe")).is_equal(1)
 	assert_int(_sandbox.test_registry.colony_stock("stone_block")).is_equal(0)
 
+	# Add a WorldItem nearby (e.g. 5 planks at (10, 0, 10))
+	var near_item: WorldItem = WorldItem.spawn_at(_sandbox.container, "plank", 5, Vector3(10.0, 0.0, 10.0), Vector3.UP, 0.0)
+	auto_free(near_item)
+
+	# Add a WorldItem far away (>50.0m, e.g. at (100, 0, 100))
+	var far_item: WorldItem = WorldItem.spawn_at(_sandbox.container, "plank", 6, Vector3(100.0, 0.0, 100.0), Vector3.UP, 0.0)
+	auto_free(far_item)
+
+	# Add a forbidden WorldItem nearby (e.g. at (5, 0, 5))
+	var forbidden_item: WorldItem = WorldItem.spawn_at(_sandbox.container, "plank", 7, Vector3(5.0, 0.0, 5.0), Vector3.UP, 0.0)
+	forbidden_item.set_forbidden(true)
+	auto_free(forbidden_item)
+
+	# Add carried items on a colonist
+	var colonist := _sandbox.make_colonist()
+	colonist.inventory.add("plank", 2)
+
+	# Query near (0,0,0) with default 50m radius:
+	# Crates (7) + near_item (5) + colonist carried (2) = 14
+	# far_item (6) is excluded (>50m), forbidden_item (7) is excluded (forbidden)
+	assert_int(_sandbox.test_registry.colony_stock("plank", Vector3.ZERO)).is_equal(14)
+
+	# Query without near_pos (all unforbidden WorldItems + crates + carried):
+	# 7 + 5 + 6 + 2 = 20
+	assert_int(_sandbox.test_registry.colony_stock("plank")).is_equal(20)
+
 
 ## Deposit a full order for the active recipe via `colonist`, then run the
-## craft def's complete. When `crate` is provided, simulates a hauler
-## storing the produced world item so colony_stock increases.
-func _satisfy_and_complete(station: CraftingStation, colonist: Colonist, crate: Furniture = null) -> void:
+## craft def's complete (ground-dropped world items naturally satisfy maintain stock).
+func _satisfy_and_complete(station: CraftingStation, colonist: Colonist) -> void:
 	var ready := Doubles.SignalCounter.new(EventBus.crafting_materials_ready)
 	colonist.inventory.add("plank", 2)
 	station.deposit_from(colonist)
 	ready.read()
 	station.produce(colonist)
-	if crate != null:
-		_sandbox.test_registry.inventory_of(crate).add("plank", 4)
 	station.complete_order()
 
 
@@ -432,20 +455,20 @@ func test_maintain_order_requeues_until_stock_target() -> void:
 	var station := _make_station([_recipe("planks", ["plank", 2], ["plank", 4], 4.0)])
 	var goal := {"item_id": "plank", "count": 10}
 	assert_bool(station.queue_recipe("planks", CraftingStation.WORKER_COLONY, goal)).is_true()
-	var crate := _sandbox.make_crate("plank", 0)
 	var colonist := _sandbox.make_colonist()
-	# Craft 1: stock 0+4 < 10 → fresh order requeued with the same goal.
-	_satisfy_and_complete(station, colonist, crate)
+	# Craft 1: stock 0 + 4 dropped < 10 → fresh order requeued with the same goal.
+	_satisfy_and_complete(station, colonist)
 	assert_bool(station.has_active_order()).is_true()
 	assert_int(station.remaining_need("plank")).is_equal(2)
 	assert_int(station.maintain_goal().get("count", 0)).is_equal(10)
-	# Craft 2: stock 8 < 10 → requeue again.
-	_satisfy_and_complete(station, colonist, crate)
+	# Craft 2: stock 4 + 4 dropped = 8 < 10 → requeue again.
+	_satisfy_and_complete(station, colonist)
 	assert_bool(station.has_active_order()).is_true()
-	# Craft 3: stock 12 ≥ 10 → the order clears for good.
-	_satisfy_and_complete(station, colonist, crate)
+	# Craft 3: stock 8 + 4 dropped = 12 ≥ 10 → the order clears for good.
+	_satisfy_and_complete(station, colonist)
 	assert_bool(station.has_active_order()).is_false()
-	assert_int(_sandbox.test_registry.colony_stock("plank")).is_equal(12)
+	var station_pos: Vector3 = (station.get_parent() as Node3D).global_position if station.get_parent() != null else Vector3.ZERO
+	assert_int(_sandbox.test_registry.colony_stock("plank", station_pos)).is_equal(12)
 
 
 # ── Player SkillSet + CraftAction ─────────────────────────────────────────────
