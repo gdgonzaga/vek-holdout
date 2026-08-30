@@ -18,6 +18,10 @@ func _ready() -> void:
 		set_physics_process(false)
 
 
+func _enter_tree() -> void:
+	rearm()
+
+
 func _physics_process(_delta: float) -> void:
 	if _body == null:
 		return
@@ -51,7 +55,7 @@ func _try_snap_to_ground() -> bool:
 		return false
 
 	# Start ray 0.5m above the actor's origin (around knee/hip height)
-	var origin := _body.global_position + Vector3(0.0, 0.5, 0.0)
+	var origin := _body.global_position + Vector3(0.0, 1.0, 0.0)
 	var target := origin + Vector3.DOWN * ray_length
 
 	var query := PhysicsRayQueryParameters3D.create(origin, target, terrain_mask)

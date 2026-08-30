@@ -135,12 +135,19 @@ func serialize() -> Dictionary:
 
 ## Restore position, camera orientation, and inventory from a serialize() dict.
 func deserialize(data: Dictionary) -> void:
+	velocity = Vector3.ZERO
+	_velocity_on_jump = Vector3.ZERO
+	_speed_on_jump = 0.0
+	_was_on_floor = true
 	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
 	_rig.set_orientation(float(data.get("cam_yaw", 0.0)), float(data.get("cam_pitch", -0.25)))
 	_rig.snap_to_target()
 	if data.has("inventory"):
 		inventory.deserialize(data["inventory"])
+	var guard := get_node_or_null("GroundSafetyGuard") as GroundSafetyGuard
+	if guard != null:
+		guard.rearm()
 
 
 var _velocity_on_jump := Vector3.ZERO # horizontal world-velocity frozen at jump (y=0)
