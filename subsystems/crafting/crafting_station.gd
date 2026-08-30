@@ -200,13 +200,12 @@ func can_player_work() -> bool:
 
 ## Produce the active order's outputs. Routing follows the order's worker:
 ## player-worked orders prefer the crafter's pocket (the player crafting
-## personally is how the player gets the item); colony orders deposit to the
-## nearest crate FIRST (a maintain order's stock counter only sees what's
-## physically in storage) with the pocket taking the overflow — and each
-## target overflowing into the other (no crate → pocket; no pocket → crate;
-## neither → dropped, hauling's known gap). Returns true when at least one
-## item landed somewhere. CraftingJobDef.complete and CraftAction both end
-## here (after their own claim guards) before complete_order.
+## personally is how the player gets the item), overflowing to the nearest crate
+## or dropping in the world; colony orders drop as WorldItems at the workstation
+## for colonists executing hauling jobs to transport to storage. Returns true
+## when at least one item landed somewhere or was dropped as a WorldItem.
+## CraftingJobDef.complete and CraftAction both end here (after their own claim guards)
+## before complete_order.
 func produce(worker: Node) -> bool:
 	var recipe := active_recipe()
 	if recipe == null:
@@ -216,20 +215,73 @@ func produce(worker: Node) -> bool:
 	var pocket_first: bool = worker() == WORKER_PLAYER
 	var produced := false
 	for entry in recipe.outputs:
+		if entry == null or entry.item_def == null or entry.count <= 0:
+			continue
 		var id := entry.item_def.id
-		var overflow: int = entry.count
-		if pocket_first and pocket != null:
-			overflow = pocket.add(id, entry.count)
-		elif crate_inv != null:
-			overflow = crate_inv.add(id, entry.count)
-		if overflow > 0:
-			if pocket_first and crate_inv != null:
-				crate_inv.add(id, overflow)
-			elif not pocket_first and pocket != null:
-				pocket.add(id, overflow)
-		if overflow < entry.count:
+		if pocket_first:
+			var overflow: int = entry.count
+			if pocket != null:
+				overflow = pocket.add(id, entry.count)
+			if overflow > 0 and crate_inv != null:
+				overflow = crate_inv.add(id, overflow)
+			if overflow > 0:
+				_drop_world_item(id, overflow, worker)
+			if overflow < entry.count or overflow == 0:
+				produced = true
+		else:
+			_drop_world_item(id, entry.count, worker)
 			produced = true
 	return produced
+
+
+func _drop_world_item(item_id: String, count: int, worker: Node = null) -> WorldItem:
+	if count <= 0 or item_id == "":
+		return null
+	var drop_pos := _get_drop_pos(worker)
+	var impulse_dir := _get_drop_impulse(worker)
+	var tree := get_tree()
+	var parent: Variant = null
+	if tree != null and tree.current_scene != null:
+		parent = tree
+	else:
+		var furniture := get_parent()
+		if furniture != null and furniture.get_parent() != null:
+			parent = furniture.get_parent()
+		elif furniture != null:
+			parent = furniture
+		elif worker != null and worker.get_parent() != null:
+			parent = worker.get_parent()
+		elif worker != null:
+			parent = worker
+		elif tree != null:
+			parent = tree
+	return WorldItem.spawn_at(parent, item_id, count, drop_pos, impulse_dir, 3.0)
+
+
+func _get_drop_pos(worker: Node) -> Vector3:
+	var furniture := get_parent() as Node3D
+	if furniture != null:
+		var height := 1.0
+		if furniture is Furniture and (furniture as Furniture).def != null:
+			height = float((furniture as Furniture).def.dimensions.y)
+		var base_pos := furniture.global_position if furniture.is_inside_tree() else furniture.position
+		return base_pos + Vector3(0.0, height + 0.2, 0.0)
+	var node3d := worker as Node3D
+	if node3d != null:
+		var base_pos := node3d.global_position if node3d.is_inside_tree() else node3d.position
+		return base_pos + Vector3(0.0, 1.2, 0.0)
+	return Vector3(0.0, 1.2, 0.0)
+
+
+func _get_drop_impulse(worker: Node) -> Vector3:
+	var furniture := get_parent() as Node3D
+	var worker_3d := worker as Node3D
+	if furniture != null and worker_3d != null and furniture.is_inside_tree() and worker_3d.is_inside_tree():
+		var to_worker := worker_3d.global_position - furniture.global_position
+		to_worker.y = 0.0
+		if to_worker.length_squared() > 0.01:
+			return (to_worker.normalized() * 0.6 + Vector3.UP * 0.8).normalized()
+	return Vector3(randf_range(-0.3, 0.3), 1.0, randf_range(-0.3, 0.3)).normalized()
 
 
 ## The nearest crate's storage inventory from this station's furniture

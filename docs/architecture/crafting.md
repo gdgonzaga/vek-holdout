@@ -11,7 +11,7 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 - **Material flow goes through hauling** (MaterialSink → crates), not reservation at queue time. Queueing never rejects for missing materials — the haul job drought-waits on the board (HaulingJobDef lifetime semantics) and restock resumes it with no new producer event.
 - **Dual-mode, one ledger**: the deposit ledger belongs to the order, not to a worker — haulers fill player-queued orders too, and the player may Craft-now any *ready* order (colonist-queued ones included). The modes differ only in who works: `worker "colony"` (craft job; the crossing emits `crafting_materials_ready`) vs `worker "player"` (reserved — no emit, no craft job; the order waits for the player).
 - **Claim lock**: while anyone is mid-WORK (a colonist's WORK phase or the player's ActionProgress gauge), the station is claimed; colonists refuse to start and so does the player — except against their *own* claim, which never blocks them (the player can't overlap their own gauge: the panel closes and busy-locks first), making a stale player claim self-healing rather than a bricked station (Kenshi's one-worker-per-bench rule, enforced per order).
-- **Maintain orders** ("until stock: N", colony-only): on completion, if `StorageRegistry.colony_stock(first output) < N` the station requeues the same recipe through the standard chain — a RimWorld "do until you have X" one-shot, not a standing bill and not Kenshi's loop-forever repeat. Colony-order outputs land **crate-first** (pocket takes overflow) so the stock counter sees production; player crafts are pocket-first.
+- **Maintain orders** ("until stock: N", colony-only): on completion, if `StorageRegistry.colony_stock(first output) < N` the station requeues the same recipe through the standard chain — a RimWorld "do until you have X" one-shot, not a standing bill and not Kenshi's loop-forever repeat. Colony-order outputs drop as **WorldItems** at the station for haulers to transport to storage; player crafts are pocket-first.
 - **Player SkillSet**: the Player carries a SkillSet (code-created, unseeded). Recipe conditions gate personal crafting, duration divides by the player's crafting multiplier, and personal crafts train it.
 
 ## Files
@@ -21,7 +21,7 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 | `data/crafting/recipe_def.gd` | Script (Resource) | Data shape for one recipe: inputs/outputs (`Array[ItemAmount]`), `base_time`, recipe-level `conditions`. Pure data. See [Data Schemas](data-schemas.md). |
 | `data/capability_params/crafting_params.gd` | Script (Resource) | Capability sub-resource on `FurnitureDef`: `recipes: Array[RecipeDef]`. Non-null → FurnitureLayer attaches the station. |
 | `subsystems/crafting/crafting_station.gd` | Script (component on furniture) | The order + deposit ledger; implements MaterialSink from the active order; worker reservation, claim lock, maintain requeue, cancel. Does NOT own the craft math. |
-| `data/jobs/crafting_job_def.gd` + `crafting.tres` | Script + data | Colonist craft Job: WORK leg at the station, skill-scaled duration, claim handshake, crate-first production, `complete_order` resolution. `produce()` is the shared craft-math entry (CraftAction reuses it). |
+| `data/jobs/crafting_job_def.gd` + `crafting.tres` | Script + data | Colonist craft Job: WORK leg at the station, skill-scaled duration, claim handshake, world item drop production, `complete_order` resolution. `produce()` is the shared craft-math entry (CraftAction reuses it). |
 | `data/actions/craft_action.gd` | Script (GameAction) | The player's personal craft: claim, ActionProgress gauge (Esc persists `work_done`, restart resumes), pocket-first production, player XP. Invoked by the panel (no ActionOption wiring). |
 | `data/actions/open_crafting_action.gd` + `ui/crafting/craft_panel.tscn` | Action + UI | E on the workbench → the craft panel: per-recipe Queue (with "until stock" SpinBox) / Craft buttons, order section with Craft now / Cancel. |
 | `data/recipes/*.tres` | Data | Recipe resources referenced from the station def's CraftingParams. |
@@ -44,13 +44,13 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 4. The DELIVER crossing `has_complete_materials`: colony orders emit `crafting_materials_ready` → `Colony._spawn_craft_job`; player orders emit nothing — the order waits ready for the player.
 5. **Who works it:** a colonist claims the craft Job (labor `crafting`, gated by `RecipeDef.conditions`), or the player presses **Craft now** (offered on any ready order) → `CraftAction`.
 
-**End state:** order worked → outputs produced (colony: crate-first; player: pocket-first) → `complete_order` resolves it (maintain orders requeue while stock < target) → next order can be queued.
+**End state:** order worked → outputs produced (colony: world item drop at station; player: pocket-first) → `complete_order` resolves it (maintain orders requeue while stock < target) → next order can be queued.
 
 ## Flow Trace: Craft Job executes (colonist)
 
 1. Colonist claims via the standard Job Board flow; paths to the station (`job.location` = footprint center).
 2. `begin` = `recipe.base_time ÷ skill_set.get_multiplier("crafting")` and **claims the station** under the colonist's id. If the player's gauge holds the claim, `begin` reports instant and `complete` no-ops — the colonist backs off cleanly instead of double-producing.
-3. WORK ticks in ColonistAI; on elapse `complete` runs: `produce()` (crate-first, pocket overflow) → `complete_order()` (maintain requeue or clear) → `GameLog.craft`.
+3. WORK ticks in ColonistAI; on elapse `complete` runs: `produce()` (world item drop at station) → `complete_order()` (maintain requeue or clear) → `GameLog.craft`.
 4. XP is automatic (`record_use_for_labor("crafting")` in `_end_job`). A null next leg is always a clean finish for this def (the maintain requeue leaves a fresh not-ready order — not a stall).
 
 ## Flow Trace: Player crafts personally (CraftAction)
@@ -91,7 +91,7 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 
 **Extends:** JobDef (`crafting.tres`: labor `crafting`, single-assignee)
 **Script:** `data/jobs/crafting_job_def.gd`
-**Description:** Single WORK leg at the station (`job.target_node` = the station node). `begin` divides `base_time` by the crafter's multiplier and claims the station; `complete` re-checks the claim (player-gauge race), produces crate-first, and resolves via `complete_order`. `produce(actor, station, recipe, pocket_first)` is the shared craft math — CraftAction reuses it pocket-first. `meets_requirements` ANDs the active recipe's conditions (hot).
+**Description:** Single WORK leg at the station (`job.target_node` = the station node). `begin` divides `base_time` by the crafter's multiplier and claims the station; `complete` re-checks the claim (player-gauge race), produces world item drop at station, and resolves via `complete_order`. `produce(actor, station, recipe, pocket_first)` is the shared craft math — CraftAction reuses it pocket-first. `meets_requirements` ANDs the active recipe's conditions (hot).
 
 ### Class: CraftAction
 

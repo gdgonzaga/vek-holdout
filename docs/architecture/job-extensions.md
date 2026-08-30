@@ -91,7 +91,7 @@ Shipped 2026-08-15 (`data/crafting/recipe_def.gd`, `data/capability_params/craft
 1. `CraftingStation` (child component, the `StorageInventory` pattern) implements **MaterialSink** from the active order's inputs.
 2. Colony producer on order placement (`crafting_order_queued`): a **haul job bound to the station** (the existing def, sink-generic) — spawned regardless of crate stock, so a drought just drought-waits on the board until restock.
 3. The haul DELIVER that crosses `has_complete_materials` → the station emits `crafting_materials_ready` → Colony spawns the craft job (dedupe by anchor + def, like `_spawn_construction_job`).
-4. `CraftingJobDef`: WORK leg at the station; `begin` = `recipe.base_time / skill multiplier`; `complete` = consume inputs → outputs to the colonist's carry inventory (overflow → nearest crate), `record_use`, order cleared.
+4. `CraftingJobDef`: WORK leg at the station; `begin` = `recipe.base_time / skill multiplier`; `complete` = consume inputs → outputs dropped as world items at the station (player craft → crafter's carry inventory, overflow → crate/drop), `record_use`, order cleared.
 
 | Class (as built) | Shape |
 |---|---|

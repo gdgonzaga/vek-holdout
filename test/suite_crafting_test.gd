@@ -211,16 +211,27 @@ func test_craft_begin_uses_skill_multiplier() -> void:
 	assert_bool(absf(duration - 4.0 / 1.4) < 0.001).is_true()
 
 
-func test_craft_complete_produces_outputs_and_clears_order() -> void:
+func test_craft_complete_drops_world_item_and_clears_order() -> void:
 	var station := _satisfied_order_station()
 	var colonist := _sandbox.make_colonist()
 	station.produce(colonist)
 	station.complete_order()
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(4)
+	# Colonist pocket receives nothing — dropped into the world
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
 	assert_bool(station.has_active_order()).is_false()
 
+	# Verify WorldItem dropped
+	var world_items: Array[Node] = []
+	for child in _sandbox.container.get_children():
+		if child is WorldItem:
+			world_items.append(child)
+	assert_int(world_items.size()).is_equal(1)
+	var item := world_items[0] as WorldItem
+	assert_str(item.item_id).is_equal("plank")
+	assert_int(item.count).is_equal(4)
 
-func test_craft_complete_overflows_to_nearest_crate() -> void:
+
+func test_craft_complete_drops_world_item_even_with_nearby_crate() -> void:
 	var station := _make_station([_recipe("planks", ["plank", 2], ["plank", 4], 4.0)])
 	station.queue_recipe("planks")
 	var colonist := _sandbox.make_colonist()
@@ -229,11 +240,20 @@ func test_craft_complete_overflows_to_nearest_crate() -> void:
 	station.deposit_from(colonist)
 	counter.read()
 	var crate := _sandbox.make_crate("plank", 0)
-	_sandbox.test_registry.inventory_of(crate).capacity = 1.5
 	station.produce(colonist)
 	station.complete_order()
-	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(1)
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(3)
+	# Crate and colonist remain empty — item dropped as WorldItem for hauling
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(0)
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+
+	var world_items: Array[Node] = []
+	for child in _sandbox.container.get_children():
+		if child is WorldItem:
+			world_items.append(child)
+	assert_int(world_items.size()).is_equal(1)
+	var item := world_items[0] as WorldItem
+	assert_str(item.item_id).is_equal("plank")
+	assert_int(item.count).is_equal(4)
 
 
 func test_craft_def_lifecycle_gates() -> void:
@@ -395,13 +415,16 @@ func test_colony_stock_sums_crates() -> void:
 
 
 ## Deposit a full order for the active recipe via `colonist`, then run the
-## craft def's complete (crate-first output routing).
-func _satisfy_and_complete(station: CraftingStation, colonist: Colonist) -> void:
+## craft def's complete. When `crate` is provided, simulates a hauler
+## storing the produced world item so colony_stock increases.
+func _satisfy_and_complete(station: CraftingStation, colonist: Colonist, crate: Furniture = null) -> void:
 	var ready := Doubles.SignalCounter.new(EventBus.crafting_materials_ready)
 	colonist.inventory.add("plank", 2)
 	station.deposit_from(colonist)
 	ready.read()
 	station.produce(colonist)
+	if crate != null:
+		_sandbox.test_registry.inventory_of(crate).add("plank", 4)
 	station.complete_order()
 
 
@@ -409,18 +432,18 @@ func test_maintain_order_requeues_until_stock_target() -> void:
 	var station := _make_station([_recipe("planks", ["plank", 2], ["plank", 4], 4.0)])
 	var goal := {"item_id": "plank", "count": 10}
 	assert_bool(station.queue_recipe("planks", CraftingStation.WORKER_COLONY, goal)).is_true()
-	var _crate := _sandbox.make_crate("plank", 0)
+	var crate := _sandbox.make_crate("plank", 0)
 	var colonist := _sandbox.make_colonist()
 	# Craft 1: stock 0+4 < 10 → fresh order requeued with the same goal.
-	_satisfy_and_complete(station, colonist)
+	_satisfy_and_complete(station, colonist, crate)
 	assert_bool(station.has_active_order()).is_true()
 	assert_int(station.remaining_need("plank")).is_equal(2)
 	assert_int(station.maintain_goal().get("count", 0)).is_equal(10)
 	# Craft 2: stock 8 < 10 → requeue again.
-	_satisfy_and_complete(station, colonist)
+	_satisfy_and_complete(station, colonist, crate)
 	assert_bool(station.has_active_order()).is_true()
 	# Craft 3: stock 12 ≥ 10 → the order clears for good.
-	_satisfy_and_complete(station, colonist)
+	_satisfy_and_complete(station, colonist, crate)
 	assert_bool(station.has_active_order()).is_false()
 	assert_int(_sandbox.test_registry.colony_stock("plank")).is_equal(12)
 
