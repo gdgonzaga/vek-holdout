@@ -303,6 +303,85 @@ func test_hauling_def_complete_fetches_then_delivers() -> void:
 ## The work cycle releases the legacy multi-assign slot so the board's
 ## should_close prune can retire a satisfied job and other colonists can take
 ## the next cycle.
+## Hauling picks work_site correctly for fractional JobInstance when carrying material.
+func test_hauling_def_work_site_with_job_instance() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("plank", 5)
+	crate.global_position = Vector3(10.0, 0.0, 10.0)
+	var sink := FakeMaterialSink.new()
+	auto_free(sink)
+	_sandbox.container.add_child(sink)
+
+	var job_inst := JobInstance.create_haul(
+		HAULING_DEF,
+		&"plank",
+		3,
+		Vector3(10.0, 0.0, 10.0),
+		Vector3(4.0, 0.0, 4.0),
+		sink
+	)
+	Colony.job_board.add_job(job_inst)
+
+	assert_vector(HAULING_DEF.work_site(colonist, job_inst) as Vector3).is_equal(Vector3(10.0, 0.0, 10.0))
+
+	colonist.inventory.add("plank", 2)
+	assert_vector(HAULING_DEF.work_site(colonist, job_inst) as Vector3).is_equal(Vector3(4.0, 0.0, 4.0))
+
+
+## When the sink becomes satisfied before hauler arrives, work_site routes to crate and complete() deposits surplus.
+func test_hauling_def_returns_surplus_when_sink_satisfied_early() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("plank", 0)
+	crate.global_position = Vector3(10.0, 0.0, 10.0)
+	var sink := FakeMaterialSink.new()
+	sink.satisfied = true
+	auto_free(sink)
+	_sandbox.container.add_child(sink)
+
+	var job := Job.from_def(HAULING_DEF)
+	job.target_node = sink
+	job.location = Vector3(3.0, 0.0, 3.0)
+
+	colonist.inventory.add("plank", 3)
+	assert_vector(HAULING_DEF.work_site(colonist, job) as Vector3).is_equal(Vector3(10.0, 0.0, 10.0))
+
+	HAULING_DEF.complete(colonist, job)
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(3)
+
+
+## BTActionClaimJob dumps surplus items when the held claim is spent.
+func test_claim_job_dumps_surplus_when_claim_is_spent() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(5.0, 0.0, 5.0)
+	var crate: Furniture = _sandbox.make_crate("plank", 0)
+	crate.global_position = Vector3(5.0, 0.0, 5.0)
+	
+	colonist.inventory.add("plank", 2)
+	
+	var job_inst := JobInstance.create_haul(
+		HAULING_DEF,
+		&"plank",
+		2,
+		Vector3(0, 0, 0),
+		Vector3(0, 0, 0)
+	)
+	var claim := job_inst.try_claim_units(colonist, 2)
+	claim.completed_units = 2
+	
+	_blackboard.set_var(&"active_claim", claim)
+	_blackboard.set_var(&"active_job", job_inst)
+	
+	var task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	task.initialize(colonist, _blackboard, colonist)
+	
+	task.execute(0.1)
+	
+	assert_bool(_blackboard.has_var(&"active_claim")).is_false()
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(2)
+
+
 func test_perform_work_unassigns_legacy_job_after_cycle() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
 	var stub_def: StubCompletingJobDef = auto_free(StubCompletingJobDef.new()) as StubCompletingJobDef

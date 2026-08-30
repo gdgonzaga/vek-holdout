@@ -39,6 +39,7 @@ func _tick(_delta: float) -> Status:
 				blackboard.erase_var(job_var)
 				if agent is Colonist:
 					(agent as Colonist).current_job = null
+					_dump_surplus_items(agent as Colonist)
 			else:
 				_cleanup_incompatible_held_items(colonist)
 				return SUCCESS
@@ -50,6 +51,7 @@ func _tick(_delta: float) -> Status:
 				blackboard.erase_var(job_var)
 				if agent is Colonist:
 					(agent as Colonist).current_job = null
+					_dump_surplus_items(agent as Colonist)
 			else:
 				_cleanup_incompatible_held_items(colonist)
 				return SUCCESS
@@ -141,3 +143,29 @@ func _job_is_dead(job: Variant) -> bool:
 	if "is_cancelled" in job and bool(job.is_cancelled):
 		return true
 	return false
+
+
+func _dump_surplus_items(colonist: Colonist) -> void:
+	if colonist == null or colonist.inventory == null or not colonist.hands_full():
+		return
+	var colony: Node = colonist.get_node_or_null("/root/Colony")
+	var crate_inv: Inventory = null
+	if colony != null and "storage_registry" in colony and colony.storage_registry != null:
+		var crate = colony.storage_registry.nearest_crate(colonist.global_position)
+		if crate != null and colonist.global_position.distance_to(crate.global_position) <= 2.5:
+			crate_inv = colony.storage_registry.inventory_of(crate)
+			
+	var items: Array = colonist.inventory.items.keys().duplicate()
+	for item_id in items:
+		var id_str := str(item_id)
+		var def := ItemDB.get_def(id_str) if ItemDB != null else null
+		if def != null and def.tags.has("tool"):
+			continue
+		var count: int = colonist.inventory.get_item_count(id_str)
+		if count <= 0:
+			continue
+		if crate_inv != null:
+			colonist.inventory.transfer_to(crate_inv, id_str, count)
+		elif colonist.is_inside_tree():
+			colonist.inventory.remove(id_str, count)
+			WorldItem.spawn_at(colonist, id_str, count, colonist.global_position + Vector3(0, 0.5, 0))

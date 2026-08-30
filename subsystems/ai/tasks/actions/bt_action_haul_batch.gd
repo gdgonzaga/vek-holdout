@@ -132,28 +132,29 @@ func _execute_unload(colonist_inv: CharacterInventory, job: Variant) -> Status:
 	elif job != null and "target_node" in job and job.target_node != null:
 		target_sink = job.target_node as Node
 		
-	if target_sink != null:
+	var deposited := false
+	if target_sink != null and is_instance_valid(target_sink) and not target_sink.is_queued_for_deletion():
 		if target_sink.has_method("deposit_from"):
 			target_sink.deposit_from(agent)
-			return SUCCESS
-			
-		var target_inv: Inventory = null
-		var colony: Node = agent.get_node_or_null("/root/Colony")
-		if colony != null and "storage_registry" in colony and colony.storage_registry != null and target_sink is Furniture:
-			target_inv = colony.storage_registry.inventory_of(target_sink as Furniture)
-		if target_inv == null and "inventory" in target_sink and target_sink.inventory is Inventory:
-			target_inv = target_sink.inventory
-		if target_inv == null and target_sink.has_node("StorageInventory"):
-			target_inv = target_sink.get_node("StorageInventory") as Inventory
-			
-		if target_inv != null:
-			for item_id in colonist_inv.items.keys():
-				var count: int = colonist_inv.get_item_count(item_id)
-				if count > 0:
-					colonist_inv.transfer_to(target_inv, item_id, count)
-			return SUCCESS
-			
-	# If no specific sink, unload surplus to nearest crate
+			deposited = true
+		else:
+			var target_inv: Inventory = null
+			var colony: Node = agent.get_node_or_null("/root/Colony")
+			if colony != null and "storage_registry" in colony and colony.storage_registry != null and target_sink is Furniture:
+				target_inv = colony.storage_registry.inventory_of(target_sink as Furniture)
+			if target_inv == null and "inventory" in target_sink and target_sink.inventory is Inventory:
+				target_inv = target_sink.inventory
+			if target_inv == null and target_sink.has_node("StorageInventory"):
+				target_inv = target_sink.get_node("StorageInventory") as Inventory
+				
+			if target_inv != null:
+				for item_id in colonist_inv.items.keys():
+					var count: int = colonist_inv.get_item_count(item_id)
+					if count > 0:
+						colonist_inv.transfer_to(target_inv, item_id, count)
+				deposited = true
+
+	# Unload any remaining surplus to nearest crate
 	var colony: Node = agent.get_node_or_null("/root/Colony")
 	if colony != null and "storage_registry" in colony and colony.storage_registry != null:
 		var agent_pos: Vector3 = (agent as Node3D).global_position if agent is Node3D else Vector3.ZERO
@@ -166,5 +167,18 @@ func _execute_unload(colonist_inv: CharacterInventory, job: Variant) -> Status:
 					if count > 0:
 						colonist_inv.transfer_to(crate_inv, item_id, count)
 				return SUCCESS
-				
-	return FAILURE
+
+	if deposited:
+		return SUCCESS
+
+	# If nowhere to unload and still holding items, drop to floor as failsafe
+	if agent is Node3D and agent.get_tree() != null and not colonist_inv.items.is_empty():
+		var pos: Vector3 = (agent as Node3D).global_position
+		for item_id in colonist_inv.items.keys():
+			var count: int = colonist_inv.get_item_count(item_id)
+			if count > 0:
+				colonist_inv.remove(str(item_id), count)
+				WorldItem.spawn_at(agent, str(item_id), count, pos + Vector3(0, 0.5, 0))
+		return SUCCESS
+
+	return SUCCESS if colonist_inv.items.is_empty() else FAILURE

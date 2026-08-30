@@ -1,5 +1,7 @@
 extends Node
 class_name JobBoard
+
+const HAULING_DEF := preload("res://data/jobs/hauling.tres")
 ## The colony's job registry + lifecycle (ARCH "Subsystem: Colonists").
 ##
 ## Owned by the Colony autoload as a child Node (Colony.job_board). Producers
@@ -100,7 +102,22 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 		if "target_node" in job and job.target_node != null and (not is_instance_valid(job.target_node) or job.target_node.is_queued_for_deletion()):
 			continue
 		if not job.is_available():
-			continue
+			# Bypass: hauling jobs for sinks where this colonist already
+			# carries the needed materials are still claimable — the source
+			# check fails because materials moved from the crate to the
+			# colonist's pocket during the FETCH leg.
+			var bypass := false
+			var _def: Resource = null
+			if "def" in job:
+				_def = job.def
+			elif "job_def" in job:
+				_def = job.job_def
+			if _def is HaulingJobDef:
+				var _sink = _def._sink_of(job)
+				if _sink != null and _def._carries_needed_material(colonist, _sink):
+					bypass = true
+			if not bypass:
+				continue
 		if is_job_blacklisted_for(job_id, colonist.colonist_id):
 			continue
 		var labor_id_str: String = ""
@@ -125,6 +142,15 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 			elif job is Job and def_obj.has_method("meets_requirements"):
 				if not def_obj.meets_requirements(colonist, job):
 					continue
+		# If colonist is already carrying materials for this haul job, give it continuation bonus
+		if def_obj is HaulingJobDef and def_obj.has_method("_carries_item"):
+			var wi = def_obj._world_item_of(job)
+			if wi != null and def_obj._carries_item(colonist, wi.item_id):
+				priority += 100
+			var sink = def_obj._sink_of(job)
+			if sink != null and def_obj._carries_needed_material(colonist, sink):
+				priority += 100
+
 		var loc: Vector3 = Vector3.ZERO
 		if "world_position" in job:
 			loc = job.world_position
@@ -139,6 +165,46 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 			if dist_sq < best_dist_sq:
 				best = job
 				best_dist_sq = dist_sq
+
+	# If no job was selected, but colonist is carrying non-tool items AND is
+	# not currently assigned to any haul job (which would mean a FETCH/DELIVER
+	# cycle is in progress), route to nearest crate to dump surplus.
+	if best == null and colonist.hands_full():
+		# Don't generate a store job if the colonist already has an active
+		# hauling assignment on the board (they're mid-cycle, e.g. just
+		# fetched materials for a blueprint and walking to deliver them).
+		var already_hauling := false
+		if colonist.current_job != null and is_instance_valid(colonist.current_job):
+			already_hauling = true
+		if not already_hauling:
+			for j in _jobs.values():
+				if j is Job and j.def is HaulingJobDef:
+					if "_assigned_colonists" in j:
+						var assigned: Array = j._assigned_colonists
+						if assigned.has(colonist) or assigned.has(str(colonist)):
+							already_hauling = true
+							break
+		if not already_hauling:
+			var has_non_tool := false
+			if colonist.inventory != null:
+				for item_id in colonist.inventory.items.keys():
+					var def := ItemDB.get_def(str(item_id)) if ItemDB != null else null
+					if def == null or not def.tags.has("tool"):
+						if colonist.inventory.get_item_count(str(item_id)) > 0:
+							has_non_tool = true
+							break
+			if has_non_tool:
+				var colony: Node = colonist.get_node_or_null("/root/Colony")
+				if colony != null and "storage_registry" in colony and colony.storage_registry != null:
+					var crate = colony.storage_registry.nearest_crate(colonist.global_position)
+					if crate != null:
+						var haul_job := Job.from_def(HAULING_DEF)
+						haul_job.title = "Store Carried Items"
+						haul_job.target_node = crate
+						haul_job.location = crate.global_position
+						haul_job.max_assignees = 1
+						return haul_job
+
 	return best
 
 

@@ -235,11 +235,15 @@ func drop_held_item(item_id: String = "") -> String:
 	if item_id != "":
 		if inventory.has_item(item_id, 1):
 			inventory.remove(item_id, 1)
+			if is_inside_tree():
+				WorldItem.spawn_at(self, item_id, 1, global_position + Vector3(0, 0.5, 0))
 			return item_id
 		return ""
 	if not inventory.items.is_empty():
 		var first_item: String = str(inventory.items.keys()[0])
 		inventory.remove(first_item, 1)
+		if is_inside_tree():
+			WorldItem.spawn_at(self, first_item, 1, global_position + Vector3(0, 0.5, 0))
 		return first_item
 	return ""
 

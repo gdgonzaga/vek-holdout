@@ -307,6 +307,8 @@ func _spawn_job(def: JobDef, title: String, anchor: Vector3i, location: Vector3,
 	job.anchor_cell = anchor
 	job.location = location
 	job.target_node = target
+	if target is WorldItem:
+		job.max_assignees = 1
 	job_board.add_job(job)
 
 

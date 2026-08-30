@@ -19,21 +19,42 @@ const GATHER_SEARCH_RADIUS := 12.0
 
 
 func work_site(actor: Node, job: Variant) -> Variant:
+	var actor_3d := actor as Node3D
+	var actor_pos := actor_3d.global_position if actor_3d != null else Vector3.ZERO
+
+	var direct_crate := _storage_crate_of(job)
+	if direct_crate != null:
+		return direct_crate.global_position
+
 	var sink := _sink_of(job)
 	if sink != null:
 		if _carries_needed_material(actor, sink):
-			var loc: Vector3 = job.location if "location" in job else Vector3.ZERO
-			return loc
+			if "target_position" in job and job.target_position != Vector3.ZERO:
+				return job.target_position
+			if "world_position" in job and job.world_position != Vector3.ZERO:
+				return job.world_position
+			if "location" in job and job.location != Vector3.ZERO:
+				return job.location
+			if sink is Node3D:
+				return (sink as Node3D).global_position
+			return Vector3.ZERO
+
+		# If we're carrying surplus material and sink is already full, route to crate
+		if sink.has_complete_materials() or not Colony.storage_registry.has_source_for(sink.needed_item_ids()):
+			var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
+			if pocket != null and not pocket.items.is_empty():
+				var crate := Colony.storage_registry.nearest_crate(actor_pos)
+				if crate != null:
+					return crate.global_position
+
 		var crate := Colony.storage_registry.find_source(
-				sink.needed_item_ids(), (actor as Node3D).global_position if actor is Node3D else Vector3.ZERO)
+				sink.needed_item_ids(), actor_pos)
 		if crate == null:
 			return null
 		return crate.global_position
 
 	var world_item := _world_item_of(job)
 	if world_item != null:
-		var actor_3d := actor as Node3D
-		var actor_pos := actor_3d.global_position if actor_3d != null else Vector3.ZERO
 		if _carries_item(actor, world_item.item_id):
 			# If capacity remains, check for next nearby reachable matching item
 			var next_item := _find_next_reachable_ground_item(actor, world_item.item_id, GATHER_SEARCH_RADIUS)
@@ -53,12 +74,21 @@ func work_site(actor: Node, job: Variant) -> Variant:
 
 
 func complete(actor: Node, job: Variant) -> void:
+	var direct_crate := _storage_crate_of(job)
+	if direct_crate != null:
+		_return_surplus_to_crate(actor)
+		_finish(actor, job)
+		return
+
 	var sink := _sink_of(job)
 	if sink != null and is_instance_valid(actor):
 		if _carries_needed_material(actor, sink):
 			sink.deposit_from(actor)
 			if sink.has_complete_materials():
 				_return_surplus_to_crate(actor)
+			return
+		if sink.has_complete_materials():
+			_return_surplus_to_crate(actor)
 			return
 		var crate := Colony.storage_registry.find_source(
 				sink.needed_item_ids(), (actor as Node3D).global_position if actor is Node3D else Vector3.ZERO)
@@ -108,6 +138,7 @@ func complete(actor: Node, job: Variant) -> void:
 				var count := pocket.get_item_count(world_item.item_id)
 				if count > 0:
 					pocket.transfer_to(crate_inv, world_item.item_id, count)
+			_return_surplus_to_crate(actor)
 			_free_collected_hidden_items(actor, world_item.item_id)
 			if is_instance_valid(world_item):
 				if world_item.count <= 0:
@@ -115,9 +146,33 @@ func complete(actor: Node, job: Variant) -> void:
 				else:
 					world_item.unreserve(actor)
 			return
+		else:
+			_free_collected_hidden_items(actor, world_item.item_id)
+			if is_instance_valid(world_item):
+				world_item.unreserve(actor)
+				if world_item.count <= 0 and not world_item.visible:
+					world_item.queue_free()
+			return
+
+
+func meets_requirements_any(actor: Node, job: Variant) -> bool:
+	var world_item := _world_item_of(job)
+	if world_item != null:
+		if world_item.is_forbidden():
+			return false
+		if world_item.is_reserved() and not world_item.is_reserved_by(actor):
+			return false
+		if world_item.count <= 0 and not _carries_item(actor, world_item.item_id):
+			return false
+		if not _actor_has_remaining_capacity(actor) and not _carries_item(actor, world_item.item_id):
+			return false
+	return super.meets_requirements_any(actor, job)
 
 
 func is_available(job: Variant) -> bool:
+	if _storage_crate_of(job) != null:
+		return true
+
 	var sink := _sink_of(job)
 	if sink != null:
 		if sink.has_complete_materials():
@@ -127,6 +182,8 @@ func is_available(job: Variant) -> bool:
 	var world_item := _world_item_of(job)
 	if world_item != null:
 		if world_item.is_forbidden():
+			return false
+		if not is_instance_valid(world_item) or world_item.is_queued_for_deletion():
 			return false
 		if world_item.is_reserved():
 			if job is Job:
@@ -141,6 +198,9 @@ func is_available(job: Variant) -> bool:
 
 
 func should_close(job: Variant) -> bool:
+	if _storage_crate_of(job) != null:
+		return true
+
 	var sink := _sink_of(job)
 	if sink != null:
 		return sink.has_complete_materials()
@@ -149,7 +209,7 @@ func should_close(job: Variant) -> bool:
 	if world_item != null:
 		if world_item.is_forbidden():
 			return true
-		if world_item.count <= 0 and not world_item.visible and not world_item.is_reserved():
+		if not is_instance_valid(world_item) or world_item.is_queued_for_deletion():
 			return true
 		return false
 
@@ -285,19 +345,32 @@ func _return_surplus_to_crate(actor: Node) -> void:
 		return
 	var crate_inv := Colony.storage_registry.inventory_of(
 			Colony.storage_registry.nearest_crate((actor as Node3D).global_position))
-	if crate_inv == null:
-		return
 	for item_id in pocket.items.keys():
 		if _is_tool(str(item_id)):
 			continue
 		var count: int = pocket.get_item_count(str(item_id))
 		if count > 0:
-			pocket.transfer_to(crate_inv, str(item_id), count)
+			if crate_inv != null:
+				pocket.transfer_to(crate_inv, str(item_id), count)
+			elif actor.is_inside_tree():
+				pocket.remove(str(item_id), count)
+				WorldItem.spawn_at(actor, str(item_id), count, (actor as Node3D).global_position + Vector3(0, 0.5, 0))
 
 
 func _is_tool(item_id: String) -> bool:
 	var def := ItemDB.get_def(item_id)
 	return def != null and def.tags.has(TOOL_TAG)
+
+
+func _storage_crate_of(job: Variant) -> Furniture:
+	if job == null or not "target_node" in job:
+		return null
+	var t: Variant = job.target_node
+	if t == null or not is_instance_valid(t) or (t as Node).is_queued_for_deletion():
+		return null
+	if t is Furniture and (t as Furniture).has_node("StorageInventory"):
+		return t as Furniture
+	return null
 
 
 func _sink_of(job: Variant) -> Node:

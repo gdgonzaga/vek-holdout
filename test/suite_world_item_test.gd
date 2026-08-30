@@ -513,3 +513,42 @@ func test_multi_item_haul_ignores_unreachable_wall() -> void:
 	# Cycle 2: item2 is behind wall and unreachable -> work_site routes to crate
 	var site_2 = haul_job.def.work_site(colonist, haul_job)
 	assert_vector(site_2).is_equal(crate.global_position)
+
+
+func test_world_item_job_single_assignee_and_surplus_delivery() -> void:
+	var colonist1: Colonist = _sandbox.make_colonist()
+	var colonist2: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(10.0, 0.0, 0.0)
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.position = Vector3(2.0, 0.0, 0.0)
+	item.setup("wood", 5, false)
+	_sandbox.container.add_child(item)
+
+	var job = _sandbox.test_board.get_best_job_for(colonist1)
+	assert_object(job).is_not_null()
+	assert_int(job.max_assignees).is_equal(1)
+
+	# Assign colonist1
+	assert_bool(job.try_assign(colonist1)).is_true()
+
+	# Colonist2 should NOT be able to claim or assign to the same ground item job
+	var job_c2 = _sandbox.test_board.get_best_job_for(colonist2)
+	assert_object(job_c2).is_null()
+
+	# Give colonist1 some existing dirt in inventory from a previous action
+	colonist1.inventory.add("dirt", 4)
+
+	# Cycle 1: pickup
+	job.def.complete(colonist1, job)
+	assert_int(colonist1.inventory.get_item_count("wood")).is_equal(5)
+	assert_int(colonist1.inventory.get_item_count("dirt")).is_equal(4)
+
+	# Cycle 2: deliver to crate -> should deposit wood AND surplus dirt
+	job.def.complete(colonist1, job)
+	assert_int(colonist1.inventory.get_item_count("wood")).is_equal(0)
+	assert_int(colonist1.inventory.get_item_count("dirt")).is_equal(0)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("wood")).is_equal(5)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("dirt")).is_equal(4)
