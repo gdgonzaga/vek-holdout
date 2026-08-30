@@ -117,6 +117,12 @@ func on_map_wired(container: Node3D, spawn_positions: Array) -> void:
 				if c.get_parent() != null:
 					c.get_parent().remove_child(c)
 				container.add_child(c)
+	var tree := get_tree()
+	if tree != null:
+		for node in tree.get_nodes_in_group("world_items"):
+			var item := node as WorldItem
+			if item != null and is_instance_valid(item) and not item.is_forbidden():
+				register_world_item(item)
 
 
 ## Store the active map's walkability predicate and inject it into all current colonists.
@@ -292,7 +298,9 @@ func reset_for_new_game() -> void:
 ## same def already exists there.
 func _spawn_job(def: JobDef, title: String, anchor: Vector3i, location: Vector3, target: Node) -> void:
 	for j in job_board.get_jobs():
-		if j.anchor_cell == anchor and j.def == def:
+		if target != null and j.target_node == target and j.def == def:
+			return
+		if target == null and j.anchor_cell == anchor and j.def == def:
 			return
 	var job := Job.from_def(def)
 	job.title = title
@@ -300,6 +308,15 @@ func _spawn_job(def: JobDef, title: String, anchor: Vector3i, location: Vector3,
 	job.location = location
 	job.target_node = target
 	job_board.add_job(job)
+
+
+## Drop jobs targeting `target` — every def's when `def` is null, else only that def's.
+func _remove_jobs_for_target(target: Node, def: JobDef = null) -> void:
+	if target == null:
+		return
+	for job in job_board.get_jobs():
+		if job.target_node == target and (def == null or job.def == def):
+			job_board.remove_job(job.id)
 
 
 ## Drop jobs at `anchor` — every def's when `def` is null, else only that def's.
@@ -511,3 +528,51 @@ func _on_dig_box_designated(cells: Array) -> void:
 func _spawn_dig_job(anchor: Vector3i) -> void:
 	var location := Vector3(anchor) + Vector3(0.5, 0.5, 0.5)
 	_spawn_job(DIG_DEF, "Dig terrain", anchor, location, null)
+
+
+# --- World Items Hauling ------------------------------------------------------
+
+## Registers a WorldItem with Colony and spawns a hauling job if available.
+func register_world_item(item: WorldItem) -> void:
+	if item == null or not is_instance_valid(item):
+		return
+	if item.is_forbidden() or item.count <= 0:
+		return
+	_spawn_world_item_haul_job(item)
+	if not item.forbidden_changed.is_connected(_on_world_item_forbidden_changed):
+		item.forbidden_changed.connect(_on_world_item_forbidden_changed.bind(item))
+	if not item.urgent_haul_changed.is_connected(_on_world_item_urgent_haul_changed):
+		item.urgent_haul_changed.connect(_on_world_item_urgent_haul_changed.bind(item))
+
+
+## Unregisters a WorldItem and cancels any associated haul job.
+func unregister_world_item(item: WorldItem) -> void:
+	if item == null:
+		return
+	_remove_jobs_for_target(item, HAULING_DEF)
+
+
+func _on_world_item_forbidden_changed(is_forbidden: bool, item: WorldItem) -> void:
+	if is_forbidden:
+		unregister_world_item(item)
+	else:
+		register_world_item(item)
+
+
+func _on_world_item_urgent_haul_changed(_is_urgent: bool, item: WorldItem) -> void:
+	if item == null or not is_instance_valid(item):
+		return
+	_remove_jobs_for_target(item, HAULING_DEF)
+	if not item.is_forbidden() and item.count > 0:
+		_spawn_world_item_haul_job(item)
+
+
+func _spawn_world_item_haul_job(item: WorldItem) -> void:
+	if item == null or not is_instance_valid(item) or item.is_forbidden() or item.count <= 0:
+		return
+	var anchor := Vector3i(item.global_position.floor())
+	var def := ItemDB.get_def(item.item_id) if ItemDB != null else null
+	var name_str := def.id if def != null and def.id != "" else (item.item_id if item.item_id != "" else "Item")
+	var prefix := "[Urgent] " if item.is_urgent_haul() else ""
+	var title := "%sHaul %s (x%d)" % [prefix, name_str, item.count]
+	_spawn_job(HAULING_DEF, title, anchor, item.global_position, item)

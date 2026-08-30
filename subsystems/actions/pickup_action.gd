@@ -17,7 +17,10 @@ func execute(actor: Node, target: Node) -> void:
 
 	var remaining_count := world_item.count
 	if remaining_count <= 0:
-		world_item.queue_free()
+		if world_item.is_reserved():
+			world_item.hide_item()
+		else:
+			world_item.queue_free()
 		return
 
 	var overflow := inventory.add(world_item.item_id, remaining_count)
@@ -34,7 +37,10 @@ func execute(actor: Node, target: Node) -> void:
 			GameLog.info("Picked up %s (x%d)" % [item_name, taken])
 
 		if world_item.count <= 0:
-			world_item.queue_free()
+			if world_item.is_reserved():
+				world_item.hide_item()
+			else:
+				world_item.queue_free()
 		else:
 			world_item.update_visuals_and_interaction()
 	else:

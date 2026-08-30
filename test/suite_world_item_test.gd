@@ -1,17 +1,21 @@
 extends GdUnitTestSuite
 
-## Unit tests for WorldItem (dropped items, physics spawning, and pickup interactions).
+## Unit tests for WorldItem (dropped items, physics spawning, reservation, and hauling interactions).
 
 const Doubles = preload("res://test/helpers/doubles.gd")
+const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 const WorldItemScript = preload("res://subsystems/inventory/world_item.gd")
 const PickupActionScript = preload("res://subsystems/actions/pickup_action.gd")
 const ToggleForbiddenActionScript = preload("res://subsystems/actions/toggle_forbidden_action.gd")
 
 var _wood: ItemDef
 var _stone: ItemDef
+var _sandbox: ColonySandbox
 
 
 func before_test() -> void:
+	_sandbox = ColonySandbox.new(self)
+
 	_wood = ItemDef.new()
 	_wood.id = "wood"
 	_wood.weight = 1.0
@@ -21,6 +25,17 @@ func before_test() -> void:
 	_stone.id = "stone"
 	_stone.weight = 2.0
 	auto_free(_stone)
+
+	if ItemDB != null:
+		ItemDB._defs_by_id["wood"] = _wood
+		ItemDB._defs_by_id["stone"] = _stone
+
+
+func after_test() -> void:
+	if ItemDB != null:
+		ItemDB._defs_by_id.erase("wood")
+		ItemDB._defs_by_id.erase("stone")
+	_sandbox.restore()
 
 
 func _make_inventory(capacity: float, defs: Dictionary) -> Inventory:
@@ -53,6 +68,61 @@ func test_set_forbidden_updates_state_and_interaction() -> void:
 	assert_int(counter.read()).is_equal(1)
 	assert_bool(item.forbidden).is_true()
 	assert_bool(item.is_forbidden()).is_true()
+
+
+func test_world_item_reservation_lifecycle() -> void:
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.setup("wood", 4, false)
+	_sandbox.container.add_child(item)
+
+	assert_bool(item.is_reserved()).is_false()
+	assert_object(item.get_claimer()).is_null()
+
+	var counter := Doubles.SignalCounter.new(item.reservation_changed)
+
+	# 1. Reserve by worker A
+	var worker_a := "colonist_1"
+	var ok_a := item.reserve(worker_a)
+	assert_bool(ok_a).is_true()
+	assert_bool(item.is_reserved()).is_true()
+	assert_bool(item.is_reserved_by(worker_a)).is_true()
+	assert_int(counter.count).is_equal(1)
+
+	# 2. Worker B attempts to reserve while A holds claim -> denied
+	var worker_b := "colonist_2"
+	var ok_b := item.reserve(worker_b)
+	assert_bool(ok_b).is_false()
+	assert_bool(item.is_reserved_by(worker_a)).is_true()
+
+	# 3. Worker B attempts to unreserve A's claim -> ignored
+	item.unreserve(worker_b)
+	assert_bool(item.is_reserved()).is_true()
+
+	# 4. Worker A releases claim -> unreserved
+	item.unreserve(worker_a)
+	assert_bool(item.is_reserved()).is_false()
+	assert_int(counter.count).is_equal(2)
+
+	# 5. Setting forbidden unreserves held claim
+	item.reserve(worker_a)
+	assert_bool(item.is_reserved()).is_true()
+	item.set_forbidden(true)
+	assert_bool(item.is_reserved()).is_false()
+	assert_int(counter.read()).is_equal(4)
+
+
+func test_world_item_urgent_haul_flag() -> void:
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.setup("stone", 2, false)
+
+	var counter := Doubles.SignalCounter.new(item.urgent_haul_changed)
+	assert_bool(item.is_urgent_haul()).is_false()
+
+	item.set_urgent_haul(true)
+	assert_bool(item.is_urgent_haul()).is_true()
+	assert_int(counter.read()).is_equal(1)
 
 
 func test_pickup_action_transfers_items_to_inventory() -> void:
@@ -166,3 +236,128 @@ func test_player_drop_item_spawns_world_item() -> void:
 	assert_bool(player.has_item("dirt", 1)).is_false()
 
 	get_tree().root.remove_child(player)
+
+
+func test_world_item_registered_with_colony_and_removed_on_forbid() -> void:
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.setup("wood", 5, false)
+	_sandbox.container.add_child(item)
+
+	# Verify job board has a haul job targeting this item
+	var jobs := _sandbox.test_board.get_jobs()
+	var haul_jobs := jobs.filter(func(j: Job) -> bool: return j.target_node == item)
+	assert_int(haul_jobs.size()).is_equal(1)
+	var haul_job: Job = haul_jobs[0]
+	assert_str(haul_job.labor_id).is_equal("hauling")
+
+	# Forbidding item removes the haul job
+	item.set_forbidden(true)
+	jobs = _sandbox.test_board.get_jobs()
+	haul_jobs = jobs.filter(func(j: Job) -> bool: return j.target_node == item)
+	assert_int(haul_jobs.size()).is_equal(0)
+
+	# Unforbidding restores the haul job
+	item.set_forbidden(false)
+	jobs = _sandbox.test_board.get_jobs()
+	haul_jobs = jobs.filter(func(j: Job) -> bool: return j.target_node == item)
+	assert_int(haul_jobs.size()).is_equal(1)
+
+
+func test_world_item_proximity_job_selection() -> void:
+	_sandbox.make_crate("wood", 0)
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3(0.0, 0.0, 0.0)
+	colonist.labor_priorities["hauling"] = 3
+
+	# Spawn distant item (at x=20) and near item (at x=3)
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var far_item: WorldItem = auto_free(scene.instantiate())
+	far_item.position = Vector3(20.0, 0.0, 0.0)
+	far_item.setup("wood", 5, false)
+	_sandbox.container.add_child(far_item)
+
+	var near_item: WorldItem = auto_free(scene.instantiate())
+	near_item.position = Vector3(3.0, 0.0, 0.0)
+	near_item.setup("wood", 5, false)
+	_sandbox.container.add_child(near_item)
+
+	var best_job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(best_job).is_not_null()
+	assert_object(best_job.target_node).is_same(near_item)
+
+
+func test_world_item_hauling_execution_and_storage() -> void:
+	var crate := _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(10.0, 0.0, 0.0)
+
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3(0.0, 0.0, 0.0)
+	colonist.labor_priorities["hauling"] = 3
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.position = Vector3(2.0, 0.0, 0.0)
+	item.setup("wood", 4, false)
+	_sandbox.container.add_child(item)
+
+	var haul_job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(haul_job).is_not_null()
+
+	# 1. First cycle: walk target is WorldItem position
+	var site_1 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_1).is_equal(item.global_position)
+
+	# Complete pickup
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(4)
+
+	# 2. Second cycle: walk target is crate position
+	var site_2 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_2).is_equal(crate.global_position)
+
+	# Complete deliver
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
+	var crate_inv := _sandbox.test_registry.inventory_of(crate)
+	assert_int(crate_inv.get_item_count("wood")).is_equal(4)
+
+
+func test_storage_registry_find_storage_for() -> void:
+	var crate_small := _sandbox.make_crate("wood", 0)
+	crate_small.global_position = Vector3(2.0, 0.0, 0.0)
+	var inv_small := _sandbox.test_registry.inventory_of(crate_small)
+	inv_small.capacity = 2.0  # holds up to 2 wood (weight 1.0)
+
+	var crate_large := _sandbox.make_crate("wood", 0)
+	crate_large.global_position = Vector3(10.0, 0.0, 0.0)
+	var inv_large := _sandbox.test_registry.inventory_of(crate_large)
+	inv_large.capacity = 50.0
+
+	# 1 wood fits in nearest small crate
+	var found_1 := _sandbox.test_registry.find_storage_for("wood", Vector3.ZERO, 1)
+	assert_object(found_1).is_same(crate_small)
+
+	# 5 wood does not fit in small crate (needs large crate at x=10)
+	var found_5 := _sandbox.test_registry.find_storage_for("wood", Vector3.ZERO, 5)
+	assert_object(found_5).is_same(crate_large)
+
+
+func test_storage_registry_colony_stock_excludes_reserved() -> void:
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.setup("wood", 5, false)
+	_sandbox.container.add_child(item)
+
+	# Unreserved stock
+	var unreserved_stock := _sandbox.test_registry.colony_stock("wood")
+	assert_int(unreserved_stock).is_equal(5)
+
+	# Reserve item
+	item.reserve("hauler_1")
+	var stock_after_reserve := _sandbox.test_registry.colony_stock("wood", null, 50.0, false)
+	assert_int(stock_after_reserve).is_equal(0)
+
+	# Include reserved explicitly
+	var stock_with_reserved := _sandbox.test_registry.colony_stock("wood", null, 50.0, true)
+	assert_int(stock_with_reserved).is_equal(5)

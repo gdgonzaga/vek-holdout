@@ -41,6 +41,24 @@ func find_source(item_ids: Array[String], near: Vector3) -> Furniture:
 	return best
 
 
+## Nearest crate to `near` that can accept `count` of `item_id` (has space under its weight capacity).
+## Returns null if no storage crate has capacity for the item.
+func find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furniture:
+	var best: Furniture = null
+	var best_dist_sq: float = 0.0
+	for crate in _crates():
+		var inv := inventory_of(crate)
+		if inv == null:
+			continue
+		if not inv.can_add(item_id, count):
+			continue
+		var d: float = crate.global_position.distance_squared_to(near)
+		if best == null or d < best_dist_sq:
+			best = crate
+			best_dist_sq = d
+	return best
+
+
 ## True if any crate holds at least one of `item_ids`. Used by the producer
 ## (Colony._on_blueprint_placed) to decide haul-vs-construct, and by hauling's
 ## is_available gate so a no-source haul job is never claimable (and thus pruned).
@@ -71,7 +89,7 @@ const DEFAULT_STOCK_RADIUS := 50.0
 ## 1. All storage crates in the colony.
 ## 2. Unforbidden WorldItems (filtered within `radius` of `near_pos` when `near_pos` is a Vector3).
 ## 3. Items carried by colonists and the player.
-func colony_stock(item_id: String, near_pos: Variant = null, radius: float = DEFAULT_STOCK_RADIUS) -> int:
+func colony_stock(item_id: String, near_pos: Variant = null, radius: float = DEFAULT_STOCK_RADIUS, include_reserved: bool = false) -> int:
 	var total := 0
 	# 1. Storage crates
 	for crate in _crates():
@@ -91,6 +109,8 @@ func colony_stock(item_id: String, near_pos: Variant = null, radius: float = DEF
 		if item == null or not is_instance_valid(item) or not item.is_inside_tree():
 			continue
 		if item.is_forbidden() or item.item_id != item_id:
+			continue
+		if not include_reserved and item.is_reserved():
 			continue
 		if check_dist and item.global_position.distance_squared_to(near_pos as Vector3) > radius_sq:
 			continue

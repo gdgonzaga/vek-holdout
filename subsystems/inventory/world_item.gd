@@ -9,8 +9,11 @@ const SCENE_PATH := "res://subsystems/inventory/world_item.tscn"
 @export var item_id: String = ""
 @export var count: int = 1
 @export var forbidden: bool = false: set = set_forbidden
+@export var urgent_haul: bool = false: set = set_urgent_haul
 
 signal forbidden_changed(is_forbidden: bool)
+signal urgent_haul_changed(is_urgent: bool)
+signal reservation_changed(is_reserved: bool, claimer: Variant)
 signal count_changed(new_count: int)
 
 @onready var mesh_instance: MeshInstance3D = get_node_or_null("MeshInstance3D") as MeshInstance3D
@@ -19,6 +22,7 @@ signal count_changed(new_count: int)
 
 var _pickup_option: ActionOption
 var _forbid_option: ActionOption
+var _reserved_by: Variant = null
 
 
 func _ready() -> void:
@@ -28,6 +32,12 @@ func _ready() -> void:
 
 	_setup_interaction()
 	update_visuals_and_interaction()
+	_register_with_colony()
+
+
+func _exit_tree() -> void:
+	_unregister_from_colony()
+	unreserve()
 
 
 func setup(p_item_id: String, p_count: int = 1, p_forbidden: bool = false) -> void:
@@ -36,12 +46,15 @@ func setup(p_item_id: String, p_count: int = 1, p_forbidden: bool = false) -> vo
 	forbidden = p_forbidden
 	if is_node_ready():
 		update_visuals_and_interaction()
+		_register_with_colony()
 
 
 func set_forbidden(value: bool) -> void:
 	if forbidden == value:
 		return
 	forbidden = value
+	if forbidden:
+		unreserve()
 	forbidden_changed.emit(forbidden)
 	if is_node_ready():
 		update_visuals_and_interaction()
@@ -49,6 +62,96 @@ func set_forbidden(value: bool) -> void:
 
 func is_forbidden() -> bool:
 	return forbidden
+
+
+func set_urgent_haul(value: bool) -> void:
+	if urgent_haul == value:
+		return
+	urgent_haul = value
+	urgent_haul_changed.emit(urgent_haul)
+
+
+func is_urgent_haul() -> bool:
+	return urgent_haul
+
+
+## Attempts to reserve this item for a worker or job. Returns true if reservation was granted.
+func reserve(claimer: Variant) -> bool:
+	if forbidden or count <= 0:
+		return false
+	if is_reserved():
+		return _is_same_claimer(_reserved_by, claimer)
+	_reserved_by = claimer
+	reservation_changed.emit(true, claimer)
+	return true
+
+
+## Releases the active reservation if claimer matches (or if claimer is null / forced release).
+func unreserve(claimer: Variant = null) -> void:
+	if not is_reserved():
+		return
+	if claimer == null or _is_same_claimer(_reserved_by, claimer):
+		var prev: Variant = _reserved_by
+		_reserved_by = null
+		reservation_changed.emit(false, prev)
+
+
+## True if this item is currently reserved by an active claimer.
+func is_reserved() -> bool:
+	if _reserved_by == null:
+		return false
+	if _reserved_by is Object and not is_instance_valid(_reserved_by):
+		_reserved_by = null
+		return false
+	return true
+
+
+## Returns the active claimer, or null if unreserved.
+func get_claimer() -> Variant:
+	return _reserved_by if is_reserved() else null
+
+
+## True if this item is reserved by `claimer`.
+func is_reserved_by(claimer: Variant) -> bool:
+	return is_reserved() and _is_same_claimer(_reserved_by, claimer)
+
+
+## True if item is eligible to be picked up and hauled into storage.
+func is_available_for_hauling() -> bool:
+	return not forbidden and not is_reserved() and count > 0 and is_inside_tree() and not is_queued_for_deletion()
+
+
+## Hides visual mesh and disables collisions without freeing node immediately (used during multi-step transfers).
+func hide_item() -> void:
+	visible = false
+	freeze = true
+	sleeping = true
+	collision_layer = 0
+	collision_mask = 0
+	if interaction != null:
+		interaction.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+func _is_same_claimer(a: Variant, b: Variant) -> bool:
+	if a == b:
+		return true
+	if a is Object and b is Object:
+		return a == b
+	if (a is String or a is StringName) and (b is String or b is StringName):
+		return str(a) == str(b)
+	return false
+
+
+func _register_with_colony() -> void:
+	var colony: Node = get_node_or_null("/root/Colony")
+	if colony != null and colony.has_method("register_world_item"):
+		colony.call("register_world_item", self)
+
+
+func _unregister_from_colony() -> void:
+	var colony: Node = get_node_or_null("/root/Colony")
+	if colony != null and colony.has_method("unregister_world_item"):
+		colony.call("unregister_world_item", self)
 
 
 func _setup_interaction() -> void:
