@@ -266,3 +266,35 @@ func test_spawn_colonist_cap_reached() -> void:
 
 	var excess: Colonist = Colony.spawn_colonist(null, Vector3.ZERO)
 	assert_object(excess).is_null()
+
+
+func test_colony_serialize_deserialize_round_trip() -> void:
+	var dummy_container: Node3D = auto_free(Node3D.new())
+	add_child(dummy_container)
+	Colony.on_map_wired(dummy_container, [])
+
+	var spawned: Colonist = Colony.spawn_colonist(null, Vector3(5, 2, 8))
+	assert_object(spawned).is_not_null()
+	spawned.display_name = "Test Colonist"
+
+	var serialized := Colony.serialize()
+	assert_dict(serialized).contains_keys(["colonists"])
+	var col_list: Array = serialized.get("colonists", [])
+	assert_int(col_list.size()).is_equal(1)
+	assert_str(col_list[0].get("display_name", "")).is_equal("Test Colonist")
+
+	# Test reset_for_new_game
+	Colony.reset_for_new_game()
+	assert_int(Colony.colonists.size()).is_equal(0)
+
+	# Test deserialize and map wiring
+	Colony.deserialize(serialized)
+	var new_container: Node3D = auto_free(Node3D.new())
+	add_child(new_container)
+	Colony.on_map_wired(new_container, [])
+
+	assert_int(Colony.colonists.size()).is_equal(1)
+	var restored: Colonist = Colony.colonists[0]
+	assert_object(restored).is_not_null()
+	assert_str(restored.display_name).is_equal("Test Colonist")
+	assert_object(restored.get_parent()).is_equal(new_container)

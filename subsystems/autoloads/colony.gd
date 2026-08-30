@@ -48,6 +48,9 @@ const DIG_DEF := preload("res://data/jobs/dig.tres")
 ## reparent, like the Player).
 var colonists: Array[Colonist] = []
 
+## Deserialized colonist records awaiting the next map wiring.
+var _pending_colonist_records: Array = []
+
 ## The ColonistContainer of the currently wired map (null until on_map_wired).
 var _container: Node3D = null
 
@@ -93,7 +96,19 @@ func _ready() -> void:
 ## survive base↔POI swaps (the same reparent idiom SceneManager uses for the Player).
 func on_map_wired(container: Node3D, spawn_positions: Array) -> void:
 	_container = container
-	if colonists.is_empty():
+	if not _pending_colonist_records.is_empty():
+		for rec in _pending_colonist_records:
+			if rec is Dictionary:
+				var c: Colonist = preload("res://subsystems/colonists/colonist.tscn").instantiate()
+				_container.add_child(c)
+				c.deserialize(rec)
+				if _walkability_predicate.is_valid() and c.pathfinder != null:
+					c.pathfinder.set_walkability(_walkability_predicate)
+				if _stand_cell_hint.is_valid() and c.pathfinder != null:
+					c.pathfinder.set_stand_cell_hint(_stand_cell_hint)
+				colonists.append(c)
+		_pending_colonist_records.clear()
+	elif colonists.is_empty():
 		for pos in spawn_positions:
 			spawn_colonist(null, pos)
 	else:
@@ -236,6 +251,34 @@ func remove_colonist(colonist_id: String) -> void:
 				c.get_parent().remove_child(c)
 			c.queue_free()
 			return
+
+
+# --- SaveSystem contract -----------------------------------------------------
+
+func serialize() -> Dictionary:
+	var list: Array[Dictionary] = []
+	for c in colonists:
+		if is_instance_valid(c):
+			list.append(c.serialize())
+	return {"colonists": list}
+
+
+func deserialize(data: Dictionary) -> void:
+	reset_for_new_game()
+	_pending_colonist_records.assign(data.get("colonists", []))
+
+
+## Clears active colonists, pending restores, and registered jobs.
+func reset_for_new_game() -> void:
+	for c in colonists:
+		if is_instance_valid(c):
+			if c.get_parent() != null:
+				c.get_parent().remove_child(c)
+			c.queue_free()
+	colonists.clear()
+	_pending_colonist_records.clear()
+	if job_board != null:
+		job_board.clear()
 
 
 # --- Job production plumbing ---------------------------------------------------

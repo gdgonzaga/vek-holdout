@@ -32,6 +32,8 @@ func _start_new_game() -> void:
 	var display_name := "Day 1 — %s" % Time.get_datetime_string_from_system().get_slice(" ", 0)
 	SaveSystem.create_save(display_name)
 	RunProgress.reset_for_new_game()
+	Colony.reset_for_new_game()
+	GameLog.clear()
 	EventBus.run_started.emit()
 	# Discover any POI-type maps registered in MapLibrary (relocated verbatim
 	# from main.gd, which used to do this unconditionally on boot).

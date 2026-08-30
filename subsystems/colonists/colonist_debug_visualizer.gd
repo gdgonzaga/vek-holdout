@@ -104,8 +104,9 @@ func _setup_path_mesh() -> void:
 	_mesh_instance.mesh = _immediate_mesh
 	_mesh_instance.material_override = _material
 	_mesh_instance.top_level = true
-	_mesh_instance.global_position = Vector3.ZERO
 	add_child(_mesh_instance)
+	if is_inside_tree():
+		_mesh_instance.global_position = Vector3.ZERO
 
 
 func _update_label() -> void:

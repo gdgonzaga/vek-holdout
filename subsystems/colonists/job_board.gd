@@ -223,3 +223,9 @@ func is_job_blacklisted_for(job_id: String, colonist_id: String) -> bool:
 ## Clears all colonist blacklists (e.g. on map load or test reset).
 func clear_blacklists() -> void:
 	_colonist_blacklists.clear()
+
+
+## Clears all registered jobs and blacklists.
+func clear() -> void:
+	_jobs.clear()
+	_colonist_blacklists.clear()

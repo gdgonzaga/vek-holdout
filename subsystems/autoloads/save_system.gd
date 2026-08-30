@@ -110,6 +110,7 @@ func save_game() -> bool:
 			"run_progress": RunProgress.serialize(),
 			"expeditions": ExpeditionManager.serialize(),
 			"game_log": GameLog.serialize(),
+			"colony": Colony.serialize(),
 			"player": _serialize_player(),
 		},
 		"maps": _parked.duplicate(true),
@@ -154,6 +155,7 @@ func load_game(slot: String) -> bool:
 	if g.has("run_progress"): RunProgress.deserialize(g["run_progress"])
 	if g.has("expeditions"): ExpeditionManager.deserialize(g["expeditions"])
 	if g.has("game_log"): GameLog.deserialize(g["game_log"])
+	if g.has("colony"): Colony.deserialize(g["colony"])
 	_pending_player = g.get("player", null)
 
 	# (2) INV-2: replace _parked (NEVER merge), set active slot.
