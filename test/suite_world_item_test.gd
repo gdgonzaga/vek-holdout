@@ -361,3 +361,28 @@ func test_storage_registry_colony_stock_excludes_reserved() -> void:
 	# Include reserved explicitly
 	var stock_with_reserved := _sandbox.test_registry.colony_stock("wood", null, 50.0, true)
 	assert_int(stock_with_reserved).is_equal(5)
+
+func test_hide_moving_thrown_item_disables_collisions_and_group() -> void:
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.setup("wood", 5, false)
+	_sandbox.container.add_child(item)
+
+	# Simulate active thrown item with linear/angular velocity
+	item.linear_velocity = Vector3(5.0, 2.0, 5.0)
+	item.angular_velocity = Vector3(1.0, 1.0, 1.0)
+	item.reserve("hauler_1")
+
+	# Hide item on pickup
+	item.hide_item()
+
+	assert_bool(item.visible).is_false()
+	assert_vector(item.linear_velocity).is_equal(Vector3.ZERO)
+	assert_vector(item.angular_velocity).is_equal(Vector3.ZERO)
+	assert_int(item.collision_layer).is_equal(0)
+	assert_int(item.collision_mask).is_equal(0)
+	assert_bool(item.is_in_group("world_items")).is_false()
+
+	var col: CollisionShape3D = item.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col != null:
+		assert_bool(col.disabled).is_true()

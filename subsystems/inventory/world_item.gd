@@ -124,12 +124,39 @@ func is_available_for_hauling() -> bool:
 ## Hides visual mesh and disables collisions without freeing node immediately (used during multi-step transfers).
 func hide_item() -> void:
 	visible = false
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	freeze_mode = FREEZE_MODE_STATIC
 	freeze = true
 	sleeping = true
 	collision_layer = 0
 	collision_mask = 0
+	var col := collision_shape
+	if col == null:
+		col = get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col != null:
+		col.disabled = true
+		col.set_deferred("disabled", true)
 	if interaction != null:
 		interaction.process_mode = Node.PROCESS_MODE_DISABLED
+	remove_from_group("world_items")
+
+
+func show_item() -> void:
+	visible = true
+	freeze = false
+	sleeping = false
+	collision_layer = 16
+	collision_mask = 7
+	var col := collision_shape
+	if col == null:
+		col = get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col != null:
+		col.disabled = false
+		col.set_deferred("disabled", false)
+	if interaction != null:
+		interaction.process_mode = Node.PROCESS_MODE_INHERIT
+	add_to_group("world_items")
 
 
 func _is_same_claimer(a: Variant, b: Variant) -> bool:

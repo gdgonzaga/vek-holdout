@@ -154,7 +154,7 @@ func on_abort(actor: Node, job: Variant, _elapsed: float = 0.0) -> void:
 	if world_item != null and is_instance_valid(world_item):
 		world_item.unreserve(actor)
 		if world_item.count <= 0 and not world_item.visible:
-			world_item.visible = true
+			world_item.show_item()
 
 
 func _return_surplus_to_crate(actor: Node) -> void:
