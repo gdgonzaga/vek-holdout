@@ -235,6 +235,21 @@ func wake_up() -> void:
 	sleeping = false
 
 
+static func get_nearby_unreserved(tree: SceneTree, center: Vector3, p_item_id: String = "", radius: float = 12.0) -> Array[WorldItem]:
+	var result: Array[WorldItem] = []
+	if tree == null:
+		return result
+	var radius_sq := radius * radius
+	for node in tree.get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item != null and is_instance_valid(item) and item.is_inside_tree() and not item.is_queued_for_deletion():
+			if not item.is_forbidden() and not item.is_reserved() and item.count > 0 and item.visible:
+				if p_item_id == "" or item.item_id == p_item_id:
+					if item.global_position.distance_squared_to(center) <= radius_sq:
+						result.append(item)
+	return result
+
+
 static func wake_items_near(tree: SceneTree, center: Vector3, radius: float = 2.5) -> void:
 	if tree == null:
 		return

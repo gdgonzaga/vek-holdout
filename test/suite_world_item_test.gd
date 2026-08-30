@@ -386,3 +386,130 @@ func test_hide_moving_thrown_item_disables_collisions_and_group() -> void:
 	var col: CollisionShape3D = item.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col != null:
 		assert_bool(col.disabled).is_true()
+
+func test_multi_item_haul_gathering_same_type() -> void:
+	var crate := _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(20.0, 0.0, 0.0)
+
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3(0.0, 0.0, 0.0)
+	colonist.labor_priorities["hauling"] = 3
+	colonist.inventory.capacity = 50.0
+
+	# Spawn Item 1 at x=2 and Item 2 at x=4
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item1: WorldItem = auto_free(scene.instantiate())
+	item1.position = Vector3(2.0, 0.0, 0.0)
+	item1.setup("wood", 2, false)
+	_sandbox.container.add_child(item1)
+
+	var item2: WorldItem = auto_free(scene.instantiate())
+	item2.position = Vector3(4.0, 0.0, 0.0)
+	item2.setup("wood", 3, false)
+	_sandbox.container.add_child(item2)
+
+	var haul_job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(haul_job).is_not_null()
+
+	# Cycle 1: walk target is Item 1 position
+	var site_1 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_1).is_equal(item1.global_position)
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(2)
+
+	# Cycle 2: colonist still has capacity, so work_site targets nearby Item 2
+	var site_2 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_2).is_equal(item2.global_position)
+	colonist.global_position = item2.global_position
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(5)
+
+	# Cycle 3: no more ground items, work_site targets crate
+	var site_3 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_3).is_equal(crate.global_position)
+	colonist.global_position = crate.global_position
+	haul_job.def.complete(colonist, haul_job)
+
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
+	var crate_inv := _sandbox.test_registry.inventory_of(crate)
+	assert_int(crate_inv.get_item_count("wood")).is_equal(5)
+
+
+func test_multi_item_haul_stops_when_capacity_full() -> void:
+	var crate := _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(20.0, 0.0, 0.0)
+
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3(0.0, 0.0, 0.0)
+	colonist.labor_priorities["hauling"] = 3
+	colonist.inventory.capacity = 2.0  # only holds 2 wood
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item1: WorldItem = auto_free(scene.instantiate())
+	item1.position = Vector3(2.0, 0.0, 0.0)
+	item1.setup("wood", 2, false)
+	_sandbox.container.add_child(item1)
+
+	var item2: WorldItem = auto_free(scene.instantiate())
+	item2.position = Vector3(4.0, 0.0, 0.0)
+	item2.setup("wood", 3, false)
+	_sandbox.container.add_child(item2)
+
+	var haul_job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(haul_job).is_not_null()
+
+	# Cycle 1: pickup Item 1 fills capacity
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(2)
+
+	# Cycle 2: capacity full -> immediately targets crate, ignoring Item 2
+	var site_2 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_2).is_equal(crate.global_position)
+
+
+func test_multi_item_haul_ignores_unreachable_wall() -> void:
+	var crate := _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(-10.0, 0.0, 0.0)
+
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3(0.0, 0.0, 0.0)
+	colonist.labor_priorities["hauling"] = 3
+	colonist.inventory.capacity = 50.0
+
+	# Setup solid floor for y=0 except wall at x=3
+	var solid := {}
+	for x in range(-15, 15):
+		for z in range(-5, 5):
+			solid[Vector3i(x, 0, z)] = true
+	# Add a tall wall at x=3
+	for y in range(1, 5):
+		for z in range(-5, 5):
+			solid[Vector3i(3, y, z)] = true
+
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
+	var predicate := func(cell: Vector3i) -> bool:
+		return not solid.has(cell) and solid.has(cell + Vector3i(0, -1, 0)) and not solid.has(cell + Vector3i(0, 1, 0))
+	finder.set_walkability(predicate)
+	colonist.pathfinder = finder
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item1: WorldItem = auto_free(scene.instantiate())
+	item1.position = Vector3(1.0, 1.0, 0.0)
+	item1.setup("wood", 2, false)
+	_sandbox.container.add_child(item1)
+
+	var item2: WorldItem = auto_free(scene.instantiate())
+	item2.position = Vector3(5.0, 1.0, 0.0)  # Behind wall at x=3
+	item2.setup("wood", 2, false)
+	_sandbox.container.add_child(item2)
+
+	var haul_job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(haul_job).is_not_null()
+
+	# Cycle 1: pickup item1 on colonist side of wall
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(2)
+
+	# Cycle 2: item2 is behind wall and unreachable -> work_site routes to crate
+	var site_2 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_2).is_equal(crate.global_position)

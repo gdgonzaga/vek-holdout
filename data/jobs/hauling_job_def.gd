@@ -6,8 +6,8 @@ class_name HaulingJobDef
 ##
 ## Multi-colonist (max_assignees=3 for sinks): haulers share the sink's deposit
 ## counter, and live crate stock serializes concurrent runs so two can't double-spend.
-## For WorldItems, hauler picks up ground items and deposits them into the nearest
-## storage crate with available capacity.
+## For WorldItems, hauler gathers ground items (including nearby reachable items
+## of the same type up to carry capacity) and deposits them into storage crates.
 ##
 ## Expressed as repeated cycles through the universal work tree — no dedicated
 ## leg tree. Each cycle: ClaimJob re-claims, work_site() picks the walk target
@@ -15,6 +15,7 @@ class_name HaulingJobDef
 ## which does the transfer (FETCH or DELIVER).
 
 const TOOL_TAG := "tool"
+const GATHER_SEARCH_RADIUS := 12.0
 
 
 func work_site(actor: Node, job: Variant) -> Variant:
@@ -34,6 +35,11 @@ func work_site(actor: Node, job: Variant) -> Variant:
 		var actor_3d := actor as Node3D
 		var actor_pos := actor_3d.global_position if actor_3d != null else Vector3.ZERO
 		if _carries_item(actor, world_item.item_id):
+			# If capacity remains, check for next nearby reachable matching item
+			var next_item := _find_next_reachable_ground_item(actor, world_item.item_id, GATHER_SEARCH_RADIUS)
+			if next_item != null:
+				return next_item.global_position
+
 			var crate := Colony.storage_registry.find_storage_for(world_item.item_id, actor_pos)
 			if crate == null:
 				crate = Colony.storage_registry.nearest_crate(actor_pos)
@@ -73,6 +79,25 @@ func complete(actor: Node, job: Variant) -> void:
 	if world_item != null and is_instance_valid(actor):
 		var actor_3d := actor as Node3D
 		var actor_pos := actor_3d.global_position if actor_3d != null else Vector3.ZERO
+
+		# 1. If at/near a ground item (primary or gathered candidate), pick it up
+		var target_item: WorldItem = null
+		if is_instance_valid(world_item) and world_item.is_inside_tree() and actor_pos.distance_to(world_item.global_position) <= 2.2 and world_item.count > 0:
+			target_item = world_item
+		else:
+			target_item = _find_ground_item_at(actor, world_item.item_id, actor_pos, 2.2)
+
+		if target_item != null:
+			target_item.reserve(actor)
+			var pickup := PickupAction.new()
+			pickup.execute(actor, target_item)
+			if is_instance_valid(target_item):
+				if target_item.count <= 0:
+					target_item.hide_item()
+					_unregister_item_from_colony(target_item)
+			return
+
+		# 2. If delivering to crate
 		if _carries_item(actor, world_item.item_id):
 			var crate := Colony.storage_registry.find_storage_for(world_item.item_id, actor_pos)
 			if crate == null:
@@ -83,18 +108,12 @@ func complete(actor: Node, job: Variant) -> void:
 				var count := pocket.get_item_count(world_item.item_id)
 				if count > 0:
 					pocket.transfer_to(crate_inv, world_item.item_id, count)
-			if world_item.count <= 0:
-				world_item.queue_free()
-			else:
-				world_item.unreserve(actor)
-			return
-		else:
-			world_item.reserve(actor)
-			var pickup := PickupAction.new()
-			pickup.execute(actor, world_item)
+			_free_collected_hidden_items(actor, world_item.item_id)
 			if is_instance_valid(world_item):
 				if world_item.count <= 0:
-					world_item.hide_item()
+					world_item.queue_free()
+				else:
+					world_item.unreserve(actor)
 			return
 
 
@@ -130,7 +149,7 @@ func should_close(job: Variant) -> bool:
 	if world_item != null:
 		if world_item.is_forbidden():
 			return true
-		if world_item.count <= 0 and not world_item.visible:
+		if world_item.count <= 0 and not world_item.visible and not world_item.is_reserved():
 			return true
 		return false
 
@@ -144,7 +163,7 @@ func job_complete(job: Variant) -> bool:
 
 	var world_item := _world_item_of(job)
 	if world_item != null:
-		return world_item.count <= 0 and not world_item.visible
+		return world_item.count <= 0 and not world_item.visible and not world_item.is_reserved()
 
 	return false
 
@@ -155,6 +174,109 @@ func on_abort(actor: Node, job: Variant, _elapsed: float = 0.0) -> void:
 		world_item.unreserve(actor)
 		if world_item.count <= 0 and not world_item.visible:
 			world_item.show_item()
+	var tree := (actor as Node).get_tree() if actor != null else null
+	if tree != null and tree.root != null:
+		_unreserve_actor_items_recursive(tree.root, actor)
+
+
+func _unreserve_actor_items_recursive(node: Node, actor: Node) -> void:
+	if node == null:
+		return
+	if node is WorldItem:
+		var item := node as WorldItem
+		if item.is_reserved_by(actor):
+			item.unreserve(actor)
+			if item.count <= 0 and not item.visible:
+				item.show_item()
+	for child in node.get_children():
+		_unreserve_actor_items_recursive(child, actor)
+
+
+func _find_next_reachable_ground_item(actor: Node, item_id: String, max_radius: float = GATHER_SEARCH_RADIUS) -> WorldItem:
+	if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
+		return null
+	if not _actor_has_remaining_capacity(actor):
+		return null
+
+	var tree := (actor as Node).get_tree()
+	if tree == null:
+		return null
+
+	var actor_pos: Vector3 = (actor as Node3D).global_position
+	var candidates: Array[WorldItem] = WorldItem.get_nearby_unreserved(tree, actor_pos, item_id, max_radius)
+	if candidates.is_empty():
+		return null
+
+	candidates.sort_custom(func(a: WorldItem, b: WorldItem) -> bool:
+		return actor_pos.distance_squared_to(a.global_position) < actor_pos.distance_squared_to(b.global_position)
+	)
+
+	var pathfinder = actor.get("pathfinder") if "pathfinder" in actor else null
+	for cand in candidates:
+		if pathfinder != null and pathfinder.has_method("find_path_world"):
+			var can_check := true
+			if "_is_walkable" in pathfinder:
+				can_check = pathfinder._is_walkable.is_valid()
+			if can_check:
+				var path: Array[Vector3] = pathfinder.find_path_world(actor_pos, cand.global_position)
+				if path.is_empty() and actor_pos.distance_to(cand.global_position) > 1.5:
+					continue
+		return cand
+
+	return null
+
+
+func _find_ground_item_at(actor: Node, item_id: String, pos: Vector3, radius: float = 2.2) -> WorldItem:
+	var tree := (actor as Node).get_tree() if actor != null else null
+	if tree == null:
+		return null
+	var radius_sq := radius * radius
+	for node in tree.get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item != null and is_instance_valid(item) and item.is_inside_tree() and not item.is_queued_for_deletion():
+			if not item.is_forbidden() and item.count > 0 and item.visible:
+				if item.item_id == item_id and item.global_position.distance_squared_to(pos) <= radius_sq:
+					if not item.is_reserved() or item.is_reserved_by(actor):
+						return item
+	return null
+
+
+func _actor_has_remaining_capacity(actor: Node) -> bool:
+	if actor == null or not is_instance_valid(actor):
+		return false
+	if actor.has_method("remaining_capacity"):
+		return float(actor.remaining_capacity()) > 0.0
+	if "inventory" in actor and actor.inventory != null:
+		var inv: Inventory = actor.inventory
+		if inv.has_method("remaining_capacity"):
+			return float(inv.remaining_capacity()) > 0.0
+		if "capacity" in inv:
+			return inv.current_weight() < inv.capacity
+	return false
+
+
+func _unregister_item_from_colony(item: WorldItem) -> void:
+	var colony: Node = item.get_node_or_null("/root/Colony") if item.is_inside_tree() else null
+	if colony != null and colony.has_method("unregister_world_item"):
+		colony.call("unregister_world_item", item)
+
+
+func _free_collected_hidden_items(actor: Node, item_id: String) -> void:
+	var tree := (actor as Node).get_tree() if actor != null else null
+	if tree == null or tree.root == null:
+		return
+	_free_hidden_recursive(tree.root, actor, item_id)
+
+
+func _free_hidden_recursive(node: Node, actor: Node, item_id: String) -> void:
+	if node == null:
+		return
+	if node is WorldItem:
+		var item := node as WorldItem
+		if not item.visible and item.count <= 0 and item.item_id == item_id and item.is_reserved_by(actor):
+			item.queue_free()
+	for child in node.get_children():
+		_free_hidden_recursive(child, actor, item_id)
 
 
 func _return_surplus_to_crate(actor: Node) -> void:
