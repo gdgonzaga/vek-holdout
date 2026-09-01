@@ -24,6 +24,22 @@ func work_site(actor: Node, job: Variant) -> Variant:
 
 	var direct_crate := _storage_crate_of(job)
 	if direct_crate != null:
+		# Re-query a crate with capacity at walk time so newly-placed shelves
+		# are picked up naturally and full crates don't stay baked-in as targets.
+		var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
+		if pocket != null:
+			for item_id in pocket.items.keys():
+				if _is_tool(str(item_id)):
+					continue
+				var count: int = pocket.get_item_count(str(item_id))
+				if count <= 0:
+					continue
+				var capable_crate := Colony.storage_registry.find_storage_for(str(item_id), actor_pos, count)
+				if capable_crate != null:
+					return capable_crate.global_position
+		var best_crate := Colony.storage_registry.nearest_crate(actor_pos)
+		if best_crate != null:
+			return best_crate.global_position
 		return direct_crate.global_position
 
 	var sink := _sink_of(job)
@@ -134,10 +150,14 @@ func complete(actor: Node, job: Variant) -> void:
 				crate = Colony.storage_registry.nearest_crate(actor_pos)
 			var crate_inv := Colony.storage_registry.inventory_of(crate) if crate != null else null
 			var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
-			if crate_inv != null and pocket != null:
+			if pocket != null:
 				var count := pocket.get_item_count(world_item.item_id)
 				if count > 0:
-					pocket.transfer_to(crate_inv, world_item.item_id, count)
+					if crate_inv != null and crate_inv.can_add(world_item.item_id, 1):
+						pocket.transfer_to(crate_inv, world_item.item_id, count)
+					elif actor.is_inside_tree():
+						pocket.remove(world_item.item_id, count)
+						WorldItem.spawn_at(actor, world_item.item_id, count, actor_pos + Vector3(0, 0.5, 0))
 			_return_surplus_to_crate(actor)
 			_free_collected_hidden_items(actor, world_item.item_id)
 			if is_instance_valid(world_item):
@@ -171,7 +191,8 @@ func meets_requirements_any(actor: Node, job: Variant) -> bool:
 
 func is_available(job: Variant) -> bool:
 	if _storage_crate_of(job) != null:
-		return true
+		# Only available when there's at least one crate that can accept something.
+		return Colony.storage_registry.nearest_crate(Vector3.ZERO) != null
 
 	var sink := _sink_of(job)
 	if sink != null:
@@ -199,7 +220,10 @@ func is_available(job: Variant) -> bool:
 
 func should_close(job: Variant) -> bool:
 	if _storage_crate_of(job) != null:
-		return true
+		# Close once the target_node crate is freed/invalid (job was used as
+		# a one-shot deposit and the def.complete() already called _finish).
+		var crate := _storage_crate_of(job)
+		return not is_instance_valid(crate) or crate.is_queued_for_deletion()
 
 	var sink := _sink_of(job)
 	if sink != null:
@@ -343,18 +367,24 @@ func _return_surplus_to_crate(actor: Node) -> void:
 	var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
 	if pocket == null or not actor is Node3D:
 		return
-	var crate_inv := Colony.storage_registry.inventory_of(
-			Colony.storage_registry.nearest_crate((actor as Node3D).global_position))
-	for item_id in pocket.items.keys():
+	var actor_pos: Vector3 = (actor as Node3D).global_position
+	## Use find_storage_for per item so full crates are skipped and newly-placed
+	## shelves are picked up; fall back to spawning a WorldItem on the floor.
+	for item_id in pocket.items.keys().duplicate():
 		if _is_tool(str(item_id)):
 			continue
 		var count: int = pocket.get_item_count(str(item_id))
-		if count > 0:
-			if crate_inv != null:
-				pocket.transfer_to(crate_inv, str(item_id), count)
-			elif actor.is_inside_tree():
-				pocket.remove(str(item_id), count)
-				WorldItem.spawn_at(actor, str(item_id), count, (actor as Node3D).global_position + Vector3(0, 0.5, 0))
+		if count <= 0:
+			continue
+		var crate := Colony.storage_registry.find_storage_for(str(item_id), actor_pos, count)
+		if crate == null:
+			crate = Colony.storage_registry.nearest_crate(actor_pos)
+		var crate_inv := Colony.storage_registry.inventory_of(crate)
+		if crate_inv != null and crate_inv.can_add(str(item_id), 1):
+			pocket.transfer_to(crate_inv, str(item_id), count)
+		elif actor.is_inside_tree():
+			pocket.remove(str(item_id), count)
+			WorldItem.spawn_at(actor, str(item_id), count, actor_pos + Vector3(0, 0.5, 0))
 
 
 func _is_tool(item_id: String) -> bool:

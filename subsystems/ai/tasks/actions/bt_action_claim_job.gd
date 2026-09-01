@@ -149,12 +149,6 @@ func _dump_surplus_items(colonist: Colonist) -> void:
 	if colonist == null or colonist.inventory == null or not colonist.hands_full():
 		return
 	var colony: Node = colonist.get_node_or_null("/root/Colony")
-	var crate_inv: Inventory = null
-	if colony != null and "storage_registry" in colony and colony.storage_registry != null:
-		var crate = colony.storage_registry.nearest_crate(colonist.global_position)
-		if crate != null and colonist.global_position.distance_to(crate.global_position) <= 2.5:
-			crate_inv = colony.storage_registry.inventory_of(crate)
-			
 	var items: Array = colonist.inventory.items.keys().duplicate()
 	for item_id in items:
 		var id_str := str(item_id)
@@ -164,6 +158,13 @@ func _dump_surplus_items(colonist: Colonist) -> void:
 		var count: int = colonist.inventory.get_item_count(id_str)
 		if count <= 0:
 			continue
+		## Prefer a crate with capacity for this specific item; if none has
+		## room (all full) fall back to spawning a WorldItem on the floor.
+		var crate_inv: Inventory = null
+		if colony != null and "storage_registry" in colony and colony.storage_registry != null:
+			var crate = colony.storage_registry.find_storage_for(id_str, colonist.global_position, count)
+			if crate != null:
+				crate_inv = colony.storage_registry.inventory_of(crate)
 		if crate_inv != null:
 			colonist.inventory.transfer_to(crate_inv, id_str, count)
 		elif colonist.is_inside_tree():

@@ -113,3 +113,14 @@ res://
 | **TimeSystem** | `time_system.gd` | Continuous time advance and day rollover signals. |
 | **RunProgress** | `run_progress.gd` | Run-scoped unlocked content tracking. |
 | **BuildLibrary** | `build_library.gd` | Buildable catalog index. |
+
+---
+
+## Multiplayer Readiness
+
+While networking implementation (RPCs, state replication, server authority) is deferred to post-MVP, the codebase adheres to the following multiplayer-ready architectural rules:
+
+1. **Voxel World Choke-Point:** All voxel modifications and queries must route through `BlockyGrid` / `SmoothGrid` (implementing `IBlockGrid`). Never touch raw `voxel_tool` directly from gameplay code. This preserves a single point for injecting future network RPCs.
+2. **Player Identity & Reference:** Never assume a single player node or query `get_tree().get_first_node_in_group("player")`. Gameplay actions should obtain the acting player reference via `GameState.get_local_player()` or through explicit event payloads.
+3. **Deterministic Randomness:** Use `GameState.rng` (`RandomNumberGenerator`) for gameplay random number queries rather than global `randi()`/`randf()`, enabling seed sharing across peers.
+4. **Input Decoupling:** Keep input detection isolated in `InputComponent` rather than calling `Input` functions directly inside character movement/physics loops, allowing transparent substitution with network-replicated input components.

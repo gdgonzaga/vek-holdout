@@ -14,6 +14,12 @@ var current_scene_id: String = "base"
 var paused: bool = false
 var save_slot: String = ""
 
+## Central RNG instance for deterministic gameplay randomness across clients.
+var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+## Active local player reference (null if not spawned).
+var local_player: Node = null
+
 ## Reference to the MapRoot whose children get process_mode-toggled on pause.
 ## Set by Main when it mounts the MapRoot. Null until then.
 var map_root: Node = null
@@ -21,6 +27,20 @@ var map_root: Node = null
 
 ## Toggles pause. Per ARCH line 307/270, GameState itself sets process_mode on
 ## sim nodes (MapRoot + children); UI keeps PROCESS_MODE_ALWAYS.
+func _ready() -> void:
+	rng.randomize()
+
+
+## Returns the active local player node.
+func get_local_player() -> Node:
+	return local_player
+
+
+## Sets the active local player node.
+func set_local_player(p: Node) -> void:
+	local_player = p
+
+
 func set_paused(p: bool) -> void:
 	if paused == p:
 		return

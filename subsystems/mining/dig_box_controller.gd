@@ -267,7 +267,7 @@ func _physics_process(_delta: float) -> void:
 	
 	# Fallback player body exclusion
 	if exclude_bodies.is_empty():
-		var player_body := get_tree().get_first_node_in_group("player") as PhysicsBody3D
+		var player_body := GameState.get_local_player() as PhysicsBody3D
 		if player_body == null and get_parent() != null:
 			player_body = get_parent().find_child("Player", true, false) as PhysicsBody3D
 		if player_body != null:

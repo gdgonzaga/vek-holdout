@@ -196,12 +196,28 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 			if has_non_tool:
 				var colony: Node = colonist.get_node_or_null("/root/Colony")
 				if colony != null and "storage_registry" in colony and colony.storage_registry != null:
-					var crate = colony.storage_registry.nearest_crate(colonist.global_position)
-					if crate != null:
+					# Find the best crate that can accept at least one non-tool
+					# item so full crates don't become stuck targets. A newly-placed
+					# shelf will be discovered here on the next poll after placement.
+					var best_crate: Furniture = null
+					if colonist.inventory != null:
+						for item_id in colonist.inventory.items.keys():
+							var idef := ItemDB.get_def(str(item_id)) if ItemDB != null else null
+							if idef != null and idef.tags.has("tool"):
+								continue
+							if colonist.inventory.get_item_count(str(item_id)) <= 0:
+								continue
+							var c = colony.storage_registry.find_storage_for(str(item_id), colonist.global_position)
+							if c != null:
+								best_crate = c
+								break
+					if best_crate == null:
+						best_crate = colony.storage_registry.nearest_crate(colonist.global_position)
+					if best_crate != null:
 						var haul_job := Job.from_def(HAULING_DEF)
 						haul_job.title = "Store Carried Items"
-						haul_job.target_node = crate
-						haul_job.location = crate.global_position
+						haul_job.target_node = best_crate
+						haul_job.location = best_crate.global_position
 						haul_job.max_assignees = 1
 						return haul_job
 

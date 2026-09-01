@@ -73,7 +73,7 @@ _3D Voxel Colony Survival — Godot 4 (GDScript)_
 
 > Items the design intentionally does NOT include in MVP. The agent must not add these "because most games have them."
 
-- Multiplayer of any kind
+- Multiplayer implementation (networking/RPCs deferred to post-MVP; codebase follows multiplayer-ready architectural constraints)
 - Procedural generation of the voxel world (MVP uses discrete pre-built scenes per map; true open world with chunking is future)
 - True open world / Zylann's voxel plugin streaming (MVP: separate scenes per location)
 - Structural support / gravity for voxel blocks (blocks may float freely in MVP)

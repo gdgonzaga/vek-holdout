@@ -157,6 +157,7 @@ var _was_on_floor := true
 
 func _ready() -> void:
 	add_to_group("player")
+	GameState.set_local_player(self)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	floor_max_angle = deg_to_rad(60.0)
 	# SkillSet child (skill catalog loads in its own _ready; unseeded = all L1).
@@ -174,6 +175,11 @@ func _ready() -> void:
 	_input.recapture_requested.connect(_recapture_mouse)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
 	_input.dig_box_toggle_pressed.connect(_on_dig_box_toggle_pressed)
+
+func _exit_tree() -> void:
+	if GameState.get_local_player() == self:
+		GameState.set_local_player(null)
+
 
 
 ## Blueprint key routing (GDD §4 controls table):

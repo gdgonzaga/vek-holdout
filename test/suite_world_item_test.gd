@@ -552,3 +552,35 @@ func test_world_item_job_single_assignee_and_surplus_delivery() -> void:
 	assert_int(colonist1.inventory.get_item_count("dirt")).is_equal(0)
 	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("wood")).is_equal(5)
 	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("dirt")).is_equal(4)
+
+
+func test_store_carried_items_prefers_crate_with_capacity_and_drops_on_floor_when_full() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3.ZERO
+	# Give colonist some dirt to store
+	colonist.inventory.add("dirt", 6)
+
+	# Full crate 1 at distance 2.0
+	var full_crate: Furniture = _sandbox.make_crate("wood", 0)
+	full_crate.global_position = Vector3(2.0, 0.0, 0.0)
+	var full_inv := _sandbox.test_registry.inventory_of(full_crate)
+	full_inv.capacity = 1.0 # Very low capacity
+	full_inv.add("wood", 1) # Full!
+
+	# Empty shelf/crate 2 at distance 10.0
+	var empty_crate: Furniture = _sandbox.make_crate("dirt", 0)
+	empty_crate.global_position = Vector3(10.0, 0.0, 0.0)
+	var empty_inv := _sandbox.test_registry.inventory_of(empty_crate)
+	empty_inv.capacity = 50.0
+
+	# get_best_job_for should route to empty_crate (with capacity) rather than full_crate
+	var job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(job).is_not_null()
+	assert_str(job.title).is_equal("Store Carried Items")
+	var site = job.def.work_site(colonist, job)
+	assert_vector(site).is_equal(empty_crate.global_position)
+
+	# Complete deposit
+	job.def.complete(colonist, job)
+	assert_int(colonist.inventory.get_item_count("dirt")).is_equal(0)
+	assert_int(empty_inv.get_item_count("dirt")).is_equal(6)
