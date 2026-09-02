@@ -1,16 +1,15 @@
 extends GdUnitTestSuite
 
-## Unit tests for VoxelPathfinder's stepped neighbor model (ARCH "Subsystem:
-## Colonists"): flat routing, one-block climbs, headroom rejection, multi-cell
-## drops, and cost preference of flat detours over jumps. Walkability is a stub
-## mirroring MapWiring._compose_walkability over a Dictionary mini-grid.
-
 const _DOWN := Vector3i(0, -1, 0)
 const _UP := Vector3i(0, 1, 0)
 
 
-## Finder whose predicate mirrors the composed production one: air at the cell,
-## solid floor below, air above (head clearance for the 2-cell capsule).
+func _fill_floor(solid: Dictionary, x0: int, x1: int, z0: int, z1: int, y: int = 0) -> void:
+	for x in range(x0, x1 + 1):
+		for z in range(z0, z1 + 1):
+			solid[Vector3i(x, y, z)] = true
+
+
 func _make_finder(solid: Dictionary) -> VoxelPathfinder:
 	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new())
 	var predicate := func(cell: Vector3i) -> bool:
@@ -19,22 +18,18 @@ func _make_finder(solid: Dictionary) -> VoxelPathfinder:
 	return finder
 
 
-func _fill_floor(solid: Dictionary, x_min: int, x_max: int, z_min: int, z_max: int, y: int) -> void:
-	for x in range(x_min, x_max + 1):
-		for z in range(z_min, z_max + 1):
-			solid[Vector3i(x, y, z)] = true
-
-
+## On flat terrain, a 3-step route stays on the same Y level.
 func test_flat_route_stays_on_level() -> void:
 	var solid := {}
 	_fill_floor(solid, -5, 5, -5, 5, 0)
 	var finder := _make_finder(solid)
 	var path := finder.find_path(Vector3i(0, 1, 0), Vector3i(3, 1, 0))
 	assert_int(path.size()).is_equal(4)
+	for c in path:
+		assert_int(c.y).is_equal(1)
 
 
-## A block on the floor is climbed via dy+1: the colonist stands on cells
-## (x,1,z) west of it and on (x,2,z) above it.
+## A 1-block obstacle is climbed via a +1 dy move when head clearance allows.
 func test_climbs_one_block() -> void:
 	var solid := {}
 	_fill_floor(solid, -5, 5, -5, 5, 0)
@@ -70,7 +65,7 @@ func test_routes_two_cell_drop() -> void:
 	assert_bool(path.has(Vector3i(1, -1, 0))).is_true()
 
 
-## Jumping costs 3.0 + a 1.5 landing drop, so a 6-step flat detour (6.0) beats
+## Jumping costs 3.0 + a 1.5 landing drop, so a 4-step diagonal flat detour (4.8) beats
 ## hopping the block (6.5): the returned route stays on the level.
 func test_prefers_flat_detour_over_jump() -> void:
 	var solid := {}
@@ -79,7 +74,7 @@ func test_prefers_flat_detour_over_jump() -> void:
 	var finder := _make_finder(solid)
 	var path := finder.find_path(Vector3i(0, 1, 0), Vector3i(4, 1, 0))
 	assert_bool(path.has(Vector3i(2, 2, 0))).is_false()
-	assert_int(path.size()).is_equal(7)
+	assert_int(path.size()).is_equal(5)
 
 
 ## With 2-high walls funnelling the corridor, the only competitive route is

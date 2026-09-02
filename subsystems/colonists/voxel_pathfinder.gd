@@ -1,62 +1,36 @@
 extends Node
 class_name VoxelPathfinder
 
-## Voxel A* pathfinder with an injected walkability predicate (Phase 3).
+## Voxel pathfinder supporting pluggable pathfinding and smoothing strategies (Phase 3).
 ##
-## Intentionally generic: knows nothing about voxels/furniture/blueprints. A
-## caller (MapWiring.wire_colonists) composes a per-cell is_walkable(Vector3i)
-## Callable from BlockyGrid solidity + FurnitureLayer/BlueprintLayer occupancy
-## and injects it via set_walkability(). find_path() runs A* over cells using
-## that predicate for lazy neighbor expansion; output is world Vector3 waypoints
-## sized for Colonist.set_path() (whose locomotion zeroes Y, so waypoint Y is
-## informative, not load-bearing).
+## Generic and decoupled from world storage: callers inject a per-cell
+## `is_walkable(Vector3i)` Callable (and optional column stand hint) via
+## `set_walkability()` / `set_stand_cell_hint()`.
 ##
-## Neighbor model: stepped — the 4 horizontal directions crossed with dy in
-## {+1, 0, -1..-_MAX_DROP}. +1 climbs one full block (the Colonist's
-## StepClimber component hops the face at the obstacle — colonists have no
-## manual jump); drops up to _MAX_DROP cells are walk-off-and-fall. Vertical
-## moves cost extra so flat detours (and future stair blocks, once a per-block
-## cost hook exists) win over jumping whenever comparable. Multi-cell drops
-## assume an unobstructed fall column (the predicate only validates the landing
-## cell); floating geometry in between can interrupt the fall — no recovery
-## exists for interrupted MOVE legs either way.
+## Uses a pluggable PathfindingStrategy (default: SmoothedAStarStrategy / GameState configured)
+## for A*, 8-way, and line-of-sight shortcutting, producing natural direct paths
+## across open flat ground while strictly adhering to voxel climb (+1), drop (-1..-3),
+## and clearance invariants.
+
+const _SmoothedAStarScript = preload("res://subsystems/colonists/pathfinding/smoothed_a_star_strategy.gd")
 
 const _DOWN := Vector3i(0, -1, 0)
-## Horizontal-only adjacency: defines the neighbour *columns* probed where
-## "stand adjacent to a footprint" is the question — each column's stand cell
-## may still sit +/-1 Y (see _stand_cell_in_column).
 const _NEIGHBORS_4 := [
 	Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
 	Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 ]
-## A* expansion offsets: 4 horizontal dirs x dy in {+1, 0, -1..-_MAX_DROP},
-## written literally because const initializers can't call functions.
-const _NEIGHBORS_STEPPED := [
-	Vector3i(1, 1, 0), Vector3i(-1, 1, 0), Vector3i(0, 1, 1), Vector3i(0, 1, -1),
-	Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1),
-	Vector3i(1, -1, 0), Vector3i(-1, -1, 0), Vector3i(0, -1, 1), Vector3i(0, -1, -1),
-	Vector3i(1, -2, 0), Vector3i(-1, -2, 0), Vector3i(0, -2, 1), Vector3i(0, -2, -1),
-	Vector3i(1, -3, 0), Vector3i(-1, -3, 0), Vector3i(0, -3, 1), Vector3i(0, -3, -1),
-]
-## Maximum fall (in cells) a path may route over.
 const _MAX_DROP := 3
-## Climbing costs 3x a flat step so colonists prefer flat detours / stairs.
 const _JUMP_UP_COST := 3.0
-## Falling costs 1.5 per cell — cheaper than climbing, pricier than flat.
 const _DROP_COST_PER_CELL := 1.5
-const _MAX_EXPLORED := 8000 # backstop against runaway searches (20 neighbors/expand)
-const _STAND_SCAN := 3 # +/- Y cells scanned by find_stand_cell
+const _MAX_EXPLORED := 8000
+const _STAND_SCAN := 3
 const _CELL_HALF := Vector3(0.5, 0.5, 0.5)
 
 var _is_walkable: Callable
-
-## Optional column stand-cell hint source, `(x: float, z: float) -> Vector3i`
-## (composed by the wiring layer from the smooth heightfield, D4). Lets the
-## stand-cell resolvers derive a column's true stand Y instead of assuming flat
-## ground. Vector3i.MAX from the hint = "no answer for this column" -> only the
-## same-Y and +/-1 probes apply, so hint-less (blocky-only) maps still resolve
-## stand cells within one vertical step of the query Y.
 var _stand_cell_hint: Callable
+
+## Active pathfinding and smoothing strategy.
+var strategy: PathfindingStrategy
 
 # Telemetry / Diagnostics
 var last_query_start: Vector3i = Vector3i.MAX
@@ -64,11 +38,26 @@ var last_stand_candidates: Array[Dictionary] = []
 var last_query_target: Vector3i = Vector3i.MAX
 var last_status: String = "IDLE"
 var last_explored_count: int = 0
-## When the last telemetry-writing query ran (seconds, engine clock); -1.0 =
-## never. ColonistDebugVisualizer stops drawing telemetry older than its TTL so
-## a frozen query (failed claim whose job went to backoff-sleep) can't leave
-## phantom boxes on screen — same self-expiry idea as StepClimber probes.
 var last_query_time: float = -1.0
+
+
+func _init(initial_strategy: PathfindingStrategy = null) -> void:
+	if initial_strategy != null:
+		strategy = initial_strategy
+	else:
+		strategy = _SmoothedAStarScript.new()
+
+
+func _ready() -> void:
+	var game_state: Node = get_node_or_null("/root/GameState")
+	if game_state != null and game_state.has_method("create_pathfinding_strategy"):
+		strategy = game_state.create_pathfinding_strategy()
+
+
+## Set or switch the active pathfinding strategy at runtime.
+func set_strategy(new_strategy: PathfindingStrategy) -> void:
+	if new_strategy != null:
+		strategy = new_strategy
 
 
 ## Inject the per-cell walkability predicate (composed by the wiring layer).
@@ -92,165 +81,71 @@ func _stamp_query_time() -> void:
 	last_query_time = float(Time.get_ticks_msec()) * 0.001
 
 
-## Core A* over cells. Returns cell waypoints start->target (empty if no path,
-## predicate unset, or target not standable). Returns [start_cell] when start
-## already equals target. The predicate gates every expanded cell lazily.
+func _build_context() -> Dictionary:
+	return {
+		"is_walkable": _is_walkable,
+		"stand_cell_hint": _stand_cell_hint,
+		"max_drop": _MAX_DROP,
+		"jump_up_cost": _JUMP_UP_COST,
+		"drop_cost_per_cell": _DROP_COST_PER_CELL,
+		"max_explored": _MAX_EXPLORED,
+	}
+
+
+## Core path search over cells using the active strategy.
 func find_path(start_cell: Vector3i, target_cell: Vector3i) -> Array[Vector3i]:
 	_stamp_query_time()
 	last_query_start = start_cell
 	last_query_target = target_cell
 	last_explored_count = 0
-	var path: Array[Vector3i] = []
+
 	if not _is_walkable.is_valid():
 		push_warning("VoxelPathfinder: walkability predicate not set")
 		last_status = "FAIL (predicate not set)"
-		return path
-	if not _is_walkable.call(target_cell):
-		last_status = "FAIL (Target unwalkable %s)" % str(target_cell)
-		return path
-	if start_cell == target_cell:
-		last_status = "OK (Already at target)"
-		return [start_cell]
+		return []
 
-	# Standard A* with Dictionary-backed open/closed sets (MVP search sizes
-	# don't justify a heap; _MAX_EXPLORED bounds the work).
-	var g_score: Dictionary = {start_cell: 0.0}
-	var came_from: Dictionary = {}
-	var open: Array[Vector3i] = [start_cell]
-	var closed: Dictionary = {}
-	var explored := 0
+	if strategy == null:
+		strategy = _SmoothedAStarScript.new()
 
-	while not open.is_empty():
-		# Pop the open cell with the lowest f = g + h (linear min-scan).
-		var best_i := 0
-		var best_f := INF
-		for i in range(open.size()):
-			var f: float = g_score[open[i]] + _heuristic(open[i], target_cell)
-			if f < best_f:
-				best_f = f
-				best_i = i
-		var current: Vector3i = open.pop_at(best_i)
-		if current == target_cell:
-			last_explored_count = explored
-			path = _reconstruct(came_from, current)
-			last_status = "OK (%d pts, %d explored)" % [path.size(), explored]
-			return path
-		if closed.has(current):
-			continue
-		closed[current] = true
-		explored += 1
-		if explored > _MAX_EXPLORED:
-			push_warning("VoxelPathfinder: exceeded %d cells" % _MAX_EXPLORED)
-			last_explored_count = explored
-			last_status = "FAIL (Exceeded max %d explored)" % _MAX_EXPLORED
-			return path
-		for off in _NEIGHBORS_STEPPED:
-			var nb: Vector3i = current + off
-			if closed.has(nb) or not _is_walkable.call(nb):
-				continue
-			var tentative: float = g_score[current] + _move_cost(off)
-			if tentative < g_score.get(nb, INF):
-				g_score[nb] = tentative
-				came_from[nb] = current
-				if not open.has(nb):
-					open.append(nb)
-
-	last_explored_count = explored
-	last_status = "FAIL (No path, %d explored)" % explored
+	var result: Dictionary = strategy.find_path(start_cell, target_cell, _build_context())
+	last_explored_count = int(result.get("explored", 0))
+	last_status = str(result.get("status", "IDLE"))
+	var path: Array[Vector3i] = result.get("path", [] as Array[Vector3i])
 	return path
 
 
-## Traversal cost of one stepped move: flat 1.0, climb _JUMP_UP_COST, drop
-## _DROP_COST_PER_CELL per cell fallen.
-func _move_cost(off: Vector3i) -> float:
-	if off.y > 0:
-		return _JUMP_UP_COST
-	if off.y < 0:
-		return _DROP_COST_PER_CELL * float(-off.y)
-	return 1.0
+## Multi-target A* using the active strategy.
+func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array[Vector3i]:
+	_stamp_query_time()
+	last_query_start = start
+	if not targets.is_empty():
+		last_query_target = targets[0]
+	last_explored_count = 0
 
-
-## Manhattan distance on the horizontal plane. Vertical moves are ignored by
-## the heuristic but cost >= 1.0 each, so it stays admissible (never
-## overestimates) for the stepped neighbor model.
-func _heuristic(a: Vector3i, b: Vector3i) -> float:
-	return float(abs(a.x - b.x) + abs(a.z - b.z))
-
-
-func _reconstruct(came_from: Dictionary, end: Vector3i) -> Array[Vector3i]:
-	var path: Array[Vector3i] = [end]
-	var current: Vector3i = end
-	while came_from.has(current):
-		current = came_from[current]
-		path.push_front(current)
-	return path
-
-
-## Resolve a standable cell near a world position (scan down then up within
-## +/-_STAND_SCAN, then the column hint). Handles the spawn-drop resting
-## height + minor floor-height ambiguity; the hint covers terrain whose stand
-## Y is farther than the scan window from the query Y (a plate-height job
-## location on a tall hill column). Falls back to the floored cell
-## (find_path then fails clean) if nothing standable resolves.
-func find_stand_cell(world_pos: Vector3) -> Vector3i:
-	var base := Vector3i(int(floor(world_pos.x)), int(floor(world_pos.y)), int(floor(world_pos.z)))
+	if targets.is_empty():
+		last_status = "FAIL (No candidate targets)"
+		return []
 	if not _is_walkable.is_valid():
-		return base
-	for dy in range(0, -_STAND_SCAN - 1, -1):
-		var c := base + Vector3i(0, dy, 0)
-		if _is_walkable.call(c):
-			return c
-	for dy in range(1, _STAND_SCAN + 1):
-		var c := base + Vector3i(0, dy, 0)
-		if _is_walkable.call(c):
-			return c
-	var hinted := _column_stand_cell(base)
-	if hinted != base and _is_walkable.call(hinted):
-		return hinted
-	var near_cell := find_stand_near_cell(base, _STAND_SCAN)
-	if _is_walkable.call(near_cell):
-		return near_cell
-	return base
+		last_status = "FAIL (predicate not set)"
+		return []
+
+	if strategy == null:
+		strategy = _SmoothedAStarScript.new()
+
+	var result: Dictionary = strategy.find_path_multi_target(start, targets, _build_context())
+	last_explored_count = int(result.get("explored", 0))
+	last_status = str(result.get("status", "IDLE"))
+	if result.has("target") and result.target != Vector3i.MAX:
+		last_query_target = result.target
+	var path: Array[Vector3i] = result.get("path", [] as Array[Vector3i])
+	return path
 
 
-## Stand-cell candidate for the column of `pos`: the hint's derived stand cell
-## when a hint source is injected and answers for this column, else `pos`
-## itself (the flat-terrain same-Y assumption — also the no-hint behavior).
-func _column_stand_cell(pos: Vector3i) -> Vector3i:
-	if _stand_cell_hint.is_valid():
-		var hinted: Vector3i = _stand_cell_hint.call(float(pos.x), float(pos.z))
-		if hinted != Vector3i.MAX:
-			return hinted
-	return pos
-
-
-## First standable cell in `col_base`'s column: same-Y (flat room/tunnel floor),
-## then +/-1 Y (a build target routinely sits one above the walkable floor — a
-## blueprint placed on top of an existing block), then the hinted column stand
-## cell when a hint source is injected and answers within `max_hint_dy` of the
-## column (smooth slopes, D4). Vector3i.MAX when the column has no standable
-## cell. Shared by the ring search and the footprint expansion so both agree on
-## what "stand near this column" means.
-func _stand_cell_in_column(col_base: Vector3i, max_hint_dy: int) -> Vector3i:
-	if _is_walkable.call(col_base):
-		return col_base
-	if _is_walkable.call(col_base + Vector3i.UP):
-		return col_base + Vector3i.UP
-	if _is_walkable.call(col_base + Vector3i.DOWN):
-		return col_base + Vector3i.DOWN
-	var hinted := _column_stand_cell(col_base)
-	if hinted != col_base and absi(hinted.y - col_base.y) <= max_hint_dy and _is_walkable.call(hinted):
-		return hinted
-	return Vector3i.MAX
-
-
-## Convert cell waypoints to world-space centers (XZ-centered; Y at cell center
-## — ignored by Colonist locomotion, which navigates on the XZ plane).
+## Convert cell waypoints to world-space coordinates via the active strategy.
 func to_world_waypoints(cells: Array[Vector3i]) -> Array[Vector3]:
-	var pts: Array[Vector3] = []
-	for c in cells:
-		pts.append(Vector3(c) + _CELL_HALF)
-	return pts
+	if strategy == null:
+		strategy = _SmoothedAStarScript.new()
+	return strategy.to_world_waypoints(cells, _build_context())
 
 
 ## Convenience: world->stand-cell->A*->world. Resolves both ends via the
@@ -261,17 +156,7 @@ func find_path_world(start_world: Vector3, target_world: Vector3) -> Array[Vecto
 	return to_world_waypoints(cells)
 
 
-## Nearest walkable cell to `center` via a horizontal ring search. Use when
-## `center` may sit on a blocked footprint (a blueprint's footprint
-## center): the colonist must stand ADJACENT to a build target, never on it, so
-## the path target is the nearest free neighbour, not the center itself. Returns
-## `center` unchanged if it is already walkable or if no walkable cell is found
-## within max_radius (find_path then fails clean -> empty path). Rings expand
-## outward, returning the nearest walkable cell of the first non-empty ring, so
-## the result is the globally-nearest standable neighbour. Each ring position
-## resolves its column's stand cell — same-Y, then +/-1 Y (a build target one
-## above the floor; a ramp step, D4), then the hinted column cell — via
-## _stand_cell_in_column, unconditionally of whether a hint is injected.
+## Nearest walkable cell to `center` via a horizontal ring search.
 func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 	_stamp_query_time()
 	last_stand_candidates.clear()
@@ -285,7 +170,7 @@ func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 		var best_d := INF
 		for dx in range(-r, r + 1):
 			for dz in range(-r, r + 1):
-				if max(absi(dx), absi(dz)) != r: # only the ring at Chebyshev distance r
+				if max(absi(dx), absi(dz)) != r:
 					continue
 				var col_base := center + Vector3i(dx, 0, dz)
 				var c := _stand_cell_in_column(col_base, r + 1)
@@ -307,9 +192,7 @@ func find_stand_near_cell(center: Vector3i, max_radius: int = 4) -> Vector3i:
 
 
 ## Like find_path_world, but resolves the TARGET via a horizontal ring search so
-## the colonist can reach a point on a blocked footprint (a blueprint). The
-## colonist ends up on the nearest stand-adjacent cell. Entry point for
-## ColonistAI's build jobs (job.location is a blueprint footprint-center).
+## the colonist can reach a point on a blocked footprint (a blueprint).
 func find_path_to_adjacent(start_world: Vector3, target_world: Vector3, max_radius: int = 4) -> Array[Vector3]:
 	var start_cell := find_stand_cell(start_world)
 	var target_base := Vector3i(int(floor(target_world.x)), int(floor(target_world.y)), int(floor(target_world.z)))
@@ -318,21 +201,10 @@ func find_path_to_adjacent(start_world: Vector3, target_world: Vector3, max_radi
 
 
 ## Path from start_world to the walkable cell adjacent to any cell in
-## `footprint` that is closest to the colonist (multi-target A*). Use this
-## instead of find_path_to_adjacent when the target is a furniture node whose
-## full footprint is known — handles irregularly-shaped / multi-cell pieces
-## correctly regardless of which side the colonist approaches from. Each
-## adjacent column resolves its stand cell via _stand_cell_in_column, so a
-## footprint raised one Y above the floor (a blueprint placed on top of an
-## existing block) still yields the ground cells beside it.
+## `footprint` that is closest to the colonist (multi-target A*).
 func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vector3i]) -> Array[Vector3]:
-	_stamp_query_time() # the no-candidate early-out below writes telemetry too
+	_stamp_query_time()
 	var start_cell := find_stand_cell(start_world)
-	# Expand footprint to the stand cell of each adjacent column. Neighbours are
-	# Chebyshev 1, so the hint bound matches ring r=1. Without the column
-	# resolution a footprint raised one Y above the floor (a blueprint placed on
-	# top of an existing block) would have only air-with-no-floor same-Y
-	# neighbours and yield zero candidates.
 	var fp_set: Dictionary = {}
 	for c in footprint:
 		fp_set[c] = true
@@ -341,7 +213,7 @@ func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vect
 		for off in _NEIGHBORS_4:
 			var col: Vector3i = c + off
 			if fp_set.has(col):
-				continue # inside the footprint itself
+				continue
 			var stand := _stand_cell_in_column(col, 2)
 			if stand == Vector3i.MAX or fp_set.has(stand):
 				continue
@@ -354,77 +226,48 @@ func find_path_to_footprint_adjacent(start_world: Vector3, footprint: Array[Vect
 	return to_world_waypoints(_find_path_multi_target(start_cell, candidates))
 
 
-## A* from `start` to the nearest cell in `targets` (the goal set).
-## Heuristic: min Manhattan distance to any target (still admissible).
-func _find_path_multi_target(start: Vector3i, targets: Array[Vector3i]) -> Array[Vector3i]:
-	_stamp_query_time()
-	last_query_start = start
-	if not targets.is_empty():
-		last_query_target = targets[0]
-	last_explored_count = 0
-	var path: Array[Vector3i] = []
-	if targets.is_empty():
-		last_status = "FAIL (No candidate targets)"
-		return path
+## Resolve a standable cell near a world position (scan down then up within
+## +/-_STAND_SCAN, then the column hint).
+func find_stand_cell(world_pos: Vector3) -> Vector3i:
+	var base := Vector3i(int(floor(world_pos.x)), int(floor(world_pos.y)), int(floor(world_pos.z)))
 	if not _is_walkable.is_valid():
-		last_status = "FAIL (predicate not set)"
-		return path
-	var target_set: Dictionary = {}
-	for t in targets:
-		target_set[t] = true
-	var g_score: Dictionary = {start: 0.0}
-	var came_from: Dictionary = {}
-	var open: Array[Vector3i] = [start]
-	var closed: Dictionary = {}
-	var explored := 0
-	while not open.is_empty():
-		var best_i := 0
-		var best_f := INF
-		for i in range(open.size()):
-			var h := _heuristic_multi(open[i], targets)
-			var f: float = g_score[open[i]] + h
-			if f < best_f:
-				best_f = f
-				best_i = i
-		var current: Vector3i = open.pop_at(best_i)
-		if target_set.has(current):
-			last_explored_count = explored
-			path = _reconstruct(came_from, current)
-			last_query_target = current
-			last_status = "OK (%d pts, %d explored)" % [path.size(), explored]
-			return path
-		if closed.has(current):
-			continue
-		closed[current] = true
-		explored += 1
-		if explored > _MAX_EXPLORED:
-			push_warning("VoxelPathfinder: exceeded %d cells" % _MAX_EXPLORED)
-			last_explored_count = explored
-			last_status = "FAIL (Exceeded max %d explored)" % _MAX_EXPLORED
-			return path
-		for off in _NEIGHBORS_STEPPED:
-			var nb: Vector3i = current + off
-			if closed.has(nb) or not _is_walkable.call(nb):
-				continue
-			var tentative: float = g_score[current] + _move_cost(off)
-			if tentative < g_score.get(nb, INF):
-				g_score[nb] = tentative
-				came_from[nb] = current
-				if not open.has(nb):
-					open.append(nb)
-
-	last_explored_count = explored
-	last_status = "FAIL (No path, %d explored)" % explored
-	return path
+		return base
+	for dy in range(0, -_STAND_SCAN - 1, -1):
+		var c := base + Vector3i(0, dy, 0)
+		if _is_walkable.call(c):
+			return c
+	for dy in range(1, _STAND_SCAN + 1):
+		var c := base + Vector3i(0, dy, 0)
+		if _is_walkable.call(c):
+			return c
+	var hinted := _column_stand_cell(base)
+	if hinted != base and _is_walkable.call(hinted):
+		return hinted
+	var near_cell := find_stand_near_cell(base, _STAND_SCAN)
+	if _is_walkable.call(near_cell):
+		return near_cell
+	return base
 
 
-func _heuristic_multi(a: Vector3i, targets: Array[Vector3i]) -> float:
-	var best := INF
-	for t in targets:
-		var d := float(abs(a.x - t.x) + abs(a.z - t.z))
-		if d < best:
-			best = d
-	return best
+func _column_stand_cell(pos: Vector3i) -> Vector3i:
+	if _stand_cell_hint.is_valid():
+		var hinted: Variant = _stand_cell_hint.call(float(pos.x) + 0.5, float(pos.z) + 0.5)
+		if hinted is Vector3i and hinted != Vector3i.MAX:
+			return hinted
+	return pos
+
+
+func _stand_cell_in_column(col_base: Vector3i, max_hint_dy: int = 1) -> Vector3i:
+	if _is_walkable.call(col_base):
+		return col_base
+	if _is_walkable.call(col_base + Vector3i.UP):
+		return col_base + Vector3i.UP
+	if _is_walkable.call(col_base + Vector3i.DOWN):
+		return col_base + Vector3i.DOWN
+	var hinted := _column_stand_cell(col_base)
+	if hinted != col_base and absi(hinted.y - col_base.y) <= max_hint_dy and _is_walkable.call(hinted):
+		return hinted
+	return Vector3i.MAX
 
 
 func clear_diagnostics() -> void:
