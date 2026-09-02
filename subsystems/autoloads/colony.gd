@@ -146,6 +146,12 @@ func set_stand_cell_hint(hint: Callable) -> void:
 
 
 ## Store the active map's combined ground query (Map.ground_height_at).
+func get_ground_height_at(x: float, z: float) -> float:
+	if _ground_query.is_valid():
+		return float(_ground_query.call(x, z))
+	return NAN
+
+
 func set_ground_query(query: Callable) -> void:
 	_ground_query = query
 

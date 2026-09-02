@@ -45,6 +45,7 @@ signal interactable_changed(component: InteractionComponent)
 @onready var _mesh: MeshInstance3D = $MeshInstance3D
 @onready var _camera: Camera3D = _rig.get_camera()
 @onready var inventory: CharacterInventory = $Inventory
+@onready var command_controller: CommandController = get_node_or_null("CommandController") as CommandController
 
 ## The item currently equipped by the player (null if empty).
 var equipped_item: ItemDef = null
@@ -173,6 +174,8 @@ func _ready() -> void:
 	_input.build_toggle_pressed.connect(_on_build_key_pressed)
 	_input.primary_action_pressed.connect(_on_primary_action)
 	_input.recapture_requested.connect(_recapture_mouse)
+	if command_controller != null and _camera != null:
+		command_controller.set_camera(_camera)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
 	_input.dig_box_toggle_pressed.connect(_on_dig_box_toggle_pressed)
 

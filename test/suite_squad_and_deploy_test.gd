@@ -230,3 +230,57 @@ func test_colonist_stationed_interaction_options_and_dismissal() -> void:
 	# Refresh -> returns to routine options
 	c1.refresh_interaction_options()
 	assert_str(c1.interaction.action_options[0].action.label).is_equal("Deploy Guardian")
+
+
+func test_command_controller_lifecycle() -> void:
+	var ctrl: CommandController = auto_free(CommandController.new())
+	add_child(ctrl)
+
+	assert_bool(ctrl.is_active()).is_false()
+
+	EventBus.command_mode_requested.emit(["c_1"])
+	assert_bool(ctrl.is_active()).is_true()
+
+	ctrl.cancel_command()
+	assert_bool(ctrl.is_active()).is_false()
+
+
+func test_command_controller_formation_calculations() -> void:
+	var ctrl: CommandController = auto_free(CommandController.new())
+	add_child(ctrl)
+
+	# Cluster calculation for 3 units
+	var cluster := ctrl._calculate_cluster_formation(Vector3(10, 0, 10), 3)
+	assert_int(cluster.size()).is_equal(3)
+	assert_vector(cluster[0]).is_equal(Vector3(10, 0, 10))
+	assert_bool(cluster[1] != cluster[0]).is_true()
+	assert_bool(cluster[2] != cluster[0]).is_true()
+
+	# Line calculation for 3 units from (0,0,0) to (10,0,0)
+	var line := ctrl._calculate_line_formation(Vector3(0, 0, 0), Vector3(10, 0, 0), 3)
+	assert_int(line.size()).is_equal(3)
+	assert_vector(line[0]).is_equal(Vector3(0, 0, 0))
+	assert_vector(line[1]).is_equal(Vector3(5, 0, 0))
+	assert_vector(line[2]).is_equal(Vector3(10, 0, 0))
+
+
+func test_command_controller_commit_dispatches_to_colony() -> void:
+	Colony.colonists.clear()
+	Colony.squads.clear()
+
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var c1: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	add_child(c1)
+	Colony.colonists.append(c1)
+
+	var ctrl: CommandController = auto_free(CommandController.new())
+	add_child(ctrl)
+
+	ctrl.start_command_mode([c1.colonist_id])
+	ctrl._last_calculated_positions = [Vector3(15, 0, 20)]
+
+	ctrl._commit_command()
+
+	assert_bool(ctrl.is_active()).is_false()
+	assert_bool(Colony.has_active_deployment(c1.colonist_id)).is_true()
+	assert_vector(Colony.get_active_deployment_position(c1.colonist_id)).is_equal(Vector3(15, 0, 20))

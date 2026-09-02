@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="6_6her4"]
 [ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="7_efqes"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="8_ip60t"]
+[ext_resource type="Script" path="res://subsystems/colonists/command_controller.gd" id="15_cmdctrl"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
@@ -58,3 +59,6 @@ script = ExtResource("14_animctrl")
 
 [node name="GroundSafetyGuard" type="Node" parent="." unique_id=2025990310]
 script = ExtResource("8_ip60t")
+
+[node name="CommandController" type="Node3D" parent="." unique_id=198273699]
+script = ExtResource("15_cmdctrl")
