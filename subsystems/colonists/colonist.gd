@@ -8,6 +8,7 @@ var display_name: String
 var labor_priorities: Dictionary
 var raid_stance: int
 var current_job: Variant = null
+var squad_id: String = ""
 var skill_set: SkillSet
 var stamina_component: StaminaComponent
 var pathfinder: VoxelPathfinder
@@ -265,6 +266,7 @@ func serialize() -> Dictionary:
 		"display_name": display_name,
 		"labor_priorities": labor_priorities.duplicate(true),
 		"raid_stance": raid_stance,
+		"squad_id": squad_id,
 		"hp": _current_hp,
 		"is_dead": _is_dead,
 		"skills": skill_set.serialize() if skill_set != null else {},
@@ -284,6 +286,7 @@ func deserialize(data: Dictionary) -> void:
 	display_name = data.get("display_name", display_name)
 	labor_priorities = data.get("labor_priorities", {}).duplicate(true)
 	raid_stance = int(data.get("raid_stance", raid_stance))
+	squad_id = data.get("squad_id", "")
 	_current_hp = int(data.get("hp", _current_hp))
 	_is_dead = bool(data.get("is_dead", false))
 	if skill_set != null and data.has("skills"):

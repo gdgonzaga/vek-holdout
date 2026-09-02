@@ -138,11 +138,13 @@ func _get_work_score(actor: Node) -> float:
 	if best_job == null:
 		return 0.0
 
-	var labor_priority: int = int(colonist.labor_priorities.get(best_job.labor_id, 0))
 	var def_obj: Resource = null
 	if "def" in best_job:
 		def_obj = best_job.def
 	elif "job_def" in best_job:
 		def_obj = best_job.job_def
+	if def_obj is DeployJobDef or ("labor_id" in best_job and str(best_job.labor_id) == "deploy"):
+		return 2.0
+	var labor_priority: int = int(colonist.labor_priorities.get(best_job.labor_id, 0))
 	var base_priority: float = def_obj.base_priority if def_obj != null and "base_priority" in def_obj else 0.5
 	return (float(labor_priority) / 5.0) * base_priority

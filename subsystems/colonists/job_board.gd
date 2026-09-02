@@ -120,6 +120,8 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 				continue
 		if is_job_blacklisted_for(job_id, colonist.colonist_id):
 			continue
+		if "target_colonist_id" in job and str(job.target_colonist_id) != "" and str(job.target_colonist_id) != colonist.colonist_id:
+			continue
 		var labor_id_str: String = ""
 		if "labor_id" in job:
 			labor_id_str = str(job.labor_id)
@@ -127,8 +129,9 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 			labor_id_str = str(job.def.labor_id)
 		elif "job_def" in job and job.job_def != null and "labor_id" in job.job_def:
 			labor_id_str = str(job.job_def.labor_id)
-		var priority: int = int(colonist.labor_priorities.get(labor_id_str, colonist.labor_priorities.get(StringName(labor_id_str), 0)))
-		if priority <= 0:
+		var is_deploy: bool = labor_id_str == "deploy" or ("def" in job and job.def is DeployJobDef) or ("job_def" in job and job.job_def is DeployJobDef)
+		var priority: int = 1000 if is_deploy else int(colonist.labor_priorities.get(labor_id_str, colonist.labor_priorities.get(StringName(labor_id_str), 0)))
+		if priority <= 0 and not is_deploy:
 			continue
 		var def_obj: Resource = null
 		if "def" in job:

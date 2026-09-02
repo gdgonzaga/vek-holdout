@@ -68,6 +68,10 @@ var sleep_until_msec: int = 0
 ## Times this job has failed (JobBoard.fail increments).
 var failure_count: int = 0
 
+## Targeted colonist id (if this job is designated for a specific colonist, e.g. DeployJob).
+var target_colonist_id: String = ""
+
+
 
 ## Build a Job from a JobDef: fresh uuid, the def back-ref, the labor_id +
 ## title denormalized from the def so get_best_job_for / the Job Log don't need a
@@ -98,6 +102,8 @@ func is_assigned(colonist_id: String) -> bool:
 func try_assign(colonist: Colonist) -> bool:
 	var cid := colonist.colonist_id
 	if not is_available() or is_assigned(cid):
+		return false
+	if target_colonist_id != "" and cid != target_colonist_id:
 		return false
 	if def != null and not def.meets_requirements(colonist, self):
 		return false

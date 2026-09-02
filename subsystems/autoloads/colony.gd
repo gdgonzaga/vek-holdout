@@ -42,6 +42,10 @@ const SOW_DEF := preload("res://data/jobs/sow.tres")
 const WATER_DEF := preload("res://data/jobs/water.tres")
 const TEND_DEF := preload("res://data/jobs/tend.tres")
 const DIG_DEF := preload("res://data/jobs/dig.tres")
+const DEPLOY_DEF := preload("res://data/jobs/deploy.tres")
+
+## Registered squads: squad_id (String) -> Array of colonist_id (String).
+var squads: Dictionary = {}
 
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
@@ -249,6 +253,8 @@ func add_colonist(c: Colonist) -> void:
 
 ## Drop a colonist by id (death or departure). Frees the node.
 func remove_colonist(colonist_id: String) -> void:
+	remove_from_squad(colonist_id)
+	cancel_deployments([colonist_id])
 	for i in range(colonists.size()):
 		if colonists[i].colonist_id == colonist_id:
 			var c: Colonist = colonists[i]
@@ -261,17 +267,167 @@ func remove_colonist(colonist_id: String) -> void:
 
 # --- SaveSystem contract -----------------------------------------------------
 
+## Find a live colonist instance by colonist_id.
+func get_colonist(colonist_id: String) -> Colonist:
+	for c in colonists:
+		if is_instance_valid(c) and c.colonist_id == colonist_id:
+			return c
+	return null
+
+
+# --- Squad & Tactical Deployment (ARCH "Subsystem: Colonists") ----------------
+
+## Creates a new squad if it does not exist.
+func create_squad(squad_id: String) -> void:
+	if not squads.has(squad_id):
+		squads[squad_id] = []
+
+
+## Deletes a squad and unsets the squad_id on all its members.
+func delete_squad(squad_id: String) -> void:
+	if not squads.has(squad_id):
+		return
+	var members: Array = squads[squad_id]
+	for cid in members:
+		var c := get_colonist(str(cid))
+		if c != null:
+			c.squad_id = ""
+	squads.erase(squad_id)
+
+
+## Assigns a colonist to a squad, removing them from any other squad first.
+func assign_to_squad(colonist_id: String, squad_id: String) -> void:
+	remove_from_squad(colonist_id)
+	if not squads.has(squad_id):
+		squads[squad_id] = []
+	if not squads[squad_id].has(colonist_id):
+		squads[squad_id].append(colonist_id)
+	var c := get_colonist(colonist_id)
+	if c != null:
+		c.squad_id = squad_id
+
+
+## Removes a colonist from their squad.
+func remove_from_squad(colonist_id: String) -> void:
+	for s_id in squads.keys():
+		var members: Array = squads[s_id]
+		if members.has(colonist_id):
+			members.erase(colonist_id)
+	var c := get_colonist(colonist_id)
+	if c != null and c.squad_id != "":
+		c.squad_id = ""
+
+
+## Returns all colonist IDs in a squad.
+func get_squad_members(squad_id: String) -> Array[String]:
+	var out: Array[String] = []
+	if squads.has(squad_id):
+		for member in squads[squad_id]:
+			out.append(str(member))
+	return out
+
+
+## Returns the squad_id for a given colonist, or empty string.
+func get_squad_for_colonist(colonist_id: String) -> String:
+	for s_id in squads.keys():
+		if (squads[s_id] as Array).has(colonist_id):
+			return str(s_id)
+	return ""
+
+
+## Deploys a colonist to a world position, interrupting current tasks.
+func deploy_colonist(colonist_id: String, target_world_pos: Vector3) -> Job:
+	cancel_deployments([colonist_id])
+	var anchor := Vector3i(target_world_pos.floor())
+	var job := Job.from_def(DEPLOY_DEF)
+	job.target_colonist_id = colonist_id
+	job.location = target_world_pos
+	job.anchor_cell = anchor
+	job_board.add_job(job)
+
+	var c := get_colonist(colonist_id)
+	if c != null:
+		c.current_job = null
+		if c.bt_player != null and c.bt_player.blackboard != null:
+			c.bt_player.blackboard.erase_var(&"active_job")
+			c.bt_player.blackboard.erase_var(&"active_claim")
+			c.bt_player.restart()
+		if c.brain != null:
+			c.brain.evaluate_goals()
+	return job
+
+
+## Deploys an entire squad to specified target positions (colonist_id -> Vector3).
+func deploy_squad(squad_id: String, target_positions: Dictionary) -> void:
+	for cid in target_positions:
+		var pos: Vector3 = target_positions[cid]
+		deploy_colonist(str(cid), pos)
+
+
+## Checks if a colonist currently has an active deployment job.
+func has_active_deployment(colonist_id: String) -> bool:
+	if job_board == null:
+		return false
+	for j in job_board.get_jobs():
+		if (j.def is DeployJobDef or j.labor_id == "deploy") and j.target_colonist_id == colonist_id:
+			return true
+	return false
+
+
+## Gets the destination position of an active deployment job, or null.
+func get_active_deployment_position(colonist_id: String) -> Variant:
+	if job_board == null:
+		return null
+	for j in job_board.get_jobs():
+		if (j.def is DeployJobDef or j.labor_id == "deploy") and j.target_colonist_id == colonist_id:
+			return j.location
+	return null
+
+
+## Cancels active deployments for the given colonist IDs.
+func cancel_deployments(colonist_ids: Array) -> void:
+	if job_board == null:
+		return
+	var to_remove: Array[String] = []
+	for j in job_board.get_jobs():
+		if (j.def is DeployJobDef or j.labor_id == "deploy") and colonist_ids.has(j.target_colonist_id):
+			to_remove.append(j.id)
+	for jid in to_remove:
+		job_board.remove_job(jid)
+
+	for cid_val in colonist_ids:
+		var cid := str(cid_val)
+		var c := get_colonist(cid)
+		if c != null:
+			c.current_job = null
+			if c.bt_player != null and c.bt_player.blackboard != null:
+				c.bt_player.blackboard.erase_var(&"active_job")
+				c.bt_player.blackboard.erase_var(&"active_claim")
+				c.bt_player.restart()
+			if c.brain != null:
+				c.brain.evaluate_goals()
+
+
+## Cancels deployment for all members of a squad.
+func cancel_squad_deployment(squad_id: String) -> void:
+	cancel_deployments(get_squad_members(squad_id))
+
+
 func serialize() -> Dictionary:
 	var list: Array[Dictionary] = []
 	for c in colonists:
 		if is_instance_valid(c):
 			list.append(c.serialize())
-	return {"colonists": list}
+	return {
+		"colonists": list,
+		"squads": squads.duplicate(true),
+	}
 
 
 func deserialize(data: Dictionary) -> void:
 	reset_for_new_game()
 	_pending_colonist_records.assign(data.get("colonists", []))
+	squads = data.get("squads", {}).duplicate(true)
 
 
 ## Clears active colonists, pending restores, and registered jobs.
@@ -283,6 +439,7 @@ func reset_for_new_game() -> void:
 			c.queue_free()
 	colonists.clear()
 	_pending_colonist_records.clear()
+	squads.clear()
 	if job_board != null:
 		job_board.clear()
 

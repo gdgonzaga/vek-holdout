@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="DeployJobDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/jobs/deploy_job_def.gd" id="1_deploy"]
+
+[resource]
+script = ExtResource("1_deploy")
+id = "deploy"
+display_name = "Deploy"
+labor_id = "deploy"
+required_tool_tag = &""
+work_animation = &"Idle"
+work_duration = 1.0
+default_units_per_cycle = 0
+base_priority = 2.0
+max_assignees = 1
+conditions = []

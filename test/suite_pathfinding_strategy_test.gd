@@ -120,6 +120,8 @@ func test_voxel_pathfinder_strategy_switching() -> void:
 
 ## GameState manages the global strategy and creates the corresponding strategy instance.
 func test_game_state_strategy_management_and_serialization() -> void:
+	var prev_strategy = GameState.pathfinding_strategy
+	GameState.set_pathfinding_strategy(GameState.PathfindingStrategyType.SMOOTHED_A_STAR)
 	var initial_strat := GameState.create_pathfinding_strategy()
 	assert_str(initial_strat.get_strategy_name()).is_equal("SmoothedAStar (AStar8Way)")
 
@@ -131,6 +133,8 @@ func test_game_state_strategy_management_and_serialization() -> void:
 	var serialized := GameState.serialize()
 	assert_int(int(serialized.get("pathfinding_strategy", -1))).is_equal(int(GameState.PathfindingStrategyType.A_STAR_4_WAY))
 
-	# Restore to SmoothedAStar
 	GameState.set_pathfinding_strategy(GameState.PathfindingStrategyType.SMOOTHED_A_STAR)
 	assert_int(int(GameState.pathfinding_strategy)).is_equal(int(GameState.PathfindingStrategyType.SMOOTHED_A_STAR))
+
+	# Restore to previous strategy
+	GameState.set_pathfinding_strategy(prev_strategy)
