@@ -20,6 +20,5 @@ hp = 300
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_stone_yield")])
 min_depth = 3
 vein_size = 60
-spawn_weight = 10.0
 texture = ExtResource("3_ugyby")
 icon = ExtResource("4_icon")

@@ -1,13 +1,12 @@
-[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3]
+[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://du0irayst8xhe"]
 
-[ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
-[ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Resource" path="res://data/items/gold_ore.tres" id="3_gold"]
 
 [sub_resource type="Resource" id="Resource_gold_yield"]
 script = ExtResource("2_item_amount")
 item_def = ExtResource("3_gold")
-count = 1
 
 [resource]
 script = ExtResource("1_script")
@@ -15,7 +14,6 @@ id = "gold_ore"
 display_name = "gold ore"
 color = Color(0.831, 0.686, 0.216, 1)
 hp = 400
+yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_gold_yield")])
 min_depth = 24
 vein_size = 6
-spawn_weight = 1.0
-yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_gold_yield")])
