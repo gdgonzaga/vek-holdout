@@ -573,3 +573,70 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
+
+[node name="Squads" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+metadata/_tab_index = 5
+
+[node name="SquadsContent" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SquadsHeader" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SquadsTitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent/SquadsHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 18
+text = "Tactical Squads & Deployments"
+
+[node name="SquadsSubtitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent/SquadsHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Organize colonists into combat squads, manage member assignments, and monitor or dismiss active deployments."
+
+[node name="HSeparator" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent"]
+layout_mode = 2
+
+[node name="CreateSquadBar" type="HBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NewSquadLineEdit" type="LineEdit" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent/CreateSquadBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Enter new squad name (e.g. Alpha, Bravo)..."
+
+[node name="CreateSquadButton" type="Button" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent/CreateSquadBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+ Create Squad"
+
+[node name="NoSquadsLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 14
+text = "No squads created yet. Enter a squad name above to create your first squad."
+
+[node name="SquadsScrollContainer" type="ScrollContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SquadList" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Squads/SquadsContent/SquadsScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12

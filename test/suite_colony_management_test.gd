@@ -31,16 +31,17 @@ func test_colony_management_scene_loads() -> void:
 	assert_object(_scene).is_not_null()
 
 
-func test_colony_management_has_all_five_tabs() -> void:
+func test_colony_management_has_all_six_tabs() -> void:
 	var tab_container: TabContainer = _scene.get_node("%TabContainer") as TabContainer
 	assert_object(tab_container).is_not_null()
-	assert_int(tab_container.get_tab_count()).is_equal(5)
+	assert_int(tab_container.get_tab_count()).is_equal(6)
 	
 	assert_str(tab_container.get_tab_title(0)).is_equal("Colony Info")
 	assert_str(tab_container.get_tab_title(1)).is_equal("Colonists")
 	assert_str(tab_container.get_tab_title(2)).is_equal("Labors")
 	assert_str(tab_container.get_tab_title(3)).is_equal("Crafting")
 	assert_str(tab_container.get_tab_title(4)).is_equal("Storage")
+	assert_str(tab_container.get_tab_title(5)).is_equal("Squads")
 
 
 func test_colonist_tab_empty_roster() -> void:
@@ -298,3 +299,56 @@ func test_colony_serialize_deserialize_round_trip() -> void:
 	assert_object(restored).is_not_null()
 	assert_str(restored.display_name).is_equal("Test Colonist")
 	assert_object(restored.get_parent()).is_equal(new_container)
+
+
+func test_squads_tab_empty() -> void:
+	Colony.squads.clear()
+	_scene.call("_refresh_squads")
+
+	var no_squads: Label = _scene.get_node("%NoSquadsLabel") as Label
+	var list: VBoxContainer = _scene.get_node("%SquadList") as VBoxContainer
+	assert_object(no_squads).is_not_null()
+	assert_bool(no_squads.visible).is_true()
+	assert_bool(list.visible).is_false()
+
+
+func test_squads_tab_create_squad_ui() -> void:
+	Colony.squads.clear()
+	var line_edit: LineEdit = _scene.get_node("%NewSquadLineEdit") as LineEdit
+	line_edit.text = "recon_unit"
+	_scene.call("_on_create_squad_pressed")
+
+	assert_bool(Colony.squads.has("recon_unit")).is_true()
+	assert_str(line_edit.text).is_equal("")
+
+	var list: VBoxContainer = _scene.get_node("%SquadList") as VBoxContainer
+	assert_bool(list.visible).is_true()
+	assert_int(list.get_child_count()).is_equal(1)
+
+
+func test_squad_card_display_and_dismiss_controls() -> void:
+	Colony.colonists.clear()
+	Colony.squads.clear()
+
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	colonist.display_name = "Squad Fighter"
+	Colony.colonists.append(colonist)
+
+	Colony.assign_to_squad(colonist.colonist_id, "alpha_fireteam")
+	Colony.deploy_colonist(colonist.colonist_id, Vector3(10, 0, 10))
+
+	_scene.call("_refresh_squads")
+
+	var list: VBoxContainer = _scene.get_node("%SquadList") as VBoxContainer
+	assert_int(list.get_child_count()).is_equal(1)
+
+	var card: SquadCard = list.get_child(0) as SquadCard
+	assert_object(card).is_not_null()
+
+	var dismiss_btn: Button = card.get_node("%DismissSquadButton") as Button
+	assert_bool(dismiss_btn.visible).is_true()
+
+	# Press Dismiss Squad
+	dismiss_btn.emit_signal("pressed")
+	assert_bool(Colony.has_active_deployment(colonist.colonist_id)).is_false()

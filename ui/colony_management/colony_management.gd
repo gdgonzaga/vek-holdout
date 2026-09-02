@@ -11,6 +11,8 @@ const CRAFTING_STATION_ROW_SCENE := preload("res://ui/colony_management/crafting
 const STORAGE_CONTAINER_ROW_SCENE := preload("res://ui/colony_management/storage_container_row.tscn")
 const LaborCellScript := preload("res://ui/colony_management/labor_cell.gd")
 const StorageContainerRowScript := preload("res://ui/colony_management/storage_container_row.gd")
+const SQUAD_CARD_SCENE := preload("res://ui/colony_management/squad_card.tscn")
+const SquadCardScript := preload("res://ui/colony_management/squad_card.gd")
 
 @onready var _close_button: Button = %CloseButton
 @onready var _tab_container: TabContainer = %TabContainer
@@ -49,6 +51,11 @@ const StorageContainerRowScript := preload("res://ui/colony_management/storage_c
 @onready var _no_storage_label: Label = %NoStorageLabel
 @onready var _storage_subtitle_label: Label = %StorageSubtitleLabel
 
+@onready var _squad_list: VBoxContainer = %SquadList
+@onready var _no_squads_label: Label = %NoSquadsLabel
+@onready var _new_squad_line_edit: LineEdit = %NewSquadLineEdit
+@onready var _create_squad_button: Button = %CreateSquadButton
+
 var _selected_colonist: Colonist = null
 
 
@@ -60,6 +67,10 @@ func _ready() -> void:
 	_refresh_colony_info()
 	_refresh_colonist_roster()
 	_refresh_labors_matrix()
+	if _create_squad_button != null:
+		_create_squad_button.pressed.connect(_on_create_squad_pressed)
+	if _new_squad_line_edit != null:
+		_new_squad_line_edit.text_submitted.connect(func(_t: String) -> void: _on_create_squad_pressed())
 
 
 func _process(_delta: float) -> void:
@@ -88,6 +99,8 @@ func _on_tab_changed(_tab_index: int) -> void:
 		_refresh_crafting_stations()
 	elif _tab_index == 4:
 		_refresh_storage()
+	elif _tab_index == 5:
+		_refresh_squads()
 
 
 func _refresh_colonist_roster() -> void:
@@ -477,3 +490,38 @@ func _update_operations_summary() -> void:
 	if _info_stations_count_label != null:
 		var stations := _get_all_crafting_stations()
 		_info_stations_count_label.text = "Crafting Workstations: %d" % stations.size()
+
+
+func _refresh_squads() -> void:
+	if _squad_list == null:
+		return
+
+	for child in _squad_list.get_children():
+		child.queue_free()
+
+	if Colony == null or Colony.squads.is_empty():
+		if _no_squads_label != null:
+			_no_squads_label.visible = true
+		_squad_list.visible = false
+		return
+
+	if _no_squads_label != null:
+		_no_squads_label.visible = false
+	_squad_list.visible = true
+
+	for squad_id in Colony.squads.keys():
+		var card: SquadCard = SQUAD_CARD_SCENE.instantiate() as SquadCard
+		_squad_list.add_child(card)
+		card.setup(str(squad_id))
+		card.squad_modified.connect(_refresh_squads)
+
+
+func _on_create_squad_pressed() -> void:
+	if _new_squad_line_edit == null or Colony == null:
+		return
+	var squad_name := _new_squad_line_edit.text.strip_edges()
+	if squad_name == "":
+		return
+	Colony.create_squad(squad_name)
+	_new_squad_line_edit.text = ""
+	_refresh_squads()
