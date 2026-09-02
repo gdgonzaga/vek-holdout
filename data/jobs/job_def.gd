@@ -62,6 +62,10 @@ class_name JobDef
 ## itself.
 @export var conditions: Array[Condition] = []
 
+## Whether the colonist must navigate to an adjacent cell (e.g. mining/building)
+## or directly stand on the target location itself (e.g. deploy/stationing).
+@export var requires_adjacent: bool = true
+
 
 ## True if `actor` satisfies every `conditions` entry, evaluated fresh against
 ## the job's target node. Empty conditions (the default) mean any colonist.

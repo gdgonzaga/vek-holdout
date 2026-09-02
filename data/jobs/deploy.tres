@@ -1,16 +1,15 @@
-[gd_resource type="Resource" script_class="DeployJobDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="DeployJobDef" format=3 uid="uid://pxncb4k70buf"]
 
-[ext_resource type="Script" path="res://data/jobs/deploy_job_def.gd" id="1_deploy"]
+[ext_resource type="Script" uid="uid://xckfch68xfe5" path="res://data/jobs/deploy_job_def.gd" id="1_deploy"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_pud64"]
 
 [resource]
 script = ExtResource("1_deploy")
 id = "deploy"
 display_name = "Deploy"
 labor_id = "deploy"
-required_tool_tag = &""
 work_animation = &"Idle"
 work_duration = 1.0
 default_units_per_cycle = 0
 base_priority = 2.0
-max_assignees = 1
-conditions = []
+requires_adjacent = false

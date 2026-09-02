@@ -2,6 +2,10 @@ extends JobDef
 class_name DeployJobDef
 ## Direct tactical placement / stationing labor (ARCH "Subsystem: Colonists").
 ## The colonist travels to the target location and stays stationed there
+
+
+func _init() -> void:
+	requires_adjacent = false
 ## indefinitely until dismissed.
 
 

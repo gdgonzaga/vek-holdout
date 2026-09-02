@@ -17,6 +17,7 @@ var _has_valid_target: bool = false
 ## _handle_navigation_failure in this case, or it will erase active_job for
 ## other subtrees sharing the same blackboard).
 var _no_target: bool = false
+var _requires_adjacent: bool = true
 ## Meta key on the agent holding the instance id of the NavigateTo/Wander task
 ## that most recently fed it a path. The agent's path is a single shared slot
 ## and several task instances (needs branch, work branch, wander) can set it;
@@ -65,13 +66,37 @@ func _enter() -> void:
 	if target == null:
 		_no_target = true
 		return
+
+	_requires_adjacent = true
+	var job_candidate: Variant = null
+	if target is Job or (target is Object and is_instance_valid(target) and ("job_instance" in target or "def" in target)):
+		job_candidate = target
+	elif blackboard:
+		if blackboard.has_var(&"active_job"):
+			job_candidate = blackboard.get_var(&"active_job")
+		elif blackboard.has_var(&"active_claim"):
+			job_candidate = blackboard.get_var(&"active_claim")
+
+	if job_candidate != null:
+		if job_candidate is Job and job_candidate.def != null and "requires_adjacent" in job_candidate.def:
+			_requires_adjacent = job_candidate.def.requires_adjacent
+		elif job_candidate is Object and is_instance_valid(job_candidate):
+			if "job_instance" in job_candidate and job_candidate.job_instance != null:
+				var def = job_candidate.job_instance.get("def")
+				if def != null and "requires_adjacent" in def:
+					_requires_adjacent = def.requires_adjacent
+			elif "def" in job_candidate and job_candidate.def != null and "requires_adjacent" in job_candidate.def:
+				_requires_adjacent = job_candidate.def.requires_adjacent
+			elif job_candidate is DeployJobDef or ("def" in job_candidate and job_candidate.def is DeployJobDef):
+				_requires_adjacent = false
 		
 	var path: Array[Vector3] = _resolve_path_to_target(target)
 	
 	# Check if already within arrival distance
 	if _has_target_pos and agent is Node3D:
 		var curr_pos: Vector3 = (agent as Node3D).global_position
-		if curr_pos.distance_to(_target_world_pos) <= arrival_distance:
+		var threshold: float = arrival_distance if _requires_adjacent else 0.45
+		if curr_pos.distance_to(_target_world_pos) <= threshold:
 			_has_valid_target = true
 			return
 			
@@ -100,7 +125,8 @@ func _tick(_delta: float) -> Status:
 	if _has_target_pos and agent is Node3D:
 		var curr_pos: Vector3 = (agent as Node3D).global_position
 		var dist: float = curr_pos.distance_to(_target_world_pos)
-		if dist <= arrival_distance:
+		var threshold: float = arrival_distance if _requires_adjacent else 0.45
+		if dist <= threshold:
 			return SUCCESS
 			
 	if agent.has_method("has_arrived") and bool(agent.has_arrived()):
@@ -199,7 +225,10 @@ func _resolve_path_to_target(target: Variant) -> Array[Vector3]:
 				return pathfinder.find_path_to_footprint_adjacent(agent_pos, fp_job)
 				
 	if _has_target_pos:
-		return pathfinder.find_path_to_adjacent(agent_pos, _target_world_pos)
+		if _requires_adjacent:
+			return pathfinder.find_path_to_adjacent(agent_pos, _target_world_pos)
+		else:
+			return pathfinder.find_path_world(agent_pos, _target_world_pos)
 		
 	return []
 

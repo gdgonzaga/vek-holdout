@@ -9,11 +9,11 @@
 [ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="10_p62sj"]
 [ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="11_ghy6r"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="13_jjjcm"]
-[ext_resource type="Script" path="res://subsystems/actions/interaction_component.gd" id="17_interact"]
 [ext_resource type="Script" uid="uid://b6618sv10mkib" path="res://subsystems/colonists/colonist_animation_controller.gd" id="16_animctrl"]
+[ext_resource type="Script" uid="uid://duqrdd3t7rag6" path="res://subsystems/actions/interaction_component.gd" id="17_interact"]
 [ext_resource type="Script" uid="uid://cxe5kqjdff8h4" path="res://subsystems/ai/colonist_needs.gd" id="18_needs"]
 [ext_resource type="Script" uid="uid://nv5v5unavf1x" path="res://subsystems/ai/colonist_brain.gd" id="19_brain"]
-[ext_resource type="BehaviorTree" uid="uid://xngb0mv7h3cx" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
+[ext_resource type="BehaviorTree" uid="uid://tpswmt5ua6e8" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3
