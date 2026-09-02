@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="10_p62sj"]
 [ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="11_ghy6r"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="13_jjjcm"]
+[ext_resource type="Script" path="res://subsystems/actions/interaction_component.gd" id="17_interact"]
 [ext_resource type="Script" uid="uid://b6618sv10mkib" path="res://subsystems/colonists/colonist_animation_controller.gd" id="16_animctrl"]
 [ext_resource type="Script" uid="uid://cxe5kqjdff8h4" path="res://subsystems/ai/colonist_needs.gd" id="18_needs"]
 [ext_resource type="Script" uid="uid://nv5v5unavf1x" path="res://subsystems/ai/colonist_brain.gd" id="19_brain"]
@@ -81,3 +82,6 @@ script = ExtResource("16_animctrl")
 
 [node name="GroundSafetyGuard" type="Node" parent="." unique_id=216402738]
 script = ExtResource("13_jjjcm")
+
+[node name="InteractionComponent" type="Node" parent="." unique_id=987654321]
+script = ExtResource("17_interact")

@@ -52,3 +52,7 @@ signal plot_needs_water(growable: Node, anchor: Vector3i, needed: bool) # Growab
 signal plot_needs_tending(growable: Node, anchor: Vector3i, needed: bool) # Growable -> Colony (spawn/cancel tend job)
 signal item_picked_up(item_id: String, count: int) # inventory -> HUD
 signal job_logged(entry: Dictionary) # colonists (Job Board) -> Job Log UI
+
+# --- Tactical commands & deployments ---
+signal command_mode_requested(colonist_ids: Array) # interaction / UI -> CommandController
+signal deploy_orders_issued(target_positions: Dictionary) # CommandController -> Colony / JobBoard

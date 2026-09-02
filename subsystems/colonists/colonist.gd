@@ -1,3 +1,4 @@
+
 extends CharacterBody3D
 class_name Colonist
 
@@ -38,11 +39,13 @@ var _wiggle_dir: Vector3 = Vector3.ZERO
 var _current_hp: int = 100
 var _is_dead: bool = false
 var equipped_item: ItemDef = null
+@onready var interaction: InteractionComponent = get_node_or_null("InteractionComponent") as InteractionComponent
 
 func _ready() -> void:
 	add_to_group("colonists")
 	colonist_id = Tools.generate_uuid()
-	display_name = colonist_def.display_name
+	if display_name == "" and colonist_def != null:
+		display_name = colonist_def.display_name
 	labor_priorities = colonist_def.default_labor_priorities
 	raid_stance = colonist_def.default_raid_stance
 	current_job = null
@@ -83,6 +86,13 @@ func _ready() -> void:
 	inventory = inv
 	_current_hp = colonist_def.max_hp
 	floor_max_angle = deg_to_rad(60.0)
+	if interaction == null:
+		interaction = get_node_or_null("InteractionComponent") as InteractionComponent
+	if interaction == null:
+		interaction = InteractionComponent.new()
+		interaction.name = "InteractionComponent"
+		add_child(interaction)
+	refresh_interaction_options()
 
 
 func _physics_process(delta: float) -> void:
@@ -301,3 +311,53 @@ func deserialize(data: Dictionary) -> void:
 		bt_player.restart()
 	if brain != null:
 		brain.evaluate_goals()
+
+
+## Dynamically builds interaction options (Deploy / Dismiss single & squad).
+func refresh_interaction_options() -> void:
+	if interaction == null:
+		interaction = get_node_or_null("InteractionComponent") as InteractionComponent
+	if interaction == null:
+		return
+
+	var is_deployed := Colony.has_active_deployment(colonist_id) if Colony != null else false
+	var options: Array[ActionOption] = []
+
+	if not is_deployed:
+		interaction.display_name = display_name
+		interaction.info_text = "Squad: %s" % squad_id if squad_id != "" else ""
+
+		var deploy_act := DeployColonistAction.new()
+		deploy_act.label = "Deploy %s" % display_name
+		var opt_deploy := ActionOption.new()
+		opt_deploy.action = deploy_act
+		options.append(opt_deploy)
+
+		if squad_id != "":
+			var squad_act := DeploySquadAction.new()
+			squad_act.label = "Deploy Squad: %s" % squad_id.capitalize()
+			var opt_squad := ActionOption.new()
+			opt_squad.action = squad_act
+			options.append(opt_squad)
+	else:
+		interaction.display_name = "%s [Stationed]" % display_name
+		var pos = Colony.get_active_deployment_position(colonist_id) if Colony != null else null
+		if pos is Vector3:
+			interaction.info_text = "Stationed @ (%d, %d, %d)" % [int(pos.x), int(pos.y), int(pos.z)]
+		else:
+			interaction.info_text = "Stationed"
+
+		var dismiss_act := DismissColonistAction.new()
+		dismiss_act.label = "Dismiss %s" % display_name
+		var opt_dismiss := ActionOption.new()
+		opt_dismiss.action = dismiss_act
+		options.append(opt_dismiss)
+
+		if squad_id != "":
+			var dismiss_squad_act := DismissSquadAction.new()
+			dismiss_squad_act.label = "Dismiss Squad: %s" % squad_id.capitalize()
+			var opt_dismiss_squad := ActionOption.new()
+			opt_dismiss_squad.action = dismiss_squad_act
+			options.append(opt_dismiss_squad)
+
+	interaction.action_options = options

@@ -274,19 +274,27 @@ func _exit_build_placement_mode() -> void:
 func execute_default_action() -> void:
 	if _busy:
 		return
-	if _current_interactable and not _current_interactable.action_options.is_empty():
-		var option: ActionOption = _current_interactable.action_options[0]
-		if option.action != null:
-			option.action.execute(self, _current_interactable.get_parent())
-			interactable_changed.emit(_current_interactable)
+	if _current_interactable != null:
+		var target := _current_interactable.get_parent()
+		if target != null and target.has_method("refresh_interaction_options"):
+			target.refresh_interaction_options()
+		if not _current_interactable.action_options.is_empty():
+			var option: ActionOption = _current_interactable.action_options[0]
+			if option.action != null:
+				option.action.execute(self, target)
+				interactable_changed.emit(_current_interactable)
 
 
 ## Open the full interaction menu for the targeted interactable (long-press E).
 func open_interaction_menu() -> void:
 	if _busy:
 		return
-	if _current_interactable and not _current_interactable.action_options.is_empty():
-		_current_interactable.interact(self)
+	if _current_interactable != null:
+		var target := _current_interactable.get_parent()
+		if target != null and target.has_method("refresh_interaction_options"):
+			target.refresh_interaction_options()
+		if not _current_interactable.action_options.is_empty():
+			_current_interactable.interact(self)
 
 
 ## Screen-center physics raycast for interaction. Returns the raw hit dict
@@ -320,6 +328,10 @@ func _update_interaction_target() -> void:
 			interactable_changed.emit(null)
 		return
 	var component := _find_interaction_component(hit.collider)
+	if component != null:
+		var target := component.get_parent()
+		if target != null and target.has_method("refresh_interaction_options"):
+			target.refresh_interaction_options()
 	if component != _current_interactable:
 		_current_interactable = component
 		interactable_changed.emit(component)

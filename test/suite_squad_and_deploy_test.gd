@@ -160,3 +160,73 @@ func test_squad_serialization_round_trip() -> void:
 	assert_int(Colony.squads.size()).is_equal(2)
 	assert_array(Colony.get_squad_members("alpha")).contains([c1.colonist_id])
 	assert_array(Colony.get_squad_members("beta")).contains([c2.colonist_id])
+
+
+func test_colonist_routine_interaction_options_and_dispatch() -> void:
+	Colony.colonists.clear()
+	Colony.squads.clear()
+
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var c1: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	c1.display_name = "Ranger"
+	add_child(c1)
+	Colony.colonists.append(c1)
+
+	# Initially without squad: 1 option (Deploy Ranger)
+	c1.refresh_interaction_options()
+	assert_object(c1.interaction).is_not_null()
+	assert_int(c1.interaction.action_options.size()).is_equal(1)
+	assert_str(c1.interaction.action_options[0].action.label).is_equal("Deploy Ranger")
+
+	# Assign to squad: 2 options (Deploy Ranger, Deploy Squad: Assault)
+	Colony.assign_to_squad(c1.colonist_id, "assault")
+	c1.refresh_interaction_options()
+	assert_int(c1.interaction.action_options.size()).is_equal(2)
+	assert_str(c1.interaction.action_options[0].action.label).is_equal("Deploy Ranger")
+	assert_str(c1.interaction.action_options[1].action.label).is_equal("Deploy Squad: Assault")
+
+	# Execute deploy single action -> emits EventBus.command_mode_requested
+	var received_ids: Array = []
+	var cb := func(ids: Array) -> void: received_ids.append_array(ids)
+	EventBus.command_mode_requested.connect(cb)
+
+	c1.interaction.action_options[0].action.execute(null, c1)
+	assert_int(received_ids.size()).is_equal(1)
+	assert_str(received_ids[0]).is_equal(c1.colonist_id)
+
+	# Execute deploy squad action
+	received_ids.clear()
+	c1.interaction.action_options[1].action.execute(null, c1)
+	assert_int(received_ids.size()).is_equal(1)
+	assert_str(received_ids[0]).is_equal(c1.colonist_id)
+
+	EventBus.command_mode_requested.disconnect(cb)
+
+
+func test_colonist_stationed_interaction_options_and_dismissal() -> void:
+	Colony.colonists.clear()
+	Colony.squads.clear()
+
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var c1: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	c1.display_name = "Guardian"
+	add_child(c1)
+	Colony.colonists.append(c1)
+	Colony.assign_to_squad(c1.colonist_id, "defense")
+
+	# Deploy colonist
+	Colony.deploy_colonist(c1.colonist_id, Vector3(5, 0, 5))
+	c1.refresh_interaction_options()
+
+	assert_int(c1.interaction.action_options.size()).is_equal(2)
+	assert_str(c1.interaction.action_options[0].action.label).is_equal("Dismiss Guardian")
+	assert_str(c1.interaction.action_options[1].action.label).is_equal("Dismiss Squad: Defense")
+	assert_str(c1.interaction.display_name).contains("[Stationed]")
+
+	# Execute dismiss action
+	c1.interaction.action_options[0].action.execute(null, c1)
+	assert_bool(Colony.has_active_deployment(c1.colonist_id)).is_false()
+
+	# Refresh -> returns to routine options
+	c1.refresh_interaction_options()
+	assert_str(c1.interaction.action_options[0].action.label).is_equal("Deploy Guardian")
