@@ -39,7 +39,21 @@ uniform float min_contrast : hint_range(0.0, 2.0) = 0.70;
 // Brightest brightness multiplier in noise peaks (e.g., 0.90 = 90% of base brightness for light soil patches).
 uniform float max_contrast : hint_range(0.0, 3.0) = 0.90;
 
-// 3D Procedural Ore Vein parameters:
+// 3D Volumetric Strata Texture parameters (Option B2):
+// Bakes TerrainStrata palette indices directly into a 3D volume texture (FORMAT_R8).
+// Guaranteed 100% spatial lockstep between visuals and mined drops.
+uniform bool volume_enabled = false;
+uniform sampler3D strata_volume : filter_nearest;
+uniform vec3 volume_origin = vec3(0.0);
+uniform vec3 volume_size = vec3(256.0, 64.0, 256.0);
+uniform vec3 ore_palette_tint[16];
+uniform sampler2D ore_textures[16] : source_color;
+uniform float ore_roughness = 0.9;
+uniform float ore_metallic = 0.0;
+uniform float ore_warp_scale = 0.8;
+uniform float ore_warp_strength = 0.45;
+
+// Procedural Ore Vein parameters (Option 1 fallback when volume_enabled is false):
 uniform bool ore_enabled = false;
 uniform sampler2D ore_tex : source_color, repeat_enable, filter_linear_mipmap, hint_default_white;
 uniform vec3 ore_tint = vec3(0.15, 0.15, 0.15);
@@ -67,6 +81,13 @@ vec3 triplanar_sample(sampler2D tex, vec3 p, vec3 w) {
 	vec3 x = texture(tex, p.zy * texels_per_meter).rgb;
 	vec3 y = texture(tex, p.xz * texels_per_meter).rgb;
 	vec3 z = texture(tex, p.xy * texels_per_meter).rgb;
+	return x * w.x + y * w.y + z * w.z;
+}
+
+vec3 triplanar_sample_ore(int idx, vec3 p, vec3 w) {
+	vec3 x = texture(ore_textures[idx], p.zy * texels_per_meter).rgb;
+	vec3 y = texture(ore_textures[idx], p.xz * texels_per_meter).rgb;
+	vec3 z = texture(ore_textures[idx], p.xy * texels_per_meter).rgb;
 	return x * w.x + y * w.y + z * w.z;
 }
 
@@ -134,8 +155,45 @@ void fragment() {
 	float noise_val = organic_noise2d(v_world_pos.xz * noise_scale);
 	float variation = mix(min_contrast, max_contrast, noise_val);
 	vec3 base_color = mix(ground, rock, t) * variation;
+	float mat_roughness = 1.0;
+	float mat_metallic = 0.0;
 
-	if (ore_enabled && depth >= ore_min_depth && depth <= ore_max_depth) {
+	// Option B2: 3D Volumetric Strata Texture (100% spatial lockstep with TerrainStrata)
+	bool is_ore = false;
+	if (volume_enabled && volume_size.x > 0.0 && volume_size.y > 0.0 && volume_size.z > 0.0) {
+		// Sample 10 cm inside the solid terrain face along -normal to match player interaction hit_in
+		vec3 sample_pos = v_world_pos - v_world_normal * 0.10;
+		// Continuous 3D domain warp to eliminate rigid 1m Cartesian voxel stair-stepping
+		vec3 warp = vec3(
+			organic_noise3d(sample_pos * ore_warp_scale),
+			organic_noise3d(sample_pos * ore_warp_scale + vec3(17.3, 31.7, 53.1)),
+			organic_noise3d(sample_pos * ore_warp_scale + vec3(71.9, 13.5, 97.3))
+		) - vec3(0.5);
+		vec3 warped_pos = sample_pos + warp * ore_warp_strength;
+		vec3 uvw = (warped_pos - volume_origin) / volume_size;
+		if (all(greaterThanEqual(uvw, vec3(0.0))) && all(lessThanEqual(uvw, vec3(1.0)))) {
+			float val = texture(strata_volume, uvw).r;
+			int palette_idx = int(round(val * 255.0));
+			if (palette_idx > 0 && palette_idx < 16) {
+				is_ore = true;
+				vec3 tint = ore_palette_tint[palette_idx];
+				if (dot(tint, tint) < 0.001) {
+					tint = vec3(1.0);
+				}
+				vec3 ore_color = triplanar_sample_ore(palette_idx, v_world_pos, w) * tint;
+				base_color = ore_color;
+				mat_roughness = ore_roughness;
+				mat_metallic = ore_metallic;
+			}
+		}
+	}
+
+	if (!is_ore) {
+		base_color = mix(ground, rock, t) * variation;
+	}
+
+	// Option 1 fallback: 3D Procedural Noise (when 3D volume is not enabled)
+	if (!is_ore && ore_enabled && depth >= ore_min_depth && depth <= ore_max_depth) {
 		float ore_noise = organic_noise3d(v_world_pos * ore_noise_scale + ore_seed_offset);
 		float depth_edge = 1.0;
 		if (ore_min_depth > 0.0) {
@@ -152,5 +210,6 @@ void fragment() {
 	}
 
 	ALBEDO = base_color;
-	ROUGHNESS = 1.0;
+	ROUGHNESS = mat_roughness;
+	METALLIC = mat_metallic;
 }

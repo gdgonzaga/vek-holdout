@@ -85,3 +85,13 @@ func material_id_at(pos: Vector3i) -> String:
 			best_score = score
 			best = m.id
 	return best
+
+
+## Injected pristine height function used for column surface queries.
+func get_pristine_height() -> Callable:
+	return _pristine_height
+
+
+## Sorted material def candidates configured for this strata.
+func get_materials() -> Array[TerrainMaterialDef]:
+	return _materials

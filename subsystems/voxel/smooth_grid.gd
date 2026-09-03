@@ -72,6 +72,18 @@ const HEIGHT_BAKE_SPAN := 512.0
 ## Fallback identity when neither the sidecar nor strata answers a solid
 ## position (maps without an injected catalog behave exactly as before: one
 ## def for all natural ground).
+const StrataBaker = preload("res://subsystems/voxel/strata_baker.gd")
+const StrataBakeResult = preload("res://subsystems/voxel/strata_bake_result.gd")
+
+## World XZ dimension in meters for the 3D strata volume bake (Option B2).
+@export var volume_bake_span_xz: int = 192
+
+## World Y dimension in meters for the 3D strata volume bake (Option B2).
+@export var volume_bake_span_y: int = 64
+
+## Minimum world Y coordinate for the 3D strata volume bake (Option B2).
+@export var volume_min_y: int = -36
+
 @export var default_material: TerrainMaterialDef = null
 
 @onready var _terrain: VoxelTerrain = get_node_or_null(terrain_path) as VoxelTerrain
@@ -103,6 +115,8 @@ var _block_size := 0
 ## (add_material and block_loaded) so nothing double-spawns.
 var _band_materials: Dictionary = {}
 var _surface_material_id := ""
+var _strata_bake_result: StrataBakeResult = null
+var _strata_palette: Dictionary = {}
 var _marker_keys: Dictionary = {}
 var _marker_root: Node3D = null
 static var _shared_marker_texture: ImageTexture = null
@@ -348,11 +362,14 @@ func set_material_catalog(materials: Array) -> void:
 	_surface_material_id = ""
 	if _band_materials.has("surface"):
 		_surface_material_id = String(_band_materials["surface"].id)
+	# Invalidate previous volume bake so a fresh catalog re-bakes
+	_strata_bake_result = null
 	# Catalog injection may precede the tree (both injectors do), so _terrain
 	# can be unset — _ready's _apply_visuals covers that order.
 	if _terrain != null and "material_override" in _terrain:
 		var override: Variant = _terrain.get("material_override")
 		if override is ShaderMaterial:
+			_bake_strata_volume()
 			_push_band_uniforms(override)
 
 ## Add a sphere of solid ground (SDF -SOLID_DENSITY) at world pos, carrying
@@ -561,6 +578,8 @@ func _apply_visuals() -> void:
 	material.shader = TERRAIN_SHADER
 	material.set_shader_parameter("height_map", _bake_height_texture())
 	material.set_shader_parameter("bake_span", HEIGHT_BAKE_SPAN)
+	if _strata != null and _strata_bake_result == null:
+		_bake_strata_volume()
 	_push_band_uniforms(material)
 	if "material_override" in _terrain:
 		_terrain.set("material_override", material)
@@ -644,6 +663,16 @@ func _push_band_uniforms(material: ShaderMaterial) -> void:
 		material.set_shader_parameter("ore_threshold", 0.65)
 	else:
 		material.set_shader_parameter("ore_enabled", false)
+
+	if _strata_bake_result != null and _strata_bake_result.texture != null:
+		material.set_shader_parameter("volume_enabled", true)
+		material.set_shader_parameter("strata_volume", _strata_bake_result.texture)
+		material.set_shader_parameter("volume_origin", Vector3(_strata_bake_result.origin))
+		material.set_shader_parameter("volume_size", Vector3(_strata_bake_result.size))
+		material.set_shader_parameter("ore_palette_tint", _build_palette_tints())
+		material.set_shader_parameter("ore_textures", _build_ore_textures(deep))
+	else:
+		material.set_shader_parameter("volume_enabled", false)
 
 
 ## A real texture carries its own color, so it is never tinted (WHITE); the
@@ -854,6 +883,14 @@ func get_max_hp_at(pos: Vector3i) -> int:
 ## If HP > 0, returns {"destroyed": false, "material": material, "remaining_hp": remaining_hp, "max_hp": max_hp}.
 func apply_damage_at(pos: Vector3i, amount: int, actor: Node = null, normal: Vector3 = Vector3.UP) -> Dictionary:
 	var material: TerrainMaterialDef = get_material_def_at(pos)
+	if material == null:
+		# If exact corner sampled air (common on carved edges), resolve first solid sample in box
+		material = get_first_material_def_in_box(Vector3(pos), Vector3(pos) + Vector3.ONE)
+	if material == null and _strata != null:
+		# If whole box was carved air but actor targeted this cell, query geological stratum directly
+		var mat_id := _strata.material_id_at(pos)
+		if mat_id != "" and _catalog_by_id.has(mat_id):
+			material = _catalog_by_id[mat_id]
 	if material == null:
 		material = default_material
 	var max_hp: int = material.hp if material != null else 100
@@ -1161,3 +1198,66 @@ func serialize() -> Dictionary:
 
 func deserialize(_data: Dictionary) -> void:
 	pass
+
+
+func get_strata_bake_result() -> StrataBakeResult:
+	return _strata_bake_result
+
+
+func get_strata_palette() -> Dictionary:
+	return _strata_palette
+
+
+## Bakes the 3D strata volume (Option B2) for the current catalog and generator.
+func _bake_strata_volume() -> void:
+	if _strata == null or _catalog_by_id.is_empty():
+		return
+	_strata_palette = StrataBaker.build_palette(_catalog_by_id.values())
+	var origin := Vector3i(-volume_bake_span_xz / 2, volume_min_y, -volume_bake_span_xz / 2)
+	var size := Vector3i(volume_bake_span_xz, volume_bake_span_y, volume_bake_span_xz)
+	_strata_bake_result = StrataBaker.bake(
+		_strata,
+		_strata_palette,
+		origin,
+		size,
+		Callable(self, "_pristine_height"),
+		true,
+		false
+	)
+
+
+func _build_palette_tints() -> Array[Vector3]:
+	var tints: Array[Vector3] = []
+	tints.resize(16)
+	for i: int in 16:
+		tints[i] = Vector3.ONE
+	for mat_id: String in _strata_palette:
+		var idx: int = _strata_palette[mat_id]
+		if idx > 0 and idx < 16:
+			var def: TerrainMaterialDef = _catalog_by_id.get(mat_id)
+			if def != null:
+				if def.texture != null:
+					# A real texture carries its own authored colors; do not dim it with def.color
+					tints[idx] = Vector3.ONE
+				elif def.color != Color.WHITE:
+					tints[idx] = Vector3(def.color.r, def.color.g, def.color.b)
+				else:
+					tints[idx] = Vector3(0.541, 0.541, 0.561)
+	return tints
+
+
+func _build_ore_textures(deep: TerrainMaterialDef) -> Array[Texture2D]:
+	var fallback_tex: Texture2D = _band_texture(deep)
+	var textures: Array[Texture2D] = []
+	textures.resize(16)
+	for i: int in 16:
+		textures[i] = fallback_tex
+	for mat_id: String in _strata_palette:
+		var idx: int = _strata_palette[mat_id]
+		if idx > 0 and idx < 16:
+			var def: TerrainMaterialDef = _catalog_by_id.get(mat_id)
+			if def != null and def.texture != null:
+				textures[idx] = def.texture
+			else:
+				textures[idx] = fallback_tex
+	return textures

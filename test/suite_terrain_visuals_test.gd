@@ -155,3 +155,39 @@ func test_marker_texture_fades_from_center_to_edge() -> void:
 	assert_float(center).is_greater(mid)
 	assert_float(mid).is_greater(corner)
 	assert_float(corner).is_equal(0.0)
+
+
+func test_smooth_grid_volume_wiring_pushes_shader_uniforms() -> void:
+	var grid: SmoothGrid = auto_free(SmoothGrid.new())
+	grid.volume_bake_span_xz = 16
+	grid.volume_bake_span_y = 8
+	grid.volume_min_y = -4
+
+	var gen := TerrainGenDef.new()
+	gen.noise_seed = 777
+	grid.terrain_gen = gen
+
+	var ground := _make_def("ground", 0, 3, 1.0)
+	var rock := _make_def("rock", 3, 0x7FFFFFFF, 1.0)
+	var coal := _make_def("coal", 4, 100, 0.9)
+	coal.texture = SmoothGrid.marker_texture()
+
+	grid.set_material_catalog([ground, rock, coal])
+	grid._bake_strata_volume()
+
+	var result := grid.get_strata_bake_result()
+	assert_object(result).is_not_null()
+	assert_object(result.texture).is_not_null()
+
+	var mat := ShaderMaterial.new()
+	mat.shader = SmoothGrid.TERRAIN_SHADER
+	grid._push_band_uniforms(mat)
+
+	assert_bool(mat.get_shader_parameter("volume_enabled")).is_true()
+	assert_object(mat.get_shader_parameter("strata_volume")).is_equal(result.texture)
+	assert_vector(mat.get_shader_parameter("volume_origin")).is_equal(Vector3(-8, -4, -8))
+	assert_vector(mat.get_shader_parameter("volume_size")).is_equal(Vector3(16, 8, 16))
+	var textures: Array = mat.get_shader_parameter("ore_textures")
+	assert_object(textures[grid.get_strata_palette()["coal"]]).is_equal(coal.texture)
+	var tints: Array = mat.get_shader_parameter("ore_palette_tint")
+	assert_vector(tints[grid.get_strata_palette()["coal"]]).is_equal(Vector3.ONE)

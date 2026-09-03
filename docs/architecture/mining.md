@@ -78,7 +78,7 @@ Player (Shift+G) -> DigBoxController (Raycast / Ghost preview / Box math)
 
 The renderer can't carry material identity (F8/F14), so looks are indirect and ride the identity system:
 
-- **Natural terrain** — `SmoothGrid._apply_visuals` puts one `ShaderMaterial` (`assets/terrain/terrain_shader.gdshader`) on `VoxelTerrain.material_override` (F11). The shader blends the two **band endpoints**' triplanar textures by depth below the pristine surface: `_pick_band_materials` picks the surface material (smallest `min_depth`, highest `spawn_weight` on ties) and the dominant deep material (highest `spawn_weight` starting at/below the surface material's `max_depth`) — today `ground` -> `rock`, so the world reads dirt-over-stone exactly where the strata say it is. The depth basis is a 512^2 RF height bake written from `_pristine_height` (same F13 math as strata, no per-column cache). Additionally, `_pick_band_materials` resolves the primary sub-surface ore material (prioritizing custom-textured defs), and the shader's 3D procedural noise layer blends the ore's triplanar texture and tint into exposed rock faces and walls within its depth band.
+- **Natural terrain** — `SmoothGrid._apply_visuals` puts one `ShaderMaterial` (`assets/terrain/terrain_shader.gdshader`) on `VoxelTerrain.material_override` (F11). The shader blends the two **band endpoints**' triplanar textures by depth below the pristine surface: `_pick_band_materials` picks the surface material (smallest `min_depth`, highest `spawn_weight` on ties) and the dominant deep material (lowest `min_depth` starting at/below the surface material's `max_depth`, highest `spawn_weight` on ties) — today `ground` -> `rock`, so the world reads dirt-over-stone exactly where the strata say it is. The depth basis is a 512^2 RF height bake written from `_pristine_height` (same F13 math as strata, no per-column cache). Sub-surface ore veins (coal, copper, iron, gold, sulfur) are rendered via a 3D Volumetric Strata Texture (`ImageTexture3D`, FORMAT_R8) baked directly from `TerrainStrata` via `StrataBaker` at load time (Option B2). In the shader, volume UVW coordinates sample 10 cm behind the visible face along `-v_world_normal`, perfectly matching the 10 cm internal probe (`hit.position - hit_normal * 0.1`) used by player mining raycasts. When mining hits a carved wall whose exact corner integer probe is slightly degraded by SDF carve smoothing, `SmoothGrid.apply_damage_at` resolves the cell via `get_first_material_def_in_box` and `_strata.material_id_at(pos)`, ensuring 100% bidirectional spatial lockstep between visuals and mined drops.
 - **Authored blobs** — every smooth add through `add_material` spawns one **Decal** per (block, material), a radial disc tinted the def's `color` (iron rust, gold yellow), reconstructed from the F12 sidecar as blocks load — so markers survive reloads with zero extra save state. The surface material skips marking (its blobs match the terrain's own top band).
 - **Designation overlays** — `MiningSystem` spawns unshaded translucent amber (`Color(1.0, 0.65, 0.15, 0.35)`) `BoxMesh` unit markers on designated terrain cells, grouped under `DesignationContainer`.
 
@@ -140,3 +140,48 @@ The renderer can't carry material identity (F8/F14), so looks are indirect and r
 | `is_terrain_at(cell: Vector3i) -> bool` | Queries whether a voxel cell contains solid blocky or smooth terrain meeting the height threshold. |
 | `filter_terrain_voxels(coords: Array[Vector3i]) -> Array[Vector3i]` | Filters an array of coordinates, returning only those containing solid terrain. |
 | `get_dominant_cardinal(v: Vector3) -> Vector3i` | Snaps a 3D vector to the nearest of the 6 cardinal directions (±X, ±Y, ±Z). |
+
+
+---
+
+### Class: StrataBaker
+
+**Extends:** `RefCounted` (static utility)  
+**Script:** `subsystems/voxel/strata_baker.gd`  
+**Description:** Bakes the 3D volumetric strata texture from `TerrainStrata` into an `ImageTexture3D` (`FORMAT_R8`). Palettizes materials with 0 for background macro-strata (`ground` / `rock`) and sequential integer indices (1..15) for sub-surface ores. Dispatches Z-slices in parallel across `WorkerThreadPool`.  
+**Used by:** `SmoothGrid`  
+**Lifecycle:** Static utility invoked during `SmoothGrid._apply_visuals` and `set_material_catalog`.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `build_palette(catalog_materials: Array) -> Dictionary` | Builds a deterministic mapping of `material_id -> palette_index` (0 for background, 1..15 for ores). |
+| `bake(strata: TerrainStrata, palette: Dictionary, origin: Vector3i, size: Vector3i, pristine_height: Callable = Callable(), use_threads: bool = true, keep_images: bool = false) -> StrataBakeResult` | Bakes the 3D volume texture across the specified world bounds. Pre-warms pristine column heights, executes multi-threaded slice generation, and packs into `ImageTexture3D`. |
+
+---
+
+### Class: StrataBakeResult
+
+**Extends:** `RefCounted`  
+**Script:** `subsystems/voxel/strata_bake_result.gd`  
+**Description:** Container for the baked strata volume, world extents (`origin`, `size`), palette mappings (`palette_by_id`, `id_by_palette`), and optional CPU slice images for test verification.  
+**Used by:** `StrataBaker`, `SmoothGrid`  
+**Lifecycle:** Instantiated by `StrataBaker.bake`.
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `texture` | `ImageTexture3D` | The GPU 3D volume texture (`FORMAT_R8`). |
+| `origin` | `Vector3i` | World origin coordinates of the volume minimum corner. |
+| `size` | `Vector3i` | Extents of the volume in voxels / meters. |
+| `palette_by_id` | `Dictionary` | Mapping from `material_id` string to integer palette index (0..15). |
+| `id_by_palette` | `Dictionary` | Mapping from integer palette index to `material_id` string. |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `sample_palette_index(world_pos: Vector3i) -> int` | Samples the palette index at world position using CPU image slices (when retained). |
+| `sample_material_id(world_pos: Vector3i) -> String` | Samples the material id at world position using CPU image slices (when retained). |
