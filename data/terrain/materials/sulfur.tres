@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3]
+[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://diiuh0hqm87ty"]
 
-[ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
-[ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://cab06pq37mc6g" path="res://assets/realer_than_real_textures/MT00193-Damaged_Plaster.PNG" id="2_cuodf"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Resource" path="res://data/items/sulfur.tres" id="3_sulfur"]
 
 [sub_resource type="Resource" id="Resource_sulfur_yield"]
@@ -12,7 +13,8 @@ item_def = ExtResource("3_sulfur")
 script = ExtResource("1_script")
 id = "sulfur"
 display_name = "sulfur"
-color = Color(0.9, 0.85, 0.2, 1.0)
+color = Color(0.9, 0.85, 0.2, 1)
 hp = 200
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_sulfur_yield")])
 min_depth = 10
+texture = ExtResource("2_cuodf")

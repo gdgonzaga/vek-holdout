@@ -8,12 +8,21 @@ script = ExtResource("1_hadky")
 id = "base"
 display_name = "Base"
 scene_path = "res://data/maps/base/map.tscn"
-player_spawn = Vector3(3.6486742, 13.02, 3.162125)
+player_spawn = Vector3(3.1786103, 13.02, 2.4494407)
 enemy_spawns = Array[Dictionary]([{
 "count": 1,
-"pos": Vector3(4.2863436, 13.02, -10.89009)
+"pos": Vector3(-11.789795, 13.0199995, -1.1715448)
 }, {
 "count": 1,
-"pos": Vector3(6.9709454, 13.02, -10.046645)
+"pos": Vector3(-14.169206, 13.0199995, -1.0468261)
+}, {
+"count": 1,
+"pos": Vector3(-15.508975, 13.0199995, 1.6604645)
+}, {
+"count": 1,
+"pos": Vector3(-15.962771, 13.0199995, 4.3276253)
+}, {
+"count": 1,
+"pos": Vector3(-14.723439, 13.0199995, 6.180948)
 }])
 terrain_gen = ExtResource("2_2lq4g")

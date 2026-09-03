@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Texture2D" uid="uid://d0lgi5wmjeuw1" path="res://assets/realer_than_real_textures/MT00433_Metal.PNG" id="2_t4mbx"]
 [ext_resource type="Resource" path="res://data/items/iron_ore.tres" id="3_iron"]
 
 [sub_resource type="Resource" id="Resource_iron_yield"]
@@ -15,4 +16,5 @@ display_name = "iron ore"
 color = Color(0.718, 0.255, 0.055, 1)
 hp = 400
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_iron_yield")])
-min_depth = 12
+min_depth = 10
+texture = ExtResource("2_t4mbx")

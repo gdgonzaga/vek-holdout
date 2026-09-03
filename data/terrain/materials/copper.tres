@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3]
+[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://cm131ep6qq0ae"]
 
-[ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
-[ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Texture2D" uid="uid://btgs0jakjp68" path="res://assets/realer_than_real_textures/MT00180-Painted_Metal_Damaged.PNG" id="2_pi78i"]
 [ext_resource type="Resource" path="res://data/items/copper.tres" id="3_copper"]
 
 [sub_resource type="Resource" id="Resource_copper_yield"]
@@ -12,7 +13,8 @@ item_def = ExtResource("3_copper")
 script = ExtResource("1_script")
 id = "copper"
 display_name = "copper"
-color = Color(0.85, 0.45, 0.25, 1.0)
+color = Color(0.85, 0.45, 0.25, 1)
 hp = 350
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_copper_yield")])
 min_depth = 8
+texture = ExtResource("2_pi78i")
