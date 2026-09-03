@@ -39,6 +39,16 @@ uniform float min_contrast : hint_range(0.0, 2.0) = 0.70;
 // Brightest brightness multiplier in noise peaks (e.g., 0.90 = 90% of base brightness for light soil patches).
 uniform float max_contrast : hint_range(0.0, 3.0) = 0.90;
 
+// 3D Procedural Ore Vein parameters:
+uniform bool ore_enabled = false;
+uniform sampler2D ore_tex : source_color, repeat_enable, filter_linear_mipmap, hint_default_white;
+uniform vec3 ore_tint = vec3(0.15, 0.15, 0.15);
+uniform float ore_noise_scale = 0.125;
+uniform float ore_threshold : hint_range(0.0, 1.0) = 0.65;
+uniform float ore_min_depth = 0.0;
+uniform float ore_max_depth = 100000.0;
+uniform vec3 ore_seed_offset = vec3(0.0);
+
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
 
@@ -79,6 +89,32 @@ float organic_noise2d(vec2 p) {
 	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
+// 3D Hash and Value Noise for procedural 3D ore veins
+float hash3d(vec3 p) {
+	p = fract(p * 0.3183099 + vec3(0.1, 0.1, 0.1));
+	p *= 17.0;
+	return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float organic_noise3d(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	vec3 u = f * f * (3.0 - 2.0 * f);
+	float a = hash3d(i + vec3(0.0, 0.0, 0.0));
+	float b = hash3d(i + vec3(1.0, 0.0, 0.0));
+	float c = hash3d(i + vec3(0.0, 1.0, 0.0));
+	float d = hash3d(i + vec3(1.0, 1.0, 0.0));
+	float e = hash3d(i + vec3(0.0, 0.0, 1.0));
+	float g = hash3d(i + vec3(1.0, 0.0, 1.0));
+	float h = hash3d(i + vec3(0.0, 1.0, 1.0));
+	float k = hash3d(i + vec3(1.0, 1.0, 1.0));
+	return mix(
+		mix(mix(a, b, u.x), mix(c, d, u.x), u.y),
+		mix(mix(e, g, u.x), mix(h, k, u.x), u.y),
+		u.z
+	);
+}
+
 // Subtle per-position brightness variation so a single repeating texture
 // doesn't read as plastic.
 float position_hash(vec3 p) {
@@ -97,6 +133,24 @@ void fragment() {
 	// Sample continuous organic noise over XZ world coordinates
 	float noise_val = organic_noise2d(v_world_pos.xz * noise_scale);
 	float variation = mix(min_contrast, max_contrast, noise_val);
-	ALBEDO = mix(ground, rock, t) * variation;
+	vec3 base_color = mix(ground, rock, t) * variation;
+
+	if (ore_enabled && depth >= ore_min_depth && depth <= ore_max_depth) {
+		float ore_noise = organic_noise3d(v_world_pos * ore_noise_scale + ore_seed_offset);
+		float depth_edge = 1.0;
+		if (ore_min_depth > 0.0) {
+			depth_edge = min(depth_edge, smoothstep(ore_min_depth, ore_min_depth + 1.0, depth));
+		}
+		if (ore_max_depth < 10000.0) {
+			depth_edge = min(depth_edge, smoothstep(ore_max_depth, ore_max_depth - 1.0, depth));
+		}
+		float vein_factor = smoothstep(ore_threshold - 0.04, ore_threshold + 0.04, ore_noise) * depth_edge;
+		if (vein_factor > 0.001) {
+			vec3 ore_color = triplanar_sample(ore_tex, v_world_pos, w) * ore_tint;
+			base_color = mix(base_color, ore_color, vein_factor);
+		}
+	}
+
+	ALBEDO = base_color;
 	ROUGHNESS = 1.0;
 }

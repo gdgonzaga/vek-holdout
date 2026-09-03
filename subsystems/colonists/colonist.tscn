@@ -13,7 +13,7 @@
 [ext_resource type="Script" uid="uid://duqrdd3t7rag6" path="res://subsystems/actions/interaction_component.gd" id="17_interact"]
 [ext_resource type="Script" uid="uid://cxe5kqjdff8h4" path="res://subsystems/ai/colonist_needs.gd" id="18_needs"]
 [ext_resource type="Script" uid="uid://nv5v5unavf1x" path="res://subsystems/ai/colonist_brain.gd" id="19_brain"]
-[ext_resource type="BehaviorTree" uid="uid://d15hdog1jhb0f" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
+[ext_resource type="BehaviorTree" uid="uid://birbg5ivch5mp" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3

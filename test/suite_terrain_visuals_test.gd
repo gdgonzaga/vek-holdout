@@ -64,6 +64,49 @@ func test_band_picks_break_ties_on_id() -> void:
 	assert_str(picks["surface"].id).is_equal("a_surface")
 
 
+func test_band_picks_selects_ore_preferring_texture() -> void:
+	var ground := _make_def("ground", 0, 3, 1.0)
+	var rock := _make_def("rock", 3, 0x7FFFFFFF, 10.0)
+	var common_ore := _make_def("common_ore", 5, 0x7FFFFFFF, 5.0)
+	var textured_ore := _make_def("textured_ore", 1, 0x7FFFFFFF, 0.5)
+	textured_ore.texture = SmoothGrid.marker_texture()
+	var picks := SmoothGrid._pick_band_materials([ground, rock, common_ore, textured_ore])
+	assert_str(picks["ore"].id).is_equal("textured_ore")
+
+
+func test_band_picks_selects_dominant_ore_when_no_texture() -> void:
+	var ground := _make_def("ground", 0, 3, 1.0)
+	var rock := _make_def("rock", 3, 0x7FFFFFFF, 10.0)
+	var rare_ore := _make_def("rare_ore", 10, 0x7FFFFFFF, 0.5)
+	var dominant_ore := _make_def("dominant_ore", 5, 0x7FFFFFFF, 2.0)
+	var picks := SmoothGrid._pick_band_materials([ground, rock, rare_ore, dominant_ore])
+	assert_str(picks["ore"].id).is_equal("dominant_ore")
+
+
+func test_band_picks_deep_prefers_lowest_min_depth_over_spawn_weight() -> void:
+	## Deep band must pick rock (min_depth=3) over copper (min_depth=8) even
+	## when both have spawn_weight=1.0 and copper would win alphabetically.
+	var ground := _make_def("ground", 0, 3, 1.0)
+	var rock := _make_def("rock", 3, 0x7FFFFFFF, 1.0)
+	var copper := _make_def("copper", 8, 0x7FFFFFFF, 1.0)
+	var picks := SmoothGrid._pick_band_materials([ground, rock, copper])
+	assert_str(picks["deep"].id).is_equal("rock")
+
+
+func test_band_picks_ore_is_coal_with_real_catalog_shape() -> void:
+	## End-to-end: with the actual catalog shape (ground/rock/coal/copper),
+	## surface=ground, deep=rock, ore=coal (only textured non-endpoint).
+	var ground := _make_def("ground", 0, 3, 1.0)
+	var rock := _make_def("rock", 3, 0x7FFFFFFF, 1.0)
+	var coal := _make_def("coal", 0, 100, 0.9)
+	coal.texture = SmoothGrid.marker_texture()
+	var copper := _make_def("copper", 8, 0x7FFFFFFF, 1.0)
+	var picks := SmoothGrid._pick_band_materials([ground, rock, coal, copper])
+	assert_str(picks["surface"].id).is_equal("ground")
+	assert_str(picks["deep"].id).is_equal("rock")
+	assert_str(picks["ore"].id).is_equal("coal")
+
+
 func test_band_picks_empty_catalog_answers_nothing() -> void:
 	assert_dict(SmoothGrid._pick_band_materials([])).is_empty()
 

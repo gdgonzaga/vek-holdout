@@ -16,5 +16,6 @@ display_name = "coal"
 color = Color(0.15, 0.15, 0.15, 1)
 hp = 250
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_coal_yield")])
-spawn_weight = 0.05
+max_depth = 100
+spawn_weight = 0.9
 texture = ExtResource("2_h74c1")

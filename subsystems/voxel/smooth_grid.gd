@@ -566,11 +566,13 @@ func _apply_visuals() -> void:
 		_terrain.set("material_override", material)
 
 
-## Shader-rule band endpoints (F14): the surface material (smallest min_depth)
-## and the dominant deep material (highest spawn_weight among defs that start
-## at/below the surface material's max_depth). Deterministic — ties break on
-## id, like TerrainStrata's scan-order immunity. Mirrors the strata vocabulary
-## without duplicating its per-voxel math. Static + pure — the visuals suite
+## Shader-rule band endpoints (F14): the surface material (smallest min_depth,
+## highest spawn_weight on ties) and the deepest structural layer (smallest
+## min_depth among defs that start at or below the surface material's
+## max_depth, then highest spawn_weight, then id). Picking the soonest-starting
+## deep material means rock (min_depth = surface.max_depth) beats deeper ores
+## like copper (min_depth = 8). Deterministic — ties break on id like
+## TerrainStrata's scan-order immunity. Static + pure — the visuals suite
 ## tests it.
 static func _pick_band_materials(defs: Array) -> Dictionary:
 	var surface: TerrainMaterialDef = null
@@ -589,10 +591,27 @@ static func _pick_band_materials(defs: Array) -> Dictionary:
 			continue
 		if m.min_depth < surface.max_depth:
 			continue
-		if deep == null or m.spawn_weight > deep.spawn_weight \
-				or (m.spawn_weight == deep.spawn_weight and m.id < deep.id):
+		if deep == null or m.min_depth < deep.min_depth \
+				or (m.min_depth == deep.min_depth and (m.spawn_weight > deep.spawn_weight \
+					or (m.spawn_weight == deep.spawn_weight and m.id < deep.id))):
 			deep = m
-	return {"surface": surface, "deep": deep}
+	var ore: TerrainMaterialDef = null
+	for m: TerrainMaterialDef in defs:
+		if m == null or m.id == "" or m == surface or m == deep:
+			continue
+		if ore == null:
+			ore = m
+		else:
+			var m_has_tex := m.texture != null
+			var ore_has_tex := ore.texture != null
+			if m_has_tex and not ore_has_tex:
+				ore = m
+			elif m_has_tex == ore_has_tex:
+				if m.spawn_weight > ore.spawn_weight \
+						or (m.spawn_weight == ore.spawn_weight and m.id < ore.id):
+					ore = m
+
+	return {"surface": surface, "deep": deep, "ore": ore}
 
 
 func _push_band_uniforms(material: ShaderMaterial) -> void:
@@ -606,6 +625,25 @@ func _push_band_uniforms(material: ShaderMaterial) -> void:
 	if surface != null:
 		center = float(surface.max_depth)
 	material.set_shader_parameter("band_center_depth", center)
+
+	var ore: TerrainMaterialDef = _band_materials.get("ore")
+	if ore != null:
+		material.set_shader_parameter("ore_enabled", true)
+		material.set_shader_parameter("ore_tex", _band_texture(ore))
+		material.set_shader_parameter("ore_tint", _band_tint(ore, Color(0.15, 0.15, 0.15)))
+		material.set_shader_parameter("ore_min_depth", float(ore.min_depth))
+		material.set_shader_parameter("ore_max_depth", float(ore.max_depth))
+		var vein_sz := float(maxi(1, ore.vein_size))
+		material.set_shader_parameter("ore_noise_scale", 1.0 / vein_sz)
+		var seed := terrain_gen.noise_seed if terrain_gen != null else 1337
+		material.set_shader_parameter("ore_seed_offset", Vector3(
+			float(seed % 97),
+			float((seed / 97) % 89),
+			float((seed / 8633) % 79)
+		))
+		material.set_shader_parameter("ore_threshold", 0.65)
+	else:
+		material.set_shader_parameter("ore_enabled", false)
 
 
 ## A real texture carries its own color, so it is never tinted (WHITE); the
