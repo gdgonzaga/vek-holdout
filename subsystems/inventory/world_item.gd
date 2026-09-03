@@ -29,6 +29,7 @@ func _ready() -> void:
 	add_to_group("world_items")
 	collision_layer = 16  # Layer 5 (Build/Interactable)
 	collision_mask = 7   # Layers 1 (World) | 2 (Blocky) | 3 (Smooth)
+	continuous_cd = true
 
 	_setup_interaction()
 	update_visuals_and_interaction()
@@ -211,23 +212,58 @@ func update_visuals_and_interaction() -> void:
 
 	if mesh_instance != null:
 		_apply_mesh(def)
+	_apply_collision(def)
 
 
 func _apply_mesh(def: ItemDef) -> void:
-	if mesh_instance.mesh == null:
-		var box := BoxMesh.new()
-		box.size = Vector3(0.3, 0.3, 0.3)
-		mesh_instance.mesh = box
-
-	var mat := mesh_instance.material_override as StandardMaterial3D
-	if mat == null:
-		mat = StandardMaterial3D.new()
-		mesh_instance.material_override = mat
+	if def != null and def.mesh != null:
+		mesh_instance.mesh = def.mesh
+		mesh_instance.scale = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
+		if def.material != null:
+			mesh_instance.material_override = def.material
+		else:
+			mesh_instance.material_override = null
+	else:
+		if mesh_instance.mesh == null or not (mesh_instance.mesh is BoxMesh):
+			var box := BoxMesh.new()
+			box.size = Vector3(0.3, 0.3, 0.3)
+			mesh_instance.mesh = box
+		mesh_instance.scale = Vector3.ONE
+		if mesh_instance.material_override == null:
+			mesh_instance.material_override = StandardMaterial3D.new()
 
 	if forbidden:
+		var mat := mesh_instance.material_override as StandardMaterial3D
+		if mat == null:
+			mat = StandardMaterial3D.new()
+			mesh_instance.material_override = mat
 		mat.albedo_color = Color(0.85, 0.25, 0.2)
+	elif def == null or (def.mesh == null and def.material == null):
+		var mat := mesh_instance.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_color = Color(0.8, 0.65, 0.4)
+
+
+func _apply_collision(def: ItemDef) -> void:
+	if collision_shape == null:
+		collision_shape = get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision_shape == null:
+		return
+
+	var box := BoxShape3D.new()
+	if def != null and def.mesh != null:
+		var aabb: AABB = def.mesh.get_aabb()
+		var v_scale: Vector3 = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
+		box.size = Vector3(
+			maxf(0.15, absf(aabb.size.x * v_scale.x)),
+			maxf(0.15, absf(aabb.size.y * v_scale.y)),
+			maxf(0.15, absf(aabb.size.z * v_scale.z))
+		)
+		collision_shape.position = aabb.get_center() * v_scale
 	else:
-		mat.albedo_color = Color(0.8, 0.65, 0.4)
+		box.size = Vector3(0.3, 0.3, 0.3)
+		collision_shape.position = Vector3.ZERO
+	collision_shape.shape = box
 
 
 func wake_up() -> void:
@@ -294,10 +330,59 @@ static func spawn_at(
 		else:
 			parent.add_child(item)
 
-	if strength > 0.0 and item.is_inside_tree() and item.get_world_3d() != null:
-		var rand_offset := Vector3(randf_range(-0.3, 0.3), randf_range(0.5, 1.0), randf_range(-0.3, 0.3)).normalized()
-		var final_impulse := (impulse_dir.normalized() + rand_offset).normalized() * strength
-		item.apply_central_impulse(final_impulse)
-		item.apply_torque_impulse(Vector3(randf_range(-0.5, 0.5), randf_range(-0.5, 0.5), randf_range(-0.5, 0.5)))
+	var effective_impulse_dir := impulse_dir
+
+	if item.is_inside_tree() and item.get_world_3d() != null:
+		var space_state := item.get_world_3d().direct_space_state
+		if space_state != null:
+			# 1. Cast ray downward to find ground/slope surface and normal
+			var ray_query := PhysicsRayQueryParameters3D.create(
+				pos + Vector3(0.0, 1.5, 0.0),
+				pos - Vector3(0.0, 2.0, 0.0),
+				7  # Layers 1 (World) | 2 (Blocky) | 3 (Smooth)
+			)
+			var ray_hit := space_state.intersect_ray(ray_query)
+			var surface_normal := Vector3.UP
+
+			if not ray_hit.is_empty():
+				surface_normal = (ray_hit.get("normal", Vector3.UP) as Vector3).normalized()
+				var half_height := 0.15
+				var col_shape := item.collision_shape
+				if col_shape == null:
+					col_shape = item.get_node_or_null("CollisionShape3D") as CollisionShape3D
+				if col_shape != null and col_shape.shape is BoxShape3D:
+					half_height = (col_shape.shape as BoxShape3D).size.y * 0.5
+				var hit_pos: Vector3 = ray_hit.get("position", pos)
+				item.global_position = hit_pos + surface_normal * (half_height + 0.1)
+
+			# 2. Check if shape still overlaps any geometry and depenetrate outward
+			var col_shape_check := item.collision_shape
+			if col_shape_check == null:
+				col_shape_check = item.get_node_or_null("CollisionShape3D") as CollisionShape3D
+			if col_shape_check != null and col_shape_check.shape != null:
+				var shape_query := PhysicsShapeQueryParameters3D.new()
+				shape_query.shape = col_shape_check.shape
+				shape_query.transform = item.global_transform
+				shape_query.collision_mask = 7
+
+				var rest_info := space_state.get_rest_info(shape_query)
+				if not rest_info.is_empty():
+					var push_normal: Vector3 = (rest_info.get("normal", Vector3.UP) as Vector3).normalized()
+					if push_normal.is_zero_approx():
+						push_normal = surface_normal
+					var contact_point: Vector3 = rest_info.get("point", item.global_position)
+					var half_extent := 0.2
+					if col_shape_check.shape is BoxShape3D:
+						half_extent = (col_shape_check.shape as BoxShape3D).size.length() * 0.5
+					item.global_position = contact_point + push_normal * (half_extent + 0.1)
+					surface_normal = push_normal
+
+			effective_impulse_dir = (impulse_dir.normalized() + surface_normal).normalized()
+
+		if strength > 0.0:
+			var rand_offset := Vector3(randf_range(-0.2, 0.2), randf_range(0.3, 0.7), randf_range(-0.2, 0.2))
+			var final_impulse := (effective_impulse_dir + rand_offset).normalized() * strength
+			item.apply_central_impulse(final_impulse)
+			item.apply_torque_impulse(Vector3(randf_range(-0.3, 0.3), randf_range(-0.3, 0.3), randf_range(-0.3, 0.3)))
 
 	return item

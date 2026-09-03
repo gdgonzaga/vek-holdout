@@ -1,4 +1,4 @@
-[gd_resource type="BehaviorTree" format=3 uid="uid://tr2gprmhkpcw"]
+[gd_resource type="BehaviorTree" format=3 uid="uid://yx34jxboo1j6"]
 
 [ext_resource type="Script" uid="uid://b4hd2b683awcc" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="1_1k4sd"]
 [ext_resource type="Script" uid="uid://bpmh16yj4fdaq" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="2_dq3kl"]

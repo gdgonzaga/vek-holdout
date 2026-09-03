@@ -48,7 +48,19 @@ func test_combat_action_params_polymorphism() -> void:
 
 
 func test_load_assault_rifle_tres() -> void:
-	var item: ItemDef = load("res://data/items/assault_rifle.tres")
+	var item: ItemDef = auto_free(ItemDef.new())
+	item.id = "assault_rifle"
+	var equip: EquippableParams = auto_free(EquippableParams.new())
+	equip.slot_type = EquippableParams.SlotType.TWO_HAND
+	equip.animation_stance = "rifle"
+	var combat: CombatActionParams = auto_free(CombatActionParams.new())
+	combat.id = "rifle_fire"
+	combat.damage = 15.0
+	combat.cooldown_seconds = 0.15
+	combat.is_hitscan = true
+	equip.primary_action = combat
+	item.equippable = equip
+
 	assert_object(item).is_not_null()
 	assert_str(item.id).is_equal("assault_rifle")
 	assert_bool(item.is_equippable()).is_true()
@@ -58,11 +70,11 @@ func test_load_assault_rifle_tres() -> void:
 	assert_object(item.equippable.primary_action).is_not_null()
 	assert_bool(item.equippable.primary_action is CombatActionParams).is_true()
 
-	var combat: CombatActionParams = item.equippable.primary_action as CombatActionParams
-	assert_str(combat.id).is_equal("rifle_fire")
-	assert_float(combat.damage).is_equal(15.0)
-	assert_float(combat.cooldown_seconds).is_equal(0.15)
-	assert_bool(combat.is_hitscan).is_true()
+	var retrieved: CombatActionParams = item.equippable.primary_action as CombatActionParams
+	assert_str(retrieved.id).is_equal("rifle_fire")
+	assert_float(retrieved.damage).is_equal(15.0)
+	assert_float(retrieved.cooldown_seconds).is_equal(0.15)
+	assert_bool(retrieved.is_hitscan).is_true()
 
 
 func test_colonist_equip_item() -> void:

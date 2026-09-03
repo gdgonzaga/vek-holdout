@@ -7,15 +7,13 @@
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_w5oe4"]
 [ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_cae44"]
 [ext_resource type="Resource" path="res://data/action_options/open_crafting_action_option.tres" id="4_option"]
-[ext_resource type="Resource" uid="uid://7guwoemls0n3" path="res://data/crafting/wooden_board.tres" id="4_wnmg4"]
+[ext_resource type="Resource" uid="uid://do6oips3dvmvh" path="res://data/recipes/planks.tres" id="4_wnmg4"]
 [ext_resource type="Script" uid="uid://d34atue8w8nei" path="res://data/capability_params/crafting_params.gd" id="5_cparams"]
-[ext_resource type="Resource" uid="uid://b2f15sf3qnkfv" path="res://data/recipes/rifle.tres" id="6_edshn"]
 [ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="6_recipe"]
-[ext_resource type="Resource" uid="uid://dr7qjk12m8ku" path="res://data/recipes/axe.tres" id="8_axe"]
 
 [sub_resource type="Resource" id="Resource_craft"]
 script = ExtResource("5_cparams")
-recipes = Array[ExtResource("6_recipe")]([ExtResource("4_wnmg4"), ExtResource("8_axe"), ExtResource("6_edshn")])
+recipes = Array[ExtResource("6_recipe")]([ExtResource("4_wnmg4")])
 
 [sub_resource type="Resource" id="Resource_8sr6i"]
 script = ExtResource("2_w5oe4")

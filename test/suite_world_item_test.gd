@@ -584,3 +584,54 @@ func test_store_carried_items_prefers_crate_with_capacity_and_drops_on_floor_whe
 	job.def.complete(colonist, job)
 	assert_int(colonist.inventory.get_item_count("dirt")).is_equal(0)
 	assert_int(empty_inv.get_item_count("dirt")).is_equal(6)
+
+
+func test_world_item_custom_mesh_and_autofit_collision() -> void:
+	var custom_def := ItemDef.new()
+	custom_def.id = "custom_test_item"
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 0.2
+	cylinder.bottom_radius = 0.2
+	cylinder.height = 1.0
+	custom_def.mesh = cylinder
+	custom_def.visual_scale = Vector3(1.0, 2.0, 1.0)
+	var custom_mat := StandardMaterial3D.new()
+	custom_mat.albedo_color = Color.BLUE
+	custom_def.material = custom_mat
+
+	ItemDB._defs_by_id["custom_test_item"] = custom_def
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.setup("custom_test_item", 1, false)
+	_sandbox.container.add_child(item)
+
+	assert_object(item.mesh_instance.mesh).is_equal(cylinder)
+	assert_vector(item.mesh_instance.scale).is_equal(Vector3(1.0, 2.0, 1.0))
+	assert_object(item.mesh_instance.material_override).is_equal(custom_mat)
+
+	var col_shape := item.collision_shape.shape as BoxShape3D
+	assert_object(col_shape).is_not_null()
+	assert_float(col_shape.size.x).is_equal_approx(0.4, 0.01)
+	assert_float(col_shape.size.y).is_equal_approx(2.0, 0.01)
+	assert_float(col_shape.size.z).is_equal_approx(0.4, 0.01)
+
+	ItemDB._defs_by_id.erase("custom_test_item")
+
+
+func test_spawn_at_aligns_above_ground_surface() -> void:
+	var static_body: StaticBody3D = auto_free(StaticBody3D.new())
+	static_body.collision_layer = 1  # Layer 1 (World)
+	var floor_shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(10.0, 1.0, 10.0)
+	floor_shape.shape = box
+	floor_shape.position = Vector3(0.0, 0.0, 0.0)
+	static_body.add_child(floor_shape)
+	_sandbox.container.add_child(static_body)
+
+	var item: WorldItem = WorldItemScript.spawn_at(_sandbox.container, "dirt", 1, Vector3(0.0, 0.4, 0.0), Vector3.UP, 0.0)
+	assert_object(item).is_not_null()
+	auto_free(item)
+
+	assert_bool(item.global_position.y > 0.5).is_true()

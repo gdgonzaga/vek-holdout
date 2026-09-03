@@ -4,12 +4,12 @@
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_o2ths"]
 [ext_resource type="ArrayMesh" uid="uid://dgupn3yvmgwje" path="res://assets/animpic-mega-survival-construction/tree1/SM_Tree_01.SM_Tree_01.mesh" id="3_27bby"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="3_yiung"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="4_leesm"]
+[ext_resource type="Resource" uid="uid://8jbu2jea8m8n" path="res://data/items/log.tres" id="4_27bby"]
 [ext_resource type="Script" uid="uid://i3b7gd12nhh7" path="res://data/capability_params/harvest_params.gd" id="6_hparams"]
 
 [sub_resource type="Resource" id="Resource_yield_wood"]
 script = ExtResource("2_o2ths")
-item_def = ExtResource("4_leesm")
+item_def = ExtResource("4_27bby")
 count = 3
 metadata/_custom_type_script = "uid://taqanw6psc6o"
 
