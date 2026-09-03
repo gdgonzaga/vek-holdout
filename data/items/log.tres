@@ -1,8 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://8jbu2jea8m8n"]
 
 [ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
-[ext_resource type="ArrayMesh" uid="uid://tnwtomaqdo2w" path="res://assets/animpic-lite-survival/SM_Log.obj" id="1_xpees"]
-[ext_resource type="Material" uid="uid://cnsfe36iry51n" path="res://assets/animpic-lite-survival/MainMaterialFree.material" id="1_yuqpx"]
+[ext_resource type="ArrayMesh" uid="uid://cd3f03nwcqjxs" path="res://assets/animpic-lite-survival/SM_Log.SM_Log.mesh" id="1_xpees"]
 
 [resource]
 resource_name = "Log"
@@ -10,4 +9,3 @@ script = ExtResource("1_def")
 id = "log"
 weight = 2.0
 mesh = ExtResource("1_xpees")
-material = ExtResource("1_yuqpx")

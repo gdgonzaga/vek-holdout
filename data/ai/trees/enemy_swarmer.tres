@@ -1,12 +1,10 @@
-[gd_resource type="BehaviorTree" format=3 uid="uid://do1mla2s3wd3b"]
+[gd_resource type="BehaviorTree" format=3]
 
-[ext_resource type="Script" uid="uid://bxx0eyw1gf6am" path="res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd" id="1_u6rff"]
-[ext_resource type="Script" uid="uid://cae5a2srv3c88" path="res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd" id="2_12841"]
-[ext_resource type="Script" uid="uid://cbnme5gpxxf2n" path="res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd" id="3_6h6l7"]
-[ext_resource type="Script" uid="uid://bpmh16yj4fdaq" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="4_l4ix2"]
-[ext_resource type="Script" uid="uid://clv35wq5ixo15" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="5_wr5rf"]
-
-[sub_resource type="BlackboardPlan" id="BlackboardPlan_u6rff"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd" id="1_u6rff"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd" id="2_12841"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd" id="3_6h6l7"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="4_l4ix2"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="5_wr5rf"]
 
 [sub_resource type="BTCondition" id="BTCondition_22bkd"]
 script = ExtResource("1_u6rff")
@@ -33,5 +31,4 @@ children = [SubResource("BTSequence_gfxbh"), SubResource("BTAction_c2chi"), SubR
 
 [resource]
 description = "Enemy swarmer tree with breach, attack, chase, and threat scan"
-blackboard_plan = SubResource("BlackboardPlan_u6rff")
 root_task = SubResource("BTSelector_nintd")
