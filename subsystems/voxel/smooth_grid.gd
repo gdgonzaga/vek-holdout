@@ -578,7 +578,8 @@ static func _pick_band_materials(defs: Array) -> Dictionary:
 		if m == null or m.id == "":
 			continue
 		if surface == null or m.min_depth < surface.min_depth \
-				or (m.min_depth == surface.min_depth and m.id < surface.id):
+				or (m.min_depth == surface.min_depth and (m.spawn_weight > surface.spawn_weight \
+					or (m.spawn_weight == surface.spawn_weight and m.id < surface.id))):
 			surface = m
 	if surface == null:
 		return {}

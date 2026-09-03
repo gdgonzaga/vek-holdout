@@ -50,6 +50,13 @@ func test_band_picks_exclude_shallow_contenders_from_deep() -> void:
 	assert_str(picks["deep"].id).is_equal("rock")
 
 
+func test_band_picks_prefer_surface_highest_spawn_weight_on_min_depth_tie() -> void:
+	var rare := _make_def("a_rare_ore", 0, 10, 0.1)
+	var dominant := _make_def("z_ground", 0, 3, 1.0)
+	var picks := SmoothGrid._pick_band_materials([rare, dominant])
+	assert_str(picks["surface"].id).is_equal("z_ground")
+
+
 func test_band_picks_break_ties_on_id() -> void:
 	var b := _make_def("b_surface", 0, 2, 1.0)
 	var a := _make_def("a_surface", 0, 2, 1.0)
