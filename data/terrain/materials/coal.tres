@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://fbuik521x22i"]
+
+[ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://df1sr5grtnsli" path="res://assets/realer_than_real_textures/MT00310_Multi_Size_Bricks.PNG" id="2_h74c1"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Resource" path="res://data/items/coal.tres" id="3_coal"]
+
+[sub_resource type="Resource" id="Resource_coal_yield"]
+script = ExtResource("2_item_amount")
+item_def = ExtResource("3_coal")
+
+[resource]
+script = ExtResource("1_script")
+id = "coal"
+display_name = "coal"
+color = Color(0.15, 0.15, 0.15, 1)
+hp = 250
+yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_coal_yield")])
+spawn_weight = 0.05
+texture = ExtResource("2_h74c1")
