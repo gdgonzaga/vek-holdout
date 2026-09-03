@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" uid="uid://cbp17b2pknl22" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
+[ext_resource type="Resource" path="res://data/items/bomb.tres" id="3_ammo"]
+
+[sub_resource type="Resource" id="TurretParams_bomb"]
+script = ExtResource("2_tparams_script")
+range = 24.0
+fire_rate = 0.33
+damage = 40
+ammo_type = ExtResource("3_ammo")
+projectile_speed = 20.0
+projectile_type = 1
+explosion_radius = 4.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "bomb_launcher"
+display_name = "Bomb Launcher"
+hp = 200
+dimensions = Vector3i(2, 1, 2)
+turret_params = SubResource("TurretParams_bomb")
+unlocked_by_default = true
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

@@ -54,3 +54,8 @@ class_name FurnitureDef
 ## Farming capability (GDD §7.2 / Farming): non-null → FurnitureLayer
 ## attaches Growable and Harvestable child components.
 @export var farm_plot_params: FarmPlotParams
+
+## Turret combat capability (GDD §7.10, ARCH combat.md): automated defense that
+## targets hostiles and consumes ammunition. Non-null → FurnitureLayer attaches a
+## TurretComponent child.
+@export var turret_params: TurretParams

@@ -130,10 +130,12 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 
 	mesh_node.create_trimesh_collision()
 	
-	var mesh_static_body: StaticBody3D = mesh_node.get_child(0) as StaticBody3D
-	mesh_static_body.name = "MapStaticBody"
-	mesh_static_body.set_collision_layer_value(1, true)
-	mesh_static_body.collision_mask = 0
+	if mesh_node.get_child_count() > 0:
+		var mesh_static_body: StaticBody3D = mesh_node.get_child(0) as StaticBody3D
+		if mesh_static_body != null:
+			mesh_static_body.name = "MapStaticBody"
+			mesh_static_body.set_collision_layer_value(1, true)
+			mesh_static_body.collision_mask = 0
 	
 	# BuildCollider is a CollisionShape3D (a CollisionObject3D's child), NOT a
 	# CollisionObject3D — cast accordingly. Without this the cast returned null and
@@ -205,6 +207,12 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		var station := CraftingStation.new()
 		station.name = "CraftingStation"
 		root.add_child(station)
+
+	# Attach a turret component when the def declares turret params.
+	if def is FurnitureDef and (def as FurnitureDef).turret_params != null:
+		var turret := TurretComponent.new()
+		turret.name = "TurretComponent"
+		root.add_child(turret)
 	return root
 
 

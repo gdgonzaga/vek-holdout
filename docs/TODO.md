@@ -186,6 +186,7 @@ Do not re-litigate without explicit reason.
 
 ## Smaller improvements (D-items)
 
+- [ ] **Deployable Sensor & Target Markers for Turrets** (GDD §7.10.1, ARCH combat.md) — placeable sensor markers with configurable detection radius and placeable target markers designating impact coordinates. Turrets (especially AoE/explosive turrets like Bomb Launcher) link to sensor markers and fire upon designated target markers when hostiles trip the sensor, enabling predictive choke-point saturation and interlocking defensive fields.
 - [ ] **New-Game reset flow** (GDD §8 + §17) — no reset class/flow owns "clear everything for a fresh run". Enumerate all run-state (GameState, Colony + 4 children, voxel world, map reveal, inventories, skills, loadouts, raid stances) and zero it.
 - [ ] **Game Over evaluator** (GDD §8) — nothing checks "all colonists AND player dead". Evaluator (on Colony or a component) listens to `colonist_died` + `player_died`, emits `game_over()` when both rosters empty.
 - [ ] **Structural weak-point targeting** (GDD §17 Raids) — Brawlers attack lowest-HP block in range; Shooters path through lowest-resistance opening (gates → Scrap → damaged). No targeting logic; only `block_destroyed` signal exists. Needs structural-analysis pass for enemy AI.

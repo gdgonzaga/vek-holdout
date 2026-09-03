@@ -784,7 +784,15 @@ Defensive structures are voxel-built like everything else. The player chooses wh
 | **Gates / doors** | Openings that colonists and the player can pass through. Enemies will path through open gates if available. |
 | **Watchtowers** | Elevated platforms. A colonist occupies it; ranged attacks from elevation. **400 HP.** MVP: no combat buff (post-MVP: +range/accuracy for the occupant, plus mounted weapons). |
 | **Spike traps** | Placed outside walls. **50 HP, 15 damage on contact.** Loses **10 HP each time it is touched by an enemy** (~5 contacts to destroy). **MVP trigger rule: only enemies trigger it** — colonists and the player pass through with no effect. Persistent until HP 0 (not one-use). *(Post-MVP: revisit trigger rule + HP-per-contact value.)* |
-| **Turrets** | **Deferred to post-MVP** (with the Power system — see §7.11). Remove from MVP buildables list. |
+| **Turrets** | **Implemented Early (Steampunk / Horde Defense Pivot)**: Automated ranged defenses (Wooden Stake Turret, Rock Thrower, Arrow Launcher, Rifle Turret, Bomb Launcher, Gatling Gun Turret). Authored as Furniture capability (`TurretParams` on `FurnitureDef`). Targets the closest enemy within range and draws ammunition directly from Colony storage (or local inventory). Decoupled from the deferred Power system. |
+
+#### 7.10.1 Planned Turret Automation: Deployable Sensor & Target Markers
+
+For tactical perimeter defense and choke-point control (especially for area-of-effect and explosive turrets such as the Bomb Launcher), a coordinate-linked marker system is planned:
+
+- **Deployable Sensor Markers**: Placeable perimeter beacons/trip sensors with designer/player configurable detection radii. When hostile entities enter the sensor zone, the sensor trips.
+- **Target Markers**: Deployable ground markers designating a pre-calibrated impact coordinate/zone.
+- **Trigger-to-Target Linking**: Turrets can be configured to link one or more sensor markers to a target marker. When a linked sensor is tripped, the turret fires upon the predetermined target marker (bombarding the killzone) rather than dynamically leading individual moving targets. Enables predictive choke point saturation and interlocking defensive fields.
 
 ### 7.11 Storage, equipment, and deferred systems
 
@@ -799,14 +807,14 @@ Defensive structures are voxel-built like everything else. The player chooses wh
 
 **Systems deferred to post-MVP (remove any dangling references):**
 
-- **Power system** — spec generators, power range, wiring. Was referenced by Turrets; now doubly deferred since Turrets are deferred. Add "Power system" to Out-of-Scope.
+- **Power system** — spec generators, power range, wiring. Turrets have been implemented early with direct ammunition consumption from colony stockpiles, decoupling them from electrical wiring. Power grid remains deferred/out-of-scope.
 - **Water system** — spec water sources, piping, access rules. Was referenced by the Growing Trough (itself post-MVP with food/hunger). Defer water with food/hunger. Add "Water system" to Out-of-Scope.
 
 **Resolved (no longer TODO):**
 
 - ~~Even-sized footprint rotation~~ → resolved, see §7.4 (0.5m pivot shift rule).
 - ~~Stacking multiple colonists on one block~~ → resolved, see §6.10 (no stacking in MVP).
-- ~~Defense structure build rules~~ → Watchtower and Spike Trap specified above; Turret deferred.
+- ~~Defense structure build rules~~ → Watchtower, Spike Trap, and Turret defenses specified above.
 
 ---
 
@@ -1910,6 +1918,7 @@ Developer / playtester opens the console and enters commands.
 | 2026-07-27 | **FINAL-tag pass (partial) + Durability rename.** §1 Overview marked `[FINAL]` (theme/audience/pitch locked). All other reviewed sections (§3 Core Loop, §6.11 Damage Resolution, §7.2 Buildables, §17 Energy, §17 Raids, §14 Fixed Values) kept `[DRAFT]` pending playtest. **Armor Points (AP) renamed → Durability** across the GDD; the property now unifies damage-absorption and item-wear into one stat. The Durability *stat* is in MVP (as the ablative hit buffer); the wear-and-repair *loop* stays post-MVP. **Open question added:** how does Durability regenerate (sleep / Workbench repair / fresh armor only)? — see `GDD.gaps.md`. | Conservative FINAL-tagging: lock only what survives pure reasoning; leave feel-dependent values for playtest. Rename resolves the AP-misleads-as-damage-reduction concern and frees "armor"/"damage reduction" for a future DR mechanic. |
 | 2026-07-27 | **Durability recovery + prototype art.** (1) Durability is regained via a **repair crafting job** (post-MVP — covers armor + other items; added as a post-MVP Labor in §6.10). MVP interim: Durability auto-recovers to full on sleep so armor is a reliable per-day buffer. (2) Early prototypes use **capsule proxies** instead of models — no model sourcing needed until prototype → art-pass transition. | Resolves the Durability-regen open question (gaps §2.1) and the asset-cross-check blocker (gaps §3.1). GDD now has 0 MVP-blocking and 0 vertical-slice-blocking open items. |
 | 2026-08-28 | **Theme & Title Pivot:** Title updated to `Rust Frontier: Colony Defense`. Motif pivoted from alien invasion to steampunk/low-fantasy mechanical frontier (no magic, purely mechanical/steam/iron/clockwork/blackpowder technology). Core loop expanded with high-volume regular horde defense (tower defense / horde night dynamic against monster/orc swarms) established as a king's border stronghold during a wartime stalemate. | Player/designer alignment on game identity, market positioning, and fantasy-steampunk tower defense synergy. |
+| 2026-09-04 | **Turrets Early Implementation & Tactical Markers Spec:** Defensive turrets pulled forward from post-MVP into active development in alignment with the horde-defense steampunk stronghold loop. Turrets operate via Furniture capability (`TurretParams`), targeting closest enemies and consuming ammo from colony storage. Sensor markers (configurable radius) and target markers specced as a planned automation feature for predictive AOE/explosive bombardment. | Deepens tower defense tactical gameplay and provides concrete sinks for crafted ammunition types. |
 | 2026-07-28 | **Fatigue split → Breath + Stamina (Energy subsystem).** Single Fatigue pool (0.0 rested → 1.0 collapsed, filled toward bad) split into two depleting pools (100% fresh → 0% empty, consistent with HP/Durability): **Breath** (short-term burst — sprint/jump/melee/ranged; regenerates +10/sec when idle) and **Stamina** (long-term daily — ambient −0.21/min, ×2 while working; sleep-only recovery; collapse at 0%). Architecturally two separate components: `BreathComponent` (on all entities) + `StaminaComponent` (player + colonists; enemies future). Breath attached to enemies now for future windup/heavy-attack costs without architectural change. "Fatigue" term retired; old subsystem renamed "Energy (Breath + Stamina)". | The original pool conflated two timescales (sprint-burn cleared only on sleep = odd). Split makes sprinting feel good (burst+recover) and keeps the daily-grind pressure distinct. Energy framing matches every other HUD bar. Separate components keep burst-cost and daily-budget mechanics independently evolvable. Driven by ARCHITECTURE.md review item #1 (FatigueComponent referenced but never defined). |
 
 ---

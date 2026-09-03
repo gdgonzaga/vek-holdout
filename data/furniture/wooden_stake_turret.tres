@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" uid="uid://cbp17b2pknl22" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
+[ext_resource type="Resource" path="res://data/items/wooden_stake.tres" id="3_ammo"]
+
+[sub_resource type="Resource" id="TurretParams_stake"]
+script = ExtResource("2_tparams_script")
+range = 18.0
+fire_rate = 1.0
+damage = 15
+ammo_type = ExtResource("3_ammo")
+projectile_speed = 30.0
+projectile_type = 0
+explosion_radius = 0.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "wooden_stake_turret"
+display_name = "Wooden Stake Turret"
+hp = 150
+dimensions = Vector3i(1, 1, 1)
+turret_params = SubResource("TurretParams_stake")
+unlocked_by_default = true
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

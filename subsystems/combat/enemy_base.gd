@@ -10,6 +10,7 @@ extends CharacterBody3D
 
 
 func _ready() -> void:
+	add_to_group(&"enemies")
 	if not health_component:
 		health_component = get_node_or_null("HealthComponent") as HealthComponent
 	if health_component:
