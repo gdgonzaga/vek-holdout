@@ -8,7 +8,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 |---|---|---|
 | `inventory.gd` | Script (`class_name Inventory`, extends Node) | Base inventory: weight capacity, add/remove/has_item/get_item_count/current_weight/transfer_to. Looks up `ItemDef` via `_get_def()` (delegates to `ItemDB` by default). Emits `inventory_changed` on mutation. |
 | `character_inventory.gd` | Script (`class_name CharacterInventory`, extends Inventory) | Character-specific inventory with `base_capacity` (export, default 50.0) + `bonus_capacity` (set by bag equipment). Recalculates `capacity` on ready and on bag equipment change. Used by Player (scene-placed) and Colonist (code-created in `_ready`, so the colonist can carry hauled materials and stand in for `actor` in `Blueprint.deposit_from`). |
-| `storage_inventory.gd` | Script (`class_name StorageInventory`, extends Inventory) | Per-instance contents of a storage container (crates, shelves). Attached as a child of a `Furniture` (named `"StorageInventory"`) when its `FurnitureDef` has `storage_params`; reads `capacity` from those params at `_ready`. Player<->crate transfers use the inherited `transfer_to`. |
+| `storage_inventory.gd` | Script (`class_name StorageInventory`, extends Inventory) | Per-instance contents of a storage container (crates, shelves). Attached as a child of a `Furniture` (named `"StorageInventory"`) when its `FurnitureDef` has `storage_params`; reads `capacity` and item/tag filter restrictions from those params at `_ready`. Player<->crate transfers use the inherited `transfer_to`. |
 | `storage_registry.gd` | Script (`class_name StorageRegistry`, on Colony) | Live index of storage crates, so hauling jobs can find a source for a blueprint's still-needed materials. Scans the current map's `FurnitureContainer` each call — no registration. See class reference. |
 | `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Scans `data/items/*.tres` at startup; keyed by `ItemDef.id` (the canonical item identity, e.g. `"wood_block"`). Read-only after `_ready`. |
 | `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `id: String` (canonical item identity — what `ItemDB` keys by and inventories store), `weight: float`, `icon: Texture2D`, `mesh: Mesh` (world item visual shape — authoring guide: [`docs/HOWTO-author-worlditems.md`](../HOWTO-author-worlditems.md)), `material: Material` (optional material override), `visual_scale: Vector3` (world item scale), `tags: Array[String]` (categorization — the `"tool"` tag exempts an item from hauling's surplus dump), `equippable: EquippableParams` (nullable capability). |
@@ -55,7 +55,8 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 |---|---|---|
 | `add(item_id, count)` | `int` | Adds items; returns overflow (items that didn't fit). Handles unknown items (returns all as overflow) and negative/zero counts (noop). |
 | `remove(item_id, count)` | `int` | Removes items; returns items NOT removed (excess request). Erases key when count hits zero. |
-| `can_add(item_id, count)` | `bool` | True if the items would fit by weight. False for unknown items. |
+| `is_item_allowed(item_id)` | `bool` | Virtual check whether this inventory accepts `item_id`. Base class returns true; overridden by subclasses (e.g. `StorageInventory`). |
+| `can_add(item_id, count)` | `bool` | True if the item is allowed and fits by weight. False for unknown or disallowed items. |
 | `has_item(item_id, count)` | `bool` | True if `items[item_id] >= count`. |
 | `has_item_tag(tag, count = 1)` | `bool` | True if items whose `ItemDef.tags` carry `tag` total at least `count` across stacks (e.g. any carried `"tool"`). Unknown items never match. |
 | `get_item_count(item_id)` | `int` | Current count of the item (0 if absent). |
@@ -81,7 +82,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 
 **Extends:** Inventory
 **Script:** `storage_inventory.gd`
-**Description:** Per-instance contents of a storage container (crates, shelves). Attached as a child Node of a `Furniture` (named `"StorageInventory"`) by `FurnitureLayer` only when the `FurnitureDef` has `storage_params`; reads `capacity` from those `StorageParams` at `_ready`. Weight-only — the base `Inventory` enforces the budget, so this subclass does not override `add`/`can_add`. Player↔crate transfers use the inherited `transfer_to`, which interoperates between any two `Inventory` instances (used by both the storage UI and colonist hauling).
+**Description:** Per-instance contents of a storage container (crates, shelves). Attached as a child Node of a `Furniture` (named `"StorageInventory"`) by `FurnitureLayer` only when the `FurnitureDef` has `storage_params`; reads `capacity` and item/tag filter restrictions from those `StorageParams` at `_ready`. Enforces definition-level hard gates via `is_item_allowed()`. Player↔crate transfers use the inherited `transfer_to`, which interoperates between any two `Inventory` instances (used by both the storage UI and colonist hauling).
 **Used by:** storage UI (player transfer), `StorageRegistry` (indexing), `HaulingJobDef` (crate↔colonist transfers).
 
 ### Class: StorageRegistry

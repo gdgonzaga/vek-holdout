@@ -322,3 +322,151 @@ func test_transfer_between_inventory_and_storage() -> void:
 	assert_int(unplaced2).is_equal(0)
 	assert_int(player.get_item_count("wood")).is_equal(10)
 	assert_int(crate.get_item_count("wood")).is_equal(0)
+
+
+# ── Storage filtering (StorageParams hard gate) ──────────────────────────────
+
+func test_storage_inventory_allowed_item_ids_restriction() -> void:
+	var ammo_def := ItemDef.new()
+	ammo_def.weight = 0.5
+	auto_free(ammo_def)
+
+	var defs := {"wood": _wood, "ammo": ammo_def}
+	var params := StorageParams.new()
+	params.capacity = 50.0
+	params.allowed_item_ids = ["ammo"]
+	auto_free(params)
+
+	var fdef := FurnitureDef.new()
+	fdef.storage_params = params
+	auto_free(fdef)
+
+	var furniture := Furniture.new()
+	furniture.def = fdef
+	auto_free(furniture)
+
+	var storage := Doubles.MockStorageInventory.new()
+	storage._defs = defs
+	furniture.add_child(storage)
+	auto_free(storage)
+	storage._apply_storage_params()
+
+	# Ammo is allowed
+	assert_bool(storage.can_add("ammo", 1)).is_true()
+	var overflow_ammo := storage.add("ammo", 4)
+	assert_int(overflow_ammo).is_equal(0)
+	assert_int(storage.get_item_count("ammo")).is_equal(4)
+
+	# Wood is disallowed by the hard gate
+	assert_bool(storage.can_add("wood", 1)).is_false()
+	var overflow_wood := storage.add("wood", 2)
+	assert_int(overflow_wood).is_equal(2)
+	assert_int(storage.get_item_count("wood")).is_equal(0)
+
+
+func test_storage_inventory_allowed_tags_restriction() -> void:
+	var ammo_def := ItemDef.new()
+	ammo_def.weight = 0.5
+	ammo_def.tags = ["ammo", "consumable"]
+	auto_free(ammo_def)
+
+	var wood_def := ItemDef.new()
+	wood_def.weight = 2.0
+	wood_def.tags = ["resource"]
+	auto_free(wood_def)
+
+	var defs := {"ammo": ammo_def, "wood": wood_def}
+	var params := StorageParams.new()
+	params.capacity = 50.0
+	params.allowed_tags = ["ammo"]
+	auto_free(params)
+
+	var fdef := FurnitureDef.new()
+	fdef.storage_params = params
+	auto_free(fdef)
+
+	var furniture := Furniture.new()
+	furniture.def = fdef
+	auto_free(furniture)
+
+	var storage := Doubles.MockStorageInventory.new()
+	storage._defs = defs
+	furniture.add_child(storage)
+	auto_free(storage)
+	storage._apply_storage_params()
+
+	# Item with matching tag is allowed
+	assert_bool(storage.can_add("ammo", 1)).is_true()
+	# Item without matching tag is disallowed
+	assert_bool(storage.can_add("wood", 1)).is_false()
+
+
+func test_storage_inventory_empty_filters_allows_all() -> void:
+	var ammo_def := ItemDef.new()
+	ammo_def.weight = 0.5
+	auto_free(ammo_def)
+
+	var defs := {"wood": _wood, "ammo": ammo_def}
+	var params := StorageParams.new()
+	params.capacity = 50.0
+	# Both allowed_item_ids and allowed_tags are empty by default
+	auto_free(params)
+
+	var fdef := FurnitureDef.new()
+	fdef.storage_params = params
+	auto_free(fdef)
+
+	var furniture := Furniture.new()
+	furniture.def = fdef
+	auto_free(furniture)
+
+	var storage := Doubles.MockStorageInventory.new()
+	storage._defs = defs
+	furniture.add_child(storage)
+	auto_free(storage)
+	storage._apply_storage_params()
+
+	assert_bool(storage.can_add("wood", 1)).is_true()
+	assert_bool(storage.can_add("ammo", 1)).is_true()
+
+
+func test_transfer_to_restricted_storage_rejects_unallowed() -> void:
+	var ammo_def := ItemDef.new()
+	ammo_def.weight = 0.5
+	auto_free(ammo_def)
+
+	var defs := {"wood": _wood, "ammo": ammo_def}
+	var player := _make_inventory(50.0, defs)
+	player.add("wood", 5)
+	player.add("ammo", 10)
+
+	var params := StorageParams.new()
+	params.capacity = 50.0
+	params.allowed_item_ids = ["ammo"]
+	auto_free(params)
+
+	var fdef := FurnitureDef.new()
+	fdef.storage_params = params
+	auto_free(fdef)
+
+	var furniture := Furniture.new()
+	furniture.def = fdef
+	auto_free(furniture)
+
+	var crate := Doubles.MockStorageInventory.new()
+	crate._defs = defs
+	furniture.add_child(crate)
+	auto_free(crate)
+	crate._apply_storage_params()
+
+	# Transfer wood to ammo-only crate fails and keeps wood in player inventory
+	var unplaced_wood := player.transfer_to(crate, "wood", 5)
+	assert_int(unplaced_wood).is_equal(5)
+	assert_int(player.get_item_count("wood")).is_equal(5)
+	assert_int(crate.get_item_count("wood")).is_equal(0)
+
+	# Transfer ammo succeeds
+	var unplaced_ammo := player.transfer_to(crate, "ammo", 10)
+	assert_int(unplaced_ammo).is_equal(0)
+	assert_int(player.get_item_count("ammo")).is_equal(0)
+	assert_int(crate.get_item_count("ammo")).is_equal(10)

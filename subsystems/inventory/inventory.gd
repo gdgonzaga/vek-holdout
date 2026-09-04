@@ -9,9 +9,16 @@ var items: Dictionary = {}
 signal inventory_changed()
 
 
+## Virtual check: whether this inventory is allowed to store item_id.
+## Base inventory allows all items. Subclasses (e.g. StorageInventory) override
+## this to enforce item/tag restrictions.
+func is_item_allowed(_item_id: String) -> bool:
+	return true
+
+
 func can_add(item_id: String, count: int) -> bool:
 	var def := _get_def(item_id)
-	if def == null:
+	if def == null or not is_item_allowed(item_id):
 		return false
 	return current_weight() + (count * def.weight) <= capacity
 
@@ -22,6 +29,8 @@ func add(item_id: String, count: int) -> int:
 	var def := _get_def(item_id)
 	if def == null:
 		return count  # unknown item, treat all as overflow
+	if not is_item_allowed(item_id):
+		return count  # disallowed item, reject all
 
 	var added := 0
 	var remaining := count
@@ -129,4 +138,3 @@ func deserialize(data: Dictionary) -> void:
 	for item_id in saved:
 		items[item_id] = int(saved[item_id])
 	inventory_changed.emit()
-	
