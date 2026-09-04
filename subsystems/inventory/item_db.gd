@@ -37,3 +37,18 @@ func get_def(item_id: String) -> ItemDef:
 
 func has_def(item_id: String) -> bool:
 	return _defs_by_id.has(item_id)
+
+
+func get_all_defs() -> Array[ItemDef]:
+	var result: Array[ItemDef] = []
+	for def in _defs_by_id.values():
+		if def is ItemDef:
+			result.append(def)
+	return result
+
+
+func get_all_ids() -> Array[String]:
+	var result: Array[String] = []
+	for key in _defs_by_id.keys():
+		result.append(str(key))
+	return result

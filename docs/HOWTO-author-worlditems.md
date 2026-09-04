@@ -4,7 +4,7 @@
 > Covers Blender sizing constraints (0.4 m max dimension), pivot/origin alignment, glTF `.glb` export settings, and extracting standalone `.res` `Mesh` resources via Godot's Import dock.
 >
 > **Prerequisites:** Basic knowledge of 3D modeling in Blender and Godot `.tres` Resource editing.
-> Read [`docs/architecture/inventory.md`](architecture/inventory.md) and [`data/items/item_def.gd`](../data/items/item_def.gd) for subsystem details.
+> Read [`docs/architecture/inventory.md`](architecture/inventory.md) and `data/items/item_def.gd` for subsystem details.
 
 ---
 
