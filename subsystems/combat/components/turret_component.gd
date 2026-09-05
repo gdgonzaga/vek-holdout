@@ -53,13 +53,14 @@ func _aim_at(target: Node3D, delta: float) -> void:
 	if target == null or params == null:
 		return
 
+	var aim_pos := get_target_aim_position(target)
 	var yaw_node := _find_yaw_node()
 	var pitch_node := _find_pitch_node()
 	var speed := maxf(params.turn_speed, 0.01)
 
 	# 1. YAW ROTATION (Horizontal around local Y axis)
 	if yaw_node != null:
-		var local_target := yaw_node.to_local(target.global_position)
+		var local_target := yaw_node.to_local(aim_pos)
 		var target_yaw_angle := atan2(-local_target.x, -local_target.z)
 		yaw_node.rotation.y = rotate_toward(
 			yaw_node.rotation.y,
@@ -69,7 +70,7 @@ func _aim_at(target: Node3D, delta: float) -> void:
 
 	# 2. PITCH ROTATION (Vertical around local X axis)
 	if pitch_node != null:
-		var local_target := pitch_node.to_local(target.global_position)
+		var local_target := pitch_node.to_local(aim_pos)
 		var distance_xz := Vector2(local_target.x, local_target.z).length()
 		var target_pitch_angle := atan2(local_target.y, distance_xz)
 
@@ -205,8 +206,9 @@ func _fire_at(target: Node3D) -> TurretProjectile:
 	spawn_parent.add_child(projectile)
 
 	var spawn_pos := get_muzzle_position()
+	var aim_pos := get_target_aim_position(target)
 	var origin_xform := Transform3D(Basis(), spawn_pos)
-	var dir := spawn_pos.direction_to(target.global_position)
+	var dir := spawn_pos.direction_to(aim_pos)
 	if dir == Vector3.ZERO:
 		dir = -global_transform.basis.z
 
@@ -214,3 +216,47 @@ func _fire_at(target: Node3D) -> TurretProjectile:
 	projectile.setup(origin_xform, dir, params, source_node)
 	projectile_fired.emit(projectile, target)
 	return projectile
+
+
+## Returns the world position to aim at (center of mass).
+## Queries CollisionShape3D or MeshInstance3D first to dynamically adapt to entity size;
+## falls back to +1.0m on Y for character entities, or raw position.
+func get_target_aim_position(target: Node3D) -> Vector3:
+	if target == null:
+		return Vector3.ZERO
+
+	if target.has_method("get_aim_target_position"):
+		return target.get_aim_target_position()
+
+	var col_shape := _find_collision_shape(target)
+	if col_shape != null:
+		return col_shape.global_position
+
+	var mesh_node := _find_mesh_instance(target)
+	if mesh_node != null:
+		return mesh_node.global_position
+
+	if target is CharacterBody3D or target.has_node("HealthComponent"):
+		return target.global_position + Vector3(0.0, 1.0, 0.0)
+
+	return target.global_position
+
+
+func _find_collision_shape(node: Node) -> CollisionShape3D:
+	for child in node.get_children():
+		if child is CollisionShape3D:
+			return child as CollisionShape3D
+		var found := _find_collision_shape(child)
+		if found != null:
+			return found
+	return null
+
+
+func _find_mesh_instance(node: Node) -> MeshInstance3D:
+	for child in node.get_children():
+		if child is MeshInstance3D:
+			return child as MeshInstance3D
+		var found := _find_mesh_instance(child)
+		if found != null:
+			return found
+	return null

@@ -21,7 +21,7 @@ Hostile AI execution is driven by LimboAI behavior trees (`data/ai/trees/enemy_s
 Automated defenses (GDD §7.10) protect the colony perimeter against hostile swarms:
 
 - **Capability Composition**: Turrets are authored as `FurnitureDef` with a `TurretParams` capability sub-resource (`data/capability_params/turret_params.gd`). `FurnitureLayer` attaches a `TurretComponent` child when `turret_params` is non-null.
-- **Targeting**: Scans active hostiles in group `"enemies"` within `turret_params.range`, filtering out dead targets and engaging the closest hostile.
+- **Targeting**: Scans active hostiles in group `"enemies"` within `turret_params.range`, filtering out dead targets and engaging the closest hostile. Turrets aim and fire towards the target's center of mass (resolving child `CollisionShape3D` or `MeshInstance3D`, with a +1.0m Y fallback for character entities) rather than floor-level origin coordinates.
 - **Ammunition Resolution**: Turrets query their attached `StorageInventory` first. If no local ammo is found, they query `Colony.storage_registry` to consume ammo directly from colony storage crates.
 - **Muzzle Position & Spawn Resolution**: `TurretComponent` resolves the projectile launch location in two tiers:
   - *Socket Node (`"Muzzle"`)*: Searches the parent furniture hierarchy for a child node named `"Muzzle"` (e.g. authored as a Blender Empty parented to the turret mesh at the barrel opening) and fires from `muzzle.global_position`.

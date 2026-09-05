@@ -531,3 +531,40 @@ func test_turret_projectile_ignores_parent_furniture_and_siblings() -> void:
 	proj._handle_impact(furniture)
 	assert_bool(proj._exploded).is_false()
 	assert_bool(proj.is_queued_for_deletion()).is_false()
+
+
+func test_turret_aims_at_target_collision_shape_center() -> void:
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	_sandbox.container.add_child(turret)
+
+	var target := Node3D.new()
+	auto_free(target)
+	_sandbox.container.add_child(target)
+	target.global_position = Vector3(5, 0, 5)
+
+	var col_shape := CollisionShape3D.new()
+	auto_free(col_shape)
+	col_shape.position = Vector3(0, 1.4, 0)
+	target.add_child(col_shape)
+
+	var aim_pos := turret.get_target_aim_position(target)
+	assert_float(aim_pos.x).is_equal_approx(5.0, 0.01)
+	assert_float(aim_pos.y).is_equal_approx(1.4, 0.01)
+	assert_float(aim_pos.z).is_equal_approx(5.0, 0.01)
+
+
+func test_turret_aims_at_character_fallback_height() -> void:
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	_sandbox.container.add_child(turret)
+
+	var target := CharacterBody3D.new()
+	auto_free(target)
+	_sandbox.container.add_child(target)
+	target.global_position = Vector3(10, 2, -3)
+
+	var aim_pos := turret.get_target_aim_position(target)
+	assert_float(aim_pos.x).is_equal_approx(10.0, 0.01)
+	assert_float(aim_pos.y).is_equal_approx(3.0, 0.01) # 2.0 + 1.0
+	assert_float(aim_pos.z).is_equal_approx(-3.0, 0.01)
