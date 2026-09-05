@@ -675,3 +675,111 @@ func test_spawn_at_aligns_above_ground_surface() -> void:
 	auto_free(item)
 
 	assert_bool(item.global_position.y > 0.5).is_true()
+
+
+class TestMaterialSink extends Node3D:
+	var needed_id: String = "wood"
+	var need_amount: int = 5
+	var given: int = 0
+
+	func needed_item_ids() -> Array[String]:
+		if has_complete_materials():
+			return []
+		return [needed_id]
+
+	func remaining_need(id: String) -> int:
+		if id == needed_id:
+			return maxi(0, need_amount - given)
+		return 0
+
+	func deposit_from(actor: Node) -> int:
+		var rem := remaining_need(needed_id)
+		var shortfall: int = actor.remove_item(needed_id, rem) if actor.has_method("remove_item") else rem
+		var deposited: int = rem - shortfall
+		given += deposited
+		return deposited
+
+	func has_complete_materials() -> bool:
+		return given >= need_amount
+
+
+func test_world_item_pickup_preserves_job_until_delivery_cycle() -> void:
+	var crate := _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(10.0, 0.0, 0.0)
+
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3(0.0, 0.0, 0.0)
+	colonist.labor_priorities["hauling"] = 3
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.position = Vector3(2.0, 0.0, 0.0)
+	item.setup("wood", 4, false)
+	_sandbox.container.add_child(item)
+
+	var haul_job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(haul_job).is_not_null()
+
+	# Pickup cycle
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(4)
+	assert_bool(item.visible).is_false()
+
+	# Primary job must NOT be deleted from board upon pickup
+	var job_still_exists := false
+	for j in _sandbox.test_board.get_jobs():
+		if j == haul_job:
+			job_still_exists = true
+			break
+	assert_bool(job_still_exists).is_true()
+
+	# Second cycle delivery to crate
+	var site_2 = haul_job.def.work_site(colonist, haul_job)
+	assert_vector(site_2).is_equal(crate.global_position)
+	haul_job.def.complete(colonist, haul_job)
+
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
+	var crate_inv := _sandbox.test_registry.inventory_of(crate)
+	assert_int(crate_inv.get_item_count("wood")).is_equal(4)
+
+
+func test_carried_materials_allow_sink_job_assignment_without_crate_source() -> void:
+	# Crate exists but has 0 wood
+	var crate := _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(10.0, 0.0, 0.0)
+
+	var sink: TestMaterialSink = auto_free(TestMaterialSink.new())
+	sink.position = Vector3(5.0, 0.0, 0.0)
+	_sandbox.container.add_child(sink)
+
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3(0.0, 0.0, 0.0)
+	colonist.labor_priorities["hauling"] = 3
+
+	var hauling_def: JobDef = preload("res://data/jobs/hauling.tres")
+	var sink_job := Job.from_def(hauling_def)
+	sink_job.id = "test_sink_haul"
+	sink_job.target_node = sink
+	sink_job.location = sink.global_position
+	_sandbox.test_board.add_job(sink_job)
+
+	# 1. When colonist is empty, sink job is NOT available (crates have no wood)
+	assert_bool(sink_job.is_available_for(colonist)).is_false()
+	assert_bool(sink_job.try_assign(colonist)).is_false()
+
+	# 2. When colonist picks up wood (now carries 5 wood in inventory)
+	colonist.add_item("wood", 5)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(5)
+
+	# Sink job is now available for this colonist and try_assign succeeds!
+	assert_bool(sink_job.is_available_for(colonist)).is_true()
+	assert_bool(sink_job.try_assign(colonist)).is_true()
+
+	# Work site routes to sink
+	var site = sink_job.def.work_site(colonist, sink_job)
+	assert_vector(site).is_equal(sink.global_position)
+
+	# Complete delivers wood to sink
+	sink_job.def.complete(colonist, sink_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
+	assert_bool(sink.has_complete_materials()).is_true()

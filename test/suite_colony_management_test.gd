@@ -31,17 +31,18 @@ func test_colony_management_scene_loads() -> void:
 	assert_object(_scene).is_not_null()
 
 
-func test_colony_management_has_all_six_tabs() -> void:
+func test_colony_management_has_all_seven_tabs() -> void:
 	var tab_container: TabContainer = _scene.get_node("%TabContainer") as TabContainer
 	assert_object(tab_container).is_not_null()
-	assert_int(tab_container.get_tab_count()).is_equal(6)
+	assert_int(tab_container.get_tab_count()).is_equal(7)
 	
 	assert_str(tab_container.get_tab_title(0)).is_equal("Colony Info")
 	assert_str(tab_container.get_tab_title(1)).is_equal("Colonists")
 	assert_str(tab_container.get_tab_title(2)).is_equal("Labors")
-	assert_str(tab_container.get_tab_title(3)).is_equal("Crafting")
-	assert_str(tab_container.get_tab_title(4)).is_equal("Storage")
-	assert_str(tab_container.get_tab_title(5)).is_equal("Squads")
+	assert_str(tab_container.get_tab_title(3)).is_equal("Jobs")
+	assert_str(tab_container.get_tab_title(4)).is_equal("Crafting")
+	assert_str(tab_container.get_tab_title(5)).is_equal("Storage")
+	assert_str(tab_container.get_tab_title(6)).is_equal("Squads")
 
 
 func test_colonist_tab_empty_roster() -> void:
@@ -352,3 +353,103 @@ func test_squad_card_display_and_dismiss_controls() -> void:
 	# Press Dismiss Squad
 	dismiss_btn.emit_signal("pressed")
 	assert_bool(Colony.has_active_deployment(colonist.colonist_id)).is_false()
+
+
+func test_colonist_details_displays_ai_behavior_and_telemetry() -> void:
+	Colony.colonists.clear()
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	colonist.display_name = "AI Telemetry Tester"
+	Colony.colonists.append(colonist)
+
+	if colonist.bt_player != null and colonist.bt_player.blackboard != null:
+		colonist.bt_player.blackboard.set_var(&"current_goal", &"work")
+		var job := Job.new()
+		job.title = "Haul Scrap"
+		job.anchor_cell = Vector3i(15, 2, -10)
+		job.completed_units = 1
+		job.total_units = 3
+		colonist.bt_player.blackboard.set_var(&"active_job", job)
+
+	_scene.call("_refresh_colonist_roster")
+
+	var goal_lbl: Label = _scene.get_node("%DetailGoalLabel") as Label
+	var act_lbl: Label = _scene.get_node("%DetailActivityLabel") as Label
+	var target_lbl: Label = _scene.get_node("%DetailJobTargetLabel") as Label
+	var nav_lbl: Label = _scene.get_node("%DetailNavigationLabel") as Label
+	var bl_lbl: Label = _scene.get_node("%DetailBlacklistLabel") as Label
+	var needs_lbl: Label = _scene.get_node("%DetailNeedsLabel") as Label
+
+	assert_object(goal_lbl).is_not_null()
+	assert_object(act_lbl).is_not_null()
+	assert_object(target_lbl).is_not_null()
+	assert_object(nav_lbl).is_not_null()
+	assert_object(bl_lbl).is_not_null()
+	assert_object(needs_lbl).is_not_null()
+
+	assert_str(goal_lbl.text).contains("Brain Goal:")
+	assert_str(act_lbl.text).contains("Current Activity:")
+	assert_str(target_lbl.text).contains("Job Target:")
+	assert_str(nav_lbl.text).contains("Navigation:")
+	assert_str(bl_lbl.text).contains("Job Cooldowns:")
+	assert_str(needs_lbl.text).contains("Needs:")
+
+
+func test_jobs_tab_empty() -> void:
+	if Colony.job_board != null:
+		Colony.job_board.clear()
+	_scene.call("_refresh_jobs")
+
+	var no_jobs: Label = _scene.get_node("%NoJobsLabel") as Label
+	var list: VBoxContainer = _scene.get_node("%JobList") as VBoxContainer
+	assert_object(no_jobs).is_not_null()
+	assert_bool(no_jobs.visible).is_true()
+	assert_bool(list.visible).is_false()
+
+
+func test_jobs_tab_populates_hauling_and_construction_jobs() -> void:
+	if Colony.job_board != null:
+		Colony.job_board.clear()
+
+	var haul_job := Job.new()
+	haul_job.id = "test_haul_1"
+	haul_job.labor_id = "hauling"
+	haul_job.title = "Haul Scrap to Crate"
+	haul_job.location = Vector3(5, 0, 5)
+	haul_job.anchor_cell = Vector3i(5, 0, 5)
+	Colony.job_board.add_job(haul_job)
+
+	var construct_job := Job.new()
+	construct_job.id = "test_construct_1"
+	construct_job.labor_id = "construction"
+	construct_job.title = "Construct Turret"
+	construct_job.location = Vector3(12, 1, -4)
+	construct_job.anchor_cell = Vector3i(12, 1, -4)
+	Colony.job_board.add_job(construct_job)
+
+	_scene.call("_refresh_jobs")
+
+	var no_jobs: Label = _scene.get_node("%NoJobsLabel") as Label
+	var list: VBoxContainer = _scene.get_node("%JobList") as VBoxContainer
+	var summary: Label = _scene.get_node("%JobsSummaryLabel") as Label
+
+	assert_bool(no_jobs.visible).is_false()
+	assert_bool(list.visible).is_true()
+	assert_int(list.get_child_count()).is_equal(2)
+	assert_str(summary.text).contains("Total Jobs: 2")
+
+	var row0: PanelContainer = list.get_child(0) as PanelContainer
+	var row1: PanelContainer = list.get_child(1) as PanelContainer
+	assert_object(row0).is_not_null()
+	assert_object(row1).is_not_null()
+
+	# Verify Hauling row contains hauling section
+	var haul_sec: VBoxContainer = row0.get_node("%HaulingSection") as VBoxContainer
+	assert_bool(haul_sec.visible).is_true()
+
+	# Verify Construction row contains construction section
+	var const_sec: VBoxContainer = row1.get_node("%ConstructionSection") as VBoxContainer
+	assert_bool(const_sec.visible).is_true()
+
+	# Clean up
+	Colony.job_board.clear()

@@ -30,13 +30,29 @@ func _update_display() -> void:
 		return
 	_name_label.text = _colonist.display_name
 	_hp_label.text = "HP: %d/%d" % [_colonist.get_hp(), _colonist.get_max_hp()]
-	_stamina_label.text = "Stam: 100/100 (Stub)"
-	_mood_label.text = "Mood: Neutral (Stub)"
+	if _colonist.needs != null:
+		var hunger: int = int(round(_colonist.needs.get_need(&"hunger") * 100.0))
+		var rest: int = int(round(_colonist.needs.get_need(&"rest") * 100.0))
+		_stamina_label.text = "Rest: %d%%" % rest
+		_mood_label.text = "Hunger: %d%%" % hunger
+	else:
+		_stamina_label.text = "Stam: 100/100"
+		_mood_label.text = "Mood: Neutral"
 	
 	var act: String = "Idle"
-	if _colonist.current_job != null and is_instance_valid(_colonist.current_job):
+	var bt: BTPlayer = _colonist.get_node_or_null("BTPlayer") as BTPlayer
+	if bt != null and bt.blackboard != null and bt.blackboard.has_var(&"active_job"):
+		var job = bt.blackboard.get_var(&"active_job")
+		if job != null:
+			var t: String = str(job.title) if "title" in job else ""
+			act = t if t != "" else str(job.get("labor_id", "Work")).capitalize()
+	elif _colonist.current_job != null and is_instance_valid(_colonist.current_job):
 		var t: String = _colonist.current_job.title
 		act = t if t != "" else _colonist.current_job.labor_id.capitalize()
+	elif bt != null and bt.blackboard != null and bt.blackboard.has_var(&"current_goal"):
+		var g: StringName = bt.blackboard.get_var(&"current_goal")
+		if g != &"none":
+			act = String(g).capitalize()
 	_activity_label.text = "Act: %s" % act
 
 

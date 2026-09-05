@@ -7,7 +7,7 @@
 [ext_resource type="Script" uid="uid://bx8eopmw77d7s" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
 [ext_resource type="Resource" uid="uid://dyoa05atjswxr" path="res://data/items/wooden_stake.tres" id="3_ammo"]
 [ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_ln2na"]
-[ext_resource type="PackedScene" uid="uid://b2mqiknnfscx4" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb" id="8_ln2na"]
+[ext_resource type="PackedScene" uid="uid://cavmbwfcd3yyd" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb" id="8_ln2na"]
 [ext_resource type="PackedScene" uid="uid://31a8lrnxigj5" path="res://assets/custom/wooden_stake/wooden_stake.glb" id="8_tryv4"]
 
 [sub_resource type="Resource" id="Resource_u6rff"]
@@ -23,7 +23,6 @@ damage = 5
 ammo_type = ExtResource("3_ammo")
 turn_speed = 1.0
 projectile_scene = ExtResource("8_tryv4")
-projectile_speed = 1.0
 explosion_radius = 0.0
 
 [resource]

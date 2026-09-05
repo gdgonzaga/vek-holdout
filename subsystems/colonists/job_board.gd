@@ -101,23 +101,13 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 		var job: Variant = _jobs[job_id]
 		if "target_node" in job and job.target_node != null and (not is_instance_valid(job.target_node) or job.target_node.is_queued_for_deletion()):
 			continue
-		if not job.is_available():
-			# Bypass: hauling jobs for sinks where this colonist already
-			# carries the needed materials are still claimable — the source
-			# check fails because materials moved from the crate to the
-			# colonist's pocket during the FETCH leg.
-			var bypass := false
-			var _def: Resource = null
-			if "def" in job:
-				_def = job.def
-			elif "job_def" in job:
-				_def = job.job_def
-			if _def is HaulingJobDef:
-				var _sink = _def._sink_of(job)
-				if _sink != null and _def._carries_needed_material(colonist, _sink):
-					bypass = true
-			if not bypass:
-				continue
+		var is_avail := false
+		if job.has_method("is_available_for"):
+			is_avail = bool(job.is_available_for(colonist))
+		else:
+			is_avail = bool(job.is_available())
+		if not is_avail:
+			continue
 		if is_job_blacklisted_for(job_id, colonist.colonist_id):
 			continue
 		if "target_colonist_id" in job and str(job.target_colonist_id) != "" and str(job.target_colonist_id) != colonist.colonist_id:

@@ -240,6 +240,11 @@ func is_available() -> bool:
 	return not is_completed and not is_cancelled and unclaimed_units > 0
 
 
+## Actor-aware check for duck-typing with Job.
+func is_available_for(_colonist: Variant = null) -> bool:
+	return is_available()
+
+
 ## Total work units left until job completion.
 func get_remaining_uncompleted_units() -> int:
 	return maxi(0, total_units - completed_units)

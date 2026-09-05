@@ -101,7 +101,7 @@ func is_assigned(colonist_id: String) -> bool:
 ## each leg).
 func try_assign(colonist: Colonist) -> bool:
 	var cid := colonist.colonist_id
-	if not is_available() or is_assigned(cid):
+	if not is_available_for(colonist) or is_assigned(cid):
 		return false
 	if target_colonist_id != "" and cid != target_colonist_id:
 		return false
@@ -127,12 +127,22 @@ func clear_assigned() -> void:
 ## the def's labour-specific gate (e.g. blueprint still unsatisfied + source in
 ## stock for hauling). Drives get_best_job_for's filter and the dead-job prune.
 func is_available() -> bool:
+	return is_available_for(null)
+
+
+## Actor-aware availability check. Allows defs to consider items already carried by colonist.
+func is_available_for(colonist: Colonist = null) -> bool:
 	if Time.get_ticks_msec() < sleep_until_msec:
 		return false
+	if _assigned_colonists.size() >= max_assignees:
+		return false
 	var def_ok := true
-	if def != null and def.has_method("is_available"):
-		def_ok = bool(def.call("is_available", self))
-	return _assigned_colonists.size() < max_assignees and def_ok
+	if def != null:
+		if colonist != null and def.has_method("is_available_for"):
+			def_ok = bool(def.call("is_available_for", self, colonist))
+		elif def.has_method("is_available"):
+			def_ok = bool(def.call("is_available", self))
+	return def_ok
 
 
 ## True when the job should leave the board: no colonists left AND the def

@@ -90,6 +90,13 @@ func is_available(_job: Variant) -> bool:
 	return true
 
 
+## Actor-aware availability check. Base implementation forwards to is_available(job).
+## Defs that depend on the actor's carried state (e.g. HaulingJobDef when the colonist
+## is already holding materials for a sink) override this.
+func is_available_for(job: Variant, _actor: Node = null) -> bool:
+	return is_available(job)
+
+
 ## Board lifetime: true when the job should leave the registry. Called by the
 ## board's prune only when no assignees remain. Default mirrors availability —
 ## an unavailable job with nobody on it is dead. Drought-persistent defs

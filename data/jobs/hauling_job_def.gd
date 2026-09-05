@@ -90,6 +90,7 @@ func work_site(actor: Node, job: Variant) -> Variant:
 
 
 func complete(actor: Node, job: Variant) -> void:
+	print("completing haul")
 	var direct_crate := _storage_crate_of(job)
 	if direct_crate != null:
 		_return_surplus_to_crate(actor)
@@ -100,6 +101,7 @@ func complete(actor: Node, job: Variant) -> void:
 	if sink != null and is_instance_valid(actor):
 		if _carries_needed_material(actor, sink):
 			sink.deposit_from(actor)
+			_free_collected_hidden_items(actor, "")
 			if sink.has_complete_materials():
 				_return_surplus_to_crate(actor)
 			return
@@ -140,7 +142,8 @@ func complete(actor: Node, job: Variant) -> void:
 			if is_instance_valid(target_item):
 				if target_item.count <= 0:
 					target_item.hide_item()
-					_unregister_item_from_colony(target_item)
+					if target_item != world_item:
+						_unregister_item_from_colony(target_item)
 			return
 
 		# 2. If delivering to crate
@@ -190,6 +193,10 @@ func meets_requirements_any(actor: Node, job: Variant) -> bool:
 
 
 func is_available(job: Variant) -> bool:
+	return is_available_for(job, null)
+
+
+func is_available_for(job: Variant, actor: Node = null) -> bool:
 	if _storage_crate_of(job) != null:
 		# Only available when there's at least one crate that can accept something.
 		return Colony.storage_registry.nearest_crate(Vector3.ZERO) != null
@@ -198,6 +205,8 @@ func is_available(job: Variant) -> bool:
 	if sink != null:
 		if sink.has_complete_materials():
 			return false
+		if actor != null and _carries_needed_material(actor, sink):
+			return true
 		return Colony.storage_registry.has_source_for(sink.needed_item_ids())
 
 	var world_item := _world_item_of(job)
@@ -253,6 +262,7 @@ func job_complete(job: Variant) -> bool:
 
 
 func on_abort(actor: Node, job: Variant, _elapsed: float = 0.0) -> void:
+	print("aborting haul")
 	var world_item := _world_item_of(job)
 	if world_item != null and is_instance_valid(world_item):
 		world_item.unreserve(actor)
@@ -277,6 +287,7 @@ func _unreserve_actor_items_recursive(node: Node, actor: Node) -> void:
 
 
 func _find_next_reachable_ground_item(actor: Node, item_id: String, max_radius: float = GATHER_SEARCH_RADIUS) -> WorldItem:
+	print("looking for next reachable item")
 	if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
 		return null
 	if not _actor_has_remaining_capacity(actor):
@@ -305,8 +316,12 @@ func _find_next_reachable_ground_item(actor: Node, item_id: String, max_radius: 
 				var path: Array[Vector3] = pathfinder.find_path_world(actor_pos, cand.global_position)
 				if path.is_empty() and actor_pos.distance_to(cand.global_position) > 1.5:
 					continue
+
+		print("found one!")
 		return cand
 
+
+	print("did not find another reachable item")
 	return null
 
 
@@ -357,7 +372,7 @@ func _free_hidden_recursive(node: Node, actor: Node, item_id: String) -> void:
 		return
 	if node is WorldItem:
 		var item := node as WorldItem
-		if not item.visible and item.count <= 0 and item.item_id == item_id and item.is_reserved_by(actor):
+		if not item.visible and item.count <= 0 and (item_id == "" or item.item_id == item_id) and item.is_reserved_by(actor):
 			item.queue_free()
 	for child in node.get_children():
 		_free_hidden_recursive(child, actor, item_id)

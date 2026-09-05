@@ -568,3 +568,19 @@ func test_turret_aims_at_character_fallback_height() -> void:
 	assert_float(aim_pos.x).is_equal_approx(10.0, 0.01)
 	assert_float(aim_pos.y).is_equal_approx(3.0, 0.01) # 2.0 + 1.0
 	assert_float(aim_pos.z).is_equal_approx(-3.0, 0.01)
+
+
+func test_turret_projectile_collision_mask_includes_enemies_and_terrain() -> void:
+	var proj := TurretProjectileScript.new() as TurretProjectile
+	auto_free(proj)
+	_sandbox.container.add_child(proj)
+
+	# Layers: 1 (World), 2 (TerrainBlocky), 4 (TerrainSmooth/Enemy), 64 (Enemy)
+	assert_int(proj.collision_mask & 1).is_equal(1)
+	assert_int(proj.collision_mask & 2).is_equal(2)
+	assert_int(proj.collision_mask & 4).is_equal(4)
+	assert_int(proj.collision_mask & 64).is_equal(64)
+	# Friendly layers (Player=8, Build=16, Colonist=32) must NOT be masked
+	assert_int(proj.collision_mask & 8).is_equal(0)
+	assert_int(proj.collision_mask & 16).is_equal(0)
+	assert_int(proj.collision_mask & 32).is_equal(0)
