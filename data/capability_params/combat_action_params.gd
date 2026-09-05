@@ -10,6 +10,7 @@ extends EquipActionParams
 @export var projectile_scene: PackedScene = null
 @export var spread_angle_degrees: float = 0.0
 @export var ammo_item_id: String = ""
+@export var show_tracer: bool = true
 
 
 func execute(actor: Node) -> void:
@@ -52,9 +53,12 @@ func execute(actor: Node) -> void:
 	var hit := world_3d.direct_space_state.intersect_ray(query)
 	var end_pos: Vector3 = hit.position if not hit.is_empty() else aim_origin + dir * range_dist
 
-	_spawn_bullet_tracer(actor, tracer_origin, end_pos)
+	# 1. Tracer Visualization: Spawning tracer line if visual tracer is enabled.
+	if show_tracer:
+		_spawn_bullet_tracer(actor, tracer_origin, end_pos)
 
 	if not hit.is_empty():
+		# 2. Impact Effects: Spawning impact spark particles on hit surface normal.
 		_spawn_impact_effect(actor, hit.position, hit.normal)
 		var collider: Node = hit.collider as Node
 		if collider != null:

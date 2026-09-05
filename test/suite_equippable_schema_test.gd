@@ -118,3 +118,29 @@ func test_combat_action_execute_on_null_actor_is_safe() -> void:
 	# Should not crash or error
 	action.execute(null)
 	assert_bool(true).is_true()
+
+
+func test_combat_action_params_show_tracer_property() -> void:
+	var action: CombatActionParams = auto_free(CombatActionParams.new())
+	assert_bool(action.show_tracer).is_true()
+	action.show_tracer = false
+	assert_bool(action.show_tracer).is_false()
+
+
+func test_enemy_lethal_damage_triggers_death_and_free() -> void:
+	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var health: HealthComponent = auto_free(HealthComponent.new())
+	health.name = "HealthComponent"
+	health.max_hp = 50
+	enemy.add_child(health)
+	add_child(enemy)
+	enemy._ready()
+
+	var combat_params: CombatActionParams = auto_free(CombatActionParams.new())
+	combat_params.damage = 60.0
+
+	var player: Player = auto_free(Player.new())
+	enemy.take_damage(int(combat_params.damage), player)
+
+	assert_int(health.current_hp).is_equal(0)
+	assert_bool(enemy.is_queued_for_deletion()).is_true()

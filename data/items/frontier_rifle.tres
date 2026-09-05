@@ -1,6 +1,27 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3]
 
 [ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://dyh6tnhsxf1ie" path="res://data/capability_params/equippable_params.gd" id="2_equip"]
+[ext_resource type="Script" uid="uid://dhm7xh7fd7bfv" path="res://data/capability_params/combat_action_params.gd" id="3_combat"]
+
+[sub_resource type="Resource" id="Resource_combat_action"]
+script = ExtResource("3_combat")
+id = "frontier_rifle_fire"
+cooldown_seconds = 0.35
+use_animation = "fire"
+audio_event = "gun_shot_rifle"
+damage = 60.0
+range_meters = 120.0
+is_hitscan = true
+spread_angle_degrees = 1.0
+ammo_item_id = ""
+show_tracer = true
+
+[sub_resource type="Resource" id="Resource_equippable"]
+script = ExtResource("2_equip")
+slot_type = 2
+animation_stance = "rifle"
+primary_action = SubResource("Resource_combat_action")
 
 [resource]
 resource_name = "Frontier Rifle"
@@ -8,4 +29,5 @@ script = ExtResource("1_def")
 id = "frontier_rifle"
 weight = 4.5
 tags = Array[String](["weapon", "ranged", "specialty", "marksmanship"])
+equippable = SubResource("Resource_equippable")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

@@ -725,13 +725,13 @@ func test_world_item_pickup_preserves_job_until_delivery_cycle() -> void:
 	assert_int(colonist.inventory.get_item_count("wood")).is_equal(4)
 	assert_bool(item.visible).is_false()
 
-	# Primary job must NOT be deleted from board upon pickup
+	# Primary job is removed from board upon pickup so other haulers don't target it
 	var job_still_exists := false
 	for j in _sandbox.test_board.get_jobs():
 		if j == haul_job:
 			job_still_exists = true
 			break
-	assert_bool(job_still_exists).is_true()
+	assert_bool(job_still_exists).is_false()
 
 	# Second cycle delivery to crate
 	var site_2 = haul_job.def.work_site(colonist, haul_job)
