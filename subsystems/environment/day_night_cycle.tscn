@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://c1mv8tvinlu8r"]
+
+[ext_resource type="Script" uid="uid://dhi8d63dxd8cc" path="res://subsystems/environment/day_night_cycle.gd" id="1_cycle"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.384314, 0.454902, 0.54902, 1)
+sky_horizon_color = Color(0.647059, 0.654902, 0.670588, 1)
+ground_bottom_color = Color(0.2, 0.168627, 0.133333, 1)
+ground_horizon_color = Color(0.647059, 0.654902, 0.670588, 1)
+
+[sub_resource type="Sky" id="Sky_env"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_cycle"]
+background_mode = 2
+sky = SubResource("Sky_env")
+ambient_light_source = 3
+
+[node name="DayNightCycle" type="Node3D" unique_id=1445250125]
+script = ExtResource("1_cycle")
+
+[node name="CelestialPivot" type="Node3D" parent="." unique_id=1445713699]
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, 0, 0, 0)
+
+[node name="Sun" type="DirectionalLight3D" parent="CelestialPivot" unique_id=2134385536]
+shadow_enabled = true
+
+[node name="Moon" type="DirectionalLight3D" parent="CelestialPivot" unique_id=1039788694]
+transform = Transform3D(1, 0, 0, 0, -1, 8.74228e-08, 0, -8.74228e-08, -1, 0, 0, 0)
+visible = false
+light_color = Color(0.65, 0.75, 1, 1)
+light_energy = 0.25
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=743452108]
+environment = SubResource("Environment_cycle")

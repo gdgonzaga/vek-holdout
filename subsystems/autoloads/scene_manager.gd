@@ -212,6 +212,7 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 		return
 	var furniture_layer: FurnitureLayer = MapWiring.wire_build(m)
 	MapWiring.wire_mining(m)
+	MapWiring.wire_day_night(m)
 
 	# Read spawns once — used for both furniture replay and player positioning.
 	var spawns: Dictionary = SpawnHelpers.read_spawns(m)

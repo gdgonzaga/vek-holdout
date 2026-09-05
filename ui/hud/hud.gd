@@ -18,6 +18,8 @@ const _HOLD_THRESHOLD := 0.3
 @onready var _inventory_panel: PanelContainer = $InventoryPanel
 @onready var _weight_label: Label = $InventoryPanel/VBox/Header/WeightLabel
 @onready var _item_list: VBoxContainer = $InventoryPanel/VBox/ScrollContainer/ItemList
+@onready var _day_label: Label = %DayLabel
+@onready var _clock_label: Label = %ClockLabel
 
 var _player: Player = null
 var _input_component: InputComponent = null
@@ -26,10 +28,12 @@ var _inventory_open := false
 
 var _hold_timer := 0.0
 var _holding_interact := false
+var _last_displayed_minute := -1
 
 
 func _ready() -> void:
-	pass
+	# Initialize digital clock display with current time and day.
+	_update_clock_display()
 
 
 ## Called by Main after mounting the HUD on the HUDLayer.
@@ -69,6 +73,9 @@ func _on_interactable_changed(component: InteractionComponent) -> void:
 
 
 func _process(delta: float) -> void:
+	# Update digital clock display when the in-game minute changes.
+	_update_clock_display()
+
 	if _holding_interact:
 		# A modal opened mid-hold (e.g. Esc -> pause menu) — abandon the
 		# tap/hold so the timer can't fire the menu on top of it later.
@@ -81,6 +88,18 @@ func _process(delta: float) -> void:
 			_holding_interact = false
 			_hold_timer = 0.0
 			_player.open_interaction_menu()
+
+
+func _update_clock_display() -> void:
+	## Auxiliary: Refreshes clock and day labels when the in-game minute changes.
+	if _clock_label == null or _day_label == null:
+		return
+	var current_minute: int = TimeSystem.get_current_minute()
+	if current_minute == _last_displayed_minute:
+		return
+	_last_displayed_minute = current_minute
+	_clock_label.text = TimeSystem.get_formatted_clock(true)
+	_day_label.text = "Day %d" % GameState.current_day
 
 
 func _on_interact_pressed() -> void:

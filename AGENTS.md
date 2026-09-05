@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Vek Holdout — Godot 4.7 (Forward Plus, Jolt) voxel colony-survival game. GDScript only. Work lands directly on `main`.
+Vek Holdout (tentative title) — Godot 4.7 (Forward Plus, Jolt) voxel colony-survival game. GDScript only. Work lands directly on `main`.
 
 ## Authoritative docs — read before designing
 
@@ -72,3 +72,42 @@ Preferences: prefer **scene files over dynamically created nodes** for any non-t
 - Run: `addons/gdUnit4/runtest.sh` (needs `GODOT_BIN`).
 - Conventional Commits: `type(scope): lowercase imperative subject` — feat/fix/chore/refactor/docs/wip; scope = subsystem (`arch` for architecture docs). Detailed bodies explaining what/why; end with the test tally (e.g. "132/132 green").
 - Architecture docs are updated **with** the code (`docs(arch):` commits); `mkdocs build --strict` must pass when arch pages change. New pages follow `docs/architecture/contributing.md`.
+
+## LLM Execution & Code Generation Strategy
+
+When writing or refactoring code for Vek Holdout, prioritize highly granular structures, strict typing, and defensive execution mapping over monolithic script blocks.
+
+### Auxiliary Functions Preference
+- **Granular Decomposition**: Break complex operations, data transformations, or logic branches into small, pure auxiliary functions. If an operation exceeds 15 lines or performs more than one single task (e.g., both parsing a resource and updating an array), it must be split into isolated helpers.
+- **Pure Helpers**: Auxiliary functions should remain pure and deterministic where possible, relying solely on explicitly typed arguments rather than mutations of side-effect-heavy external states.
+- **The Step-Down Rule (Narrative Flow)**: Code must read like a top-down story. Define high-level orchestrator or tool functions at the top of the file, and place auxiliary function definitions **after** the functions that call them. A reader should be able to scan down the script and encounter concepts in the exact order they are consumed.
+
+### Pre-Invocation Commenting
+- **Mandatory Preface Comments**: Every time an auxiliary function is invoked within a primary orchestrating method, a clear, single-line preface comment must be placed directly above the execution line. 
+- **Comment Structure**: Explain *what* the auxiliary function is processing and *why* it is necessary at that specific sequence of execution to fulfill system invariants.
+- **Math Formatting**: Do not use LaTeX syntax inside these comments. Use plain text or code blocks (e.g., use `+/- 3 Y`, `2x2`, or `3x3` instead of mathematical symbols).
+
+#### Structural Example (Narrative Flow):
+```gdscript
+# =============================================================================
+# Primary Orchestration (Top of file / Called first)
+# =============================================================================
+
+func process_voxel_placement(target_pos: Vector3i) -> void:
+	# 1. Bounds Evaluation: Resolving a 3x3 neighbor space to ensure alignment with IBlockGrid invariants.
+	var area_bounds: Dictionary = _get_grid_bounds(target_pos)
+	
+	# Execute remaining orchestration using area_bounds...
+
+
+# =============================================================================
+# Auxiliary Functions (Bottom of file / Defined after usage)
+# =============================================================================
+
+func _get_grid_bounds(voxel_position: Vector3i) -> Dictionary:
+	## Auxiliary: Calculates boundaries for a 3x3 footprint chunk.
+	return {
+		"min": voxel_position + Vector3i(-1, -1, -1),
+		"max": voxel_position + Vector3i(1, 1, 1)
+	}
+```

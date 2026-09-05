@@ -82,6 +82,24 @@ static func wire_mining(map: Map) -> void:
 	dig_ctrl.grid_adapter = adapter
 
 
+## Wire dynamic day/night celestial lighting into the map.
+## Replaces legacy static DirectionalLight3D with an instanced DayNightCycle.
+static func wire_day_night(map: Map) -> void:
+	if map.find_child("DayNightCycle", true, false) != null:
+		return
+	var static_light := map.find_child("DirectionalLight3D", true, false)
+	if static_light != null:
+		static_light.queue_free()
+	var cycle_scene: PackedScene = load("res://subsystems/environment/day_night_cycle.tscn")
+	if cycle_scene != null:
+		var cycle: Node3D = cycle_scene.instantiate() as Node3D
+		var env_container := map.find_child("EnvironmentContainer", true, false)
+		if env_container != null:
+			env_container.add_child(cycle)
+		else:
+			map.add_child(cycle)
+
+
 ## Attach the player to the map and wire its camera into BuildController.
 ## Reuses an existing VoxelViewer on the player so repeated map swaps don't
 ## stack viewers (one per swap) — the first swap adds it, subsequent swaps find

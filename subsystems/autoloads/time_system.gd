@@ -7,10 +7,13 @@ extends Node
 ## Day length comes from data/game_config.tres (loop_length_minutes, default 30).
 
 const _CONFIG_PATH := "res://data/game_config.tres"
+const START_HOUR_OFFSET := 6.0
+const HOURS_PER_DAY := 24.0
+const MINUTES_PER_HOUR := 60.0
 
-var _loop_length_seconds: float = 30.0 * 60.0   # real seconds per in-game day
-var _elapsed_in_day: float = 0.0                  # real seconds accumulated in the current day
-var _realtime_play_time: float = 0.0              # total unpaused real-time play seconds accumulated
+var _loop_length_seconds: float = 30.0 * 60.0 # real seconds per in-game day
+var _elapsed_in_day: float = 0.0 # real seconds accumulated in the current day
+var _realtime_play_time: float = 0.0 # total unpaused real-time play seconds accumulated
 
 
 func _ready() -> void:
@@ -49,6 +52,55 @@ func get_elapsed_days() -> float:
 	return float(GameState.current_day - 1) + get_time_of_day_fraction()
 
 
+## Returns current in-game clock time as Vector2i(hour, minute).
+func get_clock_time() -> Vector2i:
+	# Calculate total raw decimal hours anchored to dawn offset to determine time of day.
+	var raw_hour: float = _calculate_raw_hour(get_time_of_day_fraction())
+	var hour: int = int(raw_hour)
+	var minute: int = int((raw_hour - float(hour)) * MINUTES_PER_HOUR)
+	return Vector2i(hour, minute)
+
+
+## Returns current in-game hour (0 to 23).
+func get_current_hour() -> int:
+	return get_clock_time().x
+
+
+## Returns current in-game minute (0 to 59).
+func get_current_minute() -> int:
+	return get_clock_time().y
+
+
+## Formats current in-game time into a digital clock string (24h e.g. "06:00" or 12h e.g. "06:00 AM").
+func get_formatted_clock(use_24h: bool = true) -> String:
+	var clock: Vector2i = get_clock_time()
+	if use_24h:
+		# Format 24-hour clock representation using padded two-digit values.
+		return _format_24h_string(clock.x, clock.y)
+	# Format 12-hour clock representation with AM/PM meridian designation.
+	return _format_12h_string(clock.x, clock.y)
+
+
+func _calculate_raw_hour(day_fraction: float) -> float:
+	## Auxiliary: Maps [0.0, 1.0] day fraction to 24-hour clock cycle anchored to dawn offset.
+	var total_hours: float = (day_fraction * HOURS_PER_DAY) + START_HOUR_OFFSET
+	return fmod(total_hours, HOURS_PER_DAY)
+
+
+func _format_24h_string(hour: int, minute: int) -> String:
+	## Auxiliary: Formats hour and minute into "HH:MM" 24-hour format.
+	return "%02d:%02d" % [hour, minute]
+
+
+func _format_12h_string(hour: int, minute: int) -> String:
+	## Auxiliary: Formats hour and minute into "HH:MM AM/PM" 12-hour format.
+	var period: String = "AM" if hour < 12 else "PM"
+	var hour12: int = hour % 12
+	if hour12 == 0:
+		hour12 = 12
+	return "%02d:%02d %s" % [hour12, minute, period]
+
+
 ## Total real-time play time in seconds accumulated across the session.
 func get_realtime_play_time() -> float:
 	return _realtime_play_time
@@ -80,7 +132,7 @@ func deserialize(data: Dictionary) -> void:
 
 
 func _roll_over_day() -> void:
-	GameState.advance_day()                              # emits day_changed (direct)
+	GameState.advance_day() # emits day_changed (direct)
 	EventBus.day_rolled_over.emit(GameState.current_day) # cross-scene relay
 
 
