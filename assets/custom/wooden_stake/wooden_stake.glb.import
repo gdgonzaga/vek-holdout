@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b2mqiknnfscx4"
-path="res://.godot/imported/wooden_stake_turret.glb-2a4fa7c9c87cc38e2d4f6a0b5a3e1af0.scn"
+uid="uid://31a8lrnxigj5"
+path="res://.godot/imported/wooden_stake.glb-f0f224a1266fd8eea0d7868dfda8dbd4.scn"
 
 [deps]
 
-source_file="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb"
-dest_files=["res://.godot/imported/wooden_stake_turret.glb-2a4fa7c9c87cc38e2d4f6a0b5a3e1af0.scn"]
+source_file="res://assets/custom/wooden_stake/wooden_stake.glb"
+dest_files=["res://.godot/imported/wooden_stake.glb-f0f224a1266fd8eea0d7868dfda8dbd4.scn"]
 
 [params]
 

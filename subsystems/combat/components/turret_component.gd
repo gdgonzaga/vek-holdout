@@ -39,12 +39,77 @@ func _tick(delta: float) -> void:
 	if _cooldown_remaining > 0.0:
 		_cooldown_remaining -= delta
 
-	if _cooldown_remaining <= 0.0:
-		var target := find_closest_target()
-		if target != null:
+	var target := find_closest_target()
+	if target != null:
+		_aim_at(target, delta)
+		if _cooldown_remaining <= 0.0:
 			if _try_consume_ammo():
 				_fire_at(target)
 				_cooldown_remaining = 1.0 / maxf(params.fire_rate, 0.001)
+
+
+## Smoothly rotates TurretYaw and TurretPitch towards the target position.
+func _aim_at(target: Node3D, delta: float) -> void:
+	if target == null or params == null:
+		return
+
+	var yaw_node := _find_yaw_node()
+	var pitch_node := _find_pitch_node()
+	var speed := maxf(params.turn_speed, 0.01)
+
+	# 1. YAW ROTATION (Horizontal around local Y axis)
+	if yaw_node != null:
+		var local_target := yaw_node.to_local(target.global_position)
+		var target_yaw_angle := atan2(-local_target.x, -local_target.z)
+		yaw_node.rotation.y = rotate_toward(
+			yaw_node.rotation.y,
+			yaw_node.rotation.y + target_yaw_angle,
+			speed * delta
+		)
+
+	# 2. PITCH ROTATION (Vertical around local X axis)
+	if pitch_node != null:
+		var local_target := pitch_node.to_local(target.global_position)
+		var distance_xz := Vector2(local_target.x, local_target.z).length()
+		var target_pitch_angle := atan2(local_target.y, distance_xz)
+
+		var min_pitch := deg_to_rad(params.min_pitch_deg)
+		var max_pitch := deg_to_rad(params.max_pitch_deg)
+		var desired_pitch := clampf(target_pitch_angle, min_pitch, max_pitch)
+
+		pitch_node.rotation.x = rotate_toward(
+			pitch_node.rotation.x,
+			desired_pitch,
+			speed * delta
+		)
+
+
+func _find_yaw_node() -> Node3D:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var yaw := parent_node.find_child("TurretYaw", true, false) as Node3D
+		if yaw == null:
+			yaw = parent_node.find_child("Yaw", true, false) as Node3D
+		if yaw != null:
+			return yaw
+	var local_yaw := find_child("TurretYaw", true, false) as Node3D
+	if local_yaw == null:
+		local_yaw = find_child("Yaw", true, false) as Node3D
+	return local_yaw
+
+
+func _find_pitch_node() -> Node3D:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var pitch := parent_node.find_child("TurretPitch", true, false) as Node3D
+		if pitch == null:
+			pitch = parent_node.find_child("Pitch", true, false) as Node3D
+		if pitch != null:
+			return pitch
+	var local_pitch := find_child("TurretPitch", true, false) as Node3D
+	if local_pitch == null:
+		local_pitch = find_child("Pitch", true, false) as Node3D
+	return local_pitch
 
 
 ## Finds the closest active hostile entity within range.

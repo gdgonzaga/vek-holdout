@@ -70,6 +70,7 @@ nav:
     - "Authoring Need Definitions": HOWTO-author-need-defs.md
     - "Transferring Animpic models": HOWTO-transfer-animpic-models.md
     - "Authoring World Item Meshes": HOWTO-author-worlditems.md
+    - "Authoring Defensive Turrets": HOWTO-author-turrets.md
   - About:
     - "Adding a page": architecture/contributing.md
 

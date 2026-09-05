@@ -33,6 +33,16 @@ enum ProjectileType {
 ## child node is present on the furniture. Defaults to 2.0m above ground (0, 2.0, 0).
 @export var muzzle_offset: Vector3 = Vector3(0, 2.0, 0)
 
+@export_group("Tracking")
+## Rotation tracking speed in radians per second.
+@export var turn_speed: float = 5.0
+
+## Minimum downward pitch angle limit in degrees.
+@export var min_pitch_deg: float = -15.0
+
+## Maximum upward pitch angle limit in degrees.
+@export var max_pitch_deg: float = 60.0
+
 @export_group("Projectile")
 ## 3D visual PackedScene (.glb) rendered on the moving projectile. Takes precedence over projectile_mesh.
 @export var projectile_scene: PackedScene = null

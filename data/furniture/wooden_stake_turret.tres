@@ -3,12 +3,12 @@
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
 [ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_os1o8"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_8pour"]
-[ext_resource type="Texture2D" uid="uid://bdis1vroo3ywf" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.png" id="2_ln2na"]
+[ext_resource type="Texture2D" uid="uid://vvmdstrmy750" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.png" id="2_ln2na"]
 [ext_resource type="Script" uid="uid://bx8eopmw77d7s" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
 [ext_resource type="Resource" uid="uid://dyoa05atjswxr" path="res://data/items/wooden_stake.tres" id="3_ammo"]
 [ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_ln2na"]
-[ext_resource type="Texture2D" uid="uid://ckeuk3wa5tsxn" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks.png" id="5_8pour"]
-[ext_resource type="PackedScene" uid="uid://dcaoqjihs1uoj" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb" id="5_tryv4"]
+[ext_resource type="PackedScene" uid="uid://b2mqiknnfscx4" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb" id="8_ln2na"]
+[ext_resource type="PackedScene" uid="uid://31a8lrnxigj5" path="res://assets/custom/wooden_stake/wooden_stake.glb" id="8_tryv4"]
 
 [sub_resource type="Resource" id="Resource_u6rff"]
 script = ExtResource("2_8pour")
@@ -16,15 +16,14 @@ item_def = ExtResource("3_ln2na")
 count = 10
 metadata/_custom_type_script = "uid://taqanw6psc6o"
 
-[sub_resource type="Resource" id="Resource_3d8ur"]
-metadata/__load_path__ = "res://assets/custom_meshes/turret.res"
-
 [sub_resource type="Resource" id="TurretParams_wooden_stake_turret"]
 script = ExtResource("2_tparams_script")
 range = 18.0
-damage = 15
+damage = 5
 ammo_type = ExtResource("3_ammo")
-projectile_speed = 30.0
+turn_speed = 1.0
+projectile_scene = ExtResource("8_tryv4")
+projectile_speed = 1.0
 explosion_radius = 0.0
 
 [resource]
@@ -35,9 +34,7 @@ id = "wooden_stake_turret"
 display_name = "Wooden Stake Turret"
 icon = ExtResource("2_ln2na")
 hp = 150
-scene = ExtResource("5_tryv4")
-mesh = SubResource("Resource_3d8ur")
-texture = ExtResource("5_8pour")
+scene = ExtResource("8_ln2na")
 material_cost = Array[ExtResource("2_8pour")]([SubResource("Resource_u6rff")])
 unlocked_by_default = true
 build_time = 3.0

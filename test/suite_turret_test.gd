@@ -417,3 +417,83 @@ func test_turret_projectile_falls_back_to_ammo_scene() -> void:
 			break
 
 	assert_object(scene_child).is_not_null()
+
+
+func test_turret_yaw_pitch_node_discovery() -> void:
+	var furniture := Node3D.new()
+	auto_free(furniture)
+	_sandbox.container.add_child(furniture)
+
+	var yaw_node := Node3D.new()
+	yaw_node.name = "TurretYaw"
+	furniture.add_child(yaw_node)
+
+	var pitch_node := Node3D.new()
+	pitch_node.name = "TurretPitch"
+	yaw_node.add_child(pitch_node)
+
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	furniture.add_child(turret)
+
+	assert_object(turret._find_yaw_node()).is_equal(yaw_node)
+	assert_object(turret._find_pitch_node()).is_equal(pitch_node)
+
+
+func test_turret_yaw_rotation_towards_target() -> void:
+	var furniture := Node3D.new()
+	auto_free(furniture)
+	_sandbox.container.add_child(furniture)
+	furniture.global_position = Vector3.ZERO
+
+	var yaw_node := Node3D.new()
+	yaw_node.name = "TurretYaw"
+	furniture.add_child(yaw_node)
+
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.range = 20.0
+	tparams.turn_speed = 10.0
+	turret.params = tparams
+	furniture.add_child(turret)
+
+	# Target directly to the right (+X direction: Vector3(10, 0, 0))
+	var enemy := _make_mock_enemy(Vector3(10, 0, 0))
+
+	# Step 1 tick (0.05s * 10 rad/s = 0.5 rad rotation)
+	turret._tick(0.05)
+
+	# rotation.y should have rotated towards -PI/2 (-1.57 rad)
+	assert_float(yaw_node.rotation.y).is_less(0.0)
+
+
+func test_turret_pitch_clamping() -> void:
+	var furniture := Node3D.new()
+	auto_free(furniture)
+	_sandbox.container.add_child(furniture)
+	furniture.global_position = Vector3.ZERO
+
+	var pitch_node := Node3D.new()
+	pitch_node.name = "TurretPitch"
+	furniture.add_child(pitch_node)
+
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.range = 50.0
+	tparams.turn_speed = 100.0 # High speed to reach clamp instantly
+	tparams.max_pitch_deg = 30.0
+	turret.params = tparams
+	furniture.add_child(turret)
+
+	# Target high above within range (50m max): Vector3(0, 30, -5) -> dist ~30.4m
+	var enemy := _make_mock_enemy(Vector3(0, 30, -5))
+
+	turret._tick(1.0)
+
+	# rotation.x should clamp to 30 deg (0.5236 rad)
+	var max_pitch_rad := deg_to_rad(30.0)
+	assert_float(pitch_node.rotation.x).is_equal_approx(max_pitch_rad, 0.01)
