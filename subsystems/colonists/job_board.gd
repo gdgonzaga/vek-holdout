@@ -204,8 +204,6 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 							if c != null:
 								best_crate = c
 								break
-					if best_crate == null:
-						best_crate = colony.storage_registry.nearest_crate(colonist.global_position)
 					if best_crate != null:
 						var haul_job := Job.from_def(HAULING_DEF)
 						haul_job.title = "Store Carried Items"

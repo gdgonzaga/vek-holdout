@@ -328,8 +328,8 @@ func test_hauling_def_work_site_with_job_instance() -> void:
 	assert_vector(HAULING_DEF.work_site(colonist, job_inst) as Vector3).is_equal(Vector3(4.0, 0.0, 4.0))
 
 
-## When the sink becomes satisfied before hauler arrives, work_site routes to crate and complete() deposits surplus.
-func test_hauling_def_returns_surplus_when_sink_satisfied_early() -> void:
+## When the sink becomes satisfied before hauler arrives, complete() does not deposit surplus to crate (retains it).
+func test_hauling_def_retains_surplus_when_sink_satisfied_early() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
 	var crate: Furniture = _sandbox.make_crate("plank", 0)
 	crate.global_position = Vector3(10.0, 0.0, 10.0)
@@ -343,15 +343,13 @@ func test_hauling_def_returns_surplus_when_sink_satisfied_early() -> void:
 	job.location = Vector3(3.0, 0.0, 3.0)
 
 	colonist.inventory.add("plank", 3)
-	assert_vector(HAULING_DEF.work_site(colonist, job) as Vector3).is_equal(Vector3(10.0, 0.0, 10.0))
-
 	HAULING_DEF.complete(colonist, job)
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
-	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(3)
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(3)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(0)
 
 
-## BTActionClaimJob dumps surplus items when the held claim is spent.
-func test_claim_job_dumps_surplus_when_claim_is_spent() -> void:
+## BTActionClaimJob retains surplus items in inventory when the held claim is spent.
+func test_claim_job_retains_surplus_when_claim_is_spent() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
 	colonist.global_position = Vector3(5.0, 0.0, 5.0)
 	var crate: Furniture = _sandbox.make_crate("plank", 0)
@@ -378,8 +376,46 @@ func test_claim_job_dumps_surplus_when_claim_is_spent() -> void:
 	task.execute(0.1)
 	
 	assert_bool(_blackboard.has_var(&"active_claim")).is_false()
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(2)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(0)
+
+
+## Claiming an unrelated job drops unneeded non-tool items on the floor to free capacity.
+func test_cleanup_incompatible_held_items_drops_unneeded_items_on_new_job() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.inventory.add("plank", 5)
+	colonist.inventory.add("axe", 1)
+
+	var stub_def: StubCompletingJobDef = auto_free(StubCompletingJobDef.new()) as StubCompletingJobDef
+	var job := Job.new()
+	job.def = stub_def
+
+	var task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	task.initialize(colonist, _blackboard, colonist)
+	task._cleanup_incompatible_held_items(colonist, job)
+
+	# Planks are dropped because the stub job does not need them; axe (tool) is kept.
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
-	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(2)
+	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
+
+
+## Navigation failure for a Store Carried Items job drops carried non-tool items on floor.
+func test_unreachable_store_carried_items_drops_items_on_nav_failure() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.inventory.add("plank", 4)
+	colonist.inventory.add("axe", 1)
+
+	var store_job := Job.from_def(HAULING_DEF)
+	store_job.title = "Store Carried Items"
+	_blackboard.set_var(&"active_job", store_job)
+
+	var nav_task: BTAction = auto_free(BTActionNavigateToScript.new()) as BTAction
+	nav_task.initialize(colonist, _blackboard, colonist)
+	nav_task._handle_navigation_failure()
+
+	# Planks dropped to floor; axe kept.
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
 
 
 func test_perform_work_unassigns_legacy_job_after_cycle() -> void:

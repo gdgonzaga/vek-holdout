@@ -218,10 +218,9 @@ func test_producer_spawns_haul_job_with_zero_stock() -> void:
 
 # ── Tool retention ────────────────────────────────────────────────────────────
 
-## The deliver cycle deposits up to the sink's need and dumps the surplus back
-## to the nearest crate — carried TOOLS are exempt (a fetched axe must survive
-## a haul run).
-func test_deliver_cycle_dumps_surplus_but_keeps_tools() -> void:
+## The deliver cycle deposits up to the sink's need and retains the surplus in
+## inventory for subsequent physical delivery — carried TOOLS are also kept.
+func test_deliver_cycle_deposits_need_and_retains_surplus_and_tools() -> void:
 	var colonist := _sandbox.make_colonist()
 	colonist.inventory.add("plank", 5)  # 3 deposited, 2 surplus
 	colonist.inventory.add("axe", 1) # data/items/axe.tres: tags ["tool", "axe"]
@@ -234,8 +233,8 @@ func test_deliver_cycle_dumps_surplus_but_keeps_tools() -> void:
 	job.target_node = sink
 	HAULING_DEF.complete(colonist, job)
 	assert_bool(sink.satisfied).is_true()
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
-	assert_int(crate_inv.get_item_count("plank")).is_equal(2)
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(2)
+	assert_int(crate_inv.get_item_count("plank")).is_equal(0)
 	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
 	assert_int(crate_inv.get_item_count("axe")).is_equal(0)
 

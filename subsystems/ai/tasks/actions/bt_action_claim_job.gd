@@ -39,9 +39,9 @@ func _tick(_delta: float) -> Status:
 				blackboard.erase_var(job_var)
 				if agent is Colonist:
 					(agent as Colonist).current_job = null
-					_dump_surplus_items(agent as Colonist)
 			else:
-				_cleanup_incompatible_held_items(colonist)
+				var active_job_inst: Variant = blackboard.get_var(job_var) if blackboard.has_var(job_var) else null
+				_cleanup_incompatible_held_items(colonist, active_job_inst)
 				return SUCCESS
 
 	if blackboard.has_var(job_var):
@@ -51,9 +51,8 @@ func _tick(_delta: float) -> Status:
 				blackboard.erase_var(job_var)
 				if agent is Colonist:
 					(agent as Colonist).current_job = null
-					_dump_surplus_items(agent as Colonist)
 			else:
-				_cleanup_incompatible_held_items(colonist)
+				_cleanup_incompatible_held_items(colonist, existing_job)
 				return SUCCESS
 
 	var colony: Node = agent.get_node_or_null("/root/Colony")
@@ -83,9 +82,14 @@ func _tick(_delta: float) -> Status:
 		elif "target_position" in best_job:
 			blackboard.set_var(target_pos_var, best_job.target_position)
 			
+		var tool_tag: StringName = &""
 		if "job_def" in best_job and best_job.job_def != null and "required_tool_tag" in best_job.job_def:
-			blackboard.set_var(&"required_tool_tag", best_job.job_def.required_tool_tag)
-			_cleanup_incompatible_held_items(colonist)
+			tool_tag = best_job.job_def.required_tool_tag
+		if tool_tag != &"":
+			blackboard.set_var(&"required_tool_tag", tool_tag)
+		else:
+			blackboard.erase_var(&"required_tool_tag")
+		_cleanup_incompatible_held_items(colonist, best_job)
 		return SUCCESS
 		
 	# Legacy Job support
@@ -104,23 +108,67 @@ func _tick(_delta: float) -> Status:
 			blackboard.set_var(target_pos_var, Vector3(best_job.anchor_cell) + Vector3(0.5, 0.5, 0.5))
 		elif best_job.target_node != null and is_instance_valid(best_job.target_node):
 			blackboard.set_var(target_pos_var, (best_job.target_node as Node3D).global_position if best_job.target_node is Node3D else Vector3.ZERO)
+		var tool_tag: StringName = &""
 		if best_job.def != null and "required_tool_tag" in best_job.def:
-			blackboard.set_var(&"required_tool_tag", best_job.def.required_tool_tag)
-			_cleanup_incompatible_held_items(colonist)
+			tool_tag = best_job.def.required_tool_tag
+		if tool_tag != &"":
+			blackboard.set_var(&"required_tool_tag", tool_tag)
+		else:
+			blackboard.erase_var(&"required_tool_tag")
+		_cleanup_incompatible_held_items(colonist, best_job)
 		return SUCCESS
 		
 	return FAILURE
 
 
-func _cleanup_incompatible_held_items(colonist: Colonist) -> void:
+func _cleanup_incompatible_held_items(colonist: Colonist, job: Variant = null) -> void:
 	if colonist == null or colonist.inventory == null or not colonist.hands_full():
 		return
+
+	# 1. Tool check
 	var req_tag: StringName = &""
 	if blackboard.has_var(&"required_tool_tag"):
 		req_tag = blackboard.get_var(&"required_tool_tag")
 	if req_tag != &"":
 		if not colonist.inventory.has_item_tag(String(req_tag)):
 			colonist.drop_held_item()
+
+	# 2. Inventory hygiene for non-tool items
+	if job == null:
+		return
+
+	if "title" in job and job.title == "Store Carried Items":
+		return
+
+	var needed_ids: Array[String] = []
+	var def: Resource = null
+	if "def" in job:
+		def = job.def
+	elif "job_def" in job:
+		def = job.job_def
+
+	if def is HaulingJobDef:
+		if def._storage_crate_of(job) != null:
+			return
+		var sink = def._sink_of(job)
+		if sink != null:
+			for nid in sink.needed_item_ids():
+				needed_ids.append(str(nid))
+		var wi = def._world_item_of(job)
+		if wi != null:
+			needed_ids.append(str(wi.item_id))
+
+	for item_id in colonist.inventory.items.keys().duplicate():
+		var id_str := str(item_id)
+		var item_def := ItemDB.get_def(id_str) if ItemDB != null else null
+		if item_def != null and item_def.tags.has("tool"):
+			continue
+		if not needed_ids.has(id_str):
+			var count: int = colonist.inventory.get_item_count(id_str)
+			if count > 0:
+				colonist.inventory.remove(id_str, count)
+				if colonist.is_inside_tree():
+					WorldItem.spawn_at(colonist, id_str, count, colonist.global_position + Vector3(0, 0.5, 0))
 
 
 ## True when a held claim can no longer be worked: its units are finished, or
@@ -143,30 +191,3 @@ func _job_is_dead(job: Variant) -> bool:
 	if "is_cancelled" in job and bool(job.is_cancelled):
 		return true
 	return false
-
-
-func _dump_surplus_items(colonist: Colonist) -> void:
-	if colonist == null or colonist.inventory == null or not colonist.hands_full():
-		return
-	var colony: Node = colonist.get_node_or_null("/root/Colony")
-	var items: Array = colonist.inventory.items.keys().duplicate()
-	for item_id in items:
-		var id_str := str(item_id)
-		var def := ItemDB.get_def(id_str) if ItemDB != null else null
-		if def != null and def.tags.has("tool"):
-			continue
-		var count: int = colonist.inventory.get_item_count(id_str)
-		if count <= 0:
-			continue
-		## Prefer a crate with capacity for this specific item; if none has
-		## room (all full) fall back to spawning a WorldItem on the floor.
-		var crate_inv: Inventory = null
-		if colony != null and "storage_registry" in colony and colony.storage_registry != null:
-			var crate = colony.storage_registry.find_storage_for(id_str, colonist.global_position, count)
-			if crate != null:
-				crate_inv = colony.storage_registry.inventory_of(crate)
-		if crate_inv != null:
-			colonist.inventory.transfer_to(crate_inv, id_str, count)
-		elif colonist.is_inside_tree():
-			colonist.inventory.remove(id_str, count)
-			WorldItem.spawn_at(colonist, id_str, count, colonist.global_position + Vector3(0, 0.5, 0))

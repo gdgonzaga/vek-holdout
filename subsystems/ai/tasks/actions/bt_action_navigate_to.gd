@@ -265,6 +265,18 @@ func _handle_navigation_failure() -> void:
 				job.abandon_claim(colonist_id)
 			elif agent is Colonist and job.has_method("unassign"):
 				job.unassign(agent as Colonist)
+			if "title" in job and job.title == "Store Carried Items" and agent is Colonist:
+				var colonist := agent as Colonist
+				if colonist.inventory != null and colonist.hands_full():
+					for item_id in colonist.inventory.items.keys().duplicate():
+						var item_def := ItemDB.get_def(str(item_id)) if ItemDB != null else null
+						if item_def != null and item_def.tags.has("tool"):
+							continue
+						var count: int = colonist.inventory.get_item_count(str(item_id))
+						if count > 0:
+							colonist.inventory.remove(str(item_id), count)
+							if colonist.is_inside_tree():
+								WorldItem.spawn_at(colonist, str(item_id), count, colonist.global_position + Vector3(0, 0.5, 0))
 		blackboard.erase_var(&"active_job")
 
 	if blackboard.has_var(target_var):

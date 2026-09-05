@@ -55,14 +55,6 @@ func work_site(actor: Node, job: Variant) -> Variant:
 				return (sink as Node3D).global_position
 			return Vector3.ZERO
 
-		# If we're carrying surplus material and sink is already full, route to crate
-		if sink.has_complete_materials() or not Colony.storage_registry.has_source_for(sink.needed_item_ids()):
-			var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
-			if pocket != null and not pocket.items.is_empty():
-				var crate := Colony.storage_registry.nearest_crate(actor_pos)
-				if crate != null:
-					return crate.global_position
-
 		var crate := Colony.storage_registry.find_source(
 				sink.needed_item_ids(), actor_pos)
 		if crate == null:
@@ -90,10 +82,17 @@ func work_site(actor: Node, job: Variant) -> Variant:
 
 
 func complete(actor: Node, job: Variant) -> void:
-	print("completing haul")
 	var direct_crate := _storage_crate_of(job)
 	if direct_crate != null:
-		_return_surplus_to_crate(actor)
+		var crate_inv := Colony.storage_registry.inventory_of(direct_crate)
+		var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
+		if pocket != null and crate_inv != null:
+			for item_id in pocket.items.keys().duplicate():
+				if _is_tool(str(item_id)):
+					continue
+				var count: int = pocket.get_item_count(str(item_id))
+				if count > 0:
+					pocket.transfer_to(crate_inv, str(item_id), count)
 		_finish(actor, job)
 		return
 
@@ -102,11 +101,8 @@ func complete(actor: Node, job: Variant) -> void:
 		if _carries_needed_material(actor, sink):
 			sink.deposit_from(actor)
 			_free_collected_hidden_items(actor, "")
-			if sink.has_complete_materials():
-				_return_surplus_to_crate(actor)
 			return
 		if sink.has_complete_materials():
-			_return_surplus_to_crate(actor)
 			return
 		var crate := Colony.storage_registry.find_source(
 				sink.needed_item_ids(), (actor as Node3D).global_position if actor is Node3D else Vector3.ZERO)
@@ -142,8 +138,7 @@ func complete(actor: Node, job: Variant) -> void:
 			if is_instance_valid(target_item):
 				if target_item.count <= 0:
 					target_item.hide_item()
-					if target_item != world_item:
-						_unregister_item_from_colony(target_item)
+					_unregister_item_from_colony(target_item)
 			return
 
 		# 2. If delivering to crate
@@ -161,7 +156,13 @@ func complete(actor: Node, job: Variant) -> void:
 					elif actor.is_inside_tree():
 						pocket.remove(world_item.item_id, count)
 						WorldItem.spawn_at(actor, world_item.item_id, count, actor_pos + Vector3(0, 0.5, 0))
-			_return_surplus_to_crate(actor)
+				if crate_inv != null:
+					for other_id in pocket.items.keys().duplicate():
+						if _is_tool(str(other_id)):
+							continue
+						var other_count: int = pocket.get_item_count(str(other_id))
+						if other_count > 0 and crate_inv.can_add(str(other_id), 1):
+							pocket.transfer_to(crate_inv, str(other_id), other_count)
 			_free_collected_hidden_items(actor, world_item.item_id)
 			if is_instance_valid(world_item):
 				if world_item.count <= 0:
@@ -222,7 +223,7 @@ func is_available_for(job: Variant, actor: Node = null) -> bool:
 				var claimer_str := str(claimer) if claimer != null else ""
 				if not assigned.has(claimer_str):
 					return false
-		return Colony.storage_registry.get_all_crates().size() > 0
+		return Colony.storage_registry != null and Colony.storage_registry.find_storage_for(world_item.item_id, world_item.global_position) != null
 
 	return false
 
@@ -267,7 +268,7 @@ func on_abort(actor: Node, job: Variant, _elapsed: float = 0.0) -> void:
 	if world_item != null and is_instance_valid(world_item):
 		world_item.unreserve(actor)
 		if world_item.count <= 0 and not world_item.visible:
-			world_item.show_item()
+			world_item.queue_free()
 	var tree := (actor as Node).get_tree() if actor != null else null
 	if tree != null and tree.root != null:
 		_unreserve_actor_items_recursive(tree.root, actor)
@@ -281,7 +282,7 @@ func _unreserve_actor_items_recursive(node: Node, actor: Node) -> void:
 		if item.is_reserved_by(actor):
 			item.unreserve(actor)
 			if item.count <= 0 and not item.visible:
-				item.show_item()
+				item.queue_free()
 	for child in node.get_children():
 		_unreserve_actor_items_recursive(child, actor)
 
