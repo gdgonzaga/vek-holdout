@@ -51,6 +51,7 @@ func setup(
 func _ready() -> void:
 	monitoring = true
 	monitorable = false
+	collision_mask = 1 | 2 | 4 | 64
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
 
