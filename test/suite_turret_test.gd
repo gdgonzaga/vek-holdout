@@ -497,3 +497,37 @@ func test_turret_pitch_clamping() -> void:
 	# rotation.x should clamp to 30 deg (0.5236 rad)
 	var max_pitch_rad := deg_to_rad(30.0)
 	assert_float(pitch_node.rotation.x).is_equal_approx(max_pitch_rad, 0.01)
+
+
+func test_turret_projectile_ignores_parent_furniture_and_siblings() -> void:
+	var furniture := Node3D.new()
+	auto_free(furniture)
+	_sandbox.container.add_child(furniture)
+
+	var barrel_body := StaticBody3D.new()
+	auto_free(barrel_body)
+	furniture.add_child(barrel_body)
+
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	turret.params = tparams
+	furniture.add_child(turret)
+
+	var target := Node3D.new()
+	auto_free(target)
+	_sandbox.container.add_child(target)
+	target.global_position = Vector3(0, 0, -10)
+
+	var proj := turret._fire_at(target)
+	auto_free(proj)
+
+	# Simulate impact with the turret's own barrel body and furniture root
+	proj._handle_impact(barrel_body)
+	assert_bool(proj._exploded).is_false()
+	assert_bool(proj.is_queued_for_deletion()).is_false()
+
+	proj._handle_impact(furniture)
+	assert_bool(proj._exploded).is_false()
+	assert_bool(proj.is_queued_for_deletion()).is_false()

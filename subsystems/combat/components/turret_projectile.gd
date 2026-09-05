@@ -73,7 +73,7 @@ func _on_area_entered(area: Area3D) -> void:
 func _handle_impact(hit_node: Node) -> void:
 	if _exploded:
 		return
-	if hit_node == _source_turret or (_source_turret != null and _source_turret.is_ancestor_of(hit_node)):
+	if _is_source_or_descendant(hit_node):
 		return
 
 	_exploded = true
@@ -115,7 +115,7 @@ func _explode() -> void:
 		var hits := space_state.intersect_shape(query, 64)
 		for hit in hits:
 			var collider: Node = hit.collider as Node
-			if collider == null or collider == _source_turret or (_source_turret != null and _source_turret.is_ancestor_of(collider)):
+			if collider == null or _is_source_or_descendant(collider):
 				continue
 			var root_target := _find_damageable(collider)
 			if root_target != null and not damaged_targets.has(root_target):
@@ -216,3 +216,14 @@ func _apply_mat_recursive(node: Node, mat: Material) -> void:
 		(node as MeshInstance3D).material_override = mat
 	for child in node.get_children():
 		_apply_mat_recursive(child, mat)
+
+
+func _is_source_or_descendant(node: Node) -> bool:
+	if node == null or _source_turret == null:
+		return false
+	if node == _source_turret or _source_turret.is_ancestor_of(node):
+		return true
+	var source_parent := _source_turret.get_parent()
+	if source_parent != null and (node == source_parent or source_parent.is_ancestor_of(node)):
+		return true
+	return false

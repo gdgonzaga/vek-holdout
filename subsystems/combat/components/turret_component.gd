@@ -210,6 +210,7 @@ func _fire_at(target: Node3D) -> TurretProjectile:
 	if dir == Vector3.ZERO:
 		dir = -global_transform.basis.z
 
-	projectile.setup(origin_xform, dir, params, self)
+	var source_node: Node = get_parent() if get_parent() != null else self
+	projectile.setup(origin_xform, dir, params, source_node)
 	projectile_fired.emit(projectile, target)
 	return projectile
