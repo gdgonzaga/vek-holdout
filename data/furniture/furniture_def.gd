@@ -7,8 +7,27 @@ class_name FurnitureDef
 ## (FurnitureDef); Functional Rooms C1 tracking in docs/architecture/tech-debt.md.
 ##
 ## Inherits id/display_name/hp/mesh/material_cost/unlocked_by_default from
-## BuildableDef. `mesh` is the ghost-preview shape (same as blocks); it does not
-## need to fill the dimensions.
+## BuildableDef. `scene` is the primary visual/hierarchical scene (e.g. .glb with
+## sockets like Muzzle, custom collisions, sub-meshes, and animations). When `scene`
+## is provided, it is instantiated for physical placement, blueprint holograms,
+## and build ghost previews. If null, falls back to `mesh`.
+##
+## 3D Mesh & Turret Authoring in Blender:
+## - Origin / Pivot: Place the mesh origin (orange dot) at the bottom-center of the
+##   furniture model at floor level (Z = 0.0 in Blender).
+## - Forward Direction: Godot treats -Z as forward (look_at orientation). In Blender,
+##   model the furniture/turret facing -Y (front orthographic view, Numpad 1).
+## - Turret Muzzle Socket: For turrets, place a Blender Empty named "Muzzle"
+##   (Shift+A -> Empty -> Plain Axes) at the tip of the barrel and parent it to the
+##   turret mesh. TurretComponent automatically detects this child node and fires
+##   projectiles from its world position. Alternatively, configure `muzzle_offset`
+##   on `TurretParams` (default: Vector3(0, 2.0, 0)).
+## - Projectile Alignment: Projectile meshes modeled in Blender should face -Y so they
+##   fly point-first along Godot's -Z trajectory. Projectiles modeled upright (+Y)
+##   are automatically pitched -90 degrees around X by TurretProjectile.
+## - Apply Transforms: Before exporting from Blender, select all parts in Object Mode
+##   and press Ctrl+A -> Apply All Transforms (or Rotation & Scale).
+## - Export: Export as glTF 2.0 (.glb) with "+Y Up" enabled (Blender default).
 ##
 ## Deferred: a capability-unlocking field (working name base_system) so Colony can
 ## count placed furniture toward Functional Rooms (GDD §7.8). Not on this class

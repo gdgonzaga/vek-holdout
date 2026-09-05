@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://cbqowfvwn4abc"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://d3nq8t74gf1wj" path="res://assets/custom_images/wrought_steel_ingot.png" id="1_u00au"]
+[ext_resource type="ArrayMesh" uid="uid://bsrvi47xmr8t0" path="res://assets/custom_meshes/wrought_steel_ingot.res" id="2_u00au"]
+
+[resource]
+resource_name = "Wrought Steel Ingot"
+script = ExtResource("1_def")
+id = "wrought_steel_ingot"
+weight = 2.5
+icon = ExtResource("1_u00au")
+mesh = ExtResource("2_u00au")
+tags = Array[String](["material", "metal", "ingot"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

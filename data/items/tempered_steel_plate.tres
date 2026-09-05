@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://bg4dpuitvl4tk"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://dabxfbe8ewnym" path="res://assets/custom_images/tempered_steel_plate.png" id="1_ljwaw"]
+[ext_resource type="ArrayMesh" uid="uid://c78yd2iv2kh5h" path="res://assets/custom_meshes/tempered_steel_plate.res" id="2_ljwaw"]
+
+[resource]
+resource_name = "Tempered Steel Plate"
+script = ExtResource("1_def")
+id = "tempered_steel_plate"
+weight = 2.0
+icon = ExtResource("1_ljwaw")
+mesh = ExtResource("2_ljwaw")
+tags = Array[String](["item", "loot", "gating_item", "metal"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

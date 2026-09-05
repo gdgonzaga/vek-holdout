@@ -114,19 +114,25 @@ func _physics_process(_delta: float) -> void:
 			# Block: red unit box on the struck cell.
 			_ghost.show_remove_at(Vector3(struck))
 		elif furniture_layer != null and furniture_layer.has_at(struck):
-			# Furniture: red overlay of the targeted piece's own mesh, using its
+			# Furniture: red overlay of the targeted piece's own scene or mesh, using its
 			# placed transform so it sits exactly on the real furniture.
 			var furn: Furniture = furniture_layer.get_furniture_at(struck)
-			if furn != null and furn.def != null and furn.def.mesh != null:
-				_ghost.show_remove_mesh_at(furn.global_position, furn.def.mesh, furn.rotation_degrees.y)
+			var furn_def := furn.def as FurnitureDef if furn != null else null
+			if furn_def != null and furn_def.scene != null:
+				_ghost.show_remove_scene_at(furn.global_position, furn_def.scene, furn.rotation_degrees.y)
+			elif furn != null and furn.def != null and furn.def.get_mesh() != null:
+				_ghost.show_remove_mesh_at(furn.global_position, furn.def.get_mesh(), furn.rotation_degrees.y)
 			else:
 				_ghost.show_remove_at(Vector3(struck))
 		elif blueprint_layer != null and blueprint_layer.has_at(struck):
-			# Blueprint: red overlay of its target's mesh (or a unit box if the
+			# Blueprint: red overlay of its target's scene or mesh (or a unit box if the
 			# target has no mesh, e.g. a voxel block).
 			var bp: Blueprint = blueprint_layer.get_blueprint_at(struck)
-			if bp != null and bp.def != null and bp.def.mesh != null:
-				_ghost.show_remove_mesh_at(bp.global_position, bp.def.mesh, bp.rotation_degrees.y)
+			var bp_def := bp.def as FurnitureDef if bp != null else null
+			if bp_def != null and bp_def.scene != null:
+				_ghost.show_remove_scene_at(bp.global_position, bp_def.scene, bp.rotation_degrees.y)
+			elif bp != null and bp.def != null and bp.def.get_mesh() != null:
+				_ghost.show_remove_mesh_at(bp.global_position, bp.def.get_mesh(), bp.rotation_degrees.y)
 			else:
 				_ghost.show_remove_at(Vector3(struck))
 		else:
@@ -152,14 +158,18 @@ func _physics_process(_delta: float) -> void:
 		# Furniture: footprint center on XZ; valid only if every covered cell is free
 		# (anchor-cell support when the hit was smooth ground).
 		ghost_pos = _furniture_ghost_pos(cell)
-		var furn_def := BuildLibrary.get_def(selected_id)
-		_ghost.mesh = furn_def.mesh if furn_def != null else null
+		var furn_def := BuildLibrary.get_def(selected_id) as FurnitureDef
 		valid = _is_footprint_free(cell, furn_def) \
 			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
+		var yaw := rotation_state.get_yaw_degrees()
+		if furn_def != null and furn_def.scene != null:
+			_ghost.show_scene_at(ghost_pos, furn_def.scene, yaw, valid)
+		else:
+			_ghost.mesh = furn_def.get_mesh() if furn_def != null else null
+			_ghost.show_at(ghost_pos, valid)
+			_ghost.rotation_degrees.y = yaw
 		if DEBUG_RAYCAST:
 			print("[DEBUG] furniture ghost_pos=%s valid=%s" % [ghost_pos, valid])
-		_ghost.show_at(ghost_pos, valid)
-		_ghost.rotation_degrees.y = rotation_state.get_yaw_degrees()
 	else:
 		# Block (or nothing selected): single cell at the corner. Valid only if
 		# the cell is air, not already covered by a blueprint, and — for
@@ -168,11 +178,12 @@ func _physics_process(_delta: float) -> void:
 			and (blueprint_layer == null or not blueprint_layer.has_at(cell)) \
 			and (not smooth_hit or grid_adapter.is_ground_supported(cell))
 		var def := BuildLibrary.get_def(selected_id)
-		_ghost.mesh = def.mesh if def != null else null
-		if def is BlockDef and def.mesh != null:
+		var block_mesh := def.get_mesh() if def != null else null
+		_ghost.mesh = block_mesh
+		if def is BlockDef and block_mesh != null:
 			var cell_center := Vector3(cell)
 			var rot_basis := Basis(Vector3.UP, deg_to_rad(rotation_state.get_yaw_degrees()))
-			var local_center := def.mesh.get_aabb().get_center()
+			var local_center := block_mesh.get_aabb().get_center()
 			ghost_pos = cell_center - rot_basis * local_center + _GHOST_OFFSET
 			_ghost.show_at(ghost_pos, valid)
 			_ghost.transform.basis = rot_basis
@@ -237,9 +248,12 @@ func _on_buildable_selected(id: String) -> void:
 		_set_ghost_mesh()
 
 
-func _set_ghost_mesh():
+func _set_ghost_mesh() -> void:
 	var def := BuildLibrary.get_def(selected_id)
-	_ghost.mesh = def.mesh if def != null else null
+	if def is FurnitureDef and def.scene != null:
+		_ghost.mesh = null
+	else:
+		_ghost.mesh = def.get_mesh() if def != null else null
 
 func _try_commit() -> void:
 	if grid_adapter == null or _camera == null or strategy == null or selected_id == "":

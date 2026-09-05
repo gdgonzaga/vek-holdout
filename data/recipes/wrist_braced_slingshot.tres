@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_amount"]
+[ext_resource type="Resource" path="res://data/items/plank.tres" id="3_plank"]
+[ext_resource type="Resource" path="res://data/items/steel_spring.tres" id="4_steel_spring"]
+[ext_resource type="Resource" path="res://data/items/wrist_braced_slingshot.tres" id="5_wrist_braced_slingshot"]
+
+[sub_resource type="Resource" id="Resource_in_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("3_plank")
+[sub_resource type="Resource" id="Resource_in_2"]
+script = ExtResource("2_amount")
+item_def = ExtResource("4_steel_spring")
+[sub_resource type="Resource" id="Resource_out_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("5_wrist_braced_slingshot")
+
+[resource]
+resource_name = "Wrist-braced Slingshot"
+script = ExtResource("1_script")
+id = "wrist_braced_slingshot"
+display_name = "Wrist-braced Slingshot"
+inputs = Array[ExtResource("2_amount")]([SubResource("Resource_in_1"), SubResource("Resource_in_2")])
+outputs = Array[ExtResource("2_amount")]([SubResource("Resource_out_1")])
+base_time = 5.0

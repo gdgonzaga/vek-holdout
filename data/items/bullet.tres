@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://c6xv3n3w8eydg"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Bullet"
+script = ExtResource("1_def")
+id = "bullet"
+weight = 0.05
+tags = Array[String](["ammo", "bullet", "cartridge"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

@@ -1,10 +1,19 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://iof1bkwop4r6"]
 
+[ext_resource type="Texture2D" uid="uid://da810q76y53y2" path="res://assets/custom_images/rock.png" id="1_33d0g"]
+[ext_resource type="Texture2D" uid="uid://cdyjxcbcrw3fa" path="res://assets/realer_than_real_textures/MT00079_Rock.png" id="1_jn7y5"]
 [ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_pc3sn"]
+[ext_resource type="ArrayMesh" uid="uid://casxxfbo2w7al" path="res://tmp/AAA-save/Polygon-Mega Survival Kit/SM_Stone_01.SM_Stone_01.mesh" id="1_rqmsi"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u6rff"]
+albedo_texture = ExtResource("1_jn7y5")
 
 [resource]
 resource_name = "rock"
 script = ExtResource("1_pc3sn")
 id = "rock"
 weight = 1.0
+icon = ExtResource("1_33d0g")
+mesh = ExtResource("1_rqmsi")
+material = SubResource("StandardMaterial3D_u6rff")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

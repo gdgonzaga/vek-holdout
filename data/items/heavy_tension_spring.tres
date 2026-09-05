@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://ccmeyqr1rfhb6"]
+
+[ext_resource type="Texture2D" uid="uid://cmfixu454pqrx" path="res://assets/custom_images/heavy_tension_spring.png" id="1_c2dvr"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="ArrayMesh" uid="uid://ch27rrevq87gg" path="res://assets/custom_meshes/heavy_tension_spring.res" id="2_c2dvr"]
+
+[resource]
+resource_name = "Heavy Tension Spring"
+script = ExtResource("1_def")
+id = "heavy_tension_spring"
+weight = 0.8
+icon = ExtResource("1_c2dvr")
+mesh = ExtResource("2_c2dvr")
+tags = Array[String](["material", "component", "spring"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

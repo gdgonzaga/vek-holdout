@@ -7,18 +7,25 @@
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_w5oe4"]
 [ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_cae44"]
 [ext_resource type="Resource" path="res://data/action_options/open_crafting_action_option.tres" id="4_option"]
-[ext_resource type="Resource" uid="uid://do6oips3dvmvh" path="res://data/recipes/planks.tres" id="4_wnmg4"]
 [ext_resource type="Script" uid="uid://d34atue8w8nei" path="res://data/capability_params/crafting_params.gd" id="5_cparams"]
 [ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="6_recipe"]
+[ext_resource type="Resource" uid="uid://do6oips3dvmvh" path="res://data/recipes/planks.tres" id="10_planks"]
+[ext_resource type="Resource" uid="uid://dr7qjk12m8ku" path="res://data/recipes/axe.tres" id="11_axe"]
+[ext_resource type="Resource" uid="uid://beahrbtru3ar0" path="res://data/recipes/braided_cord.tres" id="12_braided_cord"]
+[ext_resource type="Resource" uid="uid://06uvryhouuvc" path="res://data/recipes/flask.tres" id="13_flask"]
+[ext_resource type="Resource" uid="uid://i2w7ido5id8p" path="res://data/recipes/wooden_club.tres" id="14_wooden_club"]
+[ext_resource type="Resource" uid="uid://cokqc4rqqb8bo" path="res://data/recipes/wooden_slingshot.tres" id="15_wooden_slingshot"]
+[ext_resource type="Resource" uid="uid://1tnyrqgv3j52" path="res://data/recipes/wooden_stake.tres" id="16_wooden_stake"]
+[ext_resource type="Resource" uid="uid://dyr65dok0y823" path="res://data/recipes/arrow.tres" id="17_arrow"]
 
 [sub_resource type="Resource" id="Resource_craft"]
 script = ExtResource("5_cparams")
-recipes = Array[ExtResource("6_recipe")]([ExtResource("4_wnmg4")])
+recipes = Array[ExtResource("6_recipe")]([ExtResource("10_planks"), ExtResource("11_axe"), ExtResource("12_braided_cord"), ExtResource("13_flask"), ExtResource("14_wooden_club"), ExtResource("15_wooden_slingshot"), ExtResource("16_wooden_stake"), ExtResource("17_arrow")])
 
-[sub_resource type="Resource" id="Resource_8sr6i"]
+[sub_resource type="Resource" id="Resource_cost"]
 script = ExtResource("2_w5oe4")
 item_def = ExtResource("3_cae44")
-count = 15
+count = 3
 metadata/_custom_type_script = "uid://taqanw6psc6o"
 
 [resource]
@@ -31,6 +38,7 @@ display_name = "Workbench"
 hp = 60
 mesh = ExtResource("1_8yjq3")
 texture = ExtResource("2_tex")
-material_cost = Array[ExtResource("2_w5oe4")]([SubResource("Resource_8sr6i")])
+material_cost = Array[ExtResource("2_w5oe4")]([SubResource("Resource_cost")])
 unlocked_by_default = true
 build_time = 10.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

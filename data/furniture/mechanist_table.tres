@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_h56v0"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_w5oe4"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_cae44"]
+[ext_resource type="Resource" path="res://data/action_options/open_crafting_action_option.tres" id="4_option"]
+[ext_resource type="Script" uid="uid://d34atue8w8nei" path="res://data/capability_params/crafting_params.gd" id="5_cparams"]
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="6_recipe"]
+[ext_resource type="Resource" path="res://data/recipes/clockwork_mechanism.tres" id="10_clockwork_mechanism"]
+[ext_resource type="Resource" path="res://data/recipes/heavy_tension_spring.tres" id="11_heavy_tension_spring"]
+[ext_resource type="Resource" path="res://data/recipes/baton.tres" id="12_baton"]
+[ext_resource type="Resource" path="res://data/recipes/wrist_braced_slingshot.tres" id="13_wrist_braced_slingshot"]
+[ext_resource type="Resource" path="res://data/recipes/handheld_crossbow.tres" id="14_handheld_crossbow"]
+[ext_resource type="Resource" path="res://data/recipes/crossbow.tres" id="15_crossbow"]
+[ext_resource type="Resource" path="res://data/recipes/musket.tres" id="16_musket"]
+[ext_resource type="Resource" path="res://data/recipes/frontier_rifle.tres" id="17_frontier_rifle"]
+[ext_resource type="Resource" path="res://data/recipes/rotary_stake_cannon.tres" id="18_rotary_stake_cannon"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_mechanist_table"]
+size = Vector3(2, 1, 1)
+
+[sub_resource type="Resource" id="Resource_craft"]
+script = ExtResource("5_cparams")
+recipes = Array[ExtResource("6_recipe")]([ExtResource("10_clockwork_mechanism"), ExtResource("11_heavy_tension_spring"), ExtResource("12_baton"), ExtResource("13_wrist_braced_slingshot"), ExtResource("14_handheld_crossbow"), ExtResource("15_crossbow"), ExtResource("16_musket"), ExtResource("17_frontier_rifle"), ExtResource("18_rotary_stake_cannon")])
+
+[sub_resource type="Resource" id="Resource_cost"]
+script = ExtResource("2_w5oe4")
+item_def = ExtResource("3_cae44")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[resource]
+script = ExtResource("1_script")
+id = "mechanist_table"
+display_name = "Mechanist Table"
+hp = 100
+dimensions = Vector3i(2, 1, 1)
+mesh = SubResource("BoxMesh_mechanist_table")
+action_options = Array[ExtResource("1_h56v0")]([ExtResource("4_option")])
+crafting_params = SubResource("Resource_craft")
+material_cost = Array[ExtResource("2_w5oe4")]([SubResource("Resource_cost")])
+unlocked_by_default = true
+build_time = 10.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://fjqn07tbsu4f"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://clwu7o2qw1lhi" path="res://assets/custom_images/precision_barrel.png" id="1_sr0ms"]
+[ext_resource type="ArrayMesh" uid="uid://dh808wv5lx57q" path="res://assets/custom_meshes/precision_barrel.res" id="2_dq1ev"]
+
+[resource]
+resource_name = "Precision Barrel"
+script = ExtResource("1_def")
+id = "precision_barrel"
+weight = 1.8
+icon = ExtResource("1_sr0ms")
+mesh = ExtResource("2_dq1ev")
+tags = Array[String](["item", "loot", "gating_item", "component"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

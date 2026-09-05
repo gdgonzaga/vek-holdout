@@ -96,8 +96,8 @@ func spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D:
 	for off in footprint_cells(dims, yaw_quarters):
 		if _anchor_by_cell.has(anchor + off):
 			return null   # overlaps an existing item
-	if def.mesh == null:
-		push_error("FurnitureLayer: def '%s' has no mesh" % def.id)
+	if def.get_mesh() == null and def.scene == null:
+		push_error("FurnitureLayer: def '%s' has no mesh or scene" % def.id)
 		return null
 	var node := _create_furniture_node(def, dims, yaw_quarters)
 	node.name = "Furniture_%s" % def.id
@@ -116,26 +116,34 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	root.def_id = def.id
 	root.def = def
 	var mesh_node: MeshInstance3D = root.find_child("Mesh")
-	mesh_node.mesh = def.mesh
-	# Build the albedo material from def.texture. Skipped when null so meshes that
-	# carry their own embedded material (e.g. OBJ with .mtl) keep it; without this,
-	# material-less meshes (e.g. extracted GLTF) render with Godot's white default.
-	# NOTE: do not call a build_material() helper on the def from a @tool context —
-	# editor tool-script instances load stale compiled bytecode after a script edit
-	# (has_method returns true but the call throws). Access `texture` directly.
-	if def.texture != null:
-		var mat := StandardMaterial3D.new()
-		mat.albedo_texture = def.texture
-		mesh_node.material_override = mat
+	if def.scene != null:
+		if mesh_node != null:
+			mesh_node.hide()
+		var scene_instance := def.scene.instantiate() as Node3D
+		if scene_instance != null:
+			root.add_child(scene_instance)
+			_setup_scene_collision(scene_instance)
+	else:
+		mesh_node.mesh = def.get_mesh()
+		# Build the albedo material from def.texture. Skipped when null so meshes that
+		# carry their own embedded material (e.g. OBJ with .mtl) keep it; without this,
+		# material-less meshes (e.g. extracted GLTF) render with Godot's white default.
+		# NOTE: do not call a build_material() helper on the def from a @tool context —
+		# editor tool-script instances load stale compiled bytecode after a script edit
+		# (has_method returns true but the call throws). Access `texture` directly.
+		if def.texture != null:
+			var mat := StandardMaterial3D.new()
+			mat.albedo_texture = def.texture
+			mesh_node.material_override = mat
 
-	mesh_node.create_trimesh_collision()
-	
-	if mesh_node.get_child_count() > 0:
-		var mesh_static_body: StaticBody3D = mesh_node.get_child(0) as StaticBody3D
-		if mesh_static_body != null:
-			mesh_static_body.name = "MapStaticBody"
-			mesh_static_body.set_collision_layer_value(1, true)
-			mesh_static_body.collision_mask = 0
+		mesh_node.create_trimesh_collision()
+		
+		if mesh_node.get_child_count() > 0:
+			var mesh_static_body: StaticBody3D = mesh_node.get_child(0) as StaticBody3D
+			if mesh_static_body != null:
+				mesh_static_body.name = "MapStaticBody"
+				mesh_static_body.set_collision_layer_value(1, true)
+				mesh_static_body.collision_mask = 0
 	
 	# BuildCollider is a CollisionShape3D (a CollisionObject3D's child), NOT a
 	# CollisionObject3D — cast accordingly. Without this the cast returned null and
@@ -251,9 +259,9 @@ func is_steppable_at(cell: Vector3i, max_height: float) -> bool:
 	if anchor == null:
 		return false
 	var node: Furniture = _node_by_anchor.get(anchor)
-	if node == null or node.def == null or node.def.mesh == null:
+	if node == null or node.def == null or node.def.get_mesh() == null:
 		return false
-	var mesh_height: float = node.def.mesh.get_aabb().size.y
+	var mesh_height: float = node.def.get_mesh().get_aabb().size.y
 	return mesh_height <= max_height
 
 
@@ -315,3 +323,29 @@ func _clear() -> void:
 			node.queue_free()
 	_node_by_anchor.clear()
 	_anchor_by_cell.clear()
+func _setup_scene_collision(root_node: Node) -> void:
+	var static_bodies: Array[StaticBody3D] = []
+	var meshes: Array[MeshInstance3D] = []
+	_find_physics_and_meshes(root_node, static_bodies, meshes)
+	if not static_bodies.is_empty():
+		for sb in static_bodies:
+			sb.set_collision_layer_value(1, true)
+			sb.collision_mask = 0
+	else:
+		for mi in meshes:
+			mi.create_trimesh_collision()
+			if mi.get_child_count() > 0:
+				var sb := mi.get_child(0) as StaticBody3D
+				if sb != null:
+					sb.name = "MapStaticBody"
+					sb.set_collision_layer_value(1, true)
+					sb.collision_mask = 0
+
+
+func _find_physics_and_meshes(node: Node, out_bodies: Array[StaticBody3D], out_meshes: Array[MeshInstance3D]) -> void:
+	if node is StaticBody3D:
+		out_bodies.append(node as StaticBody3D)
+	elif node is MeshInstance3D:
+		out_meshes.append(node as MeshInstance3D)
+	for child in node.get_children():
+		_find_physics_and_meshes(child, out_bodies, out_meshes)

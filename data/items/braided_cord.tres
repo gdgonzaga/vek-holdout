@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://eyjekbsggqr7"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://bvx0gx1hn4wt6" path="res://assets/custom_images/braided_cord.png" id="1_qobpp"]
+[ext_resource type="ArrayMesh" uid="uid://d2h5iu0eh633t" path="res://assets/custom_meshes/braided_cord.res" id="2_qobpp"]
+
+[resource]
+resource_name = "Braided Cord"
+script = ExtResource("1_def")
+id = "braided_cord"
+weight = 0.3
+icon = ExtResource("1_qobpp")
+mesh = ExtResource("2_qobpp")
+tags = Array[String](["material", "component", "textile"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

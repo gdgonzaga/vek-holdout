@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3 uid="uid://4y8hvxma23gy"]
+
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_i0vna"]
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_amount"]
+[ext_resource type="Resource" uid="uid://b0cvrcma3362q" path="res://data/items/black_powder.tres" id="3_black_powder"]
+[ext_resource type="Resource" path="res://data/items/tempered_steel_shrapnel.tres" id="4_tempered_steel_shrapnel"]
+[ext_resource type="Resource" path="res://data/items/fragment_bomb.tres" id="5_fragment_bomb"]
+
+[sub_resource type="Resource" id="Resource_in_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("3_black_powder")
+
+[sub_resource type="Resource" id="Resource_in_2"]
+script = ExtResource("2_amount")
+item_def = ExtResource("4_tempered_steel_shrapnel")
+
+[sub_resource type="Resource" id="Resource_out_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("5_fragment_bomb")
+
+[resource]
+resource_name = "Fragment Bomb"
+script = ExtResource("1_script")
+id = "fragment_bomb"
+display_name = "Fragment Bomb"
+inputs = Array[ExtResource("2_amount")]([SubResource("Resource_in_1"), SubResource("Resource_in_2")])
+outputs = Array[ExtResource("2_amount")]([SubResource("Resource_out_1")])
+base_time = 6.0

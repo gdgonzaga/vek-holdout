@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://b61cv80s4mgl"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://dsq7xb7db6nhq" path="res://assets/custom_images/steel_spring.png" id="1_hyln5"]
+[ext_resource type="ArrayMesh" uid="uid://7x7i445nrs1q" path="res://assets/custom_meshes/steel_spring.res" id="2_hyln5"]
+
+[resource]
+resource_name = "Steel Spring"
+script = ExtResource("1_def")
+id = "steel_spring"
+weight = 0.5
+icon = ExtResource("1_hyln5")
+mesh = ExtResource("2_hyln5")
+tags = Array[String](["item", "loot", "gating_item", "component"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

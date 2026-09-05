@@ -23,6 +23,7 @@ signal count_changed(new_count: int)
 var _pickup_option: ActionOption
 var _forbid_option: ActionOption
 var _reserved_by: Variant = null
+var _scene_instance: Node3D = null
 
 
 func _ready() -> void:
@@ -210,38 +211,89 @@ func update_visuals_and_interaction() -> void:
 		interaction.display_name = "%s (x%d)%s" % [display_name, count, status]
 		interaction.info_text = "Forbidden from hauling" if forbidden else ""
 
-	if mesh_instance != null:
-		_apply_mesh(def)
+	_apply_mesh(def)
 	_apply_collision(def)
 
 
 func _apply_mesh(def: ItemDef) -> void:
-	if def != null and def.mesh != null:
-		mesh_instance.mesh = def.mesh
-		mesh_instance.scale = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
-		if def.material != null:
-			mesh_instance.material_override = def.material
-		else:
-			mesh_instance.material_override = null
-	else:
-		if mesh_instance.mesh == null or not (mesh_instance.mesh is BoxMesh):
-			var box := BoxMesh.new()
-			box.size = Vector3(0.3, 0.3, 0.3)
-			mesh_instance.mesh = box
-		mesh_instance.scale = Vector3.ONE
-		if mesh_instance.material_override == null:
-			mesh_instance.material_override = StandardMaterial3D.new()
+	if _scene_instance != null and is_instance_valid(_scene_instance):
+		_scene_instance.queue_free()
+		_scene_instance = null
 
-	if forbidden:
-		var mat := mesh_instance.material_override as StandardMaterial3D
-		if mat == null:
-			mat = StandardMaterial3D.new()
-			mesh_instance.material_override = mat
-		mat.albedo_color = Color(0.85, 0.25, 0.2)
-	elif def == null or (def.mesh == null and def.material == null):
-		var mat := mesh_instance.material_override as StandardMaterial3D
-		if mat != null:
-			mat.albedo_color = Color(0.8, 0.65, 0.4)
+	if def != null and def.scene != null:
+		if mesh_instance != null:
+			mesh_instance.visible = false
+		var inst := def.scene.instantiate() as Node3D
+		if inst != null:
+			_scene_instance = inst
+			add_child(_scene_instance)
+			_scene_instance.scale = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
+			if def.material != null:
+				_apply_material_recursive(_scene_instance, def.material)
+			if forbidden:
+				var forbid_mat := StandardMaterial3D.new()
+				forbid_mat.albedo_color = Color(0.85, 0.25, 0.2)
+				_apply_material_recursive(_scene_instance, forbid_mat)
+	elif def != null and def.mesh != null:
+		if mesh_instance != null:
+			mesh_instance.visible = true
+			mesh_instance.mesh = def.mesh
+			mesh_instance.scale = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
+			if def.material != null:
+				mesh_instance.material_override = def.material
+			else:
+				mesh_instance.material_override = null
+
+			if forbidden:
+				var mat := mesh_instance.material_override as StandardMaterial3D
+				if mat == null:
+					mat = StandardMaterial3D.new()
+					mesh_instance.material_override = mat
+				mat.albedo_color = Color(0.85, 0.25, 0.2)
+	else:
+		if mesh_instance != null:
+			mesh_instance.visible = true
+			if mesh_instance.mesh == null or not (mesh_instance.mesh is BoxMesh):
+				var box := BoxMesh.new()
+				box.size = Vector3(0.3, 0.3, 0.3)
+				mesh_instance.mesh = box
+			mesh_instance.scale = Vector3.ONE
+			if mesh_instance.material_override == null:
+				mesh_instance.material_override = StandardMaterial3D.new()
+
+			var mat := mesh_instance.material_override as StandardMaterial3D
+			if mat != null:
+				if forbidden:
+					mat.albedo_color = Color(0.85, 0.25, 0.2)
+				elif def == null or (def.mesh == null and def.material == null):
+					mat.albedo_color = Color(0.8, 0.65, 0.4)
+
+
+func _apply_material_recursive(node: Node, mat: Material) -> void:
+	if node is MeshInstance3D:
+		(node as MeshInstance3D).material_override = mat
+	for child in node.get_children():
+		_apply_material_recursive(child, mat)
+
+
+func _get_scene_aabb(root_node: Node3D) -> AABB:
+	var combined := AABB()
+	var first := true
+	var stack: Array[Node] = [root_node]
+	while not stack.is_empty():
+		var curr: Node = stack.pop_back()
+		if curr is MeshInstance3D and curr.mesh != null:
+			var local_aabb: AABB = curr.mesh.get_aabb()
+			var xform: Transform3D = root_node.global_transform.affine_inverse() * curr.global_transform if (root_node.is_inside_tree() and curr.is_inside_tree()) else curr.transform
+			var transformed_aabb: AABB = xform * local_aabb
+			if first:
+				combined = transformed_aabb
+				first = false
+			else:
+				combined = combined.merge(transformed_aabb)
+		for child in curr.get_children():
+			stack.append(child)
+	return combined if not first else AABB(Vector3(-0.15, -0.15, -0.15), Vector3(0.3, 0.3, 0.3))
 
 
 func _apply_collision(def: ItemDef) -> void:
@@ -251,7 +303,16 @@ func _apply_collision(def: ItemDef) -> void:
 		return
 
 	var box := BoxShape3D.new()
-	if def != null and def.mesh != null:
+	if def != null and def.scene != null and _scene_instance != null:
+		var aabb: AABB = _get_scene_aabb(_scene_instance)
+		var v_scale: Vector3 = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
+		box.size = Vector3(
+			maxf(0.15, absf(aabb.size.x * v_scale.x)),
+			maxf(0.15, absf(aabb.size.y * v_scale.y)),
+			maxf(0.15, absf(aabb.size.z * v_scale.z))
+		)
+		collision_shape.position = aabb.get_center() * v_scale
+	elif def != null and def.mesh != null:
 		var aabb: AABB = def.mesh.get_aabb()
 		var v_scale: Vector3 = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
 		box.size = Vector3(

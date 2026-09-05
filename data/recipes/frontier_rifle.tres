@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_amount"]
+[ext_resource type="Resource" path="res://data/items/wrought_steel_ingot.tres" id="3_wrought_steel_ingot"]
+[ext_resource type="Resource" path="res://data/items/precision_barrel.tres" id="4_precision_barrel"]
+[ext_resource type="Resource" path="res://data/items/black_powder.tres" id="5_black_powder"]
+[ext_resource type="Resource" path="res://data/items/frontier_rifle.tres" id="6_frontier_rifle"]
+
+[sub_resource type="Resource" id="Resource_in_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("3_wrought_steel_ingot")
+count = 2
+[sub_resource type="Resource" id="Resource_in_2"]
+script = ExtResource("2_amount")
+item_def = ExtResource("4_precision_barrel")
+[sub_resource type="Resource" id="Resource_in_3"]
+script = ExtResource("2_amount")
+item_def = ExtResource("5_black_powder")
+[sub_resource type="Resource" id="Resource_out_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("6_frontier_rifle")
+
+[resource]
+resource_name = "Frontier Rifle"
+script = ExtResource("1_script")
+id = "frontier_rifle"
+display_name = "Frontier Rifle"
+inputs = Array[ExtResource("2_amount")]([SubResource("Resource_in_1"), SubResource("Resource_in_2"), SubResource("Resource_in_3")])
+outputs = Array[ExtResource("2_amount")]([SubResource("Resource_out_1")])
+base_time = 12.0

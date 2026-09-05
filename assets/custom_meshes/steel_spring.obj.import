@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://c36akn18t6nut"
+path="res://.godot/imported/steel_spring.obj-669bd9ab6de03c82fa6945b1b0ede58a.mesh"
+
+[deps]
+
+files=["res://.godot/imported/steel_spring.obj-669bd9ab6de03c82fa6945b1b0ede58a.mesh"]
+
+source_file="res://assets/custom_meshes/steel_spring.obj"
+dest_files=["res://.godot/imported/steel_spring.obj-669bd9ab6de03c82fa6945b1b0ede58a.mesh", "res://.godot/imported/steel_spring.obj-669bd9ab6de03c82fa6945b1b0ede58a.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

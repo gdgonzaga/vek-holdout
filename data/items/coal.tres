@@ -1,9 +1,18 @@
-[gd_resource type="Resource" script_class="ItemDef" format=3]
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://ouv6hs600mfj"]
 
-[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://df1sr5grtnsli" path="res://assets/realer_than_real_textures/MT00310_Multi_Size_Bricks.PNG" id="1_0px5d"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://blrsl3e1j00xb" path="res://assets/custom_images/coal.png" id="1_mwvwm"]
+[ext_resource type="ArrayMesh" uid="uid://casxxfbo2w7al" path="res://tmp/AAA-save/Polygon-Mega Survival Kit/SM_Stone_01.SM_Stone_01.mesh" id="2_mwvwm"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wnoik"]
+albedo_texture = ExtResource("1_0px5d")
 
 [resource]
 resource_name = "Coal"
 script = ExtResource("1_def")
 id = "coal"
 weight = 1.0
+icon = ExtResource("1_mwvwm")
+mesh = ExtResource("2_mwvwm")
+material = SubResource("StandardMaterial3D_wnoik")

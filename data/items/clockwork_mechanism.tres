@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://o01mho678say"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://2a5mch7bos78" path="res://assets/custom_images/clockwork_mechanism.png" id="1_itwim"]
+[ext_resource type="ArrayMesh" uid="uid://dhltq45f54cfy" path="res://assets/custom_meshes/clockwork_mechanism.res" id="2_itwim"]
+
+[resource]
+resource_name = "Clockwork Mechanism"
+script = ExtResource("1_def")
+id = "clockwork_mechanism"
+weight = 1.0
+icon = ExtResource("1_itwim")
+mesh = ExtResource("2_itwim")
+tags = Array[String](["material", "component", "mechanism"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

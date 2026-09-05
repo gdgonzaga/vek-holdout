@@ -104,17 +104,22 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 
 	var is_block := target_def is BlockDef
 	var mesh_node: MeshInstance3D = root.find_child("Mesh")
-	# Show the target's shape. Authored def meshes use the voxel-corner convention
-	# (span (0,0,0)->(1,1,1)) and are used as-is. A plain BoxMesh is centered, so
-	# for a block (whose node sits at the cell corner) offset it +0.5 to cover the
-	# cell — mirrors GhostPreview.show_remove_at. (All current defs carry a mesh.)
-	if target_def.mesh != null:
-		mesh_node.mesh = target_def.mesh
+	if target_def.scene != null and not is_block:
+		if mesh_node != null:
+			mesh_node.hide()
+		var scene_instance := target_def.scene.instantiate() as Node3D
+		if scene_instance != null:
+			_prepare_blueprint_scene(scene_instance)
+			root.add_child(scene_instance)
+	elif target_def.get_mesh() != null:
+		var eff_mesh := target_def.get_mesh()
+		mesh_node.mesh = eff_mesh
 		if is_block:
 			var rot_basis := Basis(Vector3.UP, float(yaw_quarters) * PI * 0.5)
-			var local_center := target_def.mesh.get_aabb().get_center()
+			var local_center := eff_mesh.get_aabb().get_center()
 			mesh_node.position = Vector3(0.5, 0.5, 0.5) - rot_basis * local_center
 			mesh_node.transform.basis = rot_basis
+		mesh_node.material_override = _hologram_material()
 	else:
 		var box := BoxMesh.new()
 		box.size = Vector3.ONE
@@ -123,9 +128,7 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 			var rot_basis := Basis(Vector3.UP, float(yaw_quarters) * PI * 0.5)
 			mesh_node.position = Vector3(0.5, 0.5, 0.5)
 			mesh_node.transform.basis = rot_basis
-	# Hologram look (translucent, unshaded, double-sided). material_override so a
-	# source mesh's embedded material is replaced for the blueprint form only.
-	mesh_node.material_override = _hologram_material()
+		mesh_node.material_override = _hologram_material()
 
 	# Non-physical (GDD §7.6: blueprints don't collide or block pathing until
 	# construction starts). Deliberately NO trimesh on World (layer 1) — the
@@ -293,3 +296,14 @@ func _clear() -> void:
 			bp.queue_free()
 	_node_by_anchor.clear()
 	_anchor_by_cell.clear()
+func _prepare_blueprint_scene(node: Node) -> void:
+	if node is CollisionObject3D:
+		(node as CollisionObject3D).collision_layer = 0
+		(node as CollisionObject3D).collision_mask = 0
+	elif node is CollisionShape3D:
+		(node as CollisionShape3D).disabled = true
+	elif node is MeshInstance3D:
+		(node as MeshInstance3D).material_override = _hologram_material()
+	for child in node.get_children():
+		_prepare_blueprint_scene(child)
+

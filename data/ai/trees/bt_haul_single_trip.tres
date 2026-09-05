@@ -1,8 +1,10 @@
-[gd_resource type="BehaviorTree" format=3]
+[gd_resource type="BehaviorTree" format=3 uid="uid://nt4essjpxuml"]
 
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="1_1k4sd"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="2_dq3kl"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd" id="3_jsp2s"]
+[ext_resource type="Script" uid="uid://b4hd2b683awcc" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="1_1k4sd"]
+[ext_resource type="Script" uid="uid://bpmh16yj4fdaq" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="2_dq3kl"]
+[ext_resource type="Script" uid="uid://b26hdyiy3hrf8" path="res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd" id="3_jsp2s"]
+
+[sub_resource type="BlackboardPlan" id="BlackboardPlan_1k4sd"]
 
 [sub_resource type="BTAction" id="BTAction_qbobv"]
 script = ExtResource("1_1k4sd")
@@ -27,4 +29,5 @@ children = [SubResource("BTAction_qbobv"), SubResource("BTAction_fq4f1"), SubRes
 
 [resource]
 description = "Single-trip hauling sequence for material transport"
+blackboard_plan = SubResource("BlackboardPlan_1k4sd")
 root_task = SubResource("BTSequence_pep28")

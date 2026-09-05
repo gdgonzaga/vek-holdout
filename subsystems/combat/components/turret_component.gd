@@ -106,6 +106,27 @@ func _try_consume_ammo() -> bool:
 	return false
 
 
+## Returns the world position from which projectiles are launched.
+## Checks for a node named "Muzzle" under the parent furniture hierarchy first.
+## If absent, falls back to evaluating params.muzzle_offset relative to the turret's orientation.
+func get_muzzle_position() -> Vector3:
+	var muzzle_node := _find_muzzle_node()
+	if muzzle_node != null:
+		return muzzle_node.global_position
+
+	var offset := params.muzzle_offset if params != null else Vector3(0, 2.0, 0)
+	return global_transform * offset
+
+
+func _find_muzzle_node() -> Node3D:
+	var parent_node := get_parent()
+	if parent_node != null:
+		var muzzle := parent_node.find_child("Muzzle", true, false) as Node3D
+		if muzzle != null:
+			return muzzle
+	return find_child("Muzzle", true, false) as Node3D
+
+
 func _fire_at(target: Node3D) -> TurretProjectile:
 	var projectile := TurretProjectile.new()
 	var spawn_parent: Node = null
@@ -118,7 +139,7 @@ func _fire_at(target: Node3D) -> TurretProjectile:
 
 	spawn_parent.add_child(projectile)
 
-	var spawn_pos := global_position + Vector3(0, 0.5, 0)
+	var spawn_pos := get_muzzle_position()
 	var origin_xform := Transform3D(Basis(), spawn_pos)
 	var dir := spawn_pos.direction_to(target.global_position)
 	if dir == Vector3.ZERO:

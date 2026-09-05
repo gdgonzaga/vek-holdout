@@ -29,11 +29,23 @@ func setup(
 		damage = params.damage
 		projectile_type = params.projectile_type
 		explosion_radius = params.explosion_radius
-		_apply_mesh(params.projectile_mesh, params.projectile_material)
+		var scene_to_use: PackedScene = params.projectile_scene
+		var mesh_to_use: Mesh = params.projectile_mesh
+		var mat_to_use: Material = params.projectile_material
+		if scene_to_use == null and mesh_to_use == null and params.ammo_type != null:
+			scene_to_use = params.ammo_type.scene
+			mesh_to_use = params.ammo_type.mesh
+			if mat_to_use == null:
+				mat_to_use = params.ammo_type.material
+		_apply_visual(mesh_to_use, mat_to_use, scene_to_use)
 	var dir_norm := direction.normalized()
 	if dir_norm != Vector3.ZERO:
 		_velocity = dir_norm * speed
-		look_at(global_position + dir_norm, Vector3.UP if abs(dir_norm.y) < 0.99 else Vector3.FORWARD)
+		var up := Vector3.UP if abs(dir_norm.y) < 0.99 else Vector3.FORWARD
+		if is_inside_tree():
+			look_at(global_position + dir_norm, up)
+		else:
+			basis = Basis.looking_at(dir_norm, up)
 
 
 func _ready() -> void:
@@ -141,18 +153,36 @@ func _find_damageable(node: Node) -> Node:
 	return null
 
 
-func _apply_mesh(m: Mesh, mat: Material) -> void:
-	var mesh_inst := MeshInstance3D.new()
-	if m != null:
+func _apply_visual(m: Mesh, mat: Material, scn: PackedScene = null) -> void:
+	if scn != null:
+		var inst := scn.instantiate() as Node3D
+		if inst != null:
+			var aabb := _calculate_node_aabb(inst)
+			if aabb.size.y > aabb.size.z * 1.5 and aabb.size.y > aabb.size.x * 1.5:
+				inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+			if mat != null:
+				_apply_mat_recursive(inst, mat)
+			add_child(inst)
+	elif m != null:
+		var mesh_inst := MeshInstance3D.new()
 		mesh_inst.mesh = m
+		var aabb := m.get_aabb()
+		# If mesh is modeled along +Y (upright, like arrows), pitch down 90 deg around X
+		# so its tip faces forward along -Z.
+		if aabb.size.y > aabb.size.z * 1.5 and aabb.size.y > aabb.size.x * 1.5:
+			mesh_inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+		if mat != null:
+			mesh_inst.material_override = mat
+		add_child(mesh_inst)
 	else:
+		var mesh_inst := MeshInstance3D.new()
 		var default_sphere := SphereMesh.new()
 		default_sphere.radius = 0.1
 		default_sphere.height = 0.2
 		mesh_inst.mesh = default_sphere
-	if mat != null:
-		mesh_inst.material_override = mat
-	add_child(mesh_inst)
+		if mat != null:
+			mesh_inst.material_override = mat
+		add_child(mesh_inst)
 
 	if get_node_or_null("CollisionShape3D") == null:
 		var col_shape := CollisionShape3D.new()
@@ -160,3 +190,29 @@ func _apply_mesh(m: Mesh, mat: Material) -> void:
 		sphere_col.radius = 0.2
 		col_shape.shape = sphere_col
 		add_child(col_shape)
+
+
+func _calculate_node_aabb(root_node: Node3D) -> AABB:
+	var combined := AABB()
+	var first := true
+	var stack: Array[Node] = [root_node]
+	while not stack.is_empty():
+		var curr: Node = stack.pop_back()
+		if curr is MeshInstance3D and curr.mesh != null:
+			var local_aabb: AABB = curr.mesh.get_aabb()
+			var transformed_aabb: AABB = curr.transform * local_aabb
+			if first:
+				combined = transformed_aabb
+				first = false
+			else:
+				combined = combined.merge(transformed_aabb)
+		for child in curr.get_children():
+			stack.append(child)
+	return combined if not first else AABB()
+
+
+func _apply_mat_recursive(node: Node, mat: Material) -> void:
+	if node is MeshInstance3D:
+		(node as MeshInstance3D).material_override = mat
+	for child in node.get_children():
+		_apply_mat_recursive(child, mat)

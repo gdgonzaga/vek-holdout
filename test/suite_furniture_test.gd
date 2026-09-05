@@ -87,3 +87,66 @@ func test_shelf1_and_storage_crate_unlocked_by_default() -> void:
 	var crate_def := BuildLibrary.get_def("storage_crate")
 	assert_bool(crate_def.unlocked_by_default).is_true()
 	assert_bool(BuildLibrary.is_unlocked("storage_crate")).is_true()
+func test_furniture_layer_instantiates_scene_when_provided() -> void:
+	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
+	var container: Node3D = auto_free(Node3D.new())
+	add_child(container)
+	layer.set_container(container)
+
+	var scene_root := Node3D.new()
+	scene_root.name = "CustomSceneRoot"
+	var mi := MeshInstance3D.new()
+	mi.name = "VisualPart"
+	mi.mesh = BoxMesh.new()
+	scene_root.add_child(mi)
+	mi.owner = scene_root
+	var muzzle := Marker3D.new()
+	muzzle.name = "Muzzle"
+	scene_root.add_child(muzzle)
+	muzzle.owner = scene_root
+
+	var packed := PackedScene.new()
+	packed.pack(scene_root)
+	scene_root.free()
+
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	def.id = "test_scene_furniture"
+	def.scene = packed
+	def.dimensions = Vector3i.ONE
+
+	var node := layer.spawn(def, Vector3i(1, 0, 1), 0)
+	assert_object(node).is_not_null()
+	assert_object(node.find_child("CustomSceneRoot", true, false)).is_not_null()
+	assert_object(node.find_child("Muzzle", true, false)).is_not_null()
+
+
+func test_blueprint_layer_instantiates_scene_hologram_when_provided() -> void:
+	var layer: BlueprintLayer = auto_free(BlueprintLayer.new())
+	var container: Node3D = auto_free(Node3D.new())
+	add_child(container)
+	layer.set_container(container)
+
+	var scene_root := Node3D.new()
+	scene_root.name = "BlueprintSceneRoot"
+	var mi := MeshInstance3D.new()
+	mi.name = "HoloMesh"
+	mi.mesh = BoxMesh.new()
+	scene_root.add_child(mi)
+	mi.owner = scene_root
+
+	var packed := PackedScene.new()
+	packed.pack(scene_root)
+	scene_root.free()
+
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	def.id = "test_bp_scene"
+	def.scene = packed
+	def.dimensions = Vector3i.ONE
+
+	var node: Blueprint = layer.spawn_blueprint(def, Vector3i(2, 0, 2), 0)
+	assert_object(node).is_not_null()
+	assert_object(node.find_child("BlueprintSceneRoot", true, false)).is_not_null()
+	var holo_mi := node.find_child("HoloMesh", true, false) as MeshInstance3D
+	assert_object(holo_mi).is_not_null()
+	assert_object(holo_mi.material_override).is_not_null()
+

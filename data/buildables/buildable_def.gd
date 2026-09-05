@@ -3,12 +3,11 @@ class_name BuildableDef
 ## Base definition for everything the player can build: voxel blocks (walls,
 ## floors) and free-standing furniture/structures. Subclasses add kind-specific
 ## concerns — BlockDef adds rotational symmetry; FurnitureDef adds dimensions.
-## A per-instance Node3D scene (for the free-standing furniture
-## layer) is deferred to that subsystem.
 ##
 ## `id` is the canonical identifier across all buildable kinds (inherited by
-## subclasses; do not redeclare as block_id/furniture_id/etc.). `mesh` lives here
-## so the build ghost can preview any buildable's shape, not just voxel blocks.
+## subclasses; do not redeclare as block_id/furniture_id/etc.). `scene` and `mesh`
+## live here so the build ghost, voxel mesher, and furniture layers can preview
+## and instantiate any buildable's shape.
 ## `texture` is the albedo only — BlockLibrary builds a StandardMaterial3D from
 ## it (no separate material .tres per block type); the furniture authoring path
 ## does the same inline (see furniture_authoring.gd). Do NOT add a build_material()
@@ -27,6 +26,10 @@ class_name BuildableDef
 @export var display_name: String # UI label
 @export var icon: Texture2D = null # UI icon for the build menu (nullable; entry renders without it)
 @export var hp: int # Durability-before-HP buffer (GDD §6.11)
+## Primary 3D visual scene (e.g. .glb or .tscn). When provided, furniture layers,
+## blueprint holograms, and ghost previews use this scene directly. For voxel blocks,
+## BlockLibrary/VoxelLibraryGenerator extracts the underlying Mesh automatically.
+@export var scene: PackedScene = null
 @export var mesh: Mesh # Preview/placement mesh; voxel blocks MUST occupy (0,0,0)->(1,1,1)
 @export var texture: Texture2D # Albedo texture; BlockLibrary builds a StandardMaterial3D from this
 @export var texture_variation: bool = false # True → use per-block UV/brightness randomization shader
@@ -34,3 +37,28 @@ class_name BuildableDef
 @export var unlocked_by_default: bool = false # available without earning an unlock this run
 @export var build_time: float = 0.0
 @export var tags: Array[String] = []
+
+var _cached_mesh: Mesh = null
+
+
+## Returns the effective Mesh resource for this buildable: either the explicitly
+## assigned `mesh`, or extracted from the first MeshInstance3D in `scene` if `mesh` is null.
+func get_mesh() -> Mesh:
+	if mesh != null:
+		return mesh
+	if _cached_mesh != null:
+		return _cached_mesh
+	if scene != null:
+		var root := scene.instantiate()
+		if root != null:
+			var stack: Array[Node] = [root]
+			while not stack.is_empty():
+				var curr: Node = stack.pop_back()
+				if curr is MeshInstance3D and (curr as MeshInstance3D).mesh != null:
+					_cached_mesh = (curr as MeshInstance3D).mesh
+					break
+				for child in curr.get_children():
+					stack.append(child)
+			root.free()
+			return _cached_mesh
+	return null

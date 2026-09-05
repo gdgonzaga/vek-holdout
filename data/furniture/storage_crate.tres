@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="2_def"]
 [ext_resource type="ArrayMesh" uid="uid://vvw2v2uwwjax" path="res://tmp/Polygon-Mega Survival Construction/Models/Other/extracted/SM_Box_01.SM_Box_01.mesh" id="2_wcp53"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_84588"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_plank"]
 [ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="4_option_script"]
 [ext_resource type="Texture2D" uid="uid://dxjuehpac1au8" path="res://tmp/Polygon-Mega Survival Construction/Textures/TerrainTextures/Sand.png" id="5_4v0eb"]
 [ext_resource type="Script" uid="uid://cqa8ehd6p5jke" path="res://data/capability_params/storage_params.gd" id="5_params"]
@@ -12,14 +13,22 @@
 script = ExtResource("5_params")
 metadata/_custom_type_script = "uid://cqa8ehd6p5jke"
 
+[sub_resource type="Resource" id="Resource_cost"]
+script = ExtResource("3_84588")
+item_def = ExtResource("3_plank")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
 [resource]
 script = ExtResource("2_def")
 action_options = Array[ExtResource("4_option_script")]([ExtResource("2_4v0eb")])
 storage_params = SubResource("Resource_iq4t2")
+material_cost = Array[ExtResource("3_84588")]([SubResource("Resource_cost")])
 id = "storage_crate"
 display_name = "Storage Crate"
 hp = 100
 mesh = ExtResource("2_wcp53")
 texture = ExtResource("5_4v0eb")
 unlocked_by_default = true
+build_time = 5.0
 metadata/_custom_type_script = "uid://d1d6mt2bi578n"

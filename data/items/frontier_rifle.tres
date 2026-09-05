@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Frontier Rifle"
+script = ExtResource("1_def")
+id = "frontier_rifle"
+weight = 4.5
+tags = Array[String](["weapon", "ranged", "specialty", "marksmanship"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

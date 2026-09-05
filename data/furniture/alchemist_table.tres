@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://byspt45ejy3lt"]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_h56v0"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_w5oe4"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_cae44"]
+[ext_resource type="Resource" path="res://data/action_options/open_crafting_action_option.tres" id="4_option"]
+[ext_resource type="Script" uid="uid://d34atue8w8nei" path="res://data/capability_params/crafting_params.gd" id="5_cparams"]
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="6_recipe"]
+[ext_resource type="Resource" uid="uid://dgivsp0gbb8oi" path="res://data/recipes/black_powder.tres" id="10_black_powder"]
+[ext_resource type="Resource" uid="uid://y5hsar2r2h4q" path="res://data/recipes/fire_bomb.tres" id="11_fire_bomb"]
+[ext_resource type="Resource" uid="uid://4y8hvxma23gy" path="res://data/recipes/fragment_bomb.tres" id="12_fragment_bomb"]
+[ext_resource type="Resource" uid="uid://npjyuy6r30h2" path="res://data/recipes/bullet.tres" id="13_bullet"]
+[ext_resource type="Resource" uid="uid://d2a6co1cjfo5p" path="res://data/recipes/bomb.tres" id="14_bomb"]
+
+[sub_resource type="Resource" id="Resource_craft"]
+script = ExtResource("5_cparams")
+recipes = Array[ExtResource("6_recipe")]([ExtResource("10_black_powder"), ExtResource("11_fire_bomb"), ExtResource("12_fragment_bomb"), ExtResource("13_bullet"), ExtResource("14_bomb")])
+
+[sub_resource type="Resource" id="Resource_cost"]
+script = ExtResource("2_w5oe4")
+item_def = ExtResource("3_cae44")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[sub_resource type="BoxMesh" id="BoxMesh_alchemist_table"]
+size = Vector3(2, 1, 1)
+
+[resource]
+script = ExtResource("1_script")
+dimensions = Vector3i(2, 1, 1)
+action_options = Array[ExtResource("1_h56v0")]([ExtResource("4_option")])
+crafting_params = SubResource("Resource_craft")
+id = "alchemist_table"
+display_name = "Alchemist Table"
+hp = 80
+mesh = SubResource("BoxMesh_alchemist_table")
+material_cost = Array[ExtResource("2_w5oe4")]([SubResource("Resource_cost")])
+unlocked_by_default = true
+build_time = 10.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

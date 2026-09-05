@@ -1,11 +1,13 @@
-[gd_resource type="BehaviorTree" format=3]
+[gd_resource type="BehaviorTree" format=3 uid="uid://fexbqwgw2f6t"]
 
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="1_11mb1"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd" id="2_5jm7j"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="3_mf76j"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="4_gfj54"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="5_6uv41"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_wander.gd" id="6_oxad6"]
+[ext_resource type="Script" uid="uid://bpmh16yj4fdaq" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="1_11mb1"]
+[ext_resource type="Script" uid="uid://hl8784o1jltx" path="res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd" id="2_5jm7j"]
+[ext_resource type="Script" uid="uid://b4hd2b683awcc" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="3_mf76j"]
+[ext_resource type="Script" uid="uid://d0fs8rc8oghd6" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="4_gfj54"]
+[ext_resource type="Script" uid="uid://2yf65w8cogef" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="5_6uv41"]
+[ext_resource type="Script" uid="uid://db1p81mcvv8lj" path="res://subsystems/ai/tasks/actions/bt_action_wander.gd" id="6_oxad6"]
+
+[sub_resource type="BlackboardPlan" id="BlackboardPlan_11mb1"]
 
 [sub_resource type="BTAction" id="BTAction_11mb1"]
 script = ExtResource("1_11mb1")
@@ -54,4 +56,5 @@ children = [SubResource("BTSequence_mf76j"), SubResource("BTSubtree_oxad6"), Sub
 
 [resource]
 description = "Colonist master behavior tree with dynamic needs, work delegation, and idle wander"
+blackboard_plan = SubResource("BlackboardPlan_11mb1")
 root_task = SubResource("BTDynamicSelector_lkiyf")

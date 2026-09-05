@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://05fqx4a76j07"]
+
+[ext_resource type="Texture2D" uid="uid://cbbm357316hsw" path="res://assets/custom_images/flask.png" id="1_4yspb"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="ArrayMesh" uid="uid://dkunyiown6mwi" path="res://assets/custom_meshes/flask.res" id="2_4yspb"]
+
+[resource]
+resource_name = "Flask"
+script = ExtResource("1_def")
+id = "flask"
+weight = 0.4
+icon = ExtResource("1_4yspb")
+mesh = ExtResource("2_4yspb")
+tags = Array[String](["material", "container"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

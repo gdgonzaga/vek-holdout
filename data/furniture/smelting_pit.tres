@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://c6fsmeltpit01"]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_h56v0"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_w5oe4"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_cae44"]
+[ext_resource type="Resource" path="res://data/action_options/open_crafting_action_option.tres" id="4_option"]
+[ext_resource type="Script" uid="uid://d34atue8w8nei" path="res://data/capability_params/crafting_params.gd" id="5_cparams"]
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="6_recipe"]
+[ext_resource type="Texture2D" uid="uid://52q12i41qe7d" path="res://assets/custom_images/smelting_pit.png" id="8_3kbnp"]
+[ext_resource type="Resource" uid="uid://ciifs2wt4xki8" path="res://data/recipes/cast_iron_ingot.tres" id="10_cast_iron_ingot"]
+[ext_resource type="ArrayMesh" uid="uid://dicqshd2oa1gr" path="res://assets/custom_meshes/smelting_pit.res" id="10_qfogd"]
+[ext_resource type="Resource" uid="uid://dovd2h3l0jw58" path="res://data/recipes/brass_ingot.tres" id="11_brass_ingot"]
+[ext_resource type="Resource" uid="uid://ckrrghcg1kcbg" path="res://data/recipes/wrought_steel_ingot.tres" id="12_wrought_steel_ingot"]
+
+[sub_resource type="Resource" id="Resource_craft"]
+script = ExtResource("5_cparams")
+recipes = Array[ExtResource("6_recipe")]([ExtResource("10_cast_iron_ingot"), ExtResource("11_brass_ingot"), ExtResource("12_wrought_steel_ingot")])
+
+[sub_resource type="Resource" id="Resource_cost"]
+script = ExtResource("2_w5oe4")
+item_def = ExtResource("3_cae44")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[resource]
+script = ExtResource("1_script")
+dimensions = Vector3i(2, 2, 2)
+action_options = Array[ExtResource("1_h56v0")]([ExtResource("4_option")])
+crafting_params = SubResource("Resource_craft")
+id = "smelting_pit"
+display_name = "Smelting Pit"
+icon = ExtResource("8_3kbnp")
+hp = 150
+mesh = ExtResource("10_qfogd")
+material_cost = Array[ExtResource("2_w5oe4")]([SubResource("Resource_cost")])
+unlocked_by_default = true
+build_time = 10.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

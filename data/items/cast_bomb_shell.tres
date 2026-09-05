@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://ctvst55bgjvon"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://cqc5p23fs8243" path="res://assets/custom_images/cast_bomb_shell.png" id="1_np44n"]
+[ext_resource type="ArrayMesh" uid="uid://bbtaw2wwv4uuc" path="res://assets/custom_meshes/cast_bomb_shell.res" id="2_np44n"]
+
+[resource]
+resource_name = "Cast Bomb Shell"
+script = ExtResource("1_def")
+id = "cast_bomb_shell"
+weight = 2.0
+icon = ExtResource("1_np44n")
+mesh = ExtResource("2_np44n")
+tags = Array[String](["material", "component", "ammo_component"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

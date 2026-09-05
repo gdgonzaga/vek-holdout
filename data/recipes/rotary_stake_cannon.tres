@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_amount"]
+[ext_resource type="Resource" path="res://data/items/plank.tres" id="3_plank"]
+[ext_resource type="Resource" path="res://data/items/clockwork_mechanism.tres" id="4_clockwork_mechanism"]
+[ext_resource type="Resource" path="res://data/items/heavy_tension_spring.tres" id="5_heavy_tension_spring"]
+[ext_resource type="Resource" path="res://data/items/rotary_stake_cannon.tres" id="6_rotary_stake_cannon"]
+
+[sub_resource type="Resource" id="Resource_in_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("3_plank")
+count = 3
+[sub_resource type="Resource" id="Resource_in_2"]
+script = ExtResource("2_amount")
+item_def = ExtResource("4_clockwork_mechanism")
+count = 2
+[sub_resource type="Resource" id="Resource_in_3"]
+script = ExtResource("2_amount")
+item_def = ExtResource("5_heavy_tension_spring")
+count = 2
+[sub_resource type="Resource" id="Resource_out_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("6_rotary_stake_cannon")
+
+[resource]
+resource_name = "Rotary Stake Cannon"
+script = ExtResource("1_script")
+id = "rotary_stake_cannon"
+display_name = "Rotary Stake Cannon"
+inputs = Array[ExtResource("2_amount")]([SubResource("Resource_in_1"), SubResource("Resource_in_2"), SubResource("Resource_in_3")])
+outputs = Array[ExtResource("2_amount")]([SubResource("Resource_out_1")])
+base_time = 15.0

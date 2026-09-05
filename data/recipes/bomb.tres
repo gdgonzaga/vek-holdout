@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3 uid="uid://d2a6co1cjfo5p"]
+
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_tlaxy"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_amount"]
+[ext_resource type="Resource" uid="uid://ctvst55bgjvon" path="res://data/items/cast_bomb_shell.tres" id="3_cast_bomb_shell"]
+[ext_resource type="Resource" uid="uid://b0cvrcma3362q" path="res://data/items/black_powder.tres" id="4_black_powder"]
+[ext_resource type="Resource" uid="uid://brxslew51hukd" path="res://data/items/fiber.tres" id="5_fiber"]
+[ext_resource type="Resource" path="res://data/items/bomb.tres" id="6_bomb"]
+
+[sub_resource type="Resource" id="Resource_in_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("3_cast_bomb_shell")
+
+[sub_resource type="Resource" id="Resource_in_2"]
+script = ExtResource("2_amount")
+item_def = ExtResource("4_black_powder")
+count = 2
+
+[sub_resource type="Resource" id="Resource_in_3"]
+script = ExtResource("2_amount")
+item_def = ExtResource("5_fiber")
+
+[sub_resource type="Resource" id="Resource_out_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("6_bomb")
+count = 2
+
+[resource]
+resource_name = "Bomb"
+script = ExtResource("1_script")
+id = "bomb"
+display_name = "Bomb"
+inputs = Array[ExtResource("2_amount")]([SubResource("Resource_in_1"), SubResource("Resource_in_2"), SubResource("Resource_in_3")])
+outputs = Array[ExtResource("2_amount")]([SubResource("Resource_out_1")])
+base_time = 6.0

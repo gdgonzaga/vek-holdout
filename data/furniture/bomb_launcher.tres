@@ -4,7 +4,10 @@
 [ext_resource type="Script" uid="uid://cbp17b2pknl22" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
 [ext_resource type="Resource" path="res://data/items/bomb.tres" id="3_ammo"]
 
-[sub_resource type="Resource" id="TurretParams_bomb"]
+[sub_resource type="BoxMesh" id="BoxMesh_bomb_launcher"]
+size = Vector3(2, 1, 2)
+
+[sub_resource type="Resource" id="TurretParams_bomb_launcher"]
 script = ExtResource("2_tparams_script")
 range = 24.0
 fire_rate = 0.33
@@ -20,6 +23,7 @@ id = "bomb_launcher"
 display_name = "Bomb Launcher"
 hp = 200
 dimensions = Vector3i(2, 1, 2)
-turret_params = SubResource("TurretParams_bomb")
+mesh = SubResource("BoxMesh_bomb_launcher")
+turret_params = SubResource("TurretParams_bomb_launcher")
 unlocked_by_default = true
 metadata/_custom_type_script = "uid://d1d6mt2bi578n"

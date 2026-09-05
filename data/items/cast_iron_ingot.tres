@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://dj5xi3it6m5r2"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://cn5a42bafx1ed" path="res://assets/custom_images/cast_iron_ingot.png" id="1_xnawt"]
+[ext_resource type="ArrayMesh" uid="uid://bf52mtt5d2xc5" path="res://assets/custom_meshes/cast_iron_ingot.res" id="2_xnawt"]
+
+[resource]
+resource_name = "Cast Iron Ingot"
+script = ExtResource("1_def")
+id = "cast_iron_ingot"
+weight = 2.0
+icon = ExtResource("1_xnawt")
+mesh = ExtResource("2_xnawt")
+tags = Array[String](["material", "metal", "ingot"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

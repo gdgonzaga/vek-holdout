@@ -1200,9 +1200,10 @@ func _update_ghost(hit: Dictionary) -> void:
 		var cell_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
 		var rot_basis := VoxelBlockEncoder.rot_index_to_basis(_active_rotation_index)
 		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index) if _block_library != null else null
-		if not is_erase and def != null and def.mesh != null and _brush_diameter == 1:
-			_ghost.mesh = def.mesh
-			var mesh_aabb := def.mesh.get_aabb()
+		var eff_mesh: Mesh = def.get_mesh() if def != null else null
+		if not is_erase and def != null and eff_mesh != null and _brush_diameter == 1:
+			_ghost.mesh = eff_mesh
+			var mesh_aabb := eff_mesh.get_aabb()
 			var local_center := mesh_aabb.get_center()
 			_ghost.global_position = cell_center - rot_basis * local_center
 			_ghost.transform.basis = rot_basis
@@ -1236,7 +1237,8 @@ func _update_ghost(hit: Dictionary) -> void:
 			_hide_axis_line()
 			return
 		var def := _furniture_defs[_selected_furniture_idx]
-		if def == null or def.mesh == null or not hit.get("hit", false):
+		var furn_mesh: Mesh = def.get_mesh() if def != null else null
+		if def == null or furn_mesh == null or not hit.get("hit", false):
 			_ghost.visible = false
 			_hide_axis_line()
 			return
@@ -1245,7 +1247,7 @@ func _update_ghost(hit: Dictionary) -> void:
 			_ghost.visible = false
 			_hide_axis_line()
 			return
-		_ghost.mesh = def.mesh
+		_ghost.mesh = furn_mesh
 		_ghost.scale = Vector3.ONE
 		var dims := FurnitureLayer.dimensions_of(def)
 		var origin := FurnitureLayer.world_origin(anchor, dims, _yaw)

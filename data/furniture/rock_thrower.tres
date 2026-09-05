@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" uid="uid://cbp17b2pknl22" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
+[ext_resource type="Resource" path="res://data/items/rock.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_rock_thrower"]
+size = Vector3(2, 1, 2)
+
+[sub_resource type="Resource" id="TurretParams_rock_thrower"]
+script = ExtResource("2_tparams_script")
+range = 20.0
+fire_rate = 0.5
+damage = 25
+ammo_type = ExtResource("3_ammo")
+projectile_speed = 22.0
+projectile_type = 0
+explosion_radius = 0.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "rock_thrower"
+display_name = "Rock Thrower"
+hp = 175
+dimensions = Vector3i(2, 1, 2)
+mesh = SubResource("BoxMesh_rock_thrower")
+turret_params = SubResource("TurretParams_rock_thrower")
+unlocked_by_default = true
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

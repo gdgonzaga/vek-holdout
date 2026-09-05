@@ -1,10 +1,19 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://cjt4sw4frgw7o"]
 
+[ext_resource type="Texture2D" uid="uid://c6qmmviopv38w" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground.png" id="1_4n0ob"]
+[ext_resource type="Texture2D" uid="uid://clmjdh5o68cn3" path="res://assets/custom_images/dirt.png" id="1_iywga"]
 [ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="2_4n0ob"]
+[ext_resource type="ArrayMesh" uid="uid://casxxfbo2w7al" path="res://tmp/AAA-save/Polygon-Mega Survival Kit/SM_Stone_01.SM_Stone_01.mesh" id="2_iywga"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u6rff"]
+albedo_texture = ExtResource("1_4n0ob")
 
 [resource]
 resource_name = "dirt"
 script = ExtResource("2_4n0ob")
 id = "dirt"
 weight = 0.5
+icon = ExtResource("1_iywga")
+mesh = ExtResource("2_iywga")
+material = SubResource("StandardMaterial3D_u6rff")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

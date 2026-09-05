@@ -619,6 +619,46 @@ func test_world_item_custom_mesh_and_autofit_collision() -> void:
 	ItemDB._defs_by_id.erase("custom_test_item")
 
 
+func test_world_item_custom_scene_and_autofit_collision() -> void:
+	var custom_def := ItemDef.new()
+	custom_def.id = "custom_scene_item"
+
+	var packed_scene := PackedScene.new()
+	var root := Node3D.new()
+	var mi := MeshInstance3D.new()
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 0.2
+	cylinder.bottom_radius = 0.2
+	cylinder.height = 1.0
+	mi.mesh = cylinder
+	root.add_child(mi)
+	mi.owner = root
+	packed_scene.pack(root)
+	root.free()
+
+	custom_def.scene = packed_scene
+	custom_def.visual_scale = Vector3(1.0, 2.0, 1.0)
+
+	ItemDB._defs_by_id["custom_scene_item"] = custom_def
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.setup("custom_scene_item", 1, false)
+	_sandbox.container.add_child(item)
+
+	assert_bool(item.mesh_instance.visible).is_false()
+	assert_object(item._scene_instance).is_not_null()
+	assert_vector(item._scene_instance.scale).is_equal(Vector3(1.0, 2.0, 1.0))
+
+	var col_shape := item.collision_shape.shape as BoxShape3D
+	assert_object(col_shape).is_not_null()
+	assert_float(col_shape.size.x).is_equal_approx(0.4, 0.01)
+	assert_float(col_shape.size.y).is_equal_approx(2.0, 0.01)
+	assert_float(col_shape.size.z).is_equal_approx(0.4, 0.01)
+
+	ItemDB._defs_by_id.erase("custom_scene_item")
+
+
 func test_spawn_at_aligns_above_ground_surface() -> void:
 	var static_body: StaticBody3D = auto_free(StaticBody3D.new())
 	static_body.collision_layer = 1  # Layer 1 (World)

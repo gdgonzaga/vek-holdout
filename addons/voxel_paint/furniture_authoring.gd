@@ -97,17 +97,17 @@ func place(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Marker3D:
     marker.set_meta("yaw_quarters", yaw_quarters)
     marker.set_meta("anchor", anchor)
 
-    # Add preview mesh so the author can see what they placed.
-    if def.mesh != null:
+    # Add preview mesh/scene so the author can see what they placed.
+    if def.scene != null:
+        var scn_inst := def.scene.instantiate() as Node3D
+        if scn_inst != null:
+            scn_inst.name = "PreviewScene"
+            marker.add_child(scn_inst)
+    elif def.get_mesh() != null:
         var mesh_inst := MeshInstance3D.new()
         mesh_inst.name = "PreviewMesh"
-        mesh_inst.mesh = def.mesh
+        mesh_inst.mesh = def.get_mesh()
         mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-        # Match runtime: build the albedo material from def.texture so the preview
-        # shows the texture rather than Godot's white default (material-less meshes).
-        # Access `texture` directly — do NOT call a build_material() helper on the
-        # def here: editor tool-script instances load stale compiled bytecode after
-        # a script edit, so has_method() returns true but the call throws.
         if def.texture != null:
             var mat := StandardMaterial3D.new()
             mat.albedo_texture = def.texture

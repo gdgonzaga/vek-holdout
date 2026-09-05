@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://d4fvmxvm1nt4w"]
+
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_rojj1"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_t0ber"]
+[ext_resource type="Script" uid="uid://bx8eopmw77d7s" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
+[ext_resource type="Resource" path="res://data/items/arrow.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_arrow_launcher"]
+
+[sub_resource type="Resource" id="TurretParams_arrow_launcher"]
+script = ExtResource("2_tparams_script")
+range = 22.0
+fire_rate = 1.5
+damage = 18
+ammo_type = ExtResource("3_ammo")
+projectile_speed = 35.0
+explosion_radius = 0.0
+
+[resource]
+script = ExtResource("1_fdef")
+turret_params = SubResource("TurretParams_arrow_launcher")
+id = "arrow_launcher"
+display_name = "Arrow Launcher"
+hp = 150
+mesh = SubResource("BoxMesh_arrow_launcher")
+unlocked_by_default = true
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

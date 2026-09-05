@@ -194,7 +194,8 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
 | `id` | `"wedge_wood"` | Unique string key (matches filename). |
 | `display_name` | `"Wooden Wedge"` | UI label in Map Editor & Build Menu. |
 | `rotation_mode` | `FULL_3D` (`24`) | `NONE` (1), `YAW_ONLY` (4), or `FULL_3D` (24). Triggers automatic variant baking. |
-| `mesh` | `res://assets/blocks/wedge_wood.obj` | Unrotated base source mesh in `[0, 1]³` bounding box (variants are baked from this). |
+| `scene` | `res://assets/blocks/wedge_wood.glb` | *(Recommended)* Direct `.glb` scene — `BlockLibrary` extracts the base mesh automatically. |
+| `mesh` | `res://assets/blocks/wedge_wood.obj` | *(Alternative)* Unrotated base source mesh in `[0, 1]³` bounding box (variants are baked from this). |
 | `texture` | `res://assets/blocks/wood_albedo.png` | Albedo texture map. |
 | `texture_variation` | `true` | Enables UV/brightness shader variation. |
 | `hp` | `100` | Block durability. |

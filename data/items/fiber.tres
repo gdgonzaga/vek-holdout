@@ -1,9 +1,13 @@
-[gd_resource type="Resource" script_class="ItemDef" format=3]
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://brxslew51hukd"]
 
-[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://08y6r8h74kgu" path="res://assets/custom_images/fiber.png" id="1_yuff2"]
+[ext_resource type="ArrayMesh" uid="uid://cee6x443t5iye" path="res://assets/custom_meshes/fiber.res" id="2_yuff2"]
 
 [resource]
 resource_name = "Fiber"
 script = ExtResource("1_def")
 id = "fiber"
 weight = 0.2
+icon = ExtResource("1_yuff2")
+mesh = ExtResource("2_yuff2")

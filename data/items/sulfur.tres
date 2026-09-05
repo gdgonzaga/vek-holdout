@@ -1,9 +1,18 @@
-[gd_resource type="Resource" script_class="ItemDef" format=3]
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://3etqkrrd33x0"]
 
-[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Texture2D" uid="uid://cel85ijwldc4t" path="res://assets/custom_images/sulfur.png" id="1_pa1bq"]
+[ext_resource type="Texture2D" uid="uid://cab06pq37mc6g" path="res://assets/realer_than_real_textures/MT00193-Damaged_Plaster.PNG" id="1_tr1lk"]
+[ext_resource type="ArrayMesh" uid="uid://casxxfbo2w7al" path="res://tmp/AAA-save/Polygon-Mega Survival Kit/SM_Stone_01.SM_Stone_01.mesh" id="2_pa1bq"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u6rff"]
+albedo_texture = ExtResource("1_tr1lk")
 
 [resource]
 resource_name = "Sulfur"
 script = ExtResource("1_def")
 id = "sulfur"
 weight = 1.0
+icon = ExtResource("1_pa1bq")
+mesh = ExtResource("2_pa1bq")
+material = SubResource("StandardMaterial3D_u6rff")

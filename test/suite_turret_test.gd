@@ -68,6 +68,7 @@ func test_turret_params_defaults() -> void:
 	assert_object(p.ammo_type).is_null()
 	assert_int(p.projectile_type).is_equal(TurretParams.ProjectileType.REGULAR)
 	assert_float(p.explosion_radius).is_equal(3.0)
+	assert_vector(p.muzzle_offset).is_equal(Vector3(0, 2.0, 0))
 
 
 func test_turret_component_initialization() -> void:
@@ -319,3 +320,100 @@ func test_furniture_layer_attaches_turret_component() -> void:
 	auto_free(node)
 
 	assert_object(node.get_node_or_null("TurretComponent")).is_not_null()
+
+func test_turret_muzzle_offset_position() -> void:
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.muzzle_offset = Vector3(0, 1.5, -0.5)
+	turret.params = tparams
+	_sandbox.container.add_child(turret)
+	turret.global_position = Vector3(10, 0, 10)
+
+	var muzzle_pos := turret.get_muzzle_position()
+	assert_float(muzzle_pos.x).is_equal_approx(10.0, 0.01)
+	assert_float(muzzle_pos.y).is_equal_approx(1.5, 0.01)
+	assert_float(muzzle_pos.z).is_equal_approx(9.5, 0.01)
+
+
+func test_turret_muzzle_node_overrides_offset() -> void:
+	var furniture := Node3D.new()
+	auto_free(furniture)
+	_sandbox.container.add_child(furniture)
+	furniture.global_position = Vector3(10, 0, 10)
+
+	var muzzle_marker := Marker3D.new()
+	muzzle_marker.name = "Muzzle"
+	furniture.add_child(muzzle_marker)
+	muzzle_marker.global_position = Vector3(12, 3, 8)
+
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.muzzle_offset = Vector3(0, 1.0, 0)
+	turret.params = tparams
+	furniture.add_child(turret)
+
+	var muzzle_pos := turret.get_muzzle_position()
+	assert_float(muzzle_pos.x).is_equal_approx(12.0, 0.01)
+	assert_float(muzzle_pos.y).is_equal_approx(3.0, 0.01)
+	assert_float(muzzle_pos.z).is_equal_approx(8.0, 0.01)
+
+
+func test_turret_projectile_falls_back_to_ammo_mesh() -> void:
+	var proj := TurretProjectileScript.new() as TurretProjectile
+	auto_free(proj)
+	_sandbox.container.add_child(proj)
+
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.projectile_mesh = null
+
+	var mock_mesh := BoxMesh.new()
+	var ammo_item := _make_test_item_def("test_ammo_with_mesh")
+	ammo_item.mesh = mock_mesh
+	tparams.ammo_type = ammo_item
+
+	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, tparams)
+
+	var mesh_inst: MeshInstance3D = null
+	for child in proj.get_children():
+		if child is MeshInstance3D:
+			mesh_inst = child as MeshInstance3D
+			break
+
+	assert_object(mesh_inst).is_not_null()
+	assert_object(mesh_inst.mesh).is_equal(mock_mesh)
+
+
+func test_turret_projectile_falls_back_to_ammo_scene() -> void:
+	var proj := TurretProjectileScript.new() as TurretProjectile
+	auto_free(proj)
+	_sandbox.container.add_child(proj)
+
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.projectile_mesh = null
+	tparams.projectile_scene = null
+
+	var packed_scene := PackedScene.new()
+	var root := Node3D.new()
+	root.name = "SceneAmmoRoot"
+	packed_scene.pack(root)
+	root.free()
+
+	var ammo_item := _make_test_item_def("test_ammo_with_scene")
+	ammo_item.scene = packed_scene
+	tparams.ammo_type = ammo_item
+
+	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, tparams)
+
+	var scene_child: Node = null
+	for child in proj.get_children():
+		if child.name == "SceneAmmoRoot":
+			scene_child = child
+			break
+
+	assert_object(scene_child).is_not_null()

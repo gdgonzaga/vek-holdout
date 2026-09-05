@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://dyoa05atjswxr"]
+
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://ckh50hijh63lr" path="res://assets/custom_meshes/wooden_stake/wooden_stake.glb" id="1_glb"]
+
+[resource]
+resource_name = "Wooden Stake"
+script = ExtResource("1_def")
+id = "wooden_stake"
+weight = 0.5
+scene = ExtResource("1_glb")
+tags = Array[String](["ammo", "stake"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

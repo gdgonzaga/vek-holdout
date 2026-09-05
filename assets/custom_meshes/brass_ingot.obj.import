@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://be5ciyywwishs"
+path="res://.godot/imported/brass_ingot.obj-bba568d135c9da6fcf49d1368bcfae9b.mesh"
+
+[deps]
+
+files=["res://.godot/imported/brass_ingot.obj-bba568d135c9da6fcf49d1368bcfae9b.mesh"]
+
+source_file="res://assets/custom_meshes/brass_ingot.obj"
+dest_files=["res://.godot/imported/brass_ingot.obj-bba568d135c9da6fcf49d1368bcfae9b.mesh", "res://.godot/imported/brass_ingot.obj-bba568d135c9da6fcf49d1368bcfae9b.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

@@ -81,3 +81,49 @@ func test_register_block_in_library() -> void:
 	var models: Array = lib.get_models()
 	assert_int(models.size()).is_equal(7)
 	assert_str(models[3].resource_name).is_equal("ramp_%d" % BlockDef.YAW_INDICES[0])
+
+
+func test_buildable_def_get_mesh_prefers_explicit_mesh() -> void:
+	var def: BuildableDef = auto_free(BuildableDef.new())
+	var explicit_mesh := BoxMesh.new()
+	def.mesh = explicit_mesh
+	assert_object(def.get_mesh()).is_equal(explicit_mesh)
+
+
+func test_buildable_def_get_mesh_extracts_from_scene() -> void:
+	var def: BuildableDef = auto_free(BuildableDef.new())
+	var packed_scene := PackedScene.new()
+	var root := Node3D.new()
+	var mi := MeshInstance3D.new()
+	var cylinder := CylinderMesh.new()
+	mi.mesh = cylinder
+	root.add_child(mi)
+	mi.owner = root
+	packed_scene.pack(root)
+	root.free()
+
+	def.scene = packed_scene
+	var extracted: Mesh = def.get_mesh()
+	assert_object(extracted).is_equal(cylinder)
+
+
+func test_block_def_with_scene_generates_block_models() -> void:
+	var def: BlockDef = auto_free(BlockDef.new())
+	def.id = "scene_block"
+	def.rotation_mode = BlockDef.RotationMode.YAW_ONLY
+
+	var packed_scene := PackedScene.new()
+	var root := Node3D.new()
+	var mi := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	mi.mesh = box
+	root.add_child(mi)
+	mi.owner = root
+	packed_scene.pack(root)
+	root.free()
+
+	def.scene = packed_scene
+
+	var models := VoxelLibraryGenerator.generate_block_models(def)
+	assert_int(models.size()).is_equal(4)
+	assert_object(models[0].mesh).is_equal(box)

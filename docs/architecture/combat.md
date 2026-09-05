@@ -23,9 +23,13 @@ Automated defenses (GDD §7.10) protect the colony perimeter against hostile swa
 - **Capability Composition**: Turrets are authored as `FurnitureDef` with a `TurretParams` capability sub-resource (`data/capability_params/turret_params.gd`). `FurnitureLayer` attaches a `TurretComponent` child when `turret_params` is non-null.
 - **Targeting**: Scans active hostiles in group `"enemies"` within `turret_params.range`, filtering out dead targets and engaging the closest hostile.
 - **Ammunition Resolution**: Turrets query their attached `StorageInventory` first. If no local ammo is found, they query `Colony.storage_registry` to consume ammo directly from colony storage crates.
-- **Physical Projectiles**: `TurretComponent` launches `TurretProjectile` (`Area3D`), supporting:
+- **Muzzle Position & Spawn Resolution**: `TurretComponent` resolves the projectile launch location in two tiers:
+  - *Socket Node (`"Muzzle"`)*: Searches the parent furniture hierarchy for a child node named `"Muzzle"` (e.g. authored as a Blender Empty parented to the turret mesh at the barrel opening) and fires from `muzzle.global_position`.
+  - *Data-Driven Offset (`muzzle_offset`)*: If no `"Muzzle"` node is found, falls back to evaluating `params.muzzle_offset` (default `Vector3(0, 2.0, 0)`) transformed by the turret's world orientation.
+- **Physical Projectiles & Ammo Mesh Fallback**: `TurretComponent` launches `TurretProjectile` (`Area3D`), supporting:
   - `REGULAR`: Direct contact damage against single targets.
   - `EXPLOSIVE`: Physics sphere query (`PhysicsShapeQueryParameters3D`) delivering splash damage to all entities within `explosion_radius`.
+  - *Visual Fallback*: If `projectile_mesh` is not specified on `TurretParams`, the projectile automatically adopts `ammo_type.mesh` (and its material). Meshes modeled upright (+Y) are automatically pitched -90 degrees on X to point forward (-Z) along the flight path.
 
 ### Planned Design: Deployable Sensor & Target Markers
 

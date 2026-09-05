@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" uid="uid://cbp17b2pknl22" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
+[ext_resource type="Resource" path="res://data/items/bullet.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_gatling_gun_turret"]
+size = Vector3(2, 1, 1)
+
+[sub_resource type="Resource" id="TurretParams_gatling_gun_turret"]
+script = ExtResource("2_tparams_script")
+range = 25.0
+fire_rate = 5.0
+damage = 12
+ammo_type = ExtResource("3_ammo")
+projectile_speed = 55.0
+projectile_type = 0
+explosion_radius = 0.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "gatling_gun_turret"
+display_name = "Gatling Gun Turret"
+hp = 250
+dimensions = Vector3i(2, 1, 1)
+mesh = SubResource("BoxMesh_gatling_gun_turret")
+turret_params = SubResource("TurretParams_gatling_gun_turret")
+unlocked_by_default = true
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

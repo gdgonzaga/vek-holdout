@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://banad48tku228"]
+
+[ext_resource type="Texture2D" uid="uid://dr8pyo6wq4odr" path="res://assets/custom_images/copper_ore.png" id="1_tdxnt"]
+[ext_resource type="Texture2D" uid="uid://btgs0jakjp68" path="res://assets/realer_than_real_textures/MT00180-Painted_Metal_Damaged.PNG" id="1_x7d7g"]
+[ext_resource type="ArrayMesh" uid="uid://casxxfbo2w7al" path="res://tmp/AAA-save/Polygon-Mega Survival Kit/SM_Stone_01.SM_Stone_01.mesh" id="2_tdxnt"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="2_x7d7g"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u6rff"]
+albedo_texture = ExtResource("1_x7d7g")
+
+[resource]
+resource_name = "Copper"
+script = ExtResource("2_x7d7g")
+id = "copper"
+weight = 1.5
+icon = ExtResource("1_tdxnt")
+mesh = ExtResource("2_tdxnt")
+material = SubResource("StandardMaterial3D_u6rff")

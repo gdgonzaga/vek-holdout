@@ -4,6 +4,13 @@ extends Resource
 ## A nullable sub-resource on FurnitureDef, following the composition pattern.
 ## Placed furniture with non-null turret_params receives a TurretComponent child
 ## attached by FurnitureLayer.
+##
+## Projectile Muzzle Authoring:
+## - Visual Socket: In Blender, place an Empty named "Muzzle" (Shift+A -> Empty -> Plain Axes)
+##   at the tip of the barrel and parent it to the turret object. When imported into Godot,
+##   TurretComponent automatically finds this node and spawns projectiles at its global position.
+## - Data-driven Offset: If no "Muzzle" node is found, TurretComponent falls back to
+##   evaluating `muzzle_offset` transformed by the turret's orientation. Defaults to (0, 2.0, 0).
 
 enum ProjectileType {
 	REGULAR,
@@ -22,8 +29,16 @@ enum ProjectileType {
 ## Required ammo ItemDef. If null, turret fires freely without ammo consumption.
 @export var ammo_type: ItemDef = null
 
+## Local position relative to the turret where projectiles spawn if no "Muzzle"
+## child node is present on the furniture. Defaults to 2.0m above ground (0, 2.0, 0).
+@export var muzzle_offset: Vector3 = Vector3(0, 2.0, 0)
+
 @export_group("Projectile")
-## 3D visual mesh rendered on the moving projectile. If null, falls back to a default shape.
+## 3D visual PackedScene (.glb) rendered on the moving projectile. Takes precedence over projectile_mesh.
+@export var projectile_scene: PackedScene = null
+
+## 3D visual mesh rendered on the moving projectile. If null, falls back to ammo_type.mesh
+## (if defined) or a default shape.
 @export var projectile_mesh: Mesh = null
 
 ## Optional material override for the projectile mesh.

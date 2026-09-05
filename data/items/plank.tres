@@ -1,10 +1,15 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://0i6qx0gicusg"]
 
 [ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_oivsr"]
+[ext_resource type="Texture2D" uid="uid://cu2ow70nh2f4x" path="res://assets/custom_images/plank.png" id="1_w8b18"]
+[ext_resource type="ArrayMesh" uid="uid://c22rok6mml0ek" path="res://assets/custom_meshes/plank/plank.res" id="2_w8b18"]
 
 [resource]
-resource_name = "Plank"
+resource_name = "Timber Planks"
 script = ExtResource("1_oivsr")
 id = "plank"
 weight = 1.5
+icon = ExtResource("1_w8b18")
+mesh = ExtResource("2_w8b18")
+tags = Array[String](["material", "wood", "processed"])
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

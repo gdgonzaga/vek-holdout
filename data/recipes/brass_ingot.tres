@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3 uid="uid://dovd2h3l0jw58"]
+
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_lvu86"]
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_amount"]
+[ext_resource type="Resource" uid="uid://banad48tku228" path="res://data/items/copper_ore.tres" id="3_copper_ore"]
+[ext_resource type="Resource" uid="uid://ouv6hs600mfj" path="res://data/items/coal.tres" id="4_coal"]
+[ext_resource type="Resource" uid="uid://daasu2e5urkoy" path="res://data/items/brass_ingot.tres" id="5_brass_ingot"]
+
+[sub_resource type="Resource" id="Resource_in_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("3_copper_ore")
+count = 2
+
+[sub_resource type="Resource" id="Resource_in_2"]
+script = ExtResource("2_amount")
+item_def = ExtResource("4_coal")
+
+[sub_resource type="Resource" id="Resource_out_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("5_brass_ingot")
+
+[resource]
+resource_name = "Brass Ingot"
+script = ExtResource("1_script")
+id = "brass_ingot"
+display_name = "Brass Ingot"
+inputs = Array[ExtResource("2_amount")]([SubResource("Resource_in_1"), SubResource("Resource_in_2")])
+outputs = Array[ExtResource("2_amount")]([SubResource("Resource_out_1")])
+base_time = 6.0
