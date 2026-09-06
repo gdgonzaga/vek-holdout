@@ -81,8 +81,11 @@ func test_day_night_cycle_at_midday() -> void:
 
 	var sun: DirectionalLight3D = cycle.get_node("CelestialPivot/Sun") as DirectionalLight3D
 	var moon: DirectionalLight3D = cycle.get_node("CelestialPivot/Moon") as DirectionalLight3D
+	var moon_sky: DirectionalLight3D = cycle.get_node_or_null("CelestialPivot/MoonSky") as DirectionalLight3D
 	assert_bool(sun.visible).is_true()
 	assert_bool(moon.visible).is_false()
+	if moon_sky != null:
+		assert_bool(moon_sky.visible).is_false()
 	assert_float(cycle._get_sun_elevation()).is_equal_approx(1.0, 0.01)
 	assert_float(sun.light_energy).is_equal_approx(cycle.max_sun_energy, 0.01)
 
@@ -98,8 +101,13 @@ func test_day_night_cycle_at_midnight() -> void:
 
 	var sun: DirectionalLight3D = cycle.get_node("CelestialPivot/Sun") as DirectionalLight3D
 	var moon: DirectionalLight3D = cycle.get_node("CelestialPivot/Moon") as DirectionalLight3D
+	var moon_sky: DirectionalLight3D = cycle.get_node_or_null("CelestialPivot/MoonSky") as DirectionalLight3D
 	assert_bool(sun.visible).is_false()
 	assert_bool(moon.visible).is_true()
 	assert_float(cycle._get_sun_elevation()).is_equal_approx(-1.0, 0.01)
 	assert_float(moon.light_energy).is_equal_approx(cycle.max_moon_energy, 0.01)
+	if moon_sky != null:
+		assert_bool(moon_sky.visible).is_true()
+		assert_float(moon_sky.light_energy).is_equal_approx(cycle.max_moon_sky_energy, 0.01)
+
 

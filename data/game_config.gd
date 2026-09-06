@@ -12,6 +12,7 @@ class_name GameConfig
 @export_group("Day/Night Celestial Lighting")
 @export var max_sun_energy: float = 1.2
 @export var max_moon_energy: float = 0.25
+@export var max_moon_sky_energy: float = 1.2
 @export var sun_color: Color = Color(1.0, 0.95, 0.85)
 @export var sunset_color: Color = Color(1.0, 0.5, 0.2)
 @export var moon_color: Color = Color(0.65, 0.75, 1.0)

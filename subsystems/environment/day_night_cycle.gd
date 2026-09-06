@@ -10,6 +10,7 @@ const _CONFIG_PATH := "res://data/game_config.tres"
 
 var max_sun_energy: float = 1.2
 var max_moon_energy: float = 0.25
+var max_moon_sky_energy: float = 1.2
 var sun_color: Color = Color(1.0, 0.95, 0.85)
 var sunset_color: Color = Color(1.0, 0.5, 0.2)
 var moon_color: Color = Color(0.65, 0.75, 1.0)
@@ -21,6 +22,7 @@ var max_sky_energy: float = 1.0
 @onready var _pivot: Node3D = $CelestialPivot
 @onready var _sun: DirectionalLight3D = $CelestialPivot/Sun
 @onready var _moon: DirectionalLight3D = $CelestialPivot/Moon
+@onready var _moon_sky: DirectionalLight3D = get_node_or_null("CelestialPivot/MoonSky") as DirectionalLight3D
 @onready var _world_env: WorldEnvironment = get_node_or_null("WorldEnvironment") as WorldEnvironment
 
 
@@ -56,6 +58,7 @@ func _load_config() -> void:
 		return
 	max_sun_energy = config.max_sun_energy
 	max_moon_energy = config.max_moon_energy
+	max_moon_sky_energy = config.max_moon_sky_energy
 	sun_color = config.sun_color
 	sunset_color = config.sunset_color
 	moon_color = config.moon_color
@@ -68,6 +71,8 @@ func _load_config() -> void:
 func _setup_celestial_alignment() -> void:
 	## Auxiliary: Rotates moon by 180 degrees on X to place it directly opposite the sun.
 	_moon.rotation.x = PI
+	if _moon_sky != null:
+		_moon_sky.rotation.x = PI
 
 
 func _apply_celestial_rotation(fraction: float) -> void:
@@ -105,6 +110,8 @@ func _activate_sun(elevation: float) -> void:
 	## Auxiliary: Sets sun active with smooth horizon intensity scaling and dusk/dawn color blending.
 	_sun.visible = true
 	_moon.visible = false
+	if _moon_sky != null:
+		_moon_sky.visible = false
 	var intensity: float = clampf(elevation * 3.0, 0.0, 1.0)
 	_sun.light_energy = intensity * max_sun_energy
 	_sun.light_color = sunset_color.lerp(sun_color, intensity)
@@ -117,6 +124,11 @@ func _activate_moon(elevation: float) -> void:
 	var intensity: float = clampf(elevation * 3.0, 0.0, 1.0)
 	_moon.light_energy = intensity * max_moon_energy
 	_moon.light_color = moon_color
+	if _moon_sky != null:
+		_moon_sky.visible = true
+		_moon_sky.light_energy = intensity * max_moon_sky_energy
+		_moon_sky.light_color = moon_color
+
 
 
 func _update_ambient_lighting() -> void:

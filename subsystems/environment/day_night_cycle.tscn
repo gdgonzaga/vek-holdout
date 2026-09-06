@@ -28,8 +28,17 @@ shadow_enabled = true
 [node name="Moon" type="DirectionalLight3D" parent="CelestialPivot" unique_id=1039788694]
 transform = Transform3D(1, 0, 0, 0, -1, 8.74228e-08, 0, -8.74228e-08, -1, 0, 0, 0)
 visible = false
+sky_mode = 1
 light_color = Color(0.65, 0.75, 1, 1)
 light_energy = 0.25
 
+[node name="MoonSky" type="DirectionalLight3D" parent="CelestialPivot" unique_id=1039788695]
+transform = Transform3D(1, 0, 0, 0, -1, 8.74228e-08, 0, -8.74228e-08, -1, 0, 0, 0)
+visible = false
+sky_mode = 2
+light_color = Color(0.85, 0.9, 1, 1)
+light_energy = 1.2
+
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=743452108]
 environment = SubResource("Environment_cycle")
+

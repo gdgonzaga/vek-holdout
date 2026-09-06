@@ -4,4 +4,4 @@
 
 [resource]
 script = ExtResource("1_script")
-loop_length_minutes = 1.0
+loop_length_minutes = 30.0
