@@ -54,10 +54,20 @@ func _tick(delta: float) -> Status:
 	_elapsed += delta
 	if not _damage_applied and _elapsed >= windup_duration:
 		_damage_applied = true
-		if target.has_method("take_damage"):
+		print("Attack")
+		if damage > 0 and target.has_method("take_damage"):
 			target.take_damage(damage, agent)
 			
 	if _elapsed < (windup_duration + cooldown_duration):
 		return RUNNING
 		
+	# 1. Blackboard Cleanup: Erase target after attack completion to trigger re-evaluation of closest target.
+	_clear_target_variable()
 	return SUCCESS
+
+
+func _clear_target_variable() -> void:
+	## Auxiliary: Clears the assigned target variable on the blackboard.
+	if blackboard and blackboard.has_var(target_var):
+		blackboard.erase_var(target_var)
+

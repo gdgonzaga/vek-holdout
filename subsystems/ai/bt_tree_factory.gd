@@ -125,31 +125,48 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 ## Builds the enemy swarmer behavior tree
 static func create_enemy_swarmer_tree() -> BehaviorTree:
 	var tree := BehaviorTree.new()
-	tree.description = "Enemy swarmer tree with breach, attack, chase, and threat scan"
+	tree.description = "Enemy swarmer tree with closest target scan, approach, attack, and breach"
 	
-	var root := BTSelector.new()
+	var root := BTSequence.new()
 	
-	# 1. Voxel Wall Breach
+	# 1. Target Acquisition: Scan for nearest target (player or colonist)
+	var scan_threats = BTActionScanThreatsScript.new()
+	var target_groups: Array[StringName] = [&"player", &"players", &"colonists"]
+	scan_threats.threat_groups = target_groups
+	scan_threats.radius = 128.0
+	scan_threats.result_var = &"threat_target"
+	root.add_child(scan_threats)
+
+
+	
+	# 2. Approach & Engagement Selector
+	var engage_selector := BTSelector.new()
+	
+	# 2a. Voxel Wall Breach (if path is blocked)
 	var breach_seq := BTSequence.new()
 	var breach_cond = BTConditionPathBlockedScript.new()
 	breach_seq.add_child(breach_cond)
 	var breach_action = BTActionBreachVoxelScript.new()
 	breach_seq.add_child(breach_action)
-	root.add_child(breach_seq)
+	engage_selector.add_child(breach_seq)
 	
-	# 2. Melee Attack
-	var attack_action = BTActionMeleeAttackScript.new()
-	root.add_child(attack_action)
+	# 2b. Navigate to target & Execute attack
+	var attack_seq := BTSequence.new()
 	
-	# 3. Chase Threat
 	var chase_nav = BTActionNavigateToScript.new()
 	chase_nav.target_var = &"threat_target"
-	chase_nav.arrival_distance = 1.5
-	root.add_child(chase_nav)
+	chase_nav.arrival_distance = 1.2
+	attack_seq.add_child(chase_nav)
 	
-	# 4. Aggro Scan
-	var scan_threats = BTActionScanThreatsScript.new()
-	root.add_child(scan_threats)
+	var attack_action = BTActionMeleeAttackScript.new()
+	attack_action.target_var = &"threat_target"
+	attack_action.attack_range = 1.5
+	attack_action.windup_duration = 0.2
+	attack_action.cooldown_duration = 0.4
+	attack_seq.add_child(attack_action)
+	
+	engage_selector.add_child(attack_seq)
+	root.add_child(engage_selector)
 	
 	tree.root_task = root
 	return tree

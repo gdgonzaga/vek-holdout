@@ -11,7 +11,8 @@ extends BTAction
 @export var result_var: StringName = &"threat_target"
 
 ## Groups to scan in priority order
-@export var threat_groups: Array[StringName] = [&"players", &"core", &"colonists"]
+@export var threat_groups: Array[StringName] = [&"player", &"players", &"colonists"]
+
 
 
 func _generate_name() -> String:
@@ -22,24 +23,36 @@ func _generate_name() -> String:
 
 
 func _tick(_delta: float) -> Status:
-	if not agent or not agent.get_tree():
+	if not agent or not agent.get_tree() or not (agent is Node3D):
 		return FAILURE
 		
-	var agent_pos: Vector3 = (agent as Node3D).global_position if agent is Node3D else Vector3.ZERO
+	var agent_node := agent as Node3D
 	var max_dist_sq: float = radius * radius
 	
-	for group_name in threat_groups:
-		var nodes: Array[Node] = agent.get_tree().get_nodes_in_group(group_name)
-		var closest_node: Node3D = null
-		var closest_dist_sq: float = max_dist_sq
+	# 1. Threat Acquisition: Finding the closest target across all threat groups within sensory radius.
+	var closest_target: Node3D = _find_closest_threat(agent_node, max_dist_sq)
+	if closest_target == null:
+		return FAILURE
 		
+	if blackboard and result_var != &"":
+		blackboard.set_var(result_var, closest_target)
+	return SUCCESS
+
+
+func _find_closest_threat(agent_node: Node3D, max_dist_sq: float) -> Node3D:
+	## Auxiliary: Scans nodes in all threat_groups and returns the closest valid target Node3D.
+	var agent_pos: Vector3 = agent_node.global_position
+	var closest_node: Node3D = null
+	var closest_dist_sq: float = max_dist_sq
+	
+	for group_name in threat_groups:
+		var nodes: Array[Node] = agent_node.get_tree().get_nodes_in_group(group_name)
 		for node in nodes:
-			if node == agent or not is_instance_valid(node) or node.is_queued_for_deletion():
+			if node == agent_node or not is_instance_valid(node) or node.is_queued_for_deletion():
 				continue
 			var node3d := node as Node3D
 			if node3d == null:
 				continue
-			# Exclude dead entities if supported
 			if "is_dead" in node3d and bool(node3d.is_dead):
 				continue
 			if "_is_dead" in node3d and bool(node3d._is_dead):
@@ -50,9 +63,5 @@ func _tick(_delta: float) -> Status:
 				closest_dist_sq = dist_sq
 				closest_node = node3d
 				
-		if closest_node != null:
-			if blackboard and result_var != &"":
-				blackboard.set_var(result_var, closest_node)
-			return SUCCESS
-			
-	return FAILURE
+	return closest_node
+

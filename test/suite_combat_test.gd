@@ -160,3 +160,50 @@ func test_enemy_base_serialize_deserialize() -> void:
 	assert_float(restored.position.y).is_equal_approx(2.5, 0.01)
 	assert_float(restored.position.z).is_equal_approx(-5.0, 0.01)
 	assert_int(restored.health_component.current_hp).is_equal(45)
+
+
+func test_enemy_base_ai_components_initialization() -> void:
+	var swarmer := SwarmerScene.instantiate() as EnemyBase
+	auto_free(swarmer)
+	swarmer._ready()
+
+	assert_that(swarmer.pathfinder).is_not_null()
+	assert_that(swarmer.bt_player).is_not_null()
+
+
+func test_enemy_base_path_following_locomotion() -> void:
+	var swarmer := SwarmerScene.instantiate() as EnemyBase
+	auto_free(swarmer)
+	add_child(swarmer)
+	swarmer.global_position = Vector3.ZERO
+	swarmer.set_path([Vector3(5.0, 0.0, 0.0)])
+	assert_bool(swarmer.has_arrived()).is_false()
+
+	swarmer._physics_process(0.5)
+	assert_float(swarmer.velocity.x).is_greater(0.0)
+
+	swarmer.global_position = Vector3(5.0, 0.0, 0.0)
+	swarmer._physics_process(0.1)
+	assert_bool(swarmer.has_arrived()).is_true()
+	assert_float(swarmer.velocity.x).is_equal_approx(0.0, 0.01)
+
+
+func test_enemy_ai_behavior_with_colonist() -> void:
+	var colonist := CharacterBody3D.new()
+	colonist.name = "TestColonist"
+	auto_free(colonist)
+	add_child(colonist)
+	colonist.add_to_group("colonists")
+	colonist.global_position = Vector3(5, 0, 0)
+
+	var swarmer := SwarmerScene.instantiate() as EnemyBase
+	auto_free(swarmer)
+	add_child(swarmer)
+	swarmer.global_position = Vector3.ZERO
+	
+	# Run frames for enemy (speed 5.0) to scan, acquire target, and traverse towards colonist
+	for i in range(70):
+		await await_idle_frame()
+		swarmer._physics_process(0.016)
+
+	assert_float(swarmer.global_position.x).is_greater(3.0)

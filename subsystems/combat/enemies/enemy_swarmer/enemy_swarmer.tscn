@@ -3,10 +3,14 @@
 [ext_resource type="Script" uid="uid://bs6r1lteu8wbo" path="res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="2_health"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="3_s35gj"]
+[ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_pathfinder"]
+[ext_resource type="BehaviorTree" path="res://data/ai/trees/enemy_swarmer.tres" id="5_tree"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_shape"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_mesh"]
+
+[sub_resource type="BlackboardPlan" id="BlackboardPlan_swarmer"]
 
 [node name="EnemySwarmer" type="CharacterBody3D" unique_id=1248216305]
 collision_layer = 4
@@ -29,3 +33,11 @@ max_durability = 10
 [node name="GroundSafetyGuard" type="Node" parent="." unique_id=1171943373]
 script = ExtResource("3_s35gj")
 metadata/_custom_type_script = "uid://b0iy3iwbh347j"
+
+[node name="VoxelPathfinder" type="Node" parent="." unique_id=1171943374]
+script = ExtResource("4_pathfinder")
+
+[node name="BTPlayer" type="BTPlayer" parent="." unique_id=1171943375]
+behavior_tree = ExtResource("5_tree")
+blackboard_plan = SubResource("BlackboardPlan_swarmer")
+

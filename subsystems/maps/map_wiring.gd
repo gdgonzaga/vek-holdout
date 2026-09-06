@@ -334,6 +334,10 @@ static func wire_enemies(map: Map, map_def: MapDef = null) -> Node3D:
 	for child in container.get_children():
 		child.queue_free()
 
+	var predicate := _compose_walkability(map)
+	var smooth := _live_smooth_grid(map)
+	var stand_hint := smooth_stand_hint(smooth) if smooth != null else Callable()
+
 	var enemy_scene := preload("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
 	for spawn_pos in enemy_positions:
 		var pos: Vector3 = spawn_pos
@@ -342,7 +346,12 @@ static func wire_enemies(map: Map, map_def: MapDef = null) -> Node3D:
 			pos.y = ground_y + 1.0
 		else:
 			pos.y += 1.0
-		var enemy := enemy_scene.instantiate() as Node3D
+		var enemy := enemy_scene.instantiate() as EnemyBase
 		enemy.position = pos
 		container.add_child(enemy)
+		if enemy.pathfinder != null:
+			enemy.pathfinder.set_walkability(predicate)
+			if stand_hint.is_valid():
+				enemy.pathfinder.set_stand_cell_hint(stand_hint)
 	return container
+

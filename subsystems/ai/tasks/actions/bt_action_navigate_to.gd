@@ -100,6 +100,9 @@ func _enter() -> void:
 			_has_valid_target = true
 			return
 			
+	if path.is_empty() and _has_target_pos and (agent is EnemyBase or target_var == &"threat_target"):
+		path = [_target_world_pos]
+
 	if path.is_empty():
 		return
 		
@@ -108,6 +111,7 @@ func _enter() -> void:
 		agent.set_path(path)
 		if agent is Node:
 			(agent as Node).set_meta(_PATH_OWNER_META, get_instance_id())
+
 
 
 func _tick(_delta: float) -> Status:
