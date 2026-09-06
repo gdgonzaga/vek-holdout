@@ -2,6 +2,16 @@
 
 [ext_resource type="Script" uid="uid://tjhotagm10rq" path="res://data/game_config.gd" id="1_script"]
 
+[sub_resource type="Curve" id="Curve_night_raid"]
+_data = [Vector2(0, 0.3), 0.0, 0.0, 0, 0, Vector2(0.5, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.3), 0.0, 0.0, 0, 0]
+point_count = 3
+
 [resource]
 script = ExtResource("1_script")
-loop_length_minutes = 3.0
+loop_length_minutes = 1.0
+spawn_distance_min = 10.0
+spawn_distance_max = 20.0
+spawn_start_hour = 18.0
+spawn_end_hour = 6.0
+spawns_per_minute = 10.0
+spawn_rate_curve = SubResource("Curve_night_raid")

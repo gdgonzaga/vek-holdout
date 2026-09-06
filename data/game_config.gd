@@ -7,7 +7,13 @@ class_name GameConfig
 @export var gravity: float = 9.8                       # Y-axis gravity (m/s^2).
 @export var target_fps: int = 60                        # Render floor (30 minimum).
 @export var loop_length_minutes: float = 30.0           # Real minutes per in-game day.
-@export var max_enemies_on_screen: int = 24             # Spawn cap.
+@export_group("Night Raid Spawning")
+@export var spawn_distance_min: float = 24.0           # Minimum spawn distance from player (meters).
+@export var spawn_distance_max: float = 48.0           # Maximum spawn distance from player (meters).
+@export var spawn_start_hour: float = 21.0             # 24h clock: 9:00 PM raid start.
+@export var spawn_end_hour: float = 4.5                # 24h clock: 4:30 AM raid end.
+@export var spawns_per_minute: float = 4.0             # Base enemies spawned per real-time minute.
+@export var spawn_rate_curve: Curve                    # Distribution curve modulating spawn intensity across the night.
 
 @export_group("Day/Night Celestial Lighting")
 @export var max_sun_energy: float = 1.2

@@ -22,7 +22,7 @@ res://
 │   ├── skills/         # SkillSet/skill progression
 │   ├── combat/         # Planned — damage resolution, weapons, enemy base (empty)
 │   ├── equipment/      # Planned — equipment component, loadout templates (empty)
-│   ├── raids/          # Planned — raid scheduler, threat direction (empty)
+│   ├── raids/          # NightRaidController, radial enemy spawning around player, pacing curves
 │   ├── expeditions/    # ExpeditionManager: POI discovery, expedition lifecycle
 │   ├── maps/           # MapLibrary catalog, MapWiring, SpawnHelpers
 │   ├── loot/           # Planned — loot tables, container logic (empty)

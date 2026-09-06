@@ -349,9 +349,36 @@ static func wire_enemies(map: Map, map_def: MapDef = null) -> Node3D:
 		var enemy := enemy_scene.instantiate() as EnemyBase
 		enemy.position = pos
 		container.add_child(enemy)
-		if enemy.pathfinder != null:
-			enemy.pathfinder.set_walkability(predicate)
-			if stand_hint.is_valid():
-				enemy.pathfinder.set_stand_cell_hint(stand_hint)
+
+		# 1. Pathfinder Wiring: Injects map walkability and smooth stand hint into enemy pathfinder.
+		wire_enemy_pathfinder(enemy, map)
 	return container
+
+
+## Configures an enemy's VoxelPathfinder with the map's walkability predicate and smooth surface stand hints.
+static func wire_enemy_pathfinder(enemy: EnemyBase, map: Map) -> void:
+	if enemy == null or enemy.pathfinder == null or map == null:
+		return
+	var predicate := _compose_walkability(map)
+	enemy.pathfinder.set_walkability(predicate)
+	var smooth := _live_smooth_grid(map)
+	if smooth != null:
+		var stand_hint := smooth_stand_hint(smooth)
+		if stand_hint.is_valid():
+			enemy.pathfinder.set_stand_cell_hint(stand_hint)
+
+
+## Instantiates or mounts the NightRaidController on the active map scene.
+static func wire_raids(map: Map) -> NightRaidController:
+	if map == null:
+		return null
+	var existing := map.find_child("NightRaidController", true, false) as NightRaidController
+	if existing != null:
+		existing.map = map
+		return existing
+	var controller := NightRaidController.new()
+	controller.name = "NightRaidController"
+	controller.map = map
+	map.add_child(controller)
+	return controller
 

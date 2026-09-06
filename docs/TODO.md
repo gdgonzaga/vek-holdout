@@ -135,7 +135,7 @@ heightmap work kept its bolt-on points clean instead:
 Build the structural skeleton so the architecture is loadable + testable. Real
 bodies for GameState/TimeSystem; stubs with real APIs for the rest.
 
-- [ ] **Data:** `data/game_config.gd` + `data/game_config.tres` (gravity, target_fps, loop_length_minutes, max_enemies_on_screen — ARCH lines 1733–1736). Use the `uid://` `_custom_type_script` form.
+- [ ] **Data:** `data/game_config.gd` + `data/game_config.tres` (gravity, target_fps, loop_length_minutes — ARCH lines 1733–1736). Use the `uid://` `_custom_type_script` form.
 - [ ] **Autoload `event_bus.gd`** — declare the full 11-signal registry (ARCH lines 97–107); no state, relay only.
 - [ ] **Autoload `game_state.gd`** — properties (current_day, current_scene_id, paused, save_slot), signals (day_changed, scene_changed, pause_state_changed, save_slot_changed), `set_paused()` (toggles process_mode on sim nodes), `advance_day()`. Add `set_scene_id()` (gap — see "Known gaps").
 - [ ] **Autoload `time_system.gd`** — continuous advance (loop_length_minutes from game_config), midnight → `GameState.advance_day()` + emit `day_rolled_over`, `advance_to_midnight()` for sleep.

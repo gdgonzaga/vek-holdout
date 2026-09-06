@@ -260,6 +260,8 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 	MapWiring.wire_colonists(m)
 	# Spawn enemies into the map's EnemyContainer from authored markers / MapDef.
 	MapWiring.wire_enemies(m, map_def)
+	# Wire night raid orchestrator to manage nocturnal hostile spawns around the player.
+	MapWiring.wire_raids(m)
 
 
 ## Open a full-screen UI screen by id in the layer-20 slot.

@@ -35,8 +35,8 @@ GameLog also **listens** to these existing EventBus signals (no new EventBus sig
 | `expedition_ended(result)` | `_on_expedition_ended` | `"Expedition returned."` (SYSTEM) — result schema is TBD; refine when ExpeditionManager's result shape is defined. |
 | `furniture_placed(def_id, anchor)` | `_on_furniture_placed` | `"Built <def_id>"` (INFO) |
 | `furniture_removed(def_id, anchor)` | `_on_furniture_removed` | `"Removed <def_id>"` (INFO) |
-| `raid_started(raid_data)` | `_on_raid_started` | `"A raid has begun!"` (COMBAT) — **signal declared but not yet emitted**; raids subsystem unimplemented. |
-| `raid_ended(outcome)` | `_on_raid_ended` | `"Raid repelled."` / `"Raid overrun."` (COMBAT) — **signal declared but not yet emitted**; raids subsystem unimplemented. |
+| `raid_started(raid_data)` | `_on_raid_started` | `"A raid has begun!"` (COMBAT) — emitted by `NightRaidController` when in-game clock enters night window. |
+| `raid_ended(outcome)` | `_on_raid_ended` | `"Raid repelled."` / `"Raid overrun."` (COMBAT) — emitted by `NightRaidController` when in-game clock reaches dawn. |
 | `run_started()` | `_on_run_started` | (clears history — no line) |
 
 ## Flow Trace: Log a gameplay event
