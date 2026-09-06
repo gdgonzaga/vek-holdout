@@ -18,6 +18,8 @@ var _has_valid_target: bool = false
 ## other subtrees sharing the same blackboard).
 var _no_target: bool = false
 var _requires_adjacent: bool = true
+var _target_node_ref: Node3D = null
+var _repath_cooldown: float = 0.0
 ## Meta key on the agent holding the instance id of the NavigateTo/Wander task
 ## that most recently fed it a path. The agent's path is a single shared slot
 ## and several task instances (needs branch, work branch, wander) can set it;
@@ -25,6 +27,8 @@ var _requires_adjacent: bool = true
 ## tick, which degenerated into claim -> wipe -> has_arrived() -> instant
 ## "arrive" while the colonist never moved.
 const _PATH_OWNER_META := &"bt_nav_path_owner"
+const _DYNAMIC_REPATH_INTERVAL := 0.5
+const _DYNAMIC_REPATH_THRESHOLD_SQ := 2.25
 
 
 func _generate_name() -> String:
@@ -39,6 +43,8 @@ func _enter() -> void:
 	_has_target_pos = false
 	_target_world_pos = Vector3.ZERO
 	_no_target = false
+	_target_node_ref = null
+	_repath_cooldown = _DYNAMIC_REPATH_INTERVAL
 
 	if not agent or not blackboard:
 		return
@@ -67,6 +73,9 @@ func _enter() -> void:
 		_no_target = true
 		return
 
+	if target is Node3D and is_instance_valid(target):
+		_target_node_ref = target as Node3D
+
 	_requires_adjacent = true
 	var job_candidate: Variant = null
 	if target is Job or (target is Object and is_instance_valid(target) and ("job_instance" in target or "def" in target)):
@@ -90,6 +99,7 @@ func _enter() -> void:
 			elif job_candidate is DeployJobDef or ("def" in job_candidate and job_candidate.def is DeployJobDef):
 				_requires_adjacent = false
 		
+	# 1. Path Calculation: Initial path computation towards target location.
 	var path: Array[Vector3] = _resolve_path_to_target(target)
 	
 	# Check if already within arrival distance
@@ -114,7 +124,7 @@ func _enter() -> void:
 
 
 
-func _tick(_delta: float) -> Status:
+func _tick(delta: float) -> Status:
 	if not agent or not _has_valid_target:
 		## Only treat this as a real nav failure (and clean up job state) when we
 		## actually had a target to navigate to. A null target means the
@@ -124,6 +134,9 @@ func _tick(_delta: float) -> Status:
 		if not _no_target:
 			_handle_navigation_failure()
 		return FAILURE
+
+	# 1. Dynamic Repathing: Re-evaluates path when tracking moving target entities (e.g. hostiles chasing player).
+	_update_dynamic_target_tracking(delta)
 		
 	# Check distance to target
 	if _has_target_pos and agent is Node3D:
@@ -140,6 +153,7 @@ func _tick(_delta: float) -> Status:
 
 
 func _exit() -> void:
+	_target_node_ref = null
 	# Only the task instance that owns the agent's current path may clear it
 	# (see _PATH_OWNER_META). A failing no-target instance — the needs branch
 	# under the root BTDynamicSelector re-ticks every frame — must leave the
@@ -157,6 +171,31 @@ func _owns_agent_path() -> bool:
 	return agent is Node \
 			and (agent as Node).has_meta(_PATH_OWNER_META) \
 			and (agent as Node).get_meta(_PATH_OWNER_META) == get_instance_id()
+
+
+func _update_dynamic_target_tracking(delta: float) -> void:
+	## Auxiliary: Checks if moving target node has shifted and updates path periodically.
+	if _target_node_ref == null or not is_instance_valid(_target_node_ref) or not (_target_node_ref is Node3D):
+		return
+	if not (agent is EnemyBase or target_var == &"threat_target"):
+		return
+		
+	_repath_cooldown -= delta
+	if _repath_cooldown > 0.0:
+		return
+		
+	_repath_cooldown = _DYNAMIC_REPATH_INTERVAL
+	var current_pos: Vector3 = _target_node_ref.global_position
+	if current_pos.distance_squared_to(_target_world_pos) >= _DYNAMIC_REPATH_THRESHOLD_SQ:
+		_target_world_pos = current_pos
+		# 1. Path Recalculation: Updates waypoint path to match new target position.
+		var new_path: Array[Vector3] = _resolve_path_to_target(_target_node_ref)
+		if new_path.is_empty() and _has_target_pos:
+			new_path = [_target_world_pos]
+		if not new_path.is_empty() and agent.has_method("set_path"):
+			agent.set_path(new_path)
+			if agent is Node:
+				(agent as Node).set_meta(_PATH_OWNER_META, get_instance_id())
 
 
 func _resolve_path_to_target(target: Variant) -> Array[Vector3]:

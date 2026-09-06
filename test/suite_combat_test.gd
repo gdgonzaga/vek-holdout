@@ -169,6 +169,7 @@ func test_enemy_base_ai_components_initialization() -> void:
 
 	assert_that(swarmer.pathfinder).is_not_null()
 	assert_that(swarmer.bt_player).is_not_null()
+	assert_that(swarmer.get_node_or_null("StepClimber")).is_not_null()
 
 
 func test_enemy_base_path_following_locomotion() -> void:
@@ -186,6 +187,25 @@ func test_enemy_base_path_following_locomotion() -> void:
 	swarmer._physics_process(0.1)
 	assert_bool(swarmer.has_arrived()).is_true()
 	assert_float(swarmer.velocity.x).is_equal_approx(0.0, 0.01)
+
+
+func test_enemy_base_path_following_with_elevation_step() -> void:
+	var swarmer := SwarmerScene.instantiate() as EnemyBase
+	auto_free(swarmer)
+	add_child(swarmer)
+	swarmer.global_position = Vector3.ZERO
+	# Path with a step up (> 0.2 Y difference)
+	swarmer.set_path([Vector3(1.0, 0.0, 0.0), Vector3(2.0, 1.0, 0.0), Vector3(5.0, 1.0, 0.0)])
+	assert_bool(swarmer.has_arrived()).is_false()
+
+	# Simulate moving through waypoints without getting stuck oscillating
+	for i in range(100):
+		swarmer._physics_process(0.016)
+		swarmer.global_position.x += swarmer.velocity.x * 0.016
+		if swarmer.has_arrived():
+			break
+
+	assert_bool(swarmer.has_arrived()).is_true()
 
 
 func test_enemy_ai_behavior_with_colonist() -> void:
@@ -207,3 +227,4 @@ func test_enemy_ai_behavior_with_colonist() -> void:
 		swarmer._physics_process(0.016)
 
 	assert_float(swarmer.global_position.x).is_greater(3.0)
+

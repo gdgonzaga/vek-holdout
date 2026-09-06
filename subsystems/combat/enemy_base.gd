@@ -11,19 +11,29 @@ extends CharacterBody3D
 var pathfinder: VoxelPathfinder
 var bt_player: BTPlayer
 
-const _ARRIVAL_THRESHOLD: float = 0.2
-const _STEP_ARRIVAL_THRESHOLD: float = 0.08
+const _StepClimberScript = preload("res://subsystems/core/step_climber.gd")
+
+const _ARRIVAL_THRESHOLD: float = 0.3
+const _STEP_ARRIVAL_THRESHOLD: float = 0.2
 var _path: Array[Vector3] = []
 var _path_index: int = 0
+
+var _stuck_timer: float = 0.0
+var _wiggle_timer: float = 0.0
+var _wiggle_dir: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
 	add_to_group(&"enemies")
+	floor_snap_length = 0.5
+	collision_mask = 7
+	if collision_layer == 4:
+		collision_layer = 64
 	
 	# 1. Health Initialization: Binding entity death signals.
 	_setup_health_component()
 	
-	# 2. AI Component Wiring: Ensuring pathfinder and behavior tree player exist.
+	# 2. AI Component Wiring: Ensuring pathfinder, step climber, and behavior tree player exist.
 	_setup_ai_components()
 
 
@@ -40,6 +50,8 @@ func _physics_process(delta: float) -> void:
 func set_path(path: Array) -> void:
 	_path.assign(path)
 	_path_index = 0
+	_stuck_timer = 0.0
+	_wiggle_timer = 0.0
 
 
 ## Returns true when all waypoints in the path have been reached.
@@ -107,12 +119,20 @@ func _setup_health_component() -> void:
 
 
 func _setup_ai_components() -> void:
-	## Auxiliary: Instantiates or binds VoxelPathfinder and BTPlayer components.
+	## Auxiliary: Instantiates or binds VoxelPathfinder, StepClimber, and BTPlayer components.
 	pathfinder = get_node_or_null("VoxelPathfinder") as VoxelPathfinder
 	if not pathfinder:
 		pathfinder = VoxelPathfinder.new()
 		pathfinder.name = "VoxelPathfinder"
 		add_child(pathfinder)
+
+	var step_climber := get_node_or_null("StepClimber") as StepClimber
+	if not step_climber:
+		step_climber = _StepClimberScript.new() as StepClimber
+		step_climber.name = "StepClimber"
+		step_climber.hop_height = 1.3
+		step_climber.step_height = 0.5
+		add_child(step_climber)
 		
 	bt_player = get_node_or_null("BTPlayer") as BTPlayer
 	if not bt_player:
@@ -127,11 +147,12 @@ func _setup_ai_components() -> void:
 
 
 func _follow_path(delta: float) -> void:
-
 	## Auxiliary: Advances along waypoints in _path, updating horizontal velocity.
 	if _path_index >= _path.size():
 		velocity.x = 0.0
 		velocity.z = 0.0
+		_stuck_timer = 0.0
+		_wiggle_timer = 0.0
 		return
 		
 	var to_target: Vector3 = _path[_path_index] - global_position
@@ -143,8 +164,12 @@ func _follow_path(delta: float) -> void:
 	if has_prev_step or has_next_step:
 		threshold = _STEP_ARRIVAL_THRESHOLD
 		
+	threshold = maxf(threshold, speed * delta * 1.2)
+		
 	if to_target.length() <= threshold:
 		_path_index += 1
+		_stuck_timer = 0.0
+		_wiggle_timer = 0.0
 		if _path_index >= _path.size():
 			velocity.x = 0.0
 			velocity.z = 0.0
@@ -153,6 +178,27 @@ func _follow_path(delta: float) -> void:
 		to_target.y = 0.0
 		
 	var dir: Vector3 = to_target.normalized()
+
+	# 1. Obstacle Recovery: Applies slight sideways wiggle if body is pressed against a wall.
+	if _wiggle_timer > 0.0:
+		_wiggle_timer -= delta
+		dir = _wiggle_dir
+	else:
+		var horiz_vel := Vector2(velocity.x, velocity.z)
+		if is_on_wall() and horiz_vel.length_squared() < (speed * 0.1) ** 2:
+			_stuck_timer += delta
+			if _stuck_timer > 0.3:
+				_stuck_timer = 0.0
+				_wiggle_timer = 0.4 + randf() * 0.2
+				var wall_normal := get_wall_normal()
+				wall_normal.y = 0.0
+				if wall_normal.length_squared() > 0.01:
+					_wiggle_dir = Vector3(-wall_normal.z, 0.0, wall_normal.x).normalized()
+					if randf() < 0.5:
+						_wiggle_dir = -_wiggle_dir
+				else:
+					_wiggle_dir = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)).normalized()
+
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
 

@@ -8,10 +8,11 @@ Damage resolution (Durability-before-HP, GDD §6.11), weapons, enemy base + Braw
 
 ## Enemy AI & Behavior Trees
 
-Hostile AI execution is driven by LimboAI behavior trees (`data/ai/trees/enemy_swarmer.tres`):
+Hostile AI execution is driven by LimboAI behavior trees (`data/ai/trees/enemy_swarmer.tres`) and locomotion physics (`EnemyBase` + `StepClimber`):
 
-- **Threat Scanning**: `BTActionScanThreats` continuously scans area for target colonists or colony structures.
-- **Pathing & Breaching**: `BTActionNavigateTo` targets threats. If pathfinding is blocked (`BTConditionPathBlocked`), the enemy executes `BTActionBreachVoxel` to destroy obstructing voxel terrain.
+- **Threat Scanning**: `BTActionScanThreats` continuously scans the area for target players, colonists, or colony structures.
+- **Pathing & Breaching**: `BTActionNavigateTo` targets threats with dynamic repathing for moving targets. If pathfinding is blocked (`BTConditionPathBlocked`), the enemy executes `BTActionBreachVoxel` to destroy obstructing voxel terrain.
+- **Stepped Locomotion & Physics Assist**: `EnemyBase` attaches `StepClimber` (`hop_height = 1.3`, `step_height = 0.5`) to negotiate voxel steps and slopes without getting stuck on lips. Waypoint arrival thresholds dynamically clamp to `maxf(threshold, speed * delta * 1.2)` to prevent physics overshoot oscillations, and wall-stuck recovery steers hostiles around corners.
 - **Melee Attack**: `BTActionMeleeAttack` executes physical attacks when within melee range.
 
 ---

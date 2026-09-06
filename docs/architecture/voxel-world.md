@@ -17,8 +17,9 @@ The dual-voxel layer plan (locked decisions in `docs/TODO.md`): blocky structure
 | 4 | Player | Player capsule |
 | 5 | Build | Furniture/blueprint `BuildBody` interaction boxes |
 | 6 | Colonist | Colonist capsules |
+| 7 | Enemy | Hostile/enemy capsules |
 
-Masks that follow from it: player + colonist bodies and the camera spring arm mask `1|2|4` (statics + both terrains — never Build boxes or other capsules); the build/deconstruct ray masks `1|2|4|16` (statics + both terrains + Build boxes — see `BlockyGrid.BUILD_RAY_MASK`); terrain bodies mask `8|32` (the bodies that stand on terrain). F7 (VOXEL-TOOL-NOTES): a terrain's layer and mask must move together — assigning only `collision_layer` silently stops body interaction while rays keep hitting.
+Masks that follow from it: player + colonist + enemy bodies and the camera spring arm mask `1|2|4` (statics + both terrains — never Build boxes or other capsules); the build/deconstruct ray masks `1|2|4|16` (statics + both terrains + Build boxes — see `BlockyGrid.BUILD_RAY_MASK`); terrain bodies mask `8|32|64` (the bodies that stand on terrain). F7 (VOXEL-TOOL-NOTES): a terrain's layer and mask must move together — assigning only `collision_layer` silently stops body interaction while rays keep hitting.
 
 ## Files
 
@@ -35,7 +36,7 @@ Masks that follow from it: player + colonist bodies and the camera spring arm ma
 | `../data/blocks/` | Data | One `.tres` per block type (wood, scrap, stone, metal, reinforced, wood_stairs). See [Data Schemas](data-schemas.md). |
 | `../data/terrain/` | Data | `TerrainGenDef` (generator params + walk slope gate; optional `heightmap: Texture2D` switches generation from noise to image — brightness maps across `height_start`..`height_start+height_range`, 1 px = 1 m, Lossless import required) and `materials/TerrainMaterialDef` (identity + mining stats: hp, depth band, vein size, spawn weight, dig yields — no visual refs, see F8/F11; identity resolves per-position via the F12 sidecar + strata). `data/mining/dig_tool.tres` carries the dig action's stats. See [Data Schemas](data-schemas.md). |
 
-**Walkability seam (D4):** `MapWiring.hybrid_ground_probe` composes the smooth grid's `height_at` with direct SDF lattice checks (`SmoothGrid.is_solid_at` / `VoxelGridAdapter.is_terrain_at` — a cell counts as carved air only when all 8 of its corner samples read air, so `carve_box`'s one-plane bleed into neighbouring walls stays solid). A cell is standable when either the natural surface passes through it on a walkable slope ($\\le 45^\\circ$), plain blocky rules hold, or an **underground excavated tunnel/cavity** provides clear air space with solid floor below and $\\ge 2\\text{m}$ vertical head clearance. Buried unexcavated solid cells are cancelled. See [Pathfinding & Navigation](pathfinding.md) (design note 8), [Maps](maps.md) `wire_colonists`, and [Colonists](colonists.md) VoxelPathfinder.
+**Walkability seam (D4):** `MapWiring.hybrid_ground_probe` composes the smooth grid's `height_at` with direct SDF lattice checks (`SmoothGrid.is_solid_at` / `VoxelGridAdapter.is_terrain_at` — a cell counts as carved air only when all 8 of its corner samples read air, so `carve_box`'s one-plane bleed into neighbouring walls stays solid). A cell is standable when either the natural surface passes through it on a walkable slope (<= 45 degrees), plain blocky rules hold, or an **underground excavated tunnel/cavity** provides clear air space with solid floor below and >= 2m vertical head clearance. Buried unexcavated solid cells are cancelled. See [Pathfinding & Navigation](pathfinding.md) (design note 8), [Maps](maps.md) `wire_colonists`, and [Colonists](colonists.md) VoxelPathfinder.
 
 ## Signals
 

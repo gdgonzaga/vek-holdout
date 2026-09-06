@@ -4,19 +4,19 @@ Voxel A* pathfinding, pluggable pathfinding strategies, hybrid walkability probi
 
 ## Subsystem Overview
 
-The pathfinding system provides intelligent navigation for colonists across both flat blocky floors and arbitrary continuous marching-cubes terrain, including underground excavated tunnels, ramps, and multi-tier construction sites.
+The pathfinding system provides intelligent navigation for colonists and hostile enemies across both flat blocky floors and arbitrary continuous marching-cubes terrain, including underground excavated tunnels, ramps, and multi-tier construction sites.
 
 Navigation is built around four decoupled layers:
 1. **Target & Stand Resolution (`VoxelPathfinder`):** Converts world positions and multi-cell footprints into valid standable voxel cell coordinates.
 2. **Hybrid Walkability Predicate (`map_wiring.gd` & `VoxelGridAdapter`):** Evaluates terrain solidity, floor support, vertical headroom clearance (>= 2m), and slope angles (<= 45 deg) across both blocky and smooth voxel grids.
 3. **Pluggable Strategy Search (`PathfindingStrategy`):** Executes A*, 8-way, line-of-sight smoothed string pulling, or Theta* search algorithms based on the global `GameState` configuration or per-pathfinder override.
-4. **Locomotion & Stepped Physics (`Colonist` & `StepClimber`):** Executes waypoint navigation with waist-height ray probing to hop steps up to 1.3m and walk off drops up to 3 cells.
+4. **Locomotion & Stepped Physics (`Colonist`, `EnemyBase` & `StepClimber`):** Executes waypoint navigation with waist-height ray probing to hop steps up to 1.3m and walk off drops up to 3 cells, paired with velocity-scaled arrival thresholds and dynamic target tracking.
 
 ---
 
 ## Flow Trace: Path Calculation Lifecycle
 
-**Trigger:** `ColonistBrain` or Behavior Tree task (`BTActionNavigateTo`, `BTActionWander`) invokes `pathfinder.find_path_world()`, `find_path_to_adjacent()`, or `find_path_to_footprint_adjacent()`.
+**Trigger:** `ColonistBrain`, `EnemyBase`, or Behavior Tree task (`BTActionNavigateTo`, `BTActionWander`) invokes `pathfinder.find_path_world()`, `find_path_to_adjacent()`, or `find_path_to_footprint_adjacent()`.
 
 ```
 +------------------+     1. Resolve Stand Cell      +--------------------+
@@ -36,7 +36,7 @@ Navigation is built around four decoupled layers:
    - For blocked footprints / blueprints / dig targets (e.g. 1-wide stairways down): `find_stand_near_cell` executes an expanding horizontal Chebyshev ring search (r = 1..4). Each ring position resolves its column's stand cell via `_stand_cell_in_column` — same-Y, then +/- 1 Y, then the column hint — regardless of hint presence, and the search returns the nearest valid walkable neighbour cell adjacent to the footprint.
    - For furniture/blueprint nodes with a known footprint: `find_path_to_footprint_adjacent` expands each footprint cell's 4 horizontal neighbour columns through the same `_stand_cell_in_column` resolution (hint bound 2), then runs multi-target A* over the candidate set — so a footprint raised one Y above the floor yields the ground cells beside it.
 2. **Start Stand Resolution:**
-   - Evaluates colonist current world position to the nearest standable cell via `find_stand_cell`. If the column and hint are unwalkable (e.g. inside a multi-cell blueprint), `find_stand_cell` falls back to a horizontal ring search (`find_stand_near_cell` with radius 3) to locate the nearest exterior standable perimeter cell.
+   - Evaluates colonist or enemy current world position to the nearest standable cell via `find_stand_cell`. If the column and hint are unwalkable (e.g. inside a multi-cell blueprint), `find_stand_cell` falls back to a horizontal ring search (`find_stand_near_cell` with radius 3) to locate the nearest exterior standable perimeter cell.
 3. **Walkability Evaluation (`map_wiring.gd` & `SmoothGrid.is_solid_at`):**
    - The composed `is_walkable(cell)` predicate runs `hybrid_ground_probe`:
      - **Carved Voxels:** `SmoothGrid.is_solid_at(pos)` (whole-cell rule, `is_solid_cell`) requires all 8 corner samples of `pos` to read `> -0.01` air before answering `false` (air) — carve dilation stamps one lattice plane into neighbouring walls, and a min-corner-only probe mistook those wall cells for hollow tunnel.
@@ -45,8 +45,8 @@ Navigation is built around four decoupled layers:
 4. **Strategy Search Execution (`PathfindingStrategy`):**
    - Pathfinder delegates search to its configured `strategy` (default: `SmoothedAStarStrategy`).
    - Seeds `start_cell` in the open set and evaluates candidate expansions with the active heuristic (Octile, Euclidean, or Manhattan).
-   - **Unwalkable Start Recovery:** If `start_cell` is unwalkable (e.g. inside a 1x1 blueprint), search seeds `start_cell` in the open set and enforces that all expanded step destinations pass `is_walkable`, allowing the colonist to step directly out of the obstacle toward the goal.
-   - **Corner-Cutting Protection:** 8-way diagonal steps check that adjacent orthogonal cells are passable before stepping diagonally, preventing colonists from clipping through solid wall corners.
+   - **Unwalkable Start Recovery:** If `start_cell` is unwalkable (e.g. inside a 1x1 blueprint), search seeds `start_cell` in the open set and enforces that all expanded step destinations pass `is_walkable`, allowing the entity to step directly out of the obstacle toward the goal.
+   - **Corner-Cutting Protection:** 8-way diagonal steps check that adjacent orthogonal cells are passable before stepping diagonally, preventing entities from clipping through solid wall corners.
    - Computes movement cost: flat = 1.0, diagonal = 1.414, climb +1 Y = 3.0 (`jump_up_cost`), drop -N Y = 1.5 x N (`drop_cost_per_cell`).
    - Bounded by `max_explored = 8000` cells to prevent runaway searches.
 5. **Path Output & String Pulling:**
@@ -58,16 +58,17 @@ Navigation is built around four decoupled layers:
 
 ## Flow Trace: Locomotion & Physics Obstacle Handling
 
-**Trigger:** `Colonist.set_path(waypoints)` is called.
+**Trigger:** `set_path(waypoints)` is called on `Colonist` or `EnemyBase`.
 
-1. `Colonist._physics_process` computes horizontal velocity towards the next waypoint in the queue.
+1. `_physics_process` computes horizontal velocity towards the next waypoint in the queue.
 2. When approaching a vertical face (+Y step):
    - `StepClimber.try_step_up` performs a ray/box probe forward at character waist height.
    - Probes the landing surface height at step destination.
    - If landing rise in `(0, 1.3m]`, applies a vertical hop velocity boost to clear the ledge.
-3. When waypoint distance `< 0.3m`, pops waypoint from queue.
-4. **Stuck Guard:** If horizontal movement stalls for `> 0.4s`, applies lateral wiggle impulse. If stalling exceeds timeout, `has_arrived()` signals arrival or failure to `BTActionNavigateTo`.
-5. Upon reaching the final waypoint, `has_arrived()` returns true.
+3. **Arrival Threshold Scaling:** Waypoint arrival distance threshold dynamically clamps to `maxf(threshold, speed * delta * 1.2)` (with baseline `0.3m` for final arrival and `0.2m` for intermediate steps) to guarantee fast actors never overshoot waypoint trigger zones within a single physics frame.
+4. **Dynamic Target Tracking:** When tracking moving entities (e.g., players), `BTActionNavigateTo` monitors target displacement (> 1.5m) and issues repath queries on a throttle timer.
+5. **Stuck Guard:** If horizontal movement stalls (`is_on_wall()`), applies lateral wiggle steering impulses. If stalling exceeds timeout, `has_arrived()` signals arrival or failure to the behavior tree.
+6. Upon reaching the final waypoint, `has_arrived()` returns true.
 
 ---
 

@@ -22,6 +22,13 @@ func test_colonist_body_layers() -> void:
 	assert_int(body.collision_mask).is_equal(7)
 
 
+func test_enemy_body_layers() -> void:
+	var scene: PackedScene = load("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
+	var body := auto_free(scene.instantiate()) as CharacterBody3D
+	assert_int(body.collision_layer).is_equal(64)  # layer 7 Enemy
+	assert_int(body.collision_mask).is_equal(7)
+
+
 func test_build_interaction_templates_use_build_layer() -> void:
 	var paths := [
 		"res://subsystems/build/blueprint_template.tscn",
@@ -33,3 +40,4 @@ func test_build_interaction_templates_use_build_layer() -> void:
 		var build_body := root.get_node("BuildBody") as StaticBody3D
 		assert_int(build_body.collision_layer).is_equal(16)  # layer 5 Build
 		assert_int(build_body.collision_mask).is_equal(0)
+
