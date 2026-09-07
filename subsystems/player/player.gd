@@ -46,6 +46,7 @@ signal interactable_changed(component: InteractionComponent)
 @onready var _camera: Camera3D = _rig.get_camera()
 @onready var inventory: CharacterInventory = $Inventory
 @onready var command_controller: CommandController = get_node_or_null("CommandController") as CommandController
+@onready var anim_controller: PlayerAnimationController = get_node_or_null("AnimationController") as PlayerAnimationController
 
 ## The item currently equipped by the player (null if empty).
 var equipped_item: ItemDef = null
@@ -284,6 +285,8 @@ func execute_default_action() -> void:
 		if not _current_interactable.action_options.is_empty():
 			var option: ActionOption = _current_interactable.action_options[0]
 			if option.action != null:
+				# 1. Action Animation Trigger: Trigger interaction animation for default action.
+				_trigger_animation_action(&"Interact")
 				option.action.execute(self, target)
 				interactable_changed.emit(_current_interactable)
 
@@ -297,7 +300,15 @@ func open_interaction_menu() -> void:
 		if target != null and target.has_method("refresh_interaction_options"):
 			target.refresh_interaction_options()
 		if not _current_interactable.action_options.is_empty():
+			# 1. Action Animation Trigger: Trigger interaction animation for menu selection.
+			_trigger_animation_action(&"Interact")
 			_current_interactable.interact(self)
+
+
+## Auxiliary: Triggers tool or interaction action animations on the child animation controller
+func _trigger_animation_action(action_name: StringName) -> void:
+	if anim_controller:
+		anim_controller.trigger_action(action_name)
 
 
 ## Screen-center physics raycast for interaction. Returns the raw hit dict
@@ -539,6 +550,8 @@ func _on_primary_action() -> void:
 		return
 
 	if equipped_item != null and equipped_item.is_equippable():
+		# 1. Action Animation Trigger: Trigger item action animation.
+		_trigger_animation_action(&"Interact")
 		_execute_equipped_primary_action()
 		return
 
@@ -547,11 +560,15 @@ func _on_primary_action() -> void:
 		if target != null:
 			var growable := target.get_node_or_null("Growable") as Growable
 			if growable != null:
+				# 1. Action Animation Trigger: Trigger farming interaction animation.
+				_trigger_animation_action(&"Interact")
 				var farm_action := FarmManualAction.new()
 				farm_action.execute(self, target)
 				return
 			var harvestable := target.get_node_or_null("Harvestable") as Harvestable
 			if harvestable != null:
+				# 1. Action Animation Trigger: Trigger harvest interaction animation.
+				_trigger_animation_action(&"Interact")
 				var action := HarvestAction.new()
 				action.execute(self, target)
 				return
@@ -568,11 +585,15 @@ func _on_primary_action() -> void:
 
 	var smooth := _find_smooth_grid(collider)
 	if smooth != null:
+		# 1. Action Animation Trigger: Trigger digging animation when damaging terrain.
+		_trigger_animation_action(&"Digging")
 		smooth.apply_damage_at(target_cell, 50, self, hit_normal)
 		return
 
 	var blocky := _find_blocky_grid(collider)
 	if blocky != null and blocky.has_block_at(target_cell):
+		# 1. Action Animation Trigger: Trigger digging animation when damaging blocky grid.
+		_trigger_animation_action(&"Digging")
 		blocky.apply_damage(target_cell, 50)
 		return
 
