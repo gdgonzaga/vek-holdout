@@ -106,3 +106,44 @@ func test_enemy_moodlet_visualizer_billboard_updates() -> void:
 	enemy.health_component.heal(20) # 40/50 = 0.80 > 0.50
 	visualizer._update_moodlet_display()
 	assert_bool(visualizer._sprites[0].visible).is_false()
+
+
+func test_enemy_moodlet_visualizer_multi_line_layout_and_skip() -> void:
+	var def_line0: StatThresholdMoodletDef = auto_free(StatThresholdMoodletDef.new()) as StatThresholdMoodletDef
+	def_line0.stat_id = &"hp"
+	def_line0.thresholds = [0.80]
+	def_line0.icons = [_tex_0]
+	def_line0.line_number = 0
+	
+	var def_line1: StatThresholdMoodletDef = auto_free(StatThresholdMoodletDef.new()) as StatThresholdMoodletDef
+	def_line1.stat_id = &"hp"
+	def_line1.thresholds = [0.20] # only triggers under 20%
+	def_line1.icons = [_tex_0]
+	def_line1.line_number = 1
+	
+	var def_line2: StatThresholdMoodletDef = auto_free(StatThresholdMoodletDef.new()) as StatThresholdMoodletDef
+	def_line2.stat_id = &"hp"
+	def_line2.thresholds = [0.60]
+	def_line2.icons = [_tex_1]
+	def_line2.line_number = 2
+	
+	var enemy_scene: PackedScene = load("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
+	var enemy: EnemyBase = auto_free(enemy_scene.instantiate() as EnemyBase)
+	enemy.moodlet_defs = [def_line0, def_line1, def_line2]
+	add_child(enemy)
+	
+	var visualizer: EnemyMoodletVisualizer = enemy.get_node_or_null("EnemyMoodletVisualizer") as EnemyMoodletVisualizer
+	assert_object(visualizer).is_not_null()
+	
+	# Damage to 50% HP (take 35 dmg -> 25/50 HP = 0.50):
+	# Line 0 (threshold 0.80) is active
+	# Line 1 (threshold 0.20) is inactive -> skipped!
+	# Line 2 (threshold 0.60) is active
+	enemy.take_damage(35)
+	visualizer._update_moodlet_display()
+	
+	assert_bool(visualizer._sprites[0].visible).is_true()
+	assert_bool(visualizer._sprites[1].visible).is_true()
+	assert_float(visualizer._sprites[0].position.y).is_equal_approx(visualizer.height_offset, 0.001)
+	# Line 2 should be compacted to row index 1 (height_offset + 1 * line_spacing)
+	assert_float(visualizer._sprites[1].position.y).is_equal_approx(visualizer.height_offset + visualizer.line_spacing, 0.001)

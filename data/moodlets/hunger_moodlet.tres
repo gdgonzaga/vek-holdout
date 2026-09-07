@@ -10,4 +10,5 @@
 script = ExtResource("1_kae3r")
 thresholds = Array[float]([0.75, 0.5, 0.25, 0.0])
 icons = Array[Texture2D]([ExtResource("1_hfvb7"), ExtResource("2_6qyli"), ExtResource("3_ylhvs"), ExtResource("4_e7hqb")])
+line_number = 3
 metadata/_custom_type_script = "uid://cjjndnu01sf2i"

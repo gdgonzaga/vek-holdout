@@ -339,5 +339,61 @@ func test_moodlet_def_icon_hframes_resolution() -> void:
 	assert_int(m_def.get_hframes(colonist)).is_equal(1)
 
 
+func test_colonist_moodlet_visualizer_multi_line_layout_and_skip() -> void:
+	var def_line0: StatThresholdMoodletDef = auto_free(StatThresholdMoodletDef.new()) as StatThresholdMoodletDef
+	def_line0.stat_id = &"hp"
+	def_line0.thresholds = [0.50]
+	def_line0.icons = [_tex_0]
+	def_line0.line_number = 0
+	
+	var def_line1: StatThresholdMoodletDef = auto_free(StatThresholdMoodletDef.new()) as StatThresholdMoodletDef
+	def_line1.stat_id = &"hunger"
+	def_line1.thresholds = [0.50]
+	def_line1.icons = [_tex_0]
+	def_line1.line_number = 1
+	
+	var def_line2: ActivityMoodletDef = auto_free(ActivityMoodletDef.new()) as ActivityMoodletDef
+	def_line2.activity_icon_map = { "mining": 0 }
+	def_line2.icons = [_tex_1]
+	def_line2.line_number = 2
+	
+	var colonist_def: ColonistDef = auto_free(ColonistDef.new()) as ColonistDef
+	colonist_def.moodlet_defs = [def_line0, def_line1, def_line2]
+	
+	var colonist_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(colonist_scene.instantiate() as Colonist) as Colonist
+	colonist.colonist_def = colonist_def
+	add_child(colonist)
+	
+	var visualizer: ColonistMoodletVisualizer = colonist.get_node_or_null("ColonistMoodletVisualizer") as ColonistMoodletVisualizer
+	assert_object(visualizer).is_not_null()
+	
+	# Case 1: Line 0 (HP <= 0.5) and Line 2 (mining) active, Line 1 (hunger = 1.0 > 0.5) inactive -> Line 1 skipped
+	colonist.take_damage(60, null)
+	colonist.needs.set_need(&"hunger", 1.0) # Line 1 inactive
+	var mock_job: Job = auto_free(Job.new()) as Job
+	mock_job.labor_id = "mining"
+	colonist.current_job = mock_job # Line 2 active
+	
+	visualizer._update_moodlet_display()
+	
+	assert_bool(visualizer._sprites[0].visible).is_true()
+	assert_bool(visualizer._sprites[1].visible).is_true()
+	assert_float(visualizer._sprites[0].position.y).is_equal_approx(visualizer.height_offset, 0.001)
+	# Line 2 should be compacted to row index 1 (height_offset + 1 * line_spacing)
+	assert_float(visualizer._sprites[1].position.y).is_equal_approx(visualizer.height_offset + visualizer.line_spacing, 0.001)
+	
+	# Case 2: Line 1 becomes active (hunger = 0.20 <= 0.5) -> All 3 lines active
+	colonist.needs.set_need(&"hunger", 0.20)
+	visualizer._update_moodlet_display()
+	
+	assert_bool(visualizer._sprites[0].visible).is_true()
+	assert_bool(visualizer._sprites[1].visible).is_true()
+	assert_bool(visualizer._sprites[2].visible).is_true()
+	assert_float(visualizer._sprites[0].position.y).is_equal_approx(visualizer.height_offset, 0.001)
+	assert_float(visualizer._sprites[1].position.y).is_equal_approx(visualizer.height_offset + visualizer.line_spacing, 0.001)
+	assert_float(visualizer._sprites[2].position.y).is_equal_approx(visualizer.height_offset + 2.0 * visualizer.line_spacing, 0.001)
+
+
 
 

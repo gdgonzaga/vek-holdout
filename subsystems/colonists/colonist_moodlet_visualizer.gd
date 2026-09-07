@@ -5,6 +5,7 @@ extends Node3D
 
 @export var enabled: bool = true
 @export var height_offset: float = 2.0
+@export var line_spacing: float = 0.25
 @export var update_interval: float = 0.25
 @export var visibility_range_end: float = 35.0
 @export var pixel_size: float = 0.001
@@ -114,7 +115,7 @@ func _sync_sprites(valid_moodlets: Array[Dictionary]) -> void:
 	# 1. Capacity Assurance: Ensure sufficient Sprite3D instances exist in the pool.
 	_ensure_sprite_capacity(count)
 	
-	# 2. Active Layout: Position and assign textures to active sprites centered horizontally.
+	# 2. Active Layout: Position and assign textures to active sprites grouped by line number.
 	_layout_active_sprites(valid_moodlets, count)
 	
 	# 3. Inactive Cleanup: Hide surplus sprite instances beyond the active count.
@@ -137,31 +138,80 @@ func _ensure_sprite_capacity(required_count: int) -> void:
 
 
 func _layout_active_sprites(valid_moodlets: Array[Dictionary], count: int) -> void:
-	## Auxiliary: Configures billboard textures, hframes, and centers sprites along the X-axis above the colonist.
+	## Auxiliary: Configures billboard textures, hframes, and positions sprites across active lines.
+	# 1. Line Grouping: Group the capped active moodlets by line number.
+	var grouped_lines: Dictionary = _group_moodlets_by_line(valid_moodlets, count)
+	
+	# 2. Active Line Sorting: Extract unique active line numbers in ascending order.
+	var active_lines: Array[int] = _get_sorted_active_lines(grouped_lines)
+	
+	# 3. Grid Positioning: Layout sprites in compacted rows above the entity.
+	_position_grouped_sprites(grouped_lines, active_lines)
+
+
+func _group_moodlets_by_line(valid_moodlets: Array[Dictionary], count: int) -> Dictionary:
+	## Auxiliary: Buckets active moodlet records by their line_number property.
+	var grouped: Dictionary = {}
 	for i in range(count):
-		var sprite: Sprite3D = _sprites[i]
 		var moodlet_data: Dictionary = valid_moodlets[i]
-		var tex: Texture2D = moodlet_data["texture"]
 		var m_def: MoodletDef = moodlet_data.get("def", null) as MoodletDef
+		var line_num: int = m_def.line_number if m_def != null else 0
+		if not grouped.has(line_num):
+			grouped[line_num] = []
+		var line_list: Array = grouped[line_num]
+		line_list.append(moodlet_data)
+	return grouped
+
+
+func _get_sorted_active_lines(grouped_lines: Dictionary) -> Array[int]:
+	## Auxiliary: Extracts sorted ascending line numbers from grouped dictionary.
+	var keys: Array[int] = []
+	for k in grouped_lines.keys():
+		keys.append(int(k))
+	keys.sort()
+	return keys
+
+
+func _position_grouped_sprites(grouped_lines: Dictionary, active_lines: Array[int]) -> void:
+	## Auxiliary: Places billboard sprites row-by-row skipping empty lines.
+	var sprite_index: int = 0
+	for row_index in range(active_lines.size()):
+		var line_num: int = active_lines[row_index]
+		var line_moodlets: Array = grouped_lines[line_num]
+		var line_count: int = line_moodlets.size()
+		var row_y: float = height_offset + float(row_index) * line_spacing
 		
-		var hframes: int = 1
-		var fps: float = frame_fps
-		if m_def != null:
-			hframes = m_def.get_hframes(_colonist)
-			fps = m_def.get_fps(_colonist)
-			
-		var offset_x: float = (float(i) - float(count - 1) * 0.5) * icon_spacing
-		sprite.position = Vector3(offset_x, height_offset, 0.0)
-		sprite.pixel_size = pixel_size
-		sprite.visibility_range_end = visibility_range_end
-		sprite.texture = tex
-		sprite.hframes = hframes
-		sprite.set_meta("fps", fps)
-		if hframes > 1:
-			sprite.frame = int(_anim_timer * fps) % hframes
-		else:
-			sprite.frame = 0
-		sprite.visible = true
+		for col_index in range(line_count):
+			var sprite: Sprite3D = _sprites[sprite_index]
+			var moodlet_data: Dictionary = line_moodlets[col_index]
+			# 1. Sprite Setup: Apply texture and animation metadata to billboard sprite.
+			_apply_sprite_moodlet_data(sprite, moodlet_data, col_index, line_count, row_y)
+			sprite_index += 1
+
+
+func _apply_sprite_moodlet_data(sprite: Sprite3D, moodlet_data: Dictionary, col_index: int, line_count: int, row_y: float) -> void:
+	## Auxiliary: Sets sprite texture, frame properties, and centered position.
+	var tex: Texture2D = moodlet_data["texture"]
+	var m_def: MoodletDef = moodlet_data.get("def", null) as MoodletDef
+	
+	var hframes: int = 1
+	var fps: float = frame_fps
+	if m_def != null:
+		hframes = m_def.get_hframes(_colonist)
+		fps = m_def.get_fps(_colonist)
+		
+	var offset_x: float = (float(col_index) - float(line_count - 1) * 0.5) * icon_spacing
+	sprite.position = Vector3(offset_x, row_y, 0.0)
+	sprite.pixel_size = pixel_size
+	sprite.visibility_range_end = visibility_range_end
+	sprite.texture = tex
+	sprite.hframes = hframes
+	sprite.set_meta("fps", fps)
+	if hframes > 1:
+		sprite.frame = int(_anim_timer * fps) % hframes
+	else:
+		sprite.frame = 0
+	sprite.visible = true
 
 
 func _hide_surplus_sprites(start_index: int) -> void:

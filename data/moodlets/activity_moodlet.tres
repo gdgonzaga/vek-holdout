@@ -33,4 +33,5 @@ display_name = "Current Activity"
 icons = Array[Texture2D]([ExtResource("2_idle"), ExtResource("3_mining"), ExtResource("4_construction"), ExtResource("5_crafting"), ExtResource("6_hauling"), ExtResource("7_eating"), ExtResource("8_resting")])
 icon_hframes = Array[int]([2])
 frame_fps = 2.0
+line_number = 2
 metadata/_custom_type_script = "uid://cp0mwaskg47xi"

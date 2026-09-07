@@ -11,6 +11,7 @@ class_name ActivityMoodletDef
 # =================
 # Primary Functions
 # =================
+"res://data/moodlets/activity_moodlet.tres"
 
 func evaluate_icon_index(entity: Node) -> int:
 	if entity == null:

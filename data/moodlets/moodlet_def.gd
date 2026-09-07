@@ -14,6 +14,8 @@ class_name MoodletDef
 @export var frame_fps: float = 6.0
 ## Optional per-icon tier FPS overrides corresponding 1-to-1 with the icons array.
 @export var icon_fps: Array[float] = []
+## Vertical line/row index for multi-line moodlet stacking (0 = bottom/primary line).
+@export var line_number: int = 0
 
 
 # =================

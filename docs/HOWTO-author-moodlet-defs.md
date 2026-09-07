@@ -23,6 +23,7 @@ Base Resource schema for all moodlets.
 | `icon_hframes` | `Array[int]` | `[]` | Optional 1-to-1 array mapping each icon tier to its horizontal spritesheet frame count (defaults to `1` for static PNGs). |
 | `frame_fps` | `float` | `6.0` | Default animation playback speed in frames per second (FPS) for animated spritesheets. |
 | `icon_fps` | `Array[float]` | `[]` | Optional 1-to-1 array mapping each icon tier to a custom FPS override. |
+| `line_number` | `int` | `0` | Vertical line/row index for multi-line layout (0 = bottom/primary line). Empty lines are skipped. |
 
 ---
 
@@ -78,7 +79,8 @@ activity_icon_map = {
 
 ## Visualizer Layout & Camera Alignment
 
-`ColonistMoodletVisualizer` handles in-world rendering:
-- **Multi-Sprite Row**: Displays active moodlets side-by-side in a centered horizontal row (`icon_spacing = 0.35m`).
-- **Camera Alignment**: Aligns `global_rotation.y` with the active viewport camera so the icon row always faces the player's screen horizontally.
+`ColonistMoodletVisualizer` and `EnemyMoodletVisualizer` handle in-world rendering:
+- **Multi-Line Row Stacking**: Groups active moodlets by `line_number` and stacks rows vertically (`line_spacing = 0.35m`). Skips inactive lines so active rows remain cleanly compacted above the entity's head.
+- **Multi-Sprite Row**: Displays active moodlets side-by-side in centered horizontal rows (`icon_spacing = 0.35m`).
+- **Camera Alignment**: Aligns `global_rotation.y` with the active viewport camera so the icon rows always face the player's screen horizontally.
 - **Spritesheet Animation**: Automatically advances `sprite.frame` at `frame_fps` for icons where `hframes > 1`.
