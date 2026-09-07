@@ -2,7 +2,8 @@
 
 [ext_resource type="Script" uid="uid://s6oulktogq82" path="res://data/moodlets/moodlet_def.gd" id="1_30inm"]
 [ext_resource type="Script" uid="uid://bh0hou41lremh" path="res://data/colonists/colonist_def.gd" id="1_34um5"]
-[ext_resource type="Resource" uid="uid://ekwldbsnyk" path="res://data/moodlets/hunger_moodlet_def.tres" id="2_8574y"]
+[ext_resource type="Resource" uid="uid://ekwldbsnyk" path="res://data/moodlets/hunger_moodlet.tres" id="2_8574y"]
+[ext_resource type="Resource" uid="uid://dxgk7b3dp6hed" path="res://data/moodlets/activity_moodlet.tres" id="3_act"]
 
 [resource]
 script = ExtResource("1_34um5")
@@ -13,5 +14,5 @@ default_labor_priorities = {
 "hauling": 1,
 "mining": 1
 }
-moodlet_defs = Array[ExtResource("1_30inm")]([ExtResource("2_8574y")])
+moodlet_defs = Array[ExtResource("1_30inm")]([ExtResource("3_act"), ExtResource("2_8574y")])
 metadata/_custom_type_script = "uid://bh0hou41lremh"

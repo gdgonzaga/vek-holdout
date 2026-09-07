@@ -7,6 +7,13 @@ class_name MoodletDef
 @export var id: StringName = &""
 @export var display_name: String = ""
 @export var icons: Array[Texture2D] = []
+## Optional array of horizontal spritesheet frame counts corresponding 1-to-1 with the icons array.
+## Defaults to 1 (single static frame) if unconfigured or out-of-bounds.
+@export var icon_hframes: Array[int] = []
+## Default animation playback speed in frames per second (FPS) for animated icons.
+@export var frame_fps: float = 6.0
+## Optional per-icon tier FPS overrides corresponding 1-to-1 with the icons array.
+@export var icon_fps: Array[float] = []
 
 
 # =================
@@ -31,6 +38,26 @@ func get_active_texture(colonist: Colonist) -> Texture2D:
 	return _resolve_texture_at_index(index)
 
 
+## Resolves the horizontal spritesheet frame count for the colonist's currently active icon tier.
+func get_hframes(colonist: Colonist) -> int:
+	# 1. State Evaluation: Query the active icon index for the given colonist.
+	var index: int = evaluate_icon_index(colonist)
+	if index < 0 or icon_hframes.is_empty():
+		return 1
+	
+	# 2. Frame Count Resolution: Look up horizontal frame count for the active index tier.
+	return _resolve_hframes_at_index(index)
+
+
+## Resolves the animation playback speed (FPS) for the colonist's currently active icon tier.
+func get_fps(colonist: Colonist) -> float:
+	# 1. State Evaluation: Query the active icon index for the given colonist.
+	var index: int = evaluate_icon_index(colonist)
+	if index >= 0 and index < icon_fps.size() and icon_fps[index] > 0.0:
+		return icon_fps[index]
+	return frame_fps if frame_fps > 0.0 else 6.0
+
+
 # ===================
 # Auxiliary Functions
 # ===================
@@ -45,3 +72,10 @@ func _resolve_texture_at_index(index: int) -> Texture2D:
 		])
 		return icons.back()
 	return icons[index]
+
+
+func _resolve_hframes_at_index(index: int) -> int:
+	## Auxiliary: Resolves horizontal frame count at specified index tier, returning 1 for unconfigured tiers.
+	if index < icon_hframes.size():
+		return maxi(1, icon_hframes[index])
+	return 1

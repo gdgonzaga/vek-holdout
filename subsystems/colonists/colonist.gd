@@ -230,6 +230,12 @@ func get_stat_value(stat_name: StringName) -> float:
 	return _resolve_stat_value(stat_name)
 
 
+## Returns the current active activity of the colonist (e.g. &"idle", &"mining", &"eat").
+func get_current_activity() -> StringName:
+	# 1. Activity Resolution: Inspect behavior tree goals and assigned job state to derive active activity.
+	return _resolve_current_activity()
+
+
 ## Returns all currently active moodlets evaluated from colonist_def.moodlet_defs in order.
 ## Each element is a Dictionary: { "def": MoodletDef, "index": int, "texture": Texture2D, "name": String }
 func get_active_moodlets() -> Array[Dictionary]:
@@ -269,6 +275,41 @@ func _resolve_stat_value(stat_name: StringName) -> float:
 			if needs != null and needs.needs.has(stat_name):
 				return needs.get_need(stat_name)
 	return -1.0
+
+
+func _resolve_current_activity() -> StringName:
+	## Auxiliary: Resolves current activity from bt_player blackboard goal or current job labor.
+	if bt_player != null and bt_player.blackboard != null and bt_player.blackboard.has_var(&"current_goal"):
+		var goal: Variant = bt_player.blackboard.get_var(&"current_goal")
+		var goal_name := StringName(str(goal))
+		if goal_name == &"work":
+			# 1. Labor Extraction: Retrieve the active job's labor category when work goal is selected.
+			return _resolve_work_activity()
+		elif goal_name != &"none" and goal_name != &"":
+			return goal_name
+	
+	if current_job != null:
+		# 2. Direct Fallback: Check assigned current_job if blackboard goal was unset.
+		return _resolve_work_activity()
+		
+	return &"idle"
+
+
+func _resolve_work_activity() -> StringName:
+	## Auxiliary: Extracts specific work/labor identifier from the current job or blackboard reference.
+	var job: Variant = current_job
+	if job == null and bt_player != null and bt_player.blackboard != null:
+		if bt_player.blackboard.has_var(&"active_job"):
+			job = bt_player.blackboard.get_var(&"active_job")
+		elif bt_player.blackboard.has_var(&"active_claim"):
+			job = bt_player.blackboard.get_var(&"active_claim")
+	
+	if job != null:
+		if "labor_id" in job and str(job.labor_id) != "":
+			return StringName(str(job.labor_id))
+		if "title" in job and str(job.title) != "":
+			return StringName(str(job.title))
+	return &"idle"
 
 
 func _evaluate_all_moodlets() -> Array[Dictionary]:

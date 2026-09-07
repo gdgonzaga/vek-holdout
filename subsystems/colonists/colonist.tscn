@@ -195,8 +195,3 @@ script = ExtResource("17_interact")
 
 [node name="ColonistMoodletVisualizer" type="Node3D" parent="." unique_id=184729103]
 script = ExtResource("21_moodletvis")
-enabled = null
-height_offset = null
-update_interval = null
-visibility_range_end = null
-pixel_size = null

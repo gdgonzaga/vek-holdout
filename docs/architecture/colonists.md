@@ -86,11 +86,13 @@ see the class reference below and docs/HOWTO-use-makehuman-mixamo.md.)
 
 The Moodlet system allows data-driven evaluation and visual representation of colonist statuses (needs deficits, injuries, fatigue, stress):
 
-- **`MoodletDef` (`data/moodlets/moodlet_def.gd`)**: Base Resource schema exporting `id`, `display_name`, and `icons: Array[Texture2D]`. Provides virtual `evaluate_icon_index(colonist) -> int` (< 0 for hidden, >= 0 for icon index) and safe `get_active_texture(colonist) -> Texture2D`.
-- **`StatThresholdMoodletDef` (`data/moodlets/stat_threshold_moodlet_def.gd`)**: Generic threshold evaluator querying `colonist.get_stat_ratio(stat_id)` against ordered cutoff thresholds with `TriggerMode` (`BELOW_THRESHOLD` for depletion stats like HP/hunger/rest, `ABOVE_THRESHOLD` for accumulation stats).
+- **`MoodletDef` (`data/moodlets/moodlet_def.gd`)**: Base Resource schema exporting `id`, `display_name`, `icons: Array[Texture2D]`, and `@export var icon_hframes: Array[int] = []` for animated horizontal spritesheet support per icon tier. Provides virtual `evaluate_icon_index(colonist) -> int` (< 0 for hidden, >= 0 for icon index), safe `get_active_texture(colonist) -> Texture2D`, and `get_hframes(colonist) -> int`.
+- **`StatThresholdMoodletDef` (`data/moodlets/stat_threshold_moodlet_def.gd`)**: Generic threshold evaluator querying `colonist.get_stat_ratio(stat_id)` against ordered cutoff thresholds with `TriggerMode` (`BELOW_THRESHOLD` for depletion stats like HP/hunger/rest, `ABOVE_THRESHOLD` for accumulation stats). Inherits spritesheet animation support.
+- **`ActivityMoodletDef` (`data/moodlets/activity_moodlet_def.gd`)**: Activity-driven evaluator mapping `colonist.get_current_activity()` identifiers (e.g. `&"idle"`, `&"mining"`, `&"eat"`, `&"rest"`) to icon array indices via `activity_icon_map`. Inherits spritesheet animation support.
 - **`Colonist.moodlet_defs` (`data/colonists/colonist_def.gd`)**: Configures the list and display order of active moodlets on a per-archetype basis.
-- **Unified Stat Getters**: `colonist.get_stat_ratio(stat_name)` (returns normalized 0.0 to 1.0 float) and `colonist.get_stat_value(stat_name)` (returns raw numerical value).
+- **Unified Stat & Activity Getters**: `colonist.get_stat_ratio(stat_name)` (returns normalized 0.0 to 1.0 float), `colonist.get_stat_value(stat_name)` (returns raw numerical value), and `colonist.get_current_activity()` (returns current active behavior/labor `StringName`).
 - **UI Integration**: Active moodlet icons are presented in the Colony Management roster (`ColonistEntry`) with tooltips and fixed aspect-ratio icon slots.
+- **Visualizer Layout**: `ColonistMoodletVisualizer` arranges active moodlets horizontally centered in 3D billboard space above the colonist's head, dynamically syncing `Sprite3D.hframes` and advancing `Sprite3D.frame` for animated spritesheets at `frame_fps`.
 
 
 ---

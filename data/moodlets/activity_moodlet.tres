@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="ActivityMoodletDef" format=3 uid="uid://dxgk7b3dp6hed"]
+
+[ext_resource type="Script" uid="uid://cp0mwaskg47xi" path="res://data/moodlets/activity_moodlet_def.gd" id="1_hrqdj"]
+[ext_resource type="Texture2D" uid="uid://bko45wgpk2tm3" path="res://assets/custom/activity_icons/idle.png" id="2_idle"]
+[ext_resource type="Texture2D" uid="uid://03a7rlrieacm" path="res://assets/custom/activity_icons/mining.png" id="3_mining"]
+[ext_resource type="Texture2D" uid="uid://f23un82r60wq" path="res://assets/custom/activity_icons/construction.png" id="4_construction"]
+[ext_resource type="Texture2D" uid="uid://brve572pco6qt" path="res://assets/custom/activity_icons/crafting.png" id="5_crafting"]
+[ext_resource type="Texture2D" uid="uid://ce0qjrwmictyh" path="res://assets/custom/activity_icons/hauling.png" id="6_hauling"]
+[ext_resource type="Texture2D" uid="uid://dgyh0wh3qkwsi" path="res://assets/custom/activity_icons/eating.png" id="7_eating"]
+[ext_resource type="Texture2D" uid="uid://dr48wg5sihpot" path="res://assets/custom/activity_icons/resting.png" id="8_resting"]
+
+[resource]
+script = ExtResource("1_hrqdj")
+activity_icon_map = {
+&"build": 2,
+&"construction": 2,
+&"craft": 3,
+&"crafting": 3,
+&"dig": 1,
+&"eat": 5,
+&"eating": 5,
+&"haul": 4,
+&"hauling": 4,
+&"hunger": 5,
+&"idle": 0,
+&"mining": 1,
+&"rest": 6,
+&"resting": 6,
+&"sleep": 6
+}
+id = &"activity"
+display_name = "Current Activity"
+icons = Array[Texture2D]([ExtResource("2_idle"), ExtResource("3_mining"), ExtResource("4_construction"), ExtResource("5_crafting"), ExtResource("6_hauling"), ExtResource("7_eating"), ExtResource("8_resting")])
+icon_hframes = Array[int]([2])
+frame_fps = 2.0
+metadata/_custom_type_script = "uid://cp0mwaskg47xi"
