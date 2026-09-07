@@ -97,7 +97,7 @@ func test_day_night_cycle_at_midday() -> void:
 		assert_float(overhead.light_energy).is_equal_approx(cycle.overhead_light_max_energy, 0.01)
 	var world_env: WorldEnvironment = cycle.get_node("WorldEnvironment") as WorldEnvironment
 	var sky_mat := world_env.environment.sky.sky_material as ProceduralSkyMaterial
-	assert_color(sky_mat.sky_top_color).is_equal(cycle.day_sky_top_color)
+	assert_object(sky_mat.sky_top_color).is_equal(cycle.day_sky_top_color)
 
 
 func test_day_night_cycle_at_midnight() -> void:
@@ -127,6 +127,6 @@ func test_day_night_cycle_at_midnight() -> void:
 		assert_float(overhead.light_energy).is_equal_approx(cycle.overhead_light_min_energy, 0.01)
 	var world_env: WorldEnvironment = cycle.get_node("WorldEnvironment") as WorldEnvironment
 	var sky_mat := world_env.environment.sky.sky_material as ProceduralSkyMaterial
-	assert_color(sky_mat.sky_top_color).is_equal(cycle.night_sky_top_color)
+	assert_object(sky_mat.sky_top_color).is_equal(cycle.night_sky_top_color)
 
 

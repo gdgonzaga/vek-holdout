@@ -33,6 +33,20 @@ const BUILD_RAY_MASK := 1 | TERRAIN_LAYER | SMOOTH_TERRAIN_LAYER_VALUE | 16
 ## template parents VoxelTerrain as a direct child of BlockyGrid.
 @export var terrain_path: NodePath = ^"VoxelTerrain"
 
+## Playable volume bounding box. Prevents voxel generation and streaming beyond limits.
+@export var world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0))
+
+
+func get_world_bounds() -> AABB:
+	return world_bounds
+
+
+func set_world_bounds(bounds: AABB) -> void:
+	world_bounds = bounds
+	if _terrain != null and "bounds" in _terrain:
+		_terrain.set("bounds", bounds)
+
+
 @onready var _terrain: VoxelTerrain = get_node(terrain_path)
 var _voxel_tool: VoxelTool
 
@@ -48,6 +62,9 @@ func _ready() -> void:
 		_terrain.set("collision_mask", TERRAIN_BODY_MASK)
 	else:
 		push_warning("BlockyGrid: VoxelTerrain lacks collision_layer; terrain stays on the default layer")
+
+	if "bounds" in _terrain:
+		_terrain.set("bounds", world_bounds)
 	_library = _make_library()
 	# Wire the data-driven block library into the terrain's mesher. Kept in code
 	# (not the .tscn) because the VoxelBlockyLibrary is assembled from data/blocks/.

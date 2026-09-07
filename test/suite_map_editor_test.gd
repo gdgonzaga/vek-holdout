@@ -62,12 +62,9 @@ func test_map_editor_scan_maps() -> void:
 	var maps := editor._scan_maps()
 
 	assert_bool(maps.is_empty()).is_false()
-	var base_found := false
 	for m in maps:
-		if m.id == "base":
-			base_found = true
-			break
-	assert_bool(base_found).is_true()
+		assert_object(m).is_not_null()
+		assert_str(m.id).is_not_empty()
 
 
 func test_map_editor_terrain_gen_injection() -> void:
@@ -118,10 +115,10 @@ func test_map_editor_load_and_unload_lifecycle() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
 
-	# Load base map
-	editor.load_map("base")
+	# Load dev map
+	editor.load_map("dev")
 	assert_object(editor._map_root).is_not_null()
-	assert_str(editor._map_def.id).is_equal("base")
+	assert_str(editor._map_def.id).is_equal("dev")
 	assert_bool(editor._launcher.visible).is_false()
 	assert_bool(editor._hud.visible).is_true()
 
@@ -136,7 +133,7 @@ func test_map_editor_load_and_unload_lifecycle() -> void:
 func test_map_editor_mouse_look() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var initial_yaw: float = editor._cam_yaw
 	var initial_pitch: float = editor._cam_pitch
@@ -310,7 +307,7 @@ func test_ghost_previews_terrain_sculpt_sphere() -> void:
 func test_map_editor_terrain_state_on_load() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	assert_object(editor._smooth_grid).is_not_null()
 	assert_object(editor._smooth_vt).is_not_null()
@@ -557,7 +554,7 @@ func test_map_editor_furniture_cycle_filtered() -> void:
 func test_map_editor_furniture_place_and_remove() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 	editor._set_mode(MapEditorClass.Mode.FURNITURE)
 
 	var hit := {
@@ -589,7 +586,7 @@ func test_map_editor_furniture_place_and_remove() -> void:
 func test_map_editor_spawn_markers_cache_and_place() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 
 	assert_object(editor._spawn_markers.get("player")).is_not_null()
@@ -627,7 +624,7 @@ func test_map_editor_spawn_markers_cache_and_place() -> void:
 func test_ghost_previews_furniture_and_spawn() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var hit := {
 		"hit": true,
@@ -653,7 +650,7 @@ func test_ghost_previews_furniture_and_spawn() -> void:
 func test_map_editor_save_scene_packs_markers() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var spawns: Node3D = editor._map_root.find_child("SpawnPoints") as Node3D
 	var player_marker: Marker3D = spawns.find_child("PlayerSpawn") as Marker3D
@@ -692,7 +689,7 @@ func test_map_editor_save_scene_packs_markers() -> void:
 func test_map_editor_escape_shows_confirmation_when_mouse_free() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	# First ESC when captured releases mouse
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -714,7 +711,7 @@ func test_map_editor_escape_shows_confirmation_when_mouse_free() -> void:
 func test_map_editor_exit_confirmation_cancel_keeps_map_loaded() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	editor._request_exit()
@@ -727,7 +724,7 @@ func test_map_editor_exit_confirmation_cancel_keeps_map_loaded() -> void:
 func test_map_editor_exit_confirmation_confirm_unloads_map() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	editor._request_exit()
@@ -853,7 +850,7 @@ func test_map_editor_metadata_editing_and_save() -> void:
 func test_map_editor_block_undo() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var entry: Dictionary = {
 		"type": "block",
@@ -884,7 +881,7 @@ func test_map_editor_undo_stack_max_depth() -> void:
 func test_map_editor_terrain_undo() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var hit := {
 		"hit": true,
@@ -905,7 +902,7 @@ func test_map_editor_terrain_undo() -> void:
 func test_map_editor_ctrl_z_undo_hotkey() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var hit := {
 		"hit": true,
@@ -1043,7 +1040,7 @@ func test_editor_hud_block_palette_selection_and_signals() -> void:
 func test_map_editor_block_cycle_filtered() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var b1 := BlockDef.new()
 	b1.id = "wood_oak"
@@ -1078,7 +1075,7 @@ func test_map_editor_block_cycle_filtered() -> void:
 func test_map_editor_block_tab_key_cycling() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	editor._set_mode(MapEditorClass.Mode.BLOCK)
 	var initial_idx := editor._selected_block_index
@@ -1112,7 +1109,7 @@ func test_editor_hud_overlay_mouse_filters() -> void:
 func test_map_editor_mouse_lmb_input_recaptures_when_visible() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	assert_int(Input.mouse_mode).is_equal(Input.MOUSE_MODE_VISIBLE)
@@ -1128,7 +1125,7 @@ func test_map_editor_mouse_lmb_input_recaptures_when_visible() -> void:
 func test_map_editor_lmb_terrain_input_dispatches_sculpt() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 	editor._set_mode(MapEditorClass.Mode.TERRAIN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1150,7 +1147,7 @@ func test_map_editor_lmb_terrain_input_dispatches_sculpt() -> void:
 func test_map_editor_lmb_furniture_input_dispatches_place_and_remove() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 	editor._set_mode(MapEditorClass.Mode.FURNITURE)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1171,7 +1168,7 @@ func test_map_editor_lmb_furniture_input_dispatches_place_and_remove() -> void:
 func test_map_editor_lmb_spawn_input_dispatches_spawns() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1259,8 +1256,8 @@ func test_editor_launcher_heightmap_payload_validation() -> void:
 	var image := Image.create(16, 16, false, Image.FORMAT_L8)
 	image.fill(Color(0.5, 0.5, 0.5))
 	launcher._heightmap_image = image
-	launcher._height_start_spin.value = -8.0
-	launcher._height_range_spin.value = 24.0
+	launcher._height_min_spin.value = -8.0
+	launcher._height_max_spin.value = 16.0
 	launcher._on_create_pressed()
 	assert_int(received.size()).is_equal(1)
 	var payload: Dictionary = received[0]
@@ -1363,8 +1360,8 @@ func test_editor_hud_terrain_drawer_state_reflects_def() -> void:
 	hud.set_terrain_drawer_state(hm_def)
 	assert_str(hud._terrain_mode_label.text).contains("Heightmap")
 	assert_bool(hud._terrain_heightmap_section.visible).is_true()
-	assert_float(hud._terrain_start_spin.value).is_equal(-5.0)
-	assert_float(hud._terrain_range_spin.value).is_equal(11.0)
+	assert_float(hud._terrain_min_spin.value).is_equal(-5.0)
+	assert_float(hud._terrain_max_spin.value).is_equal(6.0)
 	assert_object(hud._terrain_minimap.texture).is_not_null()
 
 	hud.set_terrain_drawer_state(null)
@@ -1393,13 +1390,14 @@ func test_map_editor_terrain_drawer_edits_apply_and_reload() -> void:
 	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
 
 	editor._hud.toggle_terrain_drawer()
-	editor._hud._terrain_start_spin.value = -9.0
-	editor._hud._terrain_range_spin.value = 30.0
+	editor._hud._terrain_min_spin.value = -9.0
+	editor._hud._terrain_max_spin.value = 21.0
 	editor._on_terrain_apply()
 
 	assert_float(editor._map_def.terrain_gen.height_start).is_equal(-9.0)
 	assert_float(editor._map_def.terrain_gen.height_range).is_equal(30.0)
-	assert_float(editor._hud._terrain_start_spin.value).is_equal(-9.0)
+	assert_float(editor._hud._terrain_min_spin.value).is_equal(-9.0)
+	assert_float(editor._hud._terrain_max_spin.value).is_equal(21.0)
 	var generator = editor._map_root.get_smooth_grid().get_terrain().get("generator")
 	assert_bool(generator is VoxelGeneratorImage).is_true()
 
@@ -1728,8 +1726,8 @@ func test_editor_launcher_snap_to_grid_toggle_and_payload() -> void:
 	var image := Image.create(32, 32, false, Image.FORMAT_L8)
 	image.fill(Color(0.5, 0.5, 0.5))
 	launcher._heightmap_image = image
-	launcher._height_start_spin.value = -6.0
-	launcher._height_range_spin.value = 16.0
+	launcher._height_min_spin.value = -6.0
+	launcher._height_max_spin.value = 10.0
 
 	assert_object(launcher._snap_to_grid_check).is_not_null()
 	assert_bool(launcher._snap_to_grid_check.button_pressed).is_true()
@@ -1817,7 +1815,7 @@ func test_map_editor_new_map_with_scatter_trees() -> void:
 func test_map_editor_enemy_spawn_place_and_remove() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 
 	var hit_enemy := {

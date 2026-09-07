@@ -22,6 +22,9 @@ var _new_type_select: OptionButton
 var _error_label: Label
 
 # Terrain-setup controls in the create form
+var _bounds_xz_spin: SpinBox
+var _bounds_min_y_spin: SpinBox
+var _bounds_max_y_spin: SpinBox
 var _terrain_mode_select: OptionButton
 var _noise_def_select: OptionButton
 var _noise_def_paths: Array[String] = []
@@ -29,8 +32,8 @@ var _heightmap_path_label: Label
 var _heightmap_pick_button: Button
 var _heightmap_minimap: TextureRect
 var _heightmap_stats_label: Label
-var _height_start_spin: SpinBox
-var _height_range_spin: SpinBox
+var _height_min_spin: SpinBox
+var _height_max_spin: SpinBox
 var _snap_to_grid_check: CheckBox
 var _heightmap_image: Image = null
 var _heightmap_box: Control = null
@@ -147,6 +150,56 @@ func _build_ui() -> void:
 	_new_type_select.selected = 1  # Default to POI
 	form_vbox.add_child(_new_type_select)
 
+	# World Bounds Dimensions
+	var bounds_lbl := Label.new()
+	bounds_lbl.text = "World Dimensions (m):"
+	bounds_lbl.add_theme_font_size_override("font_size", 12)
+	bounds_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	form_vbox.add_child(bounds_lbl)
+
+	var bounds_hbox := HBoxContainer.new()
+	bounds_hbox.add_theme_constant_override("separation", 6)
+	form_vbox.add_child(bounds_hbox)
+
+	var xz_lbl := Label.new()
+	xz_lbl.text = "Span:"
+	xz_lbl.add_theme_font_size_override("font_size", 11)
+	bounds_hbox.add_child(xz_lbl)
+
+	_bounds_xz_spin = SpinBox.new()
+	_bounds_xz_spin.min_value = 32.0
+	_bounds_xz_spin.max_value = 1024.0
+	_bounds_xz_spin.step = 16.0
+	_bounds_xz_spin.value = 192.0
+	_bounds_xz_spin.tooltip_text = "Horizontal width and depth (XZ span in meters)"
+	bounds_hbox.add_child(_bounds_xz_spin)
+
+	var min_y_lbl := Label.new()
+	min_y_lbl.text = "Floor:"
+	min_y_lbl.add_theme_font_size_override("font_size", 11)
+	bounds_hbox.add_child(min_y_lbl)
+
+	_bounds_min_y_spin = SpinBox.new()
+	_bounds_min_y_spin.min_value = -256.0
+	_bounds_min_y_spin.max_value = 0.0
+	_bounds_min_y_spin.step = 16.0
+	_bounds_min_y_spin.value = -48.0
+	_bounds_min_y_spin.tooltip_text = "Minimum Y / underground depth in meters (negative)"
+	bounds_hbox.add_child(_bounds_min_y_spin)
+
+	var max_y_lbl := Label.new()
+	max_y_lbl.text = "Ceil:"
+	max_y_lbl.add_theme_font_size_override("font_size", 11)
+	bounds_hbox.add_child(max_y_lbl)
+
+	_bounds_max_y_spin = SpinBox.new()
+	_bounds_max_y_spin.min_value = 0.0
+	_bounds_max_y_spin.max_value = 256.0
+	_bounds_max_y_spin.step = 16.0
+	_bounds_max_y_spin.value = 16.0
+	_bounds_max_y_spin.tooltip_text = "Maximum Y / height ceiling in meters (positive)"
+	bounds_hbox.add_child(_bounds_max_y_spin)
+
 	# Terrain setup: how the new map's smooth terrain is generated.
 	var terrain_lbl := Label.new()
 	terrain_lbl.text = "Terrain:"
@@ -213,31 +266,33 @@ func _build_ui() -> void:
 	range_row.add_theme_constant_override("separation", 8)
 	_heightmap_box.add_child(range_row)
 
-	var start_lbl := Label.new()
-	start_lbl.text = "Start (m):"
-	start_lbl.add_theme_font_size_override("font_size", 12)
-	range_row.add_child(start_lbl)
+	var min_lbl := Label.new()
+	min_lbl.text = "Min Height (m):"
+	min_lbl.add_theme_font_size_override("font_size", 12)
+	range_row.add_child(min_lbl)
 
-	_height_start_spin = SpinBox.new()
-	_height_start_spin.min_value = -128.0
-	_height_start_spin.max_value = 128.0
-	_height_start_spin.step = 0.5
-	_height_start_spin.value = -6.0
-	_height_start_spin.value_changed.connect(_update_heightmap_stats)
-	range_row.add_child(_height_start_spin)
+	_height_min_spin = SpinBox.new()
+	_height_min_spin.min_value = -128.0
+	_height_min_spin.max_value = 128.0
+	_height_min_spin.step = 0.5
+	_height_min_spin.value = -6.0
+	_height_min_spin.tooltip_text = "Lowest terrain height in meters (pure black pixel)"
+	_height_min_spin.value_changed.connect(_update_heightmap_stats)
+	range_row.add_child(_height_min_spin)
 
-	var span_lbl := Label.new()
-	span_lbl.text = "Range (m):"
-	span_lbl.add_theme_font_size_override("font_size", 12)
-	range_row.add_child(span_lbl)
+	var max_lbl := Label.new()
+	max_lbl.text = "Max Height (m):"
+	max_lbl.add_theme_font_size_override("font_size", 12)
+	range_row.add_child(max_lbl)
 
-	_height_range_spin = SpinBox.new()
-	_height_range_spin.min_value = 1.0
-	_height_range_spin.max_value = 256.0
-	_height_range_spin.step = 0.5
-	_height_range_spin.value = 16.0
-	_height_range_spin.value_changed.connect(_update_heightmap_stats)
-	range_row.add_child(_height_range_spin)
+	_height_max_spin = SpinBox.new()
+	_height_max_spin.min_value = -128.0
+	_height_max_spin.max_value = 256.0
+	_height_max_spin.step = 0.5
+	_height_max_spin.value = 10.0
+	_height_max_spin.tooltip_text = "Highest terrain height in meters (pure white pixel)"
+	_height_max_spin.value_changed.connect(_update_heightmap_stats)
+	range_row.add_child(_height_max_spin)
 
 	var snap_row := HBoxContainer.new()
 	snap_row.add_theme_constant_override("separation", 8)
@@ -381,14 +436,27 @@ func _update_heightmap_stats(_value: float = 0.0) -> void:
 		_heightmap_stats_label.text = ""
 		return
 	var size := _heightmap_image.get_size()
-	var start := _height_start_spin.value
-	var span := _height_range_spin.value
+	var min_h := _height_min_spin.value
+	var max_h := _height_max_spin.value
+	var span := maxf(0.5, max_h - min_h)
 	var tier_info := ""
 	if _snap_to_grid_check != null and _snap_to_grid_check.button_pressed:
 		var tiers := int(round(span)) + 1
 		tier_info = " (%d grid tiers)" % tiers
-	_heightmap_stats_label.text = "%d×%d px → %d×%d m\nspan %.1f m … %.1f m%s" % [
-		int(size.x), int(size.y), int(size.x), int(size.y), start, start + span, tier_info,
+
+	var y_zero_info := ""
+	if span > 0.0:
+		var zero_fraction := (0.0 - min_h) / span
+		if zero_fraction >= 0.0 and zero_fraction <= 1.0:
+			var gray_val := int(round(zero_fraction * 255.0))
+			y_zero_info = "\nBaseline Y=0 at grayscale %d (%d%%)" % [gray_val, int(round(zero_fraction * 100.0))]
+		elif zero_fraction < 0.0:
+			y_zero_info = "\nBaseline Y=0 is above max terrain"
+		else:
+			y_zero_info = "\nBaseline Y=0 is below min terrain"
+
+	_heightmap_stats_label.text = "%d×%d px → %d×%d m\nspan %.1f m … %.1f m%s%s" % [
+		int(size.x), int(size.y), int(size.x), int(size.y), min_h, max_h, tier_info, y_zero_info
 	]
 
 
@@ -413,17 +481,27 @@ func _on_create_pressed() -> void:
 		return
 	_error_label.visible = false
 	var chosen_type := _new_type_select.selected
+	var xz_val: float = _bounds_xz_spin.value if _bounds_xz_spin != null else 192.0
+	var min_y: float = _bounds_min_y_spin.value if _bounds_min_y_spin != null else -48.0
+	var max_y: float = _bounds_max_y_spin.value if _bounds_max_y_spin != null else 16.0
+	var total_height := max_y - min_y
+	var bounds := AABB(Vector3(-xz_val * 0.5, min_y, -xz_val * 0.5), Vector3(xz_val, total_height, xz_val))
+	var min_h: float = _height_min_spin.value if _height_min_spin != null else -6.0
+	var max_h: float = _height_max_spin.value if _height_max_spin != null else 10.0
+	var height_range: float = maxf(0.5, max_h - min_h)
+
 	new_map_requested.emit({
 		"map_id": name_text,
 		"map_type": chosen_type,
 		"terrain_mode": terrain_mode,
 		"noise_def_path": _selected_noise_def_path(),
 		"image": _heightmap_image,
-		"height_start": _height_start_spin.value,
-		"height_range": _height_range_spin.value,
+		"height_start": min_h,
+		"height_range": height_range,
 		"snap_to_grid": _snap_to_grid_check.button_pressed if _snap_to_grid_check != null else false,
 		"scatter_trees": _scatter_trees_check.button_pressed if _scatter_trees_check != null else false,
 		"tree_density": _tree_density_select.selected if _tree_density_select != null else 1,
+		"world_bounds": bounds,
 	})
 
 

@@ -188,7 +188,12 @@ static func _compose_walkability(map: Map) -> Callable:
 		var is_solid := Callable(smooth, "is_solid_at")
 		probe = hybrid_ground_probe(Callable(grid, "get_block_at"),
 				Callable(smooth, "height_at"), smooth.terrain_gen.max_walk_slope_deg, is_solid)
-	return compose_walkability(probe, fl, bl)
+	var base_walkable := compose_walkability(probe, fl, bl)
+	var bounds: AABB = map.get_world_bounds()
+	return func(cell: Vector3i) -> bool:
+		if not bounds.has_point(Vector3(float(cell.x) + 0.5, float(cell.y) + 0.5, float(cell.z) + 0.5)):
+			return false
+		return bool(base_walkable.call(cell))
 
 
 ## Blocky-only ground probe: a cell is standable iff it is air, has a solid

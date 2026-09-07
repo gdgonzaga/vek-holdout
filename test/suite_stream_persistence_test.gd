@@ -142,8 +142,8 @@ func test_persisted_streams_without_live_smooth() -> void:
 ## user://maps/<id>/ under their paired names and both streams repointed.
 func test_redirect_copies_and_repoints_both_streams() -> void:
 	var map := _build_map(true)
-	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/base/map.sqlite")
-	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/base/map.sqlite")
+	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/dev/map.sqlite")
+	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/dev/terrain.sqlite")
 	SceneManager._redirect_sqlite_stream(map, _REDIRECT_ID)
 	var dir := "user://maps/%s/" % _REDIRECT_ID
 	assert_bool(FileAccess.file_exists(dir + "map.sqlite")).is_true()
@@ -159,7 +159,7 @@ func test_redirect_copies_and_repoints_both_streams() -> void:
 ## repoints so runtime edits land in user://, never res:// (INV-1).
 func test_redirect_missing_source_repoints_without_copy() -> void:
 	var map := _build_map(true)
-	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/dev/terrain.sqlite")
+	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/missing_map_fixture/terrain.sqlite")
 	SceneManager._redirect_sqlite_stream(map, _REDIRECT_ID)
 	assert_bool(FileAccess.file_exists("user://maps/%s/terrain.sqlite" % _REDIRECT_ID)).is_false()
 	assert_str((map.get_smooth_terrain().stream as VoxelStreamSQLite).database_path) \
@@ -185,7 +185,7 @@ func test_redirect_injects_streams_when_absent() -> void:
 ## overwrite it with the authored original.
 func test_redirect_keeps_existing_runtime_copy() -> void:
 	var map := _build_map(true)
-	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/base/map.sqlite")
+	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/dev/map.sqlite")
 	_write_file("user://maps/%s/map.sqlite" % _REDIRECT_ID, "player progress sentinel")
 	SceneManager._redirect_sqlite_stream(map, _REDIRECT_ID)
 	assert_str(_read_file("user://maps/%s/map.sqlite" % _REDIRECT_ID)) \

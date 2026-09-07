@@ -581,6 +581,8 @@ func load_map(map_id: String) -> void:
 
 	var instance := packed.instantiate()
 	_inject_terrain_gen(instance, def)
+	if instance is Map and def != null:
+		(instance as Map).set_world_bounds(def.world_bounds)
 	add_child(instance)
 
 	_map_root = instance as Map
@@ -616,7 +618,7 @@ func load_map(map_id: String) -> void:
 		_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
 		_hud.populate_structure_list(_structure_defs, _selected_structure_idx)
 		_hud.set_map_info(map_id, _dirty)
-		_hud.set_metadata(def.display_name, def.description, def.map_type, def.difficulty)
+		_hud.set_metadata(def.display_name, def.description, def.map_type, def.difficulty, def.world_bounds)
 		_hud.set_terrain_available(_smooth_grid != null)
 		_hud.set_terrain_drawer_state(_map_def.terrain_gen)
 		_hud.show()
@@ -939,6 +941,8 @@ func _create_map_def(payload: Dictionary, folder_path: String, tscn_path: String
 	def.enemy_spawns = []
 	def.unlock_condition = ""
 	def.difficulty = 1
+	if payload.has("world_bounds") and payload["world_bounds"] is AABB:
+		def.world_bounds = payload["world_bounds"]
 
 	var terrain_mode := int(payload.get("terrain_mode", EditorLauncherClass.TerrainMode.NOISE))
 	if terrain_mode == EditorLauncherClass.TerrainMode.HEIGHTMAP:
@@ -1940,6 +1944,10 @@ func save_map() -> void:
 					_map_def.map_type = meta_edits["map_type"]
 				if meta_edits.has("difficulty"):
 					_map_def.difficulty = meta_edits["difficulty"]
+				if meta_edits.has("world_bounds") and meta_edits["world_bounds"] is AABB:
+					_map_def.world_bounds = meta_edits["world_bounds"]
+					if _map_root != null:
+						_map_root.set_world_bounds(_map_def.world_bounds)
 
 			var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
 			var err_def := ResourceSaver.save(_map_def, def_path)

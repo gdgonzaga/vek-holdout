@@ -230,7 +230,7 @@ func test_structure_tool_stamp_and_bounding_box() -> void:
 func test_map_editor_structure_stamp_and_undo() -> void:
 	var editor: MapEditorClass = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("base")
+	editor.load_map("dev")
 
 	var data := _create_sample_vox_data()
 	var mapping := _create_sample_mapping()

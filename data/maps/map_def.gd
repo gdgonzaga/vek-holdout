@@ -20,8 +20,25 @@ enum MapType { BASE, POI, BUILDING, TOWN }
 @export var unlock_condition: String = ""
 @export var difficulty: int = 1
 
+## Bounding box defining the discrete playable colony volume.
+## Bounds outside this box will not generate, mesh, or be pathfindable.
+## Default is 192m (X) x 64m (Y) x 192m (Z), centered at X/Z: 0, with Y ranging from -48 to +16.
+@export var world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0))
+
 ## Natural (smooth) terrain parameters; null = the map has no smooth terrain
 ## and any SmoothGrid node in its scene frees itself at _ready (dual-voxel
 ## conversion, docs/TODO.md D2). SceneManager injects this into the SmoothGrid
 ## before the map enters the tree.
 @export var terrain_gen: TerrainGenDef = null
+
+
+func get_horizontal_size() -> Vector2:
+	return Vector2(world_bounds.size.x, world_bounds.size.z)
+
+
+func get_depth() -> float:
+	return -world_bounds.position.y
+
+
+func get_ceiling() -> float:
+	return world_bounds.position.y + world_bounds.size.y

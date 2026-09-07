@@ -16,13 +16,24 @@ static func read_spawns(map: Map) -> Dictionary:
 	var root := map.find_child("SpawnPoints") as Node3D
 	if root == null:
 		return result
+	var bounds: AABB = map.get_world_bounds() if map != null else AABB()
+	var has_bounds: bool = bounds.has_volume()
 	for child in root.get_children():
 		if child.name == "PlayerSpawn":
-			result.player = child.global_position
+			# Bounds Clamping: Ensuring player spawn point falls inside playable colony volume.
+			result.player = _clamp_to_bounds(child.global_position, bounds) if has_bounds else child.global_position
 		elif child.name.begins_with("EnemySpawn"):
-			result.enemies.append(child.global_position)
+			var pos: Vector3 = child.global_position
+			if has_bounds:
+				# Bounds Clamping: Ensuring enemy spawn point falls inside playable colony volume.
+				pos = _clamp_to_bounds(pos, bounds)
+			result.enemies.append(pos)
 		elif child.name.begins_with("ColonistSpawn"):
-			result.colonists.append(child.global_position)
+			var pos: Vector3 = child.global_position
+			if has_bounds:
+				# Bounds Clamping: Ensuring colonist spawn point falls inside playable colony volume.
+				pos = _clamp_to_bounds(pos, bounds)
+			result.colonists.append(pos)
 		elif child.name.begins_with("Furniture_"):
 			var def_id: String = child.get_meta("def_id", "")
 			var anchor: Vector3i = child.get_meta("anchor", Vector3i())
@@ -32,6 +43,18 @@ static func read_spawns(map: Map) -> Dictionary:
 				continue
 			result.furniture.append({"def_id": def_id, "anchor": anchor, "yaw": yaw})
 	return result
+
+
+static func _clamp_to_bounds(pos: Vector3, bounds: AABB) -> Vector3:
+	## Auxiliary: Constrains an authored spawn coordinate to strictly lie within world bounds.
+	const MARGIN := 1.0
+	var min_p := bounds.position + Vector3(MARGIN, MARGIN, MARGIN)
+	var max_p := bounds.position + bounds.size - Vector3(MARGIN, MARGIN, MARGIN)
+	return Vector3(
+		clampf(pos.x, min_p.x, max_p.x),
+		clampf(pos.y, min_p.y, max_p.y),
+		clampf(pos.z, min_p.z, max_p.z)
+	)
 
 
 ## Free the authored `Furniture_*` markers after their placement metadata has been

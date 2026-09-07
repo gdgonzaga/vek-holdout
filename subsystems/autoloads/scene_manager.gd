@@ -77,6 +77,8 @@ func swap_map(scene_id: String) -> void:
 		# catalog rides the same injection — BuildLibrary is this autoload's
 		# layer, not the voxel subsystem's (AGENTS.md rule 3).
 		smooth.set_material_catalog(BuildLibrary.get_terrain_materials())
+	if map is Map:
+		(map as Map).set_world_bounds(map_def.world_bounds)
 	_map_root_parent.add_child(map)
 	_current_map = map
 	_current_scene_id = scene_id

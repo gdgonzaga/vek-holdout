@@ -93,8 +93,8 @@ sequenceDiagram
 ### A4. Foliage & Tree Scattering
 
 `TreeScatterer` (`subsystems/map_authoring/tree_scatterer.gd`) procedurally scatters harvestable trees (`data/furniture/tree1.tres`) onto the map surface during creation or in-session:
-- **3-Layer Density Model:** Macro clustering via 2D `FastNoiseLite` (forest groves vs meadows), micro minimum trunk spacing ($\ge 4.5\,	ext{m}$), and target count budgets (Sparse ~30, Normal ~75, Dense ~150).
-- **Placement Constraints:** Slope gating (<= 25 deg), clearance from `PlayerSpawn` ($\ge 8\,	ext{m}$), and surface queries across `SmoothGrid` / `Map.ground_height_at`.
+- **3-Layer Density Model:** Macro clustering via 2D `FastNoiseLite` (forest groves vs meadows), micro minimum trunk spacing (>= 4.5m), and target count budgets (Sparse ~30, Normal ~75, Dense ~150).
+- **Placement Constraints:** Slope gating (<= 25 deg), clearance from `PlayerSpawn` (>= 8m), and surface queries across `SmoothGrid` / `Map.ground_height_at`.
 - **Extensible Weighted Definitions:** `tree_types: Array[Dictionary] = [{"id": "tree1", "weight": 1.0}]` supports multi-flora authoring with cumulative weight rolls.
 - **Authoring Model:** Authored as `Furniture_*` markers in `map.tscn` via `FurnitureAuthoring`, allowing in-editor inspection, F4 removal, and save persistence. In-editor actions: **"🌳 Scatter Trees"** and **"✕ Clear Trees"** in the F4 Furniture footer.
 

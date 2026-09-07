@@ -82,9 +82,25 @@ const StrataBakeResult = preload("res://subsystems/voxel/strata_bake_result.gd")
 @export var volume_bake_span_y: int = 64
 
 ## Minimum world Y coordinate for the 3D strata volume bake (Option B2).
-@export var volume_min_y: int = -36
+@export var volume_min_y: int = -48
 
 @export var default_material: TerrainMaterialDef = null
+
+## Playable volume bounding box. Prevents voxel generation and streaming beyond limits.
+@export var world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0))
+
+
+func get_world_bounds() -> AABB:
+	return world_bounds
+
+
+func set_world_bounds(bounds: AABB) -> void:
+	world_bounds = bounds
+	volume_bake_span_xz = int(maxf(bounds.size.x, bounds.size.z))
+	volume_bake_span_y = int(bounds.size.y)
+	volume_min_y = int(bounds.position.y)
+	if _terrain != null and "bounds" in _terrain:
+		_terrain.set("bounds", bounds)
 
 @onready var _terrain: VoxelTerrain = get_node_or_null(terrain_path) as VoxelTerrain
 var _voxel_tool: VoxelTool
@@ -135,6 +151,9 @@ func _ready() -> void:
 		_terrain.set("collision_mask", TERRAIN_BODY_MASK)
 	else:
 		push_warning("SmoothGrid: VoxelTerrain lacks collision_layer; smooth terrain stays on the default layer")
+
+	if "bounds" in _terrain:
+		_terrain.set("bounds", world_bounds)
 
 	# One prepared image feeds both the generator and _pristine_height — F13's
 	# lockstep rule: strata and generator must describe the same def. Noise

@@ -71,8 +71,22 @@ func set_stand_cell_hint(hint: Callable) -> void:
 	_stand_cell_hint = hint
 
 
+## World volume bounding box. If set, cells outside bounds are treated as non-walkable.
+var world_bounds: AABB = AABB()
+
+
+func set_world_bounds(bounds: AABB) -> void:
+	world_bounds = bounds
+
+
+func get_world_bounds() -> AABB:
+	return world_bounds
+
+
 ## Query whether a given voxel cell is standable under the injected predicate.
 func is_walkable(cell: Vector3i) -> bool:
+	if world_bounds.has_volume() and not world_bounds.has_point(Vector3(float(cell.x) + 0.5, float(cell.y) + 0.5, float(cell.z) + 0.5)):
+		return false
 	return _is_walkable.is_valid() and bool(_is_walkable.call(cell))
 
 
@@ -89,6 +103,7 @@ func _build_context() -> Dictionary:
 		"jump_up_cost": _JUMP_UP_COST,
 		"drop_cost_per_cell": _DROP_COST_PER_CELL,
 		"max_explored": _MAX_EXPLORED,
+		"world_bounds": world_bounds,
 	}
 
 

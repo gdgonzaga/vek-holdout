@@ -68,14 +68,17 @@ var _meta_display_name_input: LineEdit
 var _meta_desc_input: TextEdit
 var _meta_type_option: OptionButton
 var _meta_difficulty_spin: SpinBox
+var _meta_bounds_xz_spin: SpinBox
+var _meta_bounds_min_y_spin: SpinBox
+var _meta_bounds_max_y_spin: SpinBox
 
 var _terrain_button: Button
 var _terrain_drawer: PanelContainer
 var _terrain_mode_label: Label
 var _terrain_def_label: Label
 var _terrain_minimap: TextureRect
-var _terrain_start_spin: SpinBox
-var _terrain_range_spin: SpinBox
+var _terrain_min_spin: SpinBox
+var _terrain_max_spin: SpinBox
 var _terrain_seed_spin: SpinBox
 var _terrain_freq_spin: SpinBox
 var _terrain_span_label: Label
@@ -533,6 +536,56 @@ func _build_ui() -> void:
 	_meta_difficulty_spin.value = 1
 	meta_vbox.add_child(_meta_difficulty_spin)
 
+	# World Bounds Dimensions
+	var bounds_title := Label.new()
+	bounds_title.text = "World Dimensions (m):"
+	bounds_title.add_theme_font_size_override("font_size", 11)
+	bounds_title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	meta_vbox.add_child(bounds_title)
+
+	var bounds_grid := HBoxContainer.new()
+	bounds_grid.add_theme_constant_override("separation", 6)
+	meta_vbox.add_child(bounds_grid)
+
+	var xz_lbl := Label.new()
+	xz_lbl.text = "Span:"
+	xz_lbl.add_theme_font_size_override("font_size", 10)
+	bounds_grid.add_child(xz_lbl)
+
+	_meta_bounds_xz_spin = SpinBox.new()
+	_meta_bounds_xz_spin.min_value = 32.0
+	_meta_bounds_xz_spin.max_value = 1024.0
+	_meta_bounds_xz_spin.step = 16.0
+	_meta_bounds_xz_spin.value = 192.0
+	_meta_bounds_xz_spin.tooltip_text = "Horizontal width and depth (XZ span in meters)"
+	bounds_grid.add_child(_meta_bounds_xz_spin)
+
+	var min_y_lbl := Label.new()
+	min_y_lbl.text = "Floor:"
+	min_y_lbl.add_theme_font_size_override("font_size", 10)
+	bounds_grid.add_child(min_y_lbl)
+
+	_meta_bounds_min_y_spin = SpinBox.new()
+	_meta_bounds_min_y_spin.min_value = -256.0
+	_meta_bounds_min_y_spin.max_value = 0.0
+	_meta_bounds_min_y_spin.step = 16.0
+	_meta_bounds_min_y_spin.value = -48.0
+	_meta_bounds_min_y_spin.tooltip_text = "Minimum Y / underground depth in meters (negative)"
+	bounds_grid.add_child(_meta_bounds_min_y_spin)
+
+	var max_y_lbl := Label.new()
+	max_y_lbl.text = "Ceil:"
+	max_y_lbl.add_theme_font_size_override("font_size", 10)
+	bounds_grid.add_child(max_y_lbl)
+
+	_meta_bounds_max_y_spin = SpinBox.new()
+	_meta_bounds_max_y_spin.min_value = 0.0
+	_meta_bounds_max_y_spin.max_value = 256.0
+	_meta_bounds_max_y_spin.step = 16.0
+	_meta_bounds_max_y_spin.value = 16.0
+	_meta_bounds_max_y_spin.tooltip_text = "Maximum Y / height ceiling in meters (positive)"
+	bounds_grid.add_child(_meta_bounds_max_y_spin)
+
 	root.add_child(_metadata_panel)
 
 	# --- Terrain Drawer (Top Right; mutually exclusive with the Metadata panel) ---
@@ -606,29 +659,31 @@ func _build_ui() -> void:
 	span_row.add_theme_constant_override("separation", 8)
 	_terrain_heightmap_section.add_child(span_row)
 
-	var start_lbl := Label.new()
-	start_lbl.text = "Start:"
-	start_lbl.add_theme_font_size_override("font_size", 11)
-	span_row.add_child(start_lbl)
+	var min_lbl := Label.new()
+	min_lbl.text = "Min (m):"
+	min_lbl.add_theme_font_size_override("font_size", 11)
+	span_row.add_child(min_lbl)
 
-	_terrain_start_spin = SpinBox.new()
-	_terrain_start_spin.min_value = -100.0
-	_terrain_start_spin.max_value = 100.0
-	_terrain_start_spin.step = 0.5
-	_terrain_start_spin.value_changed.connect(_update_terrain_span_label)
-	span_row.add_child(_terrain_start_spin)
+	_terrain_min_spin = SpinBox.new()
+	_terrain_min_spin.min_value = -100.0
+	_terrain_min_spin.max_value = 100.0
+	_terrain_min_spin.step = 0.5
+	_terrain_min_spin.tooltip_text = "Lowest terrain height in meters (black pixels)"
+	_terrain_min_spin.value_changed.connect(_update_terrain_span_label)
+	span_row.add_child(_terrain_min_spin)
 
-	var range_lbl := Label.new()
-	range_lbl.text = "Range:"
-	range_lbl.add_theme_font_size_override("font_size", 11)
-	span_row.add_child(range_lbl)
+	var max_lbl := Label.new()
+	max_lbl.text = "Max (m):"
+	max_lbl.add_theme_font_size_override("font_size", 11)
+	span_row.add_child(max_lbl)
 
-	_terrain_range_spin = SpinBox.new()
-	_terrain_range_spin.min_value = 1.0
-	_terrain_range_spin.max_value = 200.0
-	_terrain_range_spin.step = 0.5
-	_terrain_range_spin.value_changed.connect(_update_terrain_span_label)
-	span_row.add_child(_terrain_range_spin)
+	_terrain_max_spin = SpinBox.new()
+	_terrain_max_spin.min_value = -100.0
+	_terrain_max_spin.max_value = 200.0
+	_terrain_max_spin.step = 0.5
+	_terrain_max_spin.tooltip_text = "Highest terrain height in meters (white pixels)"
+	_terrain_max_spin.value_changed.connect(_update_terrain_span_label)
+	span_row.add_child(_terrain_max_spin)
 
 	_terrain_span_label = Label.new()
 	_terrain_span_label.text = ""
@@ -1031,7 +1086,7 @@ func clear_coordinates() -> void:
 		_coord_label.text = ""
 
 
-func set_metadata(display_name: String, description: String, map_type: int, difficulty: int) -> void:
+func set_metadata(display_name: String, description: String, map_type: int, difficulty: int, world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0))) -> void:
 	if _meta_display_name_input != null:
 		_meta_display_name_input.text = display_name
 	if _meta_desc_input != null:
@@ -1040,6 +1095,12 @@ func set_metadata(display_name: String, description: String, map_type: int, diff
 		_meta_type_option.selected = map_type
 	if _meta_difficulty_spin != null:
 		_meta_difficulty_spin.value = float(difficulty)
+	if _meta_bounds_xz_spin != null:
+		_meta_bounds_xz_spin.value = maxf(world_bounds.size.x, world_bounds.size.z)
+	if _meta_bounds_min_y_spin != null:
+		_meta_bounds_min_y_spin.value = world_bounds.position.y
+	if _meta_bounds_max_y_spin != null:
+		_meta_bounds_max_y_spin.value = world_bounds.position.y + world_bounds.size.y
 
 
 func get_metadata_edits() -> Dictionary:
@@ -1052,6 +1113,12 @@ func get_metadata_edits() -> Dictionary:
 		out["map_type"] = _meta_type_option.selected
 	if _meta_difficulty_spin != null:
 		out["difficulty"] = int(_meta_difficulty_spin.value)
+	if _meta_bounds_xz_spin != null and _meta_bounds_min_y_spin != null and _meta_bounds_max_y_spin != null:
+		var xz_val := float(_meta_bounds_xz_spin.value)
+		var min_y := float(_meta_bounds_min_y_spin.value)
+		var max_y := float(_meta_bounds_max_y_spin.value)
+		var total_height := max_y - min_y
+		out["world_bounds"] = AABB(Vector3(-xz_val * 0.5, min_y, -xz_val * 0.5), Vector3(xz_val, total_height, xz_val))
 	return out
 
 
@@ -1091,8 +1158,8 @@ func set_terrain_drawer_state(terrain_def: TerrainGenDef) -> void:
 	)
 	_terrain_remove_button.visible = _drawer_has_terrain
 	if _drawer_is_heightmap:
-		_terrain_start_spin.value = terrain_def.height_start
-		_terrain_range_spin.value = terrain_def.height_range
+		_terrain_min_spin.value = terrain_def.height_start
+		_terrain_max_spin.value = terrain_def.height_start + terrain_def.height_range
 		_terrain_minimap.texture = _minimap_from_texture(terrain_def.heightmap)
 		_update_terrain_span_label()
 	elif _drawer_has_terrain:
@@ -1118,11 +1185,13 @@ func _minimap_from_texture(tex: Texture2D) -> ImageTexture:
 ## Current drawer values for the editor's apply handler: span fields, noise
 ## fields, a picked-but-unapplied image, and the removal toggle.
 func get_terrain_drawer_edits() -> Dictionary:
-	if _terrain_start_spin == null:
+	if _terrain_min_spin == null or _terrain_max_spin == null:
 		return {}
+	var min_h := _terrain_min_spin.value
+	var max_h := _terrain_max_spin.value
 	return {
-		"height_start": _terrain_start_spin.value,
-		"height_range": _terrain_range_spin.value,
+		"height_start": min_h,
+		"height_range": maxf(0.5, max_h - min_h),
 		"noise_seed": int(_terrain_seed_spin.value),
 		"noise_frequency": _terrain_freq_spin.value,
 		"pending_image": _pending_heightmap,
@@ -1163,22 +1232,33 @@ func close_terrain_drawer() -> void:
 
 
 func is_terrain_drawer_focused() -> bool:
-	for spin: SpinBox in [_terrain_start_spin, _terrain_range_spin, _terrain_seed_spin, _terrain_freq_spin]:
+	for spin: SpinBox in [_terrain_min_spin, _terrain_max_spin, _terrain_seed_spin, _terrain_freq_spin]:
 		if spin != null and spin.get_line_edit() != null and spin.get_line_edit().has_focus():
 			return true
 	return false
 
 
 func _update_terrain_span_label(_value: float = 0.0) -> void:
-	if _terrain_span_label == null or _terrain_start_spin == null:
+	if _terrain_span_label == null or _terrain_min_spin == null or _terrain_max_spin == null:
 		return
-	var start := _terrain_start_spin.value
-	var range_val := _terrain_range_spin.value
+	var min_h := _terrain_min_spin.value
+	var max_h := _terrain_max_spin.value
+	var range_val := maxf(0.5, max_h - min_h)
 	var tier_info := ""
 	if _terrain_snap_check != null and _terrain_snap_check.button_pressed:
 		var tiers := int(round(range_val)) + 1
 		tier_info = " (%d grid tiers)" % tiers
-	_terrain_span_label.text = "→ %.1f m … %.1f m%s" % [start, start + range_val, tier_info]
+	var y_zero_info := ""
+	if range_val > 0.0:
+		var zero_fraction := (0.0 - min_h) / range_val
+		if zero_fraction >= 0.0 and zero_fraction <= 1.0:
+			var gray_val := int(round(zero_fraction * 255.0))
+			y_zero_info = "\nY=0 at gray %d (%d%%)" % [gray_val, int(round(zero_fraction * 100.0))]
+		elif zero_fraction < 0.0:
+			y_zero_info = "\nY=0 is above terrain"
+		else:
+			y_zero_info = "\nY=0 is below terrain"
+	_terrain_span_label.text = "→ %.1f m … %.1f m (span %.1f m)%s%s" % [min_h, max_h, range_val, tier_info, y_zero_info]
 
 
 func _on_terrain_remove_toggled() -> void:
