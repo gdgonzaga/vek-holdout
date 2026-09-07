@@ -16,13 +16,18 @@ class_name GameConfig
 @export var spawn_rate_curve: Curve                    # Distribution curve modulating spawn intensity across the night.
 
 @export_group("Day/Night Celestial Lighting")
-@export var max_sun_energy: float = 1.2
-@export var max_moon_energy: float = 0.25
-@export var max_moon_sky_energy: float = 1.2
+@export var sun_energy: float = 1.2
+@export var sun_direct_light_energy: float = 1.2
+@export var moon_energy: float = 1.2
+@export var moon_direct_light_energy: float = 0.25
+@export var overhead_light_min_energy: float = 0.05
+@export var overhead_light_max_energy: float = 0.4
 @export var sun_color: Color = Color(1.0, 0.95, 0.85)
 @export var sunset_color: Color = Color(1.0, 0.5, 0.2)
 @export var moon_color: Color = Color(0.65, 0.75, 1.0)
-@export var min_ambient_energy: float = 0.15
-@export var max_ambient_energy: float = 1.0
-@export var min_sky_energy: float = 0.05
-@export var max_sky_energy: float = 1.0
+@export var night_ambient_energy: float = 0.05
+@export var day_ambient_energy: float = 1.0
+@export var day_sky_top_color: Color = Color(0.38, 0.45, 0.55)
+@export var day_sky_horizon_color: Color = Color(0.65, 0.65, 0.67)
+@export var night_sky_top_color: Color = Color(0.01, 0.02, 0.05)
+@export var night_sky_horizon_color: Color = Color(0.04, 0.06, 0.12)

@@ -80,14 +80,24 @@ func test_day_night_cycle_at_midday() -> void:
 	cycle._process(0.0)
 
 	var sun: DirectionalLight3D = cycle.get_node("CelestialPivot/Sun") as DirectionalLight3D
+	var sun_sky: DirectionalLight3D = cycle.get_node_or_null("CelestialPivot/SunSky") as DirectionalLight3D
 	var moon: DirectionalLight3D = cycle.get_node("CelestialPivot/Moon") as DirectionalLight3D
 	var moon_sky: DirectionalLight3D = cycle.get_node_or_null("CelestialPivot/MoonSky") as DirectionalLight3D
+	var overhead: DirectionalLight3D = cycle.get_node_or_null("OverheadLight") as DirectionalLight3D
 	assert_bool(sun.visible).is_true()
+	if sun_sky != null:
+		assert_bool(sun_sky.visible).is_true()
+		assert_float(sun_sky.light_energy).is_equal_approx(cycle.sun_energy, 0.01)
 	assert_bool(moon.visible).is_false()
 	if moon_sky != null:
 		assert_bool(moon_sky.visible).is_false()
 	assert_float(cycle._get_sun_elevation()).is_equal_approx(1.0, 0.01)
-	assert_float(sun.light_energy).is_equal_approx(cycle.max_sun_energy, 0.01)
+	assert_float(sun.light_energy).is_equal_approx(cycle.sun_direct_light_energy, 0.01)
+	if overhead != null:
+		assert_float(overhead.light_energy).is_equal_approx(cycle.overhead_light_max_energy, 0.01)
+	var world_env: WorldEnvironment = cycle.get_node("WorldEnvironment") as WorldEnvironment
+	var sky_mat := world_env.environment.sky.sky_material as ProceduralSkyMaterial
+	assert_color(sky_mat.sky_top_color).is_equal(cycle.day_sky_top_color)
 
 
 func test_day_night_cycle_at_midnight() -> void:
@@ -100,14 +110,23 @@ func test_day_night_cycle_at_midnight() -> void:
 	cycle._process(0.0)
 
 	var sun: DirectionalLight3D = cycle.get_node("CelestialPivot/Sun") as DirectionalLight3D
+	var sun_sky: DirectionalLight3D = cycle.get_node_or_null("CelestialPivot/SunSky") as DirectionalLight3D
 	var moon: DirectionalLight3D = cycle.get_node("CelestialPivot/Moon") as DirectionalLight3D
 	var moon_sky: DirectionalLight3D = cycle.get_node_or_null("CelestialPivot/MoonSky") as DirectionalLight3D
+	var overhead: DirectionalLight3D = cycle.get_node_or_null("OverheadLight") as DirectionalLight3D
 	assert_bool(sun.visible).is_false()
+	if sun_sky != null:
+		assert_bool(sun_sky.visible).is_false()
 	assert_bool(moon.visible).is_true()
 	assert_float(cycle._get_sun_elevation()).is_equal_approx(-1.0, 0.01)
-	assert_float(moon.light_energy).is_equal_approx(cycle.max_moon_energy, 0.01)
+	assert_float(moon.light_energy).is_equal_approx(cycle.moon_direct_light_energy, 0.01)
 	if moon_sky != null:
 		assert_bool(moon_sky.visible).is_true()
-		assert_float(moon_sky.light_energy).is_equal_approx(cycle.max_moon_sky_energy, 0.01)
+		assert_float(moon_sky.light_energy).is_equal_approx(cycle.moon_energy, 0.01)
+	if overhead != null:
+		assert_float(overhead.light_energy).is_equal_approx(cycle.overhead_light_min_energy, 0.01)
+	var world_env: WorldEnvironment = cycle.get_node("WorldEnvironment") as WorldEnvironment
+	var sky_mat := world_env.environment.sky.sky_material as ProceduralSkyMaterial
+	assert_color(sky_mat.sky_top_color).is_equal(cycle.night_sky_top_color)
 
 
