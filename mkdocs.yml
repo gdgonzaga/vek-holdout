@@ -67,6 +67,7 @@ nav:
     - "Authoring Interactions": HOWTO-author-interactions.md
     - "Authoring Job Definitions": HOWTO-author-job-defs.md
     - "Authoring Maps": HOWTO-author-maps.md
+    - "Authoring Moodlet Definitions": HOWTO-author-moodlet-defs.md
     - "Authoring Need Definitions": HOWTO-author-need-defs.md
     - "Transferring Animpic models": HOWTO-transfer-animpic-models.md
     - "Authoring World Item Meshes": HOWTO-author-worlditems.md

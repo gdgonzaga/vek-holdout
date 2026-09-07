@@ -66,3 +66,26 @@ The canonical declaration of which labor ids exist. `LaborDef extends Resource`.
 | `id` | `String` | The labor id (e.g. `"construction"`) — the key everything else references. |
 | `display_name` | `String` | UI label (e.g. `"Construction"`). |
 | `description` | `String` | Short blurb, unused in MVP UI. |
+
+---
+
+## `data/moodlets/<id>.tres` (Resource: `moodlet_def.gd`, `stat_threshold_moodlet_def.gd`, `activity_moodlet_def.gd`) — Moodlets
+
+Data-driven definition for colonist status and activity moodlet icons displayed in 3D billboard space (`ColonistMoodletVisualizer`).
+
+### Base Schema: `MoodletDef`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `StringName` | Unique identifier (e.g. `&"hunger"`, `&"activity"`). |
+| `display_name` | `String` | UI tooltip label. |
+| `icons` | `Array[Texture2D]` | Array of texture assets for active tiers or states. |
+| `icon_hframes` | `Array[int]` | Optional 1-to-1 array mapping each icon tier to its horizontal spritesheet frame count (defaults to `1`). |
+| `frame_fps` | `float` | Default animation playback speed in FPS for animated spritesheets (default `6.0`). |
+| `icon_fps` | `Array[float]` | Optional 1-to-1 array mapping each icon tier to a custom FPS override. |
+
+### Subclass: `StatThresholdMoodletDef`
+Extends `MoodletDef`. Evaluates stat ratios (`colonist.get_stat_ratio(stat_id)`) against ordered cutoff thresholds (`thresholds`).
+
+### Subclass: `ActivityMoodletDef`
+Extends `MoodletDef`. Maps `colonist.get_current_activity()` StringNames (`&"idle"`, `&"mining"`, `&"construction"`, `&"crafting"`, `&"hauling"`, `&"eat"`, `&"rest"`) to `icons` array indices via `activity_icon_map`.
