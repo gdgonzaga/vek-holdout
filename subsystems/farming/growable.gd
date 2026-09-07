@@ -21,7 +21,7 @@ var _furniture: Furniture:
 var _harvestable: Harvestable:
 	get: return _furniture.get_node_or_null("Harvestable") as Harvestable if _furniture != null else null
 
-var _crop_mesh_instance: MeshInstance3D = null
+var _crop_visual_instance: Node3D = null
 var _current_visual_stage: int = -1
 
 
@@ -430,77 +430,100 @@ func _update_visuals() -> void:
 		return
 	var s := get_crop_state()
 	if s == CropState.EMPTY:
-		if _crop_mesh_instance != null:
-			_crop_mesh_instance.queue_free()
-			_crop_mesh_instance = null
+		if _crop_visual_instance != null:
+			_crop_visual_instance.queue_free()
+			_crop_visual_instance = null
 		_current_visual_stage = -1
 		return
 
 	var def := get_crop_def()
-	var stage_idx := 0
-	if s == CropState.GROWING:
-		var prog := get_growth_progress()
-		if prog < 0.4:
-			stage_idx = 0 # Sprout
-		else:
-			stage_idx = 1 # Growing
-	elif s == CropState.MATURE:
-		stage_idx = 2 # Mature
-	elif s == CropState.WITHERED:
-		stage_idx = 3 # Withered
+	# 1. Visual Stage Index: Mapping current growth progress and crop state to the visual stage index.
+	var stage_idx := _calculate_visual_stage_index(s, get_growth_progress(), def)
 
-	if stage_idx == _current_visual_stage and _crop_mesh_instance != null:
+	if stage_idx == _current_visual_stage and _crop_visual_instance != null:
 		return
 
 	_current_visual_stage = stage_idx
 
-	if _crop_mesh_instance == null:
-		_crop_mesh_instance = MeshInstance3D.new()
-		_crop_mesh_instance.name = "CropMesh"
-		_crop_mesh_instance.position = Vector3(0, 0.35, 0)
-		_furniture.add_child(_crop_mesh_instance)
+	if _crop_visual_instance != null:
+		_crop_visual_instance.queue_free()
+		_crop_visual_instance = null
 
-	_apply_stage_mesh(_crop_mesh_instance, def, stage_idx)
+	# 2. Stage Visual Instance: Spawning custom scene instance or procedural mesh for the resolved stage.
+	_crop_visual_instance = _create_stage_visual(def, stage_idx)
+	if _crop_visual_instance != null:
+		_furniture.add_child(_crop_visual_instance)
 
 
-func _apply_stage_mesh(mesh_node: MeshInstance3D, def: CropDef, stage_idx: int) -> void:
-	if def != null and stage_idx < def.stage_meshes.size() and def.stage_meshes[stage_idx] != null:
-		mesh_node.mesh = def.stage_meshes[stage_idx]
-		mesh_node.material_override = null
-		return
+func _calculate_visual_stage_index(state: CropState, progress: float, def: CropDef) -> int:
+	## Auxiliary: Dynamically maps crop state and growth progress to a visual stage index based on def.growth_stages.
+	var total_stages := def.growth_stages if def != null and def.growth_stages > 0 else 3
+	var growing_stages := maxi(1, total_stages - 1)
 
-	# Procedural fallback meshes
+	if state == CropState.GROWING:
+		return mini(growing_stages - 1, int(progress * float(growing_stages)))
+	elif state == CropState.MATURE:
+		return total_stages - 1
+	elif state == CropState.WITHERED:
+		return total_stages
+	return 0
+
+
+func _create_stage_visual(def: CropDef, stage_idx: int) -> Node3D:
+	## Auxiliary: Resolves and instantiates the visual representation for the given growth stage.
+	if def != null and stage_idx < def.stage_scenes.size() and def.stage_scenes[stage_idx] != null:
+		# 1. Custom Scene: Instantiating the authored PackedScene (.glb) for this stage.
+		return _instantiate_stage_scene(def.stage_scenes[stage_idx])
+
+	# 2. Procedural Fallback: Generating procedural cylinder geometry when no scene is assigned.
+	return _create_procedural_stage_mesh(def, stage_idx)
+
+
+func _instantiate_stage_scene(scene: PackedScene) -> Node3D:
+	## Auxiliary: Instantiates a PackedScene for a crop stage visual and positions it on the furniture.
+	var inst := scene.instantiate() as Node3D
+	if inst != null:
+		inst.name = "CropVisual"
+		inst.position = Vector3(0, 0.35, 0)
+	return inst
+
+
+func _create_procedural_stage_mesh(def: CropDef, stage_idx: int) -> MeshInstance3D:
+	## Auxiliary: Generates a fallback procedural cylinder MeshInstance3D representing the growth stage.
+	var mesh_node := MeshInstance3D.new()
+	mesh_node.name = "CropVisual"
+	mesh_node.position = Vector3(0, 0.35, 0)
+
 	var mat := StandardMaterial3D.new()
-	if stage_idx == 0: # Sprout
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.04
-		cyl.bottom_radius = 0.06
-		cyl.height = 0.2
-		mesh_node.mesh = cyl
-		mat.albedo_color = Color("#4caf50")
-	elif stage_idx == 1: # Growing
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.12
-		cyl.bottom_radius = 0.15
-		cyl.height = 0.45
-		mesh_node.mesh = cyl
-		mat.albedo_color = Color("#2e7d32")
-	elif stage_idx == 2: # Mature
+	var total_stages := def.growth_stages if def != null and def.growth_stages > 0 else 3
+	var mature_stage_idx := total_stages - 1
+
+	if stage_idx == mature_stage_idx: # Mature
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 0.18
 		cyl.bottom_radius = 0.2
 		cyl.height = 0.65
 		mesh_node.mesh = cyl
 		mat.albedo_color = Color("#fbc02d")
-	else: # Withered
+	elif stage_idx > mature_stage_idx: # Withered
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 0.1
 		cyl.bottom_radius = 0.15
 		cyl.height = 0.25
 		mesh_node.mesh = cyl
 		mat.albedo_color = Color("#5d4037")
+	else:
+		# Growing stages procedural fallback interpolated across 0 to mature_stage_idx
+		var factor := float(stage_idx) / float(max(1, mature_stage_idx))
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = lerpf(0.04, 0.15, factor)
+		cyl.bottom_radius = lerpf(0.06, 0.18, factor)
+		cyl.height = lerpf(0.2, 0.55, factor)
+		mesh_node.mesh = cyl
+		mat.albedo_color = Color("#4caf50").lerp(Color("#2e7d32"), factor)
 
 	mesh_node.material_override = mat
+	return mesh_node
 
 
 func _update_info_text() -> void:

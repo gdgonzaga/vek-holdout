@@ -17,8 +17,8 @@ enum TendingMode {
 @export var growth_time_hours: float = 12.0
 ## Number of visual growth stages (e.g. 3: Sprout, Growing, Mature).
 @export var growth_stages: int = 3
-## Optional custom meshes for each stage. Fallback to procedural primitives if empty.
-@export var stage_meshes: Array[Mesh] = []
+## Optional custom scenes (.glb / .tscn) for each stage. Fallback to procedural primitives if empty.
+@export var stage_scenes: Array[PackedScene] = []
 
 # --- Hydration ---
 ## Maximum water capacity (percentage, typically 100.0).

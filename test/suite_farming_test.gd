@@ -37,12 +37,12 @@ func after_test() -> void:
 
 
 func test_crop_definitions_and_yield_tiers() -> void:
-	var spud := CropLibrary.get_crop("cave_spud")
-	assert_object(spud).is_not_null()
-	assert_str(spud.display_name).is_equal("Cave Spud")
-	assert_float(spud.water_decay_per_hour).is_equal_approx(1.0, 0.01)
-	assert_int(spud.tending_mode).is_equal(0) # NONE
-	assert_int(spud.yield_tiers.size()).is_equal(2)
+	var potato := CropLibrary.get_crop("potato")
+	assert_object(potato).is_not_null()
+	assert_str(potato.display_name).is_equal("Potato")
+	assert_float(potato.water_decay_per_hour).is_equal_approx(0.0, 0.01)
+	assert_int(potato.tending_mode).is_equal(1) # MILESTONE
+	assert_int(potato.yield_tiers.size()).is_equal(2)
 
 	var wheat := CropLibrary.get_crop("holdout_wheat")
 	assert_object(wheat).is_not_null()
@@ -79,11 +79,11 @@ func test_growable_lifecycle_plant_water_mature() -> void:
 	var growable := trough.get_node_or_null("Growable") as Growable
 	var harvestable := trough.get_node_or_null("Harvestable") as Harvestable
 
-	# 1. Plant Cave Spud
-	var planted := growable.plant("cave_spud")
+	# 1. Plant Potato
+	var planted := growable.plant("potato")
 	assert_bool(planted).is_true()
 	assert_int(growable.get_crop_state()).is_equal(int(Growable.CropState.GROWING))
-	assert_str(growable.get_current_crop_id()).is_equal("cave_spud")
+	assert_str(growable.get_current_crop_id()).is_equal("potato")
 	assert_float(growable.get_growth_progress()).is_equal_approx(0.0, 0.01)
 	assert_float(growable.get_water_level()).is_equal_approx(100.0, 0.01)
 
@@ -133,7 +133,7 @@ func test_early_harvest_dynamic_yields_and_neglect_penalty() -> void:
 	var growable := trough.get_node_or_null("Growable") as Growable
 	var harvestable := trough.get_node_or_null("Harvestable") as Harvestable
 
-	growable.plant("cave_spud")
+	growable.plant("potato")
 
 	# Below 50% progress -> no yields
 	growable.set_growth_progress(0.3)
@@ -143,7 +143,7 @@ func test_early_harvest_dynamic_yields_and_neglect_penalty() -> void:
 	growable.set_growth_progress(0.6)
 	var half_yields := growable.get_harvest_yields()
 	assert_int(half_yields.size()).is_equal(1)
-	assert_str(half_yields[0].item_def.id).is_equal("cave_spud")
+	assert_str(half_yields[0].item_def.id).is_equal("potato")
 	assert_int(half_yields[0].count).is_equal(4)
 
 	# 100% progress -> tier 2 (10 spuds)
@@ -175,13 +175,13 @@ func test_early_harvest_dynamic_yields_and_neglect_penalty() -> void:
 	var world_items := get_tree().get_nodes_in_group("world_items")
 	assert_int(world_items.size()).is_greater_equal(1)
 	var dropped_item := world_items[-1] as WorldItem
-	assert_str(dropped_item.item_id).is_equal("cave_spud")
+	assert_str(dropped_item.item_id).is_equal("potato")
 	assert_int(dropped_item.count).is_equal(10)
 
 	# Verify pickup into inventory
 	var pickup := PickupAction.new()
 	pickup.execute(colonist, dropped_item)
-	assert_bool(colonist.inventory.has_item("cave_spud", 10)).is_true()
+	assert_bool(colonist.inventory.has_item("potato", 10)).is_true()
 
 	# Farm plot remains intact and resets to EMPTY
 	assert_bool(is_instance_valid(trough)).is_true()
@@ -226,7 +226,7 @@ func test_colony_job_board_farming_dispatch() -> void:
 	var growable := trough.get_node_or_null("Growable") as Growable
 
 	# 1. Select crop on empty plot -> SOW job spawned
-	growable.set_selected_crop("cave_spud")
+	growable.set_selected_crop("potato")
 	var jobs := Colony.job_board.get_jobs()
 	assert_int(jobs.size()).is_equal(1)
 	assert_str(jobs[0].labor_id).is_equal("farming")
@@ -234,7 +234,7 @@ func test_colony_job_board_farming_dispatch() -> void:
 
 	# 2. SOW job completion
 	var colonist := _sandbox.make_colonist()
-	growable.plant("cave_spud")
+	growable.plant("potato")
 	assert_int(growable.get_crop_state()).is_equal(int(Growable.CropState.GROWING))
 
 	# 3. Thirsty crop -> WATER job spawned
@@ -257,8 +257,8 @@ func test_job_defs_and_growable_record_no_xp() -> void:
 	var colonist := _sandbox.make_colonist()
 	var player := _sandbox.make_player()
 
-	growable.set_selected_crop("cave_spud")
-	growable.plant("cave_spud")
+	growable.set_selected_crop("potato")
+	growable.plant("potato")
 	assert_int(_sandbox.skill_uses(colonist.skill_set, "farming")).is_equal(0)
 
 	growable.set_water_level(20.0)
@@ -282,12 +282,12 @@ func test_player_farm_manual_action() -> void:
 	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)
 	var growable := trough.get_node_or_null("Growable") as Growable
 
-	growable.set_selected_crop("cave_spud")
+	growable.set_selected_crop("potato")
 	var player := _sandbox.make_player()
 	var action := FarmManualAction.new()
 
 	# Player plants directly
-	growable.plant("cave_spud")
+	growable.plant("potato")
 	assert_int(growable.get_crop_state()).is_equal(int(Growable.CropState.GROWING))
 
 	# Player waters directly
@@ -322,3 +322,84 @@ func test_farm_plot_persistence() -> void:
 	assert_str(restored_growable.get_current_crop_id()).is_equal("holdout_wheat")
 	assert_float(restored_growable.get_growth_progress()).is_equal_approx(0.72, 0.01)
 	assert_float(restored_growable.get_water_level()).is_equal_approx(65.0, 0.01)
+
+
+func test_four_stage_potato_crop() -> void:
+	var potato_def := CropLibrary.get_crop("potato")
+	assert_object(potato_def).is_not_null()
+	assert_str(potato_def.display_name).is_equal("Potato")
+	assert_int(potato_def.growth_stages).is_equal(4)
+
+	var anchor := Vector3i(22, 0, 22)
+	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)
+	var growable := trough.get_node_or_null("Growable") as Growable
+
+	var planted := growable.plant("potato")
+	assert_bool(planted).is_true()
+	assert_int(growable.get_crop_state()).is_equal(int(Growable.CropState.GROWING))
+
+	# Stage 0: 0.0 progress (Newly planted)
+	growable.set_growth_progress(0.1)
+	assert_int(growable._current_visual_stage).is_equal(0)
+
+	# Stage 1: 0.4 progress (Growing #1)
+	growable.set_growth_progress(0.4)
+	assert_int(growable._current_visual_stage).is_equal(1)
+
+	# Stage 2: 0.7 progress (Growing #2)
+	growable.set_growth_progress(0.7)
+	assert_int(growable._current_visual_stage).is_equal(2)
+
+	# Stage 3: 1.0 progress (Mature)
+	growable.set_growth_progress(1.0)
+	growable.set_crop_state(Growable.CropState.MATURE)
+	assert_int(growable._current_visual_stage).is_equal(3)
+
+	var yields := growable.get_harvest_yields()
+	assert_int(yields.size()).is_equal(1)
+	assert_str(yields[0].item_def.id).is_equal("potato")
+	assert_int(yields[0].count).is_equal(10)
+
+
+func test_crop_stage_scenes_instantiation() -> void:
+	var custom_crop := CropDef.new()
+	custom_crop.id = "test_custom_crop"
+	custom_crop.display_name = "Test Custom Crop"
+	custom_crop.growth_stages = 2
+
+	var stage_node_0 := Node3D.new()
+	stage_node_0.name = "CustomStage0"
+	var scene_0 := PackedScene.new()
+	scene_0.pack(stage_node_0)
+	stage_node_0.free()
+
+	var stage_node_1 := Node3D.new()
+	stage_node_1.name = "CustomStage1"
+	var scene_1 := PackedScene.new()
+	scene_1.pack(stage_node_1)
+	stage_node_1.free()
+
+	custom_crop.stage_scenes = [scene_0, scene_1]
+
+	var anchor := Vector3i(24, 0, 24)
+	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)
+	var growable := trough.get_node_or_null("Growable") as Growable
+
+	CropLibrary._crops_by_id["test_custom_crop"] = custom_crop
+
+	var planted := growable.plant("test_custom_crop")
+	assert_bool(planted).is_true()
+	assert_int(growable._current_visual_stage).is_equal(0)
+	assert_object(growable._crop_visual_instance).is_not_null()
+	assert_str(growable._crop_visual_instance.name).is_equal("CropVisual")
+
+	# Progress to mature stage
+	growable.set_growth_progress(1.0)
+	growable.set_crop_state(Growable.CropState.MATURE)
+	assert_int(growable._current_visual_stage).is_equal(1)
+	assert_object(growable._crop_visual_instance).is_not_null()
+
+	# Clean up CropLibrary injection
+	CropLibrary._crops_by_id.erase("test_custom_crop")
+
+

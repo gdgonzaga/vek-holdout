@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="CropDef" format=3 uid="uid://dfpmonoer58e4"]
+
+[ext_resource type="Script" uid="uid://cbr1q1a2k4cnx" path="res://data/crops/crop_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_lcdvr"]
+[ext_resource type="Script" uid="uid://b2x2lskbgtxfc" path="res://data/crops/crop_yield_tier.gd" id="2_tier"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_amount"]
+[ext_resource type="PackedScene" uid="uid://ixwig310tjsr" path="res://assets/custom/plant1/plant1.glb" id="3_eej0l"]
+[ext_resource type="PackedScene" uid="uid://blordhqeorkg7" path="res://assets/custom/potato/potato2.glb" id="4_gpmvr"]
+[ext_resource type="Resource" path="res://data/items/potato.tres" id="4_potato"]
+[ext_resource type="PackedScene" uid="uid://0dten2vvslwm" path="res://assets/custom/potato/potato3.glb" id="5_8jkxd"]
+[ext_resource type="PackedScene" uid="uid://cmijf2b4w0huh" path="res://assets/custom/potato/potato4.glb" id="6_51d3y"]
+
+[sub_resource type="Resource" id="Resource_potato_half_item"]
+script = ExtResource("3_amount")
+item_def = ExtResource("4_potato")
+count = 4
+
+[sub_resource type="Resource" id="Resource_potato_tier_half"]
+script = ExtResource("2_tier")
+min_growth_progress = 0.5
+yields = Array[ExtResource("3_amount")]([SubResource("Resource_potato_half_item")])
+
+[sub_resource type="Resource" id="Resource_potato_full_item"]
+script = ExtResource("3_amount")
+item_def = ExtResource("4_potato")
+count = 10
+
+[sub_resource type="Resource" id="Resource_potato_tier_full"]
+script = ExtResource("2_tier")
+yields = Array[ExtResource("3_amount")]([SubResource("Resource_potato_full_item")])
+
+[resource]
+resource_name = "Potato"
+script = ExtResource("1_def")
+id = "potato"
+display_name = "Potato"
+growth_time_hours = 14.0
+growth_stages = 4
+stage_scenes = Array[PackedScene]([ExtResource("3_eej0l"), ExtResource("4_gpmvr"), ExtResource("5_8jkxd"), ExtResource("6_51d3y")])
+water_decay_per_hour = 0.0
+tending_mode = 1
+tending_milestones = Array[float]([0.5])
+neglect_hours = 8.0
+neglect_yield_penalty = 0.25
+yield_tiers = Array[ExtResource("2_tier")]([SubResource("Resource_potato_tier_half"), SubResource("Resource_potato_tier_full")])
+wither_hours = 24.0

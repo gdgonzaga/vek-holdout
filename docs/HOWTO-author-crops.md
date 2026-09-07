@@ -21,7 +21,7 @@ CropDef (data/crops/<id>.tres)
 │           └── ItemAmount (sub-resource -> ItemDef in data/items/)
 ├── plant_conditions: Array[Condition] (sub-resources -> MinSkillCondition / HasItemCondition)
 ├── tend_conditions: Array[Condition]  (sub-resources -> MinSkillCondition / HasItemCondition)
-└── stage_meshes: Array[Mesh]          (optional custom 3D models per growth stage)
+└── stage_scenes: Array[PackedScene]  (optional custom 3D models/GLBs per growth stage)
 ```
 
 ---
@@ -30,7 +30,7 @@ CropDef (data/crops/<id>.tres)
 
 ### Step 1: Create the Harvest Item
 
-Ensure the crop harvest product exists in `data/items/<id>.tres` (e.g. `data/items/cave_spud.tres`).
+Ensure the crop harvest product exists in `data/items/<id>.tres` (e.g. `data/items/potato.tres`).
 The harvest product must be an `ItemDef` resource defining `id`, `weight`, `icon`, and `tags` (see `data/items/item_def.gd` — there is no `display_name` or `stack_limit` field).
 
 ---
@@ -73,7 +73,7 @@ Choose a tending mode (`TendingMode.NONE = 0`, `TendingMode.MILESTONE = 1`, `Ten
 ```ini
 tending_mode = 0
 ```
-*Best for starter, hardy crops like `cave_spud`.*
+*Best for starter, hardy crops like `potato`.*
 
 #### Option B: Milestone Tending (`tending_mode = 1`)
 Triggers tending at specific growth milestones (0.0 to 1.0):
@@ -86,7 +86,7 @@ neglect_yield_penalty = 0.25        # Loses 25% yield per neglect_hours untended
 ```
 
 #### Option C: Decay-Based Tending (`tending_mode = 2`)
-Requires recurring maintenance every $N$ in-game hours:
+Requires recurring maintenance every N in-game hours:
 ```ini
 tending_mode = 2
 tending_decay_hours = 6.0           # Needs tending every 6 in-game hours
@@ -146,12 +146,12 @@ yields = [SubResource("yield_item_full")]
 yield_tiers = [SubResource("tier_50pct"), SubResource("tier_100pct")]
 ```
 
-- When harvested early (e.g. at 70% growth), the player receives the highest satisfied tier (`tier_50pct` $	o$ 3 maize).
+- When harvested early (e.g. at 70% growth), the player receives the highest satisfied tier (`tier_50pct` -> 3 maize).
 - At 100% maturity, the player receives `tier_100pct` (8 maize, minus any neglect penalties).
 
 ---
 
-### Step 6: Growth Stage Meshes (Visuals)
+### Step 6: Growth Stage Scenes (Visuals)
 
 `Growable` renders visual stages based on `growth_progress`:
 - **Stage 0 (Sprout):** `< 40%` progress
@@ -159,7 +159,7 @@ yield_tiers = [SubResource("tier_50pct"), SubResource("tier_100pct")]
 - **Stage 2 (Mature):** `100%` progress
 - **Stage 3 (Withered):** `wither_hours` exceeded
 
-You can provide custom meshes in `stage_meshes = [mesh_sprout, mesh_growing, mesh_mature]`. If left empty, `Growable` automatically renders colored procedural cylinder meshes.
+You can provide custom 3D model scenes (e.g. `.glb` / `.tscn` files) in `stage_scenes = [scene_sprout, scene_growing, scene_mature]`. If left empty, `Growable` automatically renders colored procedural cylinder meshes.
 
 ---
 
@@ -171,7 +171,7 @@ To restrict a specific plot type to certain crops, edit the plot's `FurnitureDef
 ```ini
 [sub_resource type="Resource" id="farm_params"]
 script = ExtResource("res://data/capability_params/farm_plot_params.gd")
-allowed_crops = ["sweet_maize", "cave_spud"]
+allowed_crops = ["sweet_maize", "potato"]
 ```
 
 ---

@@ -24,7 +24,7 @@ Authoring guide for creating new crops: `docs/HOWTO-author-crops.md`.
 |---|---|---|
 | `data/crops/crop_def.gd` | Script | Schema for `CropDef` resources (growth parameters, hydration, tending modes, gating). |
 | `data/crops/crop_yield_tier.gd` | Script | Schema for `CropYieldTier` milestone yields. |
-| `data/crops/*.tres` | Data | Crop definitions (`cave_spud`, `holdout_wheat`, `bio_gel_orchid`). |
+| `data/crops/*.tres` | Data | Crop definitions (`potato`, `holdout_wheat`, `bio_gel_orchid`). |
 | `data/capability_params/farm_plot_params.gd` | Script | Sub-resource on `FurnitureDef` defining allowed crops for the plot. |
 | `data/labors/farming.tres` | Data | Farming labor definition (`id = "farming"`). |
 | `data/jobs/farming_job_def.gd` | Script (Resource) | Shared skeleton for the three plot labors: one WORK leg against the plot's `Growable`, skill-scaled `begin` over `work_time` (authored per `.tres`). Subclasses override `_needs(growable)` / `_apply(growable, actor)` — a future FertilizeJobDef drops in the same way. |
@@ -97,21 +97,21 @@ sequenceDiagram
     Note over Player,Plot: 1. Crop Selection
     Player->>Plot: Press E -> "Select Crop"
     Plot->>UI: Open CropPicker (Filtered by FarmPlotParams)
-    Player->>UI: Selects "Cave Spud"
-    UI->>Plot: set_selected_crop("cave_spud")
-    Plot->>Bus: plot_needs_sowing(self, anchor, "cave_spud", true)
+    Player->>UI: Selects "Potato"
+    UI->>Plot: set_selected_crop("potato")
+    Plot->>Bus: plot_needs_sowing(self, anchor, "potato", true)
     Bus->>Board: Register SowJobDef (Gates: plant_conditions)
 
     alt Player Plants Directly (LMB)
         Player->>Plot: Hold LMB (FarmManualAction)
-        Plot->>Plot: plant("cave_spud")
+        Plot->>Plot: plant("potato")
         Plot->>Bus: plot_needs_sowing(..., false)
         Bus->>Board: Cancel SowJobDef
     else Colonist Auto-Sows via JobBoard
         Colonist->>Board: Poll available jobs
         Board->>Colonist: Assign SowJobDef (Evaluates skill/equipment)
         Colonist->>Plot: Pathfind to Plot & Perform Work
-        Colonist->>Plot: plant("cave_spud")
+        Colonist->>Plot: plant("potato")
         Plot->>Bus: plot_needs_sowing(..., false)
         Bus->>Board: Complete SowJobDef
     end
