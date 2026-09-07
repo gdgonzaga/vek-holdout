@@ -216,6 +216,80 @@ func set_raid_stance(stance: int) -> void:
 	raid_stance = stance
 
 
+# --- Stat & Moodlet queries --------------------------------------------------
+
+## Returns the normalized (0.0 to 1.0) ratio for a given stat, or -1.0 if not found/uninitialized.
+func get_stat_ratio(stat_name: StringName) -> float:
+	# 1. Primary Resolution: Match against health, stamina, or dynamic need levels.
+	return _resolve_stat_ratio(stat_name)
+
+
+## Returns the raw scalar value for a given stat, or -1.0 if not found/uninitialized.
+func get_stat_value(stat_name: StringName) -> float:
+	# 1. Raw Resolution: Query raw numerical value for health, stamina points, or need levels.
+	return _resolve_stat_value(stat_name)
+
+
+## Returns all currently active moodlets evaluated from colonist_def.moodlet_defs in order.
+## Each element is a Dictionary: { "def": MoodletDef, "index": int, "texture": Texture2D, "name": String }
+func get_active_moodlets() -> Array[Dictionary]:
+	if colonist_def == null or colonist_def.moodlet_defs.is_empty():
+		return []
+	
+	# 1. Moodlet Collection: Iterate and collect active moodlets from definitions.
+	return _evaluate_all_moodlets()
+
+
+func _resolve_stat_ratio(stat_name: StringName) -> float:
+	## Auxiliary: Resolves normalized 0.0 to 1.0 ratio for health, stamina, or needs.
+	match stat_name:
+		&"hp", &"health":
+			var max_health: int = get_max_hp()
+			return float(_current_hp) / float(max_health) if max_health > 0 else 0.0
+		&"stamina":
+			if stamina_component != null and stamina_component.max_stamina > 0.0:
+				return stamina_component.current_stamina / stamina_component.max_stamina
+			return 1.0
+		_:
+			if needs != null and needs.needs.has(stat_name):
+				return needs.get_need(stat_name)
+	return -1.0
+
+
+func _resolve_stat_value(stat_name: StringName) -> float:
+	## Auxiliary: Resolves raw value for health, stamina, or needs.
+	match stat_name:
+		&"hp", &"health":
+			return float(_current_hp)
+		&"stamina":
+			if stamina_component != null:
+				return stamina_component.current_stamina
+			return 100.0
+		_:
+			if needs != null and needs.needs.has(stat_name):
+				return needs.get_need(stat_name)
+	return -1.0
+
+
+func _evaluate_all_moodlets() -> Array[Dictionary]:
+	## Auxiliary: Evaluates moodlets in colonist_def and constructs the active list.
+	var active: Array[Dictionary] = []
+	for m_def in colonist_def.moodlet_defs:
+		if m_def == null:
+			continue
+		var idx: int = m_def.evaluate_icon_index(self)
+		if idx >= 0:
+			var tex: Texture2D = m_def.get_active_texture(self)
+			active.append({
+				"def": m_def,
+				"index": idx,
+				"texture": tex,
+				"name": m_def.display_name,
+			})
+	return active
+
+
+
 # --- Carry inventory wrappers ------------------------------------------------
 # Mirror Player's inventory helpers so a colonist can stand in for `actor` in
 # Blueprint.deposit_from (which calls actor.remove_item) and HaulingJobDef can

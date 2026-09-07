@@ -32,3 +32,5 @@ class_name ColonistDef
 	"hauling": 1,
 	"harvesting": 1,
 }
+## Configured moodlets to evaluate and display in order of priority.
+@export var moodlet_defs: Array[MoodletDef] = []

@@ -12,6 +12,7 @@ var _colonist: Colonist = null
 @onready var _stamina_label: Label = %StaminaLabel
 @onready var _mood_label: Label = %MoodLabel
 @onready var _activity_label: Label = %ActivityLabel
+@onready var _moodlet_container: HBoxContainer = %MoodletContainer
 
 
 func setup(colonist: Colonist) -> void:
@@ -39,6 +40,9 @@ func _update_display() -> void:
 		_stamina_label.text = "Stam: 100/100"
 		_mood_label.text = "Mood: Neutral"
 	
+	# 1. Moodlet Display: Populate active moodlet icon indicators.
+	_update_moodlets()
+
 	var act: String = "Idle"
 	var bt: BTPlayer = _colonist.get_node_or_null("BTPlayer") as BTPlayer
 	if bt != null and bt.blackboard != null and bt.blackboard.has_var(&"active_job"):
@@ -56,6 +60,32 @@ func _update_display() -> void:
 	_activity_label.text = "Act: %s" % act
 
 
+func _update_moodlets() -> void:
+	## Auxiliary: Clears and instantiates TextureRect icons for all active colonist moodlets.
+	if _moodlet_container == null or _colonist == null:
+		return
+	
+	for child in _moodlet_container.get_children():
+		child.queue_free()
+	
+	var active_moodlets: Array[Dictionary] = _colonist.get_active_moodlets()
+	for moodlet in active_moodlets:
+		var tex: Texture2D = moodlet.get("texture", null)
+		if tex == null:
+			continue
+		var icon_rect := TextureRect.new()
+		icon_rect.custom_minimum_size = Vector2(18, 18)
+		icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.texture = tex
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_PASS
+		var m_name: String = str(moodlet.get("name", ""))
+		if not m_name.is_empty():
+			icon_rect.tooltip_text = m_name
+		_moodlet_container.add_child(icon_rect)
+
+
 func _pressed() -> void:
 	if _colonist != null and is_instance_valid(_colonist):
 		selected.emit(_colonist)
+

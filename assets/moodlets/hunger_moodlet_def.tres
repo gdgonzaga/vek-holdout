@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatThresholdMoodletDef" format=3 uid="uid://ekwldbsnyk"]
+
+[ext_resource type="Texture2D" uid="uid://dy42marytk8mv" path="res://assets/custom/hunger_icon/hunger-75.png" id="1_hfvb7"]
+[ext_resource type="Script" uid="uid://cjjndnu01sf2i" path="res://data/moodlets/stat_threshold_moodlet_def.gd" id="1_kae3r"]
+[ext_resource type="Texture2D" uid="uid://bwv4fkben0rxu" path="res://assets/custom/hunger_icon/hunger-50.png" id="2_6qyli"]
+[ext_resource type="Texture2D" uid="uid://qojtgwib6wo0" path="res://assets/custom/hunger_icon/hunger-25.png" id="3_ylhvs"]
+[ext_resource type="Texture2D" uid="uid://q3x6yxv38re3" path="res://assets/custom/hunger_icon/hunger-0.png" id="4_e7hqb"]
+
+[resource]
+script = ExtResource("1_kae3r")
+thresholds = Array[float]([0.75, 0.5, 0.25, 0.0])
+icons = Array[Texture2D]([ExtResource("1_hfvb7"), ExtResource("2_6qyli"), ExtResource("3_ylhvs"), ExtResource("4_e7hqb")])
+metadata/_custom_type_script = "uid://cjjndnu01sf2i"

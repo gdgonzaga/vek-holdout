@@ -74,6 +74,25 @@ see the class reference below and docs/HOWTO-use-makehuman-mixamo.md.)
 **Script:** `subsystems/colonists/colonist_ai.gd`  
 **Status:** Deprecated. Superseded by `ColonistBrain` utility arbitration and LimboAI behavior trees (`data/ai/trees/colonist_root.tres`). Preserved for backward compatibility during legacy scene migration.
 
+### Class: ColonistMoodletVisualizer
+
+**Extends:** Node3D  
+**Script:** `subsystems/colonists/colonist_moodlet_visualizer.gd`  
+**Description:** In-world 3D billboard visualizer mounted on `Colonist` (`colonist.tscn`). Periodically (every 0.25s) evaluates `colonist.get_active_moodlets()` and displays the highest-priority active status icon on a `Sprite3D` billboard with distance culling (`visibility_range_end = 35.0`).
+
+---
+
+## Moodlet System (`data/moodlets/`)
+
+The Moodlet system allows data-driven evaluation and visual representation of colonist statuses (needs deficits, injuries, fatigue, stress):
+
+- **`MoodletDef` (`data/moodlets/moodlet_def.gd`)**: Base Resource schema exporting `id`, `display_name`, and `icons: Array[Texture2D]`. Provides virtual `evaluate_icon_index(colonist) -> int` (< 0 for hidden, >= 0 for icon index) and safe `get_active_texture(colonist) -> Texture2D`.
+- **`StatThresholdMoodletDef` (`data/moodlets/stat_threshold_moodlet_def.gd`)**: Generic threshold evaluator querying `colonist.get_stat_ratio(stat_id)` against ordered cutoff thresholds with `TriggerMode` (`BELOW_THRESHOLD` for depletion stats like HP/hunger/rest, `ABOVE_THRESHOLD` for accumulation stats).
+- **`Colonist.moodlet_defs` (`data/colonists/colonist_def.gd`)**: Configures the list and display order of active moodlets on a per-archetype basis.
+- **Unified Stat Getters**: `colonist.get_stat_ratio(stat_name)` (returns normalized 0.0 to 1.0 float) and `colonist.get_stat_value(stat_name)` (returns raw numerical value).
+- **UI Integration**: Active moodlet icons are presented in the Colony Management roster (`ColonistEntry`) with tooltips and fixed aspect-ratio icon slots.
+
+
 ---
 
 ## Pathfinding (`VoxelPathfinder` & Strategies)
