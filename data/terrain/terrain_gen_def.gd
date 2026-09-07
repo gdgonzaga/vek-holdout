@@ -44,3 +44,9 @@ class_name TerrainGenDef
 ## derived stand-cell lattice never demands a climb above the step model
 ## (voxel_pathfinder.gd: climb +1). Consumed in Phase 3.
 @export var max_walk_slope_deg: float = 45.0
+
+## Authoring metadata for the Map Editor: whether water flooding was enabled on creation.
+@export var water_enabled: bool = false
+
+## Authoring metadata for the Map Editor: baseline water height in meters (Y axis).
+@export var water_level: float = -2.0

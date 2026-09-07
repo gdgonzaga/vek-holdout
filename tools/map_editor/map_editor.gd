@@ -127,6 +127,7 @@ func _ready() -> void:
 	_hud.spawn_type_selected.connect(_on_spawn_type_selected)
 	_hud.terrain_apply_requested.connect(_on_terrain_apply)
 	_hud.terrain_pick_image_requested.connect(_on_terrain_pick_image)
+	_hud.flood_water_requested.connect(_on_flood_water_requested)
 	_hud.set_mode(_mode)
 	_hud.hide()
 
@@ -621,6 +622,7 @@ func load_map(map_id: String) -> void:
 		_hud.set_metadata(def.display_name, def.description, def.map_type, def.difficulty, def.world_bounds)
 		_hud.set_terrain_available(_smooth_grid != null)
 		_hud.set_terrain_drawer_state(_map_def.terrain_gen)
+		_hud.set_water_drawer_state(def.water_enabled, def.water_level)
 		_hud.show()
 		_update_hud_info()
 
@@ -671,6 +673,11 @@ func create_new_map(payload: Dictionary) -> String:
 				2: target_count = TreeScattererClass.DENSITY_DENSE
 				_: target_count = density_val
 		_do_scatter_trees(target_count)
+		save_map()
+
+	if payload.get("water_enabled", false):
+		var w_level: float = float(payload.get("water_level", -2.0))
+		flood_water_level(w_level, false)
 		save_map()
 
 	return tscn_path
@@ -952,10 +959,28 @@ func _create_map_def(payload: Dictionary, folder_path: String, tscn_path: String
 		def.terrain_gen = null
 	else:
 		var noise_path := payload.get("noise_def_path", "") as String
+		var shared_def: TerrainGenDef = null
 		if ResourceLoader.exists(noise_path):
-			def.terrain_gen = load(noise_path) as TerrainGenDef
+			shared_def = load(noise_path) as TerrainGenDef
 		elif ResourceLoader.exists(DEFAULT_TERRAIN_GEN):
-			def.terrain_gen = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
+			shared_def = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
+		
+		if shared_def != null:
+			# Duplicate the shared def so this map can have its own water settings.
+			def.terrain_gen = shared_def.duplicate()
+			def.terrain_gen.id = map_name + "_terrain"
+			def.terrain_gen.display_name = map_name.capitalize() + " Terrain"
+
+	def.water_enabled = bool(payload.get("water_enabled", false))
+	def.water_level = float(payload.get("water_level", -2.0))
+	if def.terrain_gen != null:
+		def.terrain_gen.water_enabled = def.water_enabled
+		def.terrain_gen.water_level = def.water_level
+		var terrain_path := folder_path + "terrain_gen.tres"
+		var terr_err := ResourceSaver.save(def.terrain_gen, terrain_path)
+		if terr_err != OK:
+			push_warning("MapEditor: failed to save local terrain def to '%s'" % terrain_path)
+		def.terrain_gen = load(terrain_path) as TerrainGenDef
 
 	var def_path := folder_path + "map_def.tres"
 	var err := ResourceSaver.save(def, def_path)
@@ -1071,7 +1096,20 @@ func _on_terrain_apply() -> void:
 		var err := ResourceSaver.save(terrain_def, terrain_def.resource_path)
 		if err != OK:
 			push_warning("MapEditor: failed to save terrain def to '%s' (error %d)" % [terrain_def.resource_path, err])
+
+	if edits.has("water_enabled"):
+		_map_def.water_enabled = bool(edits.get("water_enabled", false))
+		_map_def.water_level = float(edits.get("water_level", -2.0))
+		if _map_def.terrain_gen != null:
+			_map_def.terrain_gen.water_enabled = _map_def.water_enabled
+			_map_def.terrain_gen.water_level = _map_def.water_level
+			if not _map_def.terrain_gen.resource_path.is_empty():
+				ResourceSaver.save(_map_def.terrain_gen, _map_def.terrain_gen.resource_path)
+		_save_map_def()
+
 	_reload_current_map()
+	if _map_def.water_enabled:
+		flood_water_level(_map_def.water_level, true)
 
 
 func _on_terrain_pick_image() -> void:
@@ -1571,6 +1609,32 @@ func _do_clear_trees() -> int:
 		if _hud != null and _map_def != null:
 			_hud.set_map_info(_map_def.id, _dirty)
 	return count
+
+
+func _on_flood_water_requested(water_level: float) -> void:
+	# 1. Water Flooding: Flood open cells below water level with blocky water.
+	flood_water_level(water_level, true)
+
+
+func flood_water_level(water_level: float, clear_above: bool = true) -> int:
+	## High-level orchestrator: Updates water settings and reloads to apply the generator.
+	if _map_def == null:
+		return 0
+
+	_map_def.water_enabled = true
+	_map_def.water_level = water_level
+	if _map_def.terrain_gen != null:
+		_map_def.terrain_gen.water_enabled = true
+		_map_def.terrain_gen.water_level = water_level
+		if not _map_def.terrain_gen.resource_path.is_empty():
+			ResourceSaver.save(_map_def.terrain_gen, _map_def.terrain_gen.resource_path)
+
+	_save_map_def()
+	_reload_current_map()
+	return 1
+
+
+
 
 
 func _do_spawn_place(type: String, hit: Dictionary) -> void:

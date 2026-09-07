@@ -126,6 +126,14 @@ Mode F5 (`Mode.SPAWN`) provides an interactive selector sidebar for configuring 
   - **Removal**: Selecting Remove or holding `Shift+LMB` deletes the nearest spawn marker within range.
 - **Runtime Consumption**: `SpawnHelpers.read_spawns()` scans `SpawnPoints` markers to instantiate actors at authored world positions.
 
+### A6. Water Authoring & Water Level Flood Tool
+
+The Map Editor provides automated water body authoring integrated with the dual-voxel pipeline:
+- **Creation Configuration**: `EditorLauncher` provides `Water Body` enable toggle and `Water Level (Y)` spinbox when generating new maps.
+- **In-Session Tuning**: `TerrainDrawer` exposes the water toggle, height spinbox, and a dedicated **"Flood Water"** action button.
+- **Flood Algorithm (`flood_water_level`)**: Sweeps all `(x, z)` columns within the map's `world_bounds`. For each column, it probes natural smooth terrain and blocky structures down to `world_bounds.position.y`. Open air cells situated between the column's solid floor and `water_level` are populated with `water` blocks, and any water blocks above `water_level` are cleared.
+- **Cofferdams & Dry Basements**: Because solid walls and enclosed terrain displace open air cells, the flood tool naturally preserves dry interiors while flooding rivers, lakes, and coastal shores outside.
+
 ### B. Dual-Voxel Editing & Undo Pipeline
 
 Every modification records its reverse operation in a bounded undo buffer (`_undo_stack: Array[Dictionary]`, max depth 50):

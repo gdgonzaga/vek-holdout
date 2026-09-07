@@ -22,6 +22,7 @@ signal terrain_apply_requested()
 ## The user asked for a heightmap image file — the editor owns the FileDialog.
 signal terrain_pick_image_requested()
 signal spawn_type_selected(type: String)
+signal flood_water_requested(water_level: float)
 
 var _mode_badge: PanelContainer
 var _mode_label: Label
@@ -91,6 +92,10 @@ var _pending_heightmap: Image = null
 var _terrain_remove_pending := false
 var _drawer_is_heightmap := false
 var _drawer_has_terrain := false
+
+var _drawer_water_enabled_check: CheckBox
+var _drawer_water_level_spin: SpinBox
+var _drawer_water_flood_button: Button
 
 const MODE_NAMES: Array[String] = [
 	"NAVIGATE",
@@ -762,6 +767,53 @@ func _build_ui() -> void:
 	_terrain_remove_button.pressed.connect(_on_terrain_remove_toggled)
 	drawer_buttons.add_child(_terrain_remove_button)
 
+	# --- Water Section ---
+	var water_sec := VBoxContainer.new()
+	water_sec.name = "WaterDrawerSection"
+	water_sec.add_theme_constant_override("separation", 6)
+	drawer_vbox.add_child(water_sec)
+
+	var water_title := Label.new()
+	water_title.text = "WATER LEVEL"
+	water_title.add_theme_font_size_override("font_size", 12)
+	water_title.add_theme_color_override("font_color", Color(0.5, 0.8, 0.95))
+	water_sec.add_child(water_title)
+
+	var water_row := HBoxContainer.new()
+	water_row.add_theme_constant_override("separation", 8)
+	water_sec.add_child(water_row)
+
+	_drawer_water_enabled_check = CheckBox.new()
+	_drawer_water_enabled_check.name = "DrawerWaterEnabledCheck"
+	_drawer_water_enabled_check.text = "Enabled"
+	_drawer_water_enabled_check.tooltip_text = "Enable water level for this map"
+	_drawer_water_enabled_check.add_theme_font_size_override("font_size", 11)
+	water_row.add_child(_drawer_water_enabled_check)
+
+	var lvl_lbl := Label.new()
+	lvl_lbl.text = "Y (m):"
+	lvl_lbl.add_theme_font_size_override("font_size", 11)
+	water_row.add_child(lvl_lbl)
+
+	_drawer_water_level_spin = SpinBox.new()
+	_drawer_water_level_spin.name = "DrawerWaterLevelSpin"
+	_drawer_water_level_spin.min_value = -64.0
+	_drawer_water_level_spin.max_value = 64.0
+	_drawer_water_level_spin.step = 0.5
+	_drawer_water_level_spin.value = -2.0
+	_drawer_water_level_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	water_row.add_child(_drawer_water_level_spin)
+
+	_drawer_water_flood_button = Button.new()
+	_drawer_water_flood_button.name = "DrawerWaterFloodButton"
+	_drawer_water_flood_button.text = "Flood Water Now"
+	_drawer_water_flood_button.tooltip_text = "Fill open volume below water level with water blocks"
+	_drawer_water_flood_button.add_theme_font_size_override("font_size", 11)
+	_drawer_water_flood_button.pressed.connect(func() -> void:
+		flood_water_requested.emit(_drawer_water_level_spin.value)
+	)
+	water_sec.add_child(_drawer_water_flood_button)
+
 	var terrain_warning := Label.new()
 	terrain_warning.text = "Sculpted edits keep their absolute heights — changing the base may float or bury them."
 	terrain_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1197,7 +1249,17 @@ func get_terrain_drawer_edits() -> Dictionary:
 		"pending_image": _pending_heightmap,
 		"remove": _terrain_remove_pending,
 		"snap_to_grid": _terrain_snap_check.button_pressed if _terrain_snap_check != null else false,
+		"water_enabled": _drawer_water_enabled_check.button_pressed if _drawer_water_enabled_check != null else false,
+		"water_level": _drawer_water_level_spin.value if _drawer_water_level_spin != null else -2.0,
 	}
+
+
+## Update water drawer controls to match loaded map configuration.
+func set_water_drawer_state(enabled: bool, level: float) -> void:
+	if _drawer_water_enabled_check != null:
+		_drawer_water_enabled_check.button_pressed = enabled
+	if _drawer_water_level_spin != null:
+		_drawer_water_level_spin.value = level
 
 
 ## Preview a picked image before Apply commits it: minimap + heightmap fields.

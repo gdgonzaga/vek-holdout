@@ -1851,3 +1851,25 @@ func test_map_editor_spawn_selector_hud_interaction() -> void:
 	assert_str(hud._spawn_summary_label.text).contains("Player: Set")
 	assert_str(hud._spawn_summary_label.text).contains("Colonists: 3")
 	assert_str(hud._spawn_summary_label.text).contains("Enemies: 5")
+
+
+func test_map_editor_new_map_with_water_enabled() -> void:
+	const TEST_WATER_MAP := "water_create_test_map"
+	_remove_test_map(TEST_WATER_MAP)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+
+	var payload := _heightmap_payload(TEST_WATER_MAP)
+	payload["water_enabled"] = true
+	payload["water_level"] = -2.0
+	editor.create_new_map(payload)
+
+	assert_bool(editor._map_def.water_enabled).is_true()
+	assert_float(editor._map_def.water_level).is_equal(-2.0)
+
+	# Verify in-editor flood adjustment completes
+	var flooded := editor.flood_water_level(-1.0, true)
+	assert_int(flooded).is_greater_equal(0)
+
+	await _dispose_test_editor(editor)
+	_remove_test_map(TEST_WATER_MAP)

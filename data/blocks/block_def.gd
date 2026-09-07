@@ -29,6 +29,26 @@ const YAW_INDICES: Array[int] = [0, 22, 10, 16]
 ## never hand-make rotated meshes.
 @export var rotation_mode: RotationMode = RotationMode.NONE
 
+## Fluid flag: marks non-solid fluids like water or lava.
+@export var is_fluid: bool = false
+
+## Collision generation: set false for non-solid blocks (water, tall grass).
+@export var collision_enabled: bool = true
+
+## Transparency index for VoxelMesherBlocky (0 = opaque, > 0 = transparent).
+## Opaque blocks adjacent to transparent blocks do not cull their faces.
+@export var transparency_index: int = 0
+
+## When true, touching blocks of the same model cull their shared internal faces.
+@export var culls_neighbors_of_same_type: bool = false
+
+## Optional custom Material (e.g. ShaderMaterial for water) overriding the default standard material.
+@export var custom_material: Material = null
+
+## Explicit fixed base library index. When > 0, BlockLibrary assigns this exact index
+## rather than an auto-assigned sequential index, guaranteeing save compatibility across game updates.
+@export var fixed_index: int = -1
+
 
 func is_rotatable() -> bool:
 	return rotation_mode != RotationMode.NONE

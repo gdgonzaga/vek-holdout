@@ -158,6 +158,10 @@ static func wire_colonists(map: Map) -> Node3D:
 	Colony.set_stand_cell_hint(smooth_stand_hint(smooth) if smooth != null else Callable())
 	Colony.set_ground_query(Callable(map, "ground_height_at"))
 
+	# 1. Cost Wiring: Injects traversal cost multiplier (e.g. water wading penalty) into colonists.
+	var cell_cost := _compose_cell_cost(map)
+	Colony.set_cell_cost_fn(cell_cost)
+
 	# Spawn/reparent colonists AFTER ground query and predicates are wired so
 	# initial spawn height queries resolve correctly.
 	Colony.on_map_wired(container, spawns.get("colonists", []))
@@ -196,6 +200,15 @@ static func _compose_walkability(map: Map) -> Callable:
 		return bool(base_walkable.call(cell))
 
 
+## Composes the traversal cost multiplier callback for cells (e.g. water wading penalty).
+static func _compose_cell_cost(map: Map) -> Callable:
+	var grid: BlockyGrid = map.get_blocky_grid()
+	return func(cell: Vector3i) -> float:
+		if grid != null and grid.get_block_at(cell) == "water":
+			return 2.0
+		return 0.0
+
+
 ## Blocky-only ground probe: a cell is standable iff it is air, has a solid
 ## floor below, and has head clearance above (the 1.6 m capsule spans two 1 m
 ## cells — without this check colonists path into 1-high gaps and grind against
@@ -205,11 +218,16 @@ static func blocky_ground_probe(get_block_at: Callable) -> Callable:
 	const DOWN := Vector3i(0, -1, 0)
 	const UP := Vector3i(0, 1, 0)
 	return func(cell: Vector3i) -> bool:
-		if get_block_at.call(cell) != "":             # solid (terrain/block)
+		var curr: String = get_block_at.call(cell)
+		if curr != "" and curr != "water":             # solid obstacle (blocks, furniture)
 			return false
-		if get_block_at.call(cell + DOWN) == "":      # no floor below
+		var floor_val: String = get_block_at.call(cell + DOWN)
+		if floor_val == "" or floor_val == "water":     # no solid floor below (cannot stand on air or deep water)
 			return false
-		if get_block_at.call(cell + UP) != "":        # no head clearance
+		var head_val: String = get_block_at.call(cell + UP)
+		if head_val != "" and head_val != "water":      # no head clearance
+			return false
+		if curr == "water" and head_val == "water":     # submerged in deep water (> 1 cell depth)
 			return false
 		return true
 
@@ -254,34 +272,46 @@ static func hybrid_ground_probe(get_block_at: Callable, smooth_height_at: Callab
 				if not has_terrain_query or cell_in_terrain or head_in_terrain:
 					return false
 				# Otherwise, this is a hollowed out cave/tunnel below the surface.
-				if get_block_at.call(cell) != "":
+				var cave_curr: String = get_block_at.call(cell)
+				if cave_curr != "" and cave_curr != "water":
 					return false
-				if get_block_at.call(cell + UP) != "":
+				var cave_head: String = get_block_at.call(cell + UP)
+				if cave_head != "" and cave_head != "water":
 					return false
-				if get_block_at.call(cell + DOWN) != "" or floor_in_terrain:
+				if cave_curr == "water" and cave_head == "water":
+					return false
+				var cave_floor: String = get_block_at.call(cell + DOWN)
+				if (cave_floor != "" and cave_floor != "water") or floor_in_terrain:
 					return true
 				return false
 				
 			if h >= float(cell.y):
 				# Smooth surface within this cell: stand on it. Blocky must not
-				# occupy the stand cell (air) nor the head cell above (the 1.6 m
+				# occupy the stand cell (air or water) nor the head cell above (the 1.6 m
 				# capsule spans two cells — same clearance as the blocky probe).
-				if get_block_at.call(cell) != "":
+				var surf_curr: String = get_block_at.call(cell)
+				if surf_curr != "" and surf_curr != "water":
 					return false
-				if get_block_at.call(cell + UP) != "":
+				var surf_head: String = get_block_at.call(cell + UP)
+				if (surf_head != "" and surf_head != "water") or head_in_terrain:
 					return false
-				if head_in_terrain:
+				if surf_curr == "water" and surf_head == "water":
 					return false
 				var n: Vector3 = normals[0] if normals.size() > 0 else Vector3.UP
 				return n.y >= min_normal_y
 
 		# No smooth surface in or above this cell (or no smooth terrain here at
 		# all): plain blocky rules, identical to a smooth-less map.
-		if get_block_at.call(cell) != "":             # solid (terrain/block)
+		var block_curr: String = get_block_at.call(cell)
+		if block_curr != "" and block_curr != "water":             # solid (terrain/block)
 			return false
-		if get_block_at.call(cell + DOWN) == "" and not floor_in_terrain:      # no floor below
+		var block_floor: String = get_block_at.call(cell + DOWN)
+		if (block_floor == "" or block_floor == "water") and not floor_in_terrain:      # no floor below
 			return false
-		if get_block_at.call(cell + UP) != "" or head_in_terrain:        # no head clearance
+		var block_head: String = get_block_at.call(cell + UP)
+		if (block_head != "" and block_head != "water") or head_in_terrain:        # no head clearance
+			return false
+		if block_curr == "water" and block_head == "water":
 			return false
 		return true
 
@@ -366,6 +396,9 @@ static func wire_enemy_pathfinder(enemy: EnemyBase, map: Map) -> void:
 		return
 	var predicate := _compose_walkability(map)
 	enemy.pathfinder.set_walkability(predicate)
+	# 1. Cost Wiring: Injects traversal cost multiplier into enemy pathfinder.
+	var cell_cost := _compose_cell_cost(map)
+	enemy.pathfinder.set_cell_cost(cell_cost)
 	var smooth := _live_smooth_grid(map)
 	if smooth != null:
 		var stand_hint := smooth_stand_hint(smooth)

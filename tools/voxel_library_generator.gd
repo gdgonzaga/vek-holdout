@@ -21,7 +21,9 @@ static func create_block_model(block_def: BlockDef, ortho_index: int) -> VoxelBl
 	elif "mesh_ortho_rotation" in model:
 		model.set("mesh_ortho_rotation", ortho_index)
 	model.resource_name = "%s_%d" % [block_def.id, ortho_index]
-	if block_def.texture != null:
+	if block_def.custom_material != null:
+		model.material_override_0 = block_def.custom_material
+	elif block_def.texture != null:
 		if block_def.texture_variation:
 			var mat := ShaderMaterial.new()
 			mat.shader = preload("res://assets/shaders/block_shader.gdshader")
@@ -31,9 +33,19 @@ static func create_block_model(block_def: BlockDef, ortho_index: int) -> VoxelBl
 			var mat := StandardMaterial3D.new()
 			mat.albedo_texture = block_def.texture
 			model.material_override_0 = mat
-	# Collision generation property name varies across voxel_tool versions.
+
+	# Configure collision generation (disabled for fluids like water).
 	if "collision_enabled_0" in model:
-		model.set("collision_enabled_0", true)
+		model.set("collision_enabled_0", block_def.collision_enabled)
+
+	# Configure transparency index (0 = opaque, > 0 = transparent).
+	if "transparency_index" in model:
+		model.set("transparency_index", block_def.transparency_index)
+
+	# Configure neighbor culling (fluids cull touching faces of the same model).
+	if "culls_neighbors_of_same_type" in model:
+		model.set("culls_neighbors_of_same_type", block_def.culls_neighbors_of_same_type)
+
 	return model
 
 

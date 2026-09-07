@@ -31,6 +31,12 @@ enum MapType { BASE, POI, BUILDING, TOWN }
 ## before the map enters the tree.
 @export var terrain_gen: TerrainGenDef = null
 
+## Authoring metadata for the Map Editor: whether water flooding was enabled on creation.
+@export var water_enabled: bool = false
+
+## Authoring metadata for the Map Editor: baseline water height in meters (Y axis).
+@export var water_level: float = -2.0
+
 
 func get_horizontal_size() -> Vector2:
 	return Vector2(world_bounds.size.x, world_bounds.size.z)

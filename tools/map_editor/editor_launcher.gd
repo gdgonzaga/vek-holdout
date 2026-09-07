@@ -43,6 +43,10 @@ var _file_dialog: FileDialog = null
 var _scatter_trees_check: CheckBox
 var _tree_density_select: OptionButton
 
+# Water controls
+var _water_enabled_check: CheckBox
+var _water_level_spin: SpinBox
+
 
 func _init() -> void:
 	layer = 105
@@ -332,6 +336,39 @@ func _build_ui() -> void:
 	_tree_density_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foliage_row.add_child(_tree_density_select)
 
+	# Water setup controls
+	var water_row := HBoxContainer.new()
+	water_row.add_theme_constant_override("separation", 8)
+	form_vbox.add_child(water_row)
+
+	_water_enabled_check = CheckBox.new()
+	_water_enabled_check.name = "WaterEnabledCheckBox"
+	_water_enabled_check.text = "Enable Water"
+	_water_enabled_check.tooltip_text = "Fill open volume below water level with water blocks"
+	_water_enabled_check.button_pressed = true
+	_water_enabled_check.add_theme_font_size_override("font_size", 12)
+	_water_enabled_check.toggled.connect(func(pressed: bool) -> void:
+		if _water_level_spin != null:
+			_water_level_spin.editable = pressed
+	)
+	water_row.add_child(_water_enabled_check)
+
+	var water_lvl_lbl := Label.new()
+	water_lvl_lbl.text = "Level (Y):"
+	water_lvl_lbl.add_theme_font_size_override("font_size", 12)
+	water_lvl_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	water_row.add_child(water_lvl_lbl)
+
+	_water_level_spin = SpinBox.new()
+	_water_level_spin.name = "WaterLevelSpinBox"
+	_water_level_spin.min_value = -64.0
+	_water_level_spin.max_value = 64.0
+	_water_level_spin.step = 0.5
+	_water_level_spin.value = -2.0
+	_water_level_spin.tooltip_text = "Water height level in meters (Y axis)"
+	_water_level_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	water_row.add_child(_water_level_spin)
+
 	var create_btn := Button.new()
 	create_btn.text = "Create & Open"
 	create_btn.custom_minimum_size = Vector2(0, 36)
@@ -501,6 +538,8 @@ func _on_create_pressed() -> void:
 		"snap_to_grid": _snap_to_grid_check.button_pressed if _snap_to_grid_check != null else false,
 		"scatter_trees": _scatter_trees_check.button_pressed if _scatter_trees_check != null else false,
 		"tree_density": _tree_density_select.selected if _tree_density_select != null else 1,
+		"water_enabled": _water_enabled_check.button_pressed if _water_enabled_check != null else false,
+		"water_level": _water_level_spin.value if _water_level_spin != null else -2.0,
 		"world_bounds": bounds,
 	})
 

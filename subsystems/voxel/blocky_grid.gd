@@ -66,13 +66,32 @@ func _ready() -> void:
 	if "bounds" in _terrain:
 		_terrain.set("bounds", world_bounds)
 	_library = _make_library()
-	# Wire the data-driven block library into the terrain's mesher. Kept in code
-	# (not the .tscn) because the VoxelBlockyLibrary is assembled from data/blocks/.
 	var mesher: VoxelMesherBlocky = _terrain.mesher
 	if mesher != null:
 		mesher.library = _library.get_voxel_library()
 	_voxel_tool = _terrain.get_voxel_tool()
 	_voxel_tool.mode = VoxelTool.MODE_SET
+
+	_setup_water_generator()
+
+func _setup_water_generator() -> void:
+	# Map editor / root injects terrain_gen during map load.
+	var map: Node = get_parent()
+	var t_gen: TerrainGenDef = null
+	if map != null:
+		var smooth = map.get_node_or_null("SmoothGrid")
+		if smooth != null:
+			t_gen = smooth.get("terrain_gen") as TerrainGenDef
+	
+	if t_gen != null and t_gen.water_enabled:
+		var water_gen = WaterGenerator.new()
+		var water_idx = _library.get_index("water")
+		if water_idx > 0:
+			var stored = _library.get_stored_index(water_idx, 0)
+			water_gen.setup(t_gen, t_gen.water_level, stored)
+			if "generator" in _terrain:
+				_terrain.set("generator", water_gen)
+
 
 ## Library factory — overridable so tests can mount a fixture BlockLibrary
 ## (fixture defs with rotation modes) without touching data/blocks/.

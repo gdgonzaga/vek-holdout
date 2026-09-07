@@ -442,6 +442,9 @@ func _handle_move_keys(delta: float) -> void:
 	var speed: float
 	if is_on_floor():
 		speed = sprint_speed if _input.wants_sprint() else walk_speed
+		# 1. Drag Evaluation: Dampens ground movement speed by 0.6x when wading through fluid voxels.
+		if is_in_water():
+			speed *= 0.6
 	else:
 		speed = _speed_on_jump
 	velocity.x = wish.x * speed
@@ -478,6 +481,9 @@ func _handle_jump() -> void:
 		# Freeze the takeoff speed so a sprint-jump carries sprint-scale momentum
 		# for the whole jump (mid-air Shift can't change it).
 		_speed_on_jump = sprint_speed if _input.wants_sprint() else walk_speed
+		# 1. Takeoff Drag: Dampens jump takeoff momentum by 0.6x if jumping out of fluid voxels.
+		if is_in_water():
+			_speed_on_jump *= 0.6
 		
 		_is_sprinting_on_jump = _input.wants_sprint()
 
@@ -637,3 +643,28 @@ func _on_dig_box_toggle_pressed() -> void:
 	elif mode == Mode.NORMAL:
 		mode = Mode.DIG_BOX_DESIGNATION
 		EventBus.dig_box_toggled.emit(true)
+
+
+## Returns true if the player's lower body is submerged in a fluid/water voxel cell.
+func is_in_water() -> bool:
+	var grid := _find_blocky_grid(self)
+	if grid == null:
+		return false
+	# 1. Position Resolution: Resolves the voxel coordinates at the player's lower torso.
+	var cell: Vector3i = _get_wading_cell()
+	# 2. Block Evaluation: Determines whether the target voxel cell contains fluid water.
+	return _is_water_at_cell(grid, cell)
+
+
+func _get_wading_cell() -> Vector3i:
+	## Auxiliary: Resolves the voxel cell at the player's lower torso.
+	return Vector3i(
+		int(floor(global_position.x)),
+		int(floor(global_position.y + 0.2)),
+		int(floor(global_position.z))
+	)
+
+
+func _is_water_at_cell(grid: BlockyGrid, cell: Vector3i) -> bool:
+	## Auxiliary: Evaluates whether the given cell in the blocky grid contains water.
+	return grid.get_block_at(cell) == "water"

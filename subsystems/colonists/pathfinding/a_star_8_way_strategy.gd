@@ -23,6 +23,7 @@ func get_strategy_name() -> String:
 
 func find_path(start_cell: Vector3i, target_cell: Vector3i, context: Dictionary) -> Dictionary:
 	var is_walkable: Callable = context.get("is_walkable", Callable())
+	var cell_cost: Callable = context.get("cell_cost", Callable())
 	var max_explored: int = context.get("max_explored", 8000)
 	var max_drop: int = context.get("max_drop", 3)
 	var jump_up_cost: float = context.get("jump_up_cost", 3.0)
@@ -46,11 +47,15 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i, context: Dictionary)
 		var best_i := 0
 		var best_f := INF
 		for i in range(open.size()):
-			var f: float = g_score[open[i]] + _heuristic_octile(open[i], target_cell)
+			var c: Vector3i = open[i]
+			var f: float = g_score[c] + _heuristic_octile(c, target_cell)
 			if f < best_f:
 				best_f = f
 				best_i = i
-		var current: Vector3i = open.pop_at(best_i)
+
+		var current: Vector3i = open[best_i]
+		open.remove_at(best_i)
+
 		if current == target_cell:
 			var path := reconstruct_path(came_from, current)
 			return {"path": path, "explored": explored, "status": "OK (%d pts, %d explored)" % [path.size(), explored]}
@@ -69,7 +74,10 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i, context: Dictionary)
 			if not _is_diagonal_passable(current, off, is_walkable):
 				continue
 
-			var tentative: float = g_score[current] + _move_cost(off, jump_up_cost, drop_cost_per_cell)
+			var move_step := _move_cost(off, jump_up_cost, drop_cost_per_cell)
+			if cell_cost.is_valid():
+				move_step += float(cell_cost.call(nb))
+			var tentative: float = g_score[current] + move_step
 			if tentative < g_score.get(nb, INF):
 				g_score[nb] = tentative
 				came_from[nb] = current
@@ -81,6 +89,7 @@ func find_path(start_cell: Vector3i, target_cell: Vector3i, context: Dictionary)
 
 func find_path_multi_target(start_cell: Vector3i, targets: Array[Vector3i], context: Dictionary) -> Dictionary:
 	var is_walkable: Callable = context.get("is_walkable", Callable())
+	var cell_cost: Callable = context.get("cell_cost", Callable())
 	var max_explored: int = context.get("max_explored", 8000)
 	var max_drop: int = context.get("max_drop", 3)
 	var jump_up_cost: float = context.get("jump_up_cost", 3.0)
@@ -133,7 +142,10 @@ func find_path_multi_target(start_cell: Vector3i, targets: Array[Vector3i], cont
 			if not _is_diagonal_passable(current, off, is_walkable):
 				continue
 
-			var tentative: float = g_score[current] + _move_cost(off, jump_up_cost, drop_cost_per_cell)
+			var move_step := _move_cost(off, jump_up_cost, drop_cost_per_cell)
+			if cell_cost.is_valid():
+				move_step += float(cell_cost.call(nb))
+			var tentative: float = g_score[current] + move_step
 			if tentative < g_score.get(nb, INF):
 				g_score[nb] = tentative
 				came_from[nb] = current

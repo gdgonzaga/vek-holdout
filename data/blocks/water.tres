@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BlockDef" format=3]
+
+[ext_resource type="Script" path="res://data/blocks/block_def.gd" id="1_script"]
+[ext_resource type="Mesh" path="res://assets/custom_meshes/full-block.obj" id="2_mesh"]
+[ext_resource type="Material" path="res://assets/materials/water_block_material.tres" id="3_material"]
+
+[resource]
+script = ExtResource("1_script")
+id = "water"
+display_name = "Water"
+hp = 0
+mesh = ExtResource("2_mesh")
+is_fluid = true
+collision_enabled = false
+transparency_index = 1
+culls_neighbors_of_same_type = true
+custom_material = ExtResource("3_material")
+fixed_index = 14
+unlocked_by_default = false

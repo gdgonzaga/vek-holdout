@@ -27,6 +27,7 @@ const _STAND_SCAN := 3
 const _CELL_HALF := Vector3(0.5, 0.5, 0.5)
 
 var _is_walkable: Callable
+var _cell_cost: Callable = Callable()
 var _stand_cell_hint: Callable
 
 ## Active pathfinding and smoothing strategy.
@@ -65,6 +66,11 @@ func set_walkability(predicate: Callable) -> void:
 	_is_walkable = predicate
 
 
+## Inject the optional per-cell extra movement cost (e.g. wading through water).
+func set_cell_cost(cost_fn: Callable) -> void:
+	_cell_cost = cost_fn
+
+
 ## Inject the column stand-cell hint source (MapWiring.smooth_stand_hint).
 ## Optional; without it the finder keeps its flat-terrain assumptions.
 func set_stand_cell_hint(hint: Callable) -> void:
@@ -98,6 +104,7 @@ func _stamp_query_time() -> void:
 func _build_context() -> Dictionary:
 	return {
 		"is_walkable": _is_walkable,
+		"cell_cost": _cell_cost,
 		"stand_cell_hint": _stand_cell_hint,
 		"max_drop": _MAX_DROP,
 		"jump_up_cost": _JUMP_UP_COST,

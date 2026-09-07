@@ -65,6 +65,9 @@ var _walkability_predicate: Callable = Callable()
 ## VoxelPathfinder.set_stand_cell_hint). Invalid on smooth-less maps.
 var _stand_cell_hint: Callable = Callable()
 
+## Cached cost function from the active map.
+var _cell_cost_fn: Callable = Callable()
+
 ## Cached combined ground query from the active map, `(x, z) -> float` (NAN
 ## when no terrain reaches the column). Marker spawns snap onto the highest
 ## surface (hill or plate) instead of trusting authored Y.
@@ -110,6 +113,8 @@ func on_map_wired(container: Node3D, spawn_positions: Array) -> void:
 					c.pathfinder.set_walkability(_walkability_predicate)
 				if _stand_cell_hint.is_valid() and c.pathfinder != null:
 					c.pathfinder.set_stand_cell_hint(_stand_cell_hint)
+				if _cell_cost_fn.is_valid() and c.pathfinder != null:
+					c.pathfinder.set_cell_cost(_cell_cost_fn)
 				colonists.append(c)
 		_pending_colonist_records.clear()
 	elif colonists.is_empty():
@@ -143,6 +148,14 @@ func set_stand_cell_hint(hint: Callable) -> void:
 	for c in colonists:
 		if is_instance_valid(c) and c.pathfinder != null:
 			c.pathfinder.set_stand_cell_hint(hint)
+
+
+## Store the active map's cell cost function and inject it into all current colonists.
+func set_cell_cost_fn(cost_fn: Callable) -> void:
+	_cell_cost_fn = cost_fn
+	for c in colonists:
+		if is_instance_valid(c) and c.pathfinder != null:
+			c.pathfinder.set_cell_cost(cost_fn)
 
 
 ## Store the active map's combined ground query (Map.ground_height_at).
@@ -238,6 +251,8 @@ func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZER
 		c.pathfinder.set_walkability(_walkability_predicate)
 	if _stand_cell_hint.is_valid() and c.pathfinder != null:
 		c.pathfinder.set_stand_cell_hint(_stand_cell_hint)
+	if _cell_cost_fn.is_valid() and c.pathfinder != null:
+		c.pathfinder.set_cell_cost(_cell_cost_fn)
 
 	colonists.append(c)
 	return c
@@ -255,6 +270,8 @@ func add_colonist(c: Colonist) -> void:
 			c.pathfinder.set_walkability(_walkability_predicate)
 		if _stand_cell_hint.is_valid() and c.pathfinder != null:
 			c.pathfinder.set_stand_cell_hint(_stand_cell_hint)
+		if _cell_cost_fn.is_valid() and c.pathfinder != null:
+			c.pathfinder.set_cell_cost(_cell_cost_fn)
 
 
 ## Drop a colonist by id (death or departure). Frees the node.

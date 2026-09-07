@@ -35,34 +35,82 @@ func _init(blocks_dir: String = "") -> void:
 		_blocks_dir = blocks_dir
 	_build()
 
+## Preserved index order for shipped baseline blocks to guarantee save format compatibility.
+const LEGACY_BLOCK_ORDER: Array[String] = [
+	"full_block_wood",
+	"half_block_wood",
+	"metal",
+	"quarter_block_wood",
+	"reinforced",
+	"scrap",
+	"stairs_corner_left_wood",
+	"stairs_corner_right_wood",
+	"stairs_wood",
+	"stone",
+	"wedge_corner_left_wood",
+	"wedge_corner_right_wood",
+	"wedge_wood",
+]
+
+
 ## Load every BlockDef in the blocks dir and assemble the VoxelBlockyLibrary,
-## baking rotation variants after the base table. Deterministic order:
-## alphabetical (0 = air first).
+## baking rotation variants after the base table. Stable registry order guarantees
+## that newly added blocks do not shift existing indices in saved maps.
 func _build() -> void:
-	var paths := _scan_block_defs()
-	paths.sort()
+	# 1. Block Scanning: Discover all valid BlockDef resources in the configured blocks directory.
+	var defs: Array[BlockDef] = _load_scanned_block_defs()
+
+	# 2. Stable Ordering: Order BlockDef resources according to locked registry invariants.
+	_sort_block_defs_stably(defs)
 
 	_voxel_library = VoxelBlockyLibrary.new()
 	# Index 0 = air.
 	_voxel_library.add_model(VoxelBlockyModelEmpty.new())
 	_next_index = 1
 
-	for path in paths:
-		# the blocks dir holds the baked VoxelBlockyLibrary alongside the
-		# BlockDefs; only the latter are models we add to our own library. Skip
-		# anything that isn't a BlockDef (a typed load would throw on the
-		# baked library).
-		var res = load(path)
-		if not (res is BlockDef):
-			continue
-		var def: BlockDef = res
+	for def in defs:
+		# 3. Model Registration: Register the base unrotated model into the VoxelBlockyLibrary.
 		var index := _add_base_model(def)
 		_index_by_id[def.id] = index
 		_defs_by_id[def.id] = def
 
+	# 4. Variant Baking: Append rotation variants after the base table.
 	_bake_variants()
 
 	_voxel_library.bake()
+
+
+func _load_scanned_block_defs() -> Array[BlockDef]:
+	## Auxiliary: Loads all BlockDef resources found in the target directory.
+	var paths := _scan_block_defs()
+	var defs: Array[BlockDef] = []
+	for path in paths:
+		var res = load(path)
+		if res is BlockDef:
+			defs.append(res as BlockDef)
+	return defs
+
+
+func _sort_block_defs_stably(defs: Array[BlockDef]) -> void:
+	## Auxiliary: Sorts block definitions by explicit fixed index, legacy baseline order, or filename.
+	defs.sort_custom(func(a: BlockDef, b: BlockDef) -> bool:
+		var rank_a := _get_block_sort_rank(a)
+		var rank_b := _get_block_sort_rank(b)
+		if rank_a != rank_b:
+			return rank_a < rank_b
+		return a.resource_path < b.resource_path
+	)
+
+
+func _get_block_sort_rank(def: BlockDef) -> int:
+	## Auxiliary: Resolves sort priority rank for a block definition.
+	if def.fixed_index > 0:
+		return def.fixed_index
+	var legacy_idx := LEGACY_BLOCK_ORDER.find(def.id)
+	if legacy_idx >= 0:
+		return legacy_idx + 1
+	return 100000
+
 
 ## The def's base model (unrotated). Index assignment is sequential — see the
 ## class doc's index convention.
@@ -75,6 +123,7 @@ func _add_base_model(def: BlockDef) -> int:
 	_voxel_library.add_model(VoxelLibraryGenerator.create_block_model(def, 0))
 	_defs_by_index[index] = def
 	return index
+
 
 ## Bake one variant model per orientation for rotatable defs, appended after
 ## the whole base table. Slot 0 (identity) needs no variant — the base model
@@ -154,6 +203,19 @@ func get_base_indices() -> Array[int]:
 ## True if the given stored/library index is a base block index.
 func is_base_index(index: int) -> bool:
 	return index > 0 and get_base_index(index) == index
+
+
+## True if the block at the given stored/library index is a fluid (e.g. water).
+func is_fluid(index: int) -> bool:
+	var def: BlockDef = get_def_by_index(index)
+	return def != null and def.is_fluid
+
+
+## True if the block at the given stored/library index is water.
+func is_water(index: int) -> bool:
+	var def: BlockDef = get_def_by_index(index)
+	return def != null and def.id == "water"
+
 
 func get_voxel_library() -> VoxelBlockyLibrary:
 	return _voxel_library

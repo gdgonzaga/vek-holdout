@@ -836,7 +836,9 @@ func _compute_pristine(x: int, z: int) -> float:
 		var v := _heightmap_image.get_pixel(px, pz).r
 		return terrain_gen.height_start + v * terrain_gen.height_range
 	if _noise_sampler == null:
-		return NAN
+		_noise_sampler = FastNoiseLite.new()
+		_noise_sampler.seed = terrain_gen.noise_seed
+		_noise_sampler.frequency = terrain_gen.noise_frequency
 	var n := _noise_sampler.get_noise_2d(x, z)
 	return terrain_gen.height_start + (n * 0.5 + 0.5) * terrain_gen.height_range
 
@@ -1152,7 +1154,11 @@ func height_at(x: float, z: float, normal_out: Array = []) -> float:
 		var entry: Dictionary = _height_cache[col]
 		normal_out.append(entry["n"])
 		return entry["h"]
+	if _terrain == null or not is_inside_tree() or _terrain.get_world_3d() == null:
+		return NAN
 	var space := _terrain.get_world_3d().direct_space_state
+	if space == null:
+		return NAN
 	var from := Vector3(x, HEIGHT_RAY_FROM_Y, z)
 	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * HEIGHT_RAY_LENGTH)
 	query.collision_mask = TERRAIN_LAYER_VALUE
@@ -1172,6 +1178,20 @@ func get_terrain() -> VoxelTerrain:
 
 func get_voxel_tool() -> VoxelTool:
 	return _voxel_tool
+
+
+## Returns the pristine mathematical surface height at (x, z), or NAN if no generator is active.
+func get_pristine_height(x: float, z: float) -> float:
+	return _pristine_height(x, z)
+
+
+## Returns the surface ground height at (x, z), using physics raycast if available,
+## falling back to pristine analytical height if raycast misses.
+func get_surface_height(x: float, z: float) -> float:
+	var h := height_at(x, z)
+	if not is_nan(h):
+		return h
+	return _pristine_height(x, z)
 
 # --- invalidation -------------------------------------------------------------------
 
