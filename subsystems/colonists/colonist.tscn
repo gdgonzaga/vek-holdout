@@ -13,7 +13,7 @@
 [ext_resource type="Script" uid="uid://duqrdd3t7rag6" path="res://subsystems/actions/interaction_component.gd" id="17_interact"]
 [ext_resource type="Script" uid="uid://cxe5kqjdff8h4" path="res://subsystems/ai/colonist_needs.gd" id="18_needs"]
 [ext_resource type="Script" uid="uid://nv5v5unavf1x" path="res://subsystems/ai/colonist_brain.gd" id="19_brain"]
-[ext_resource type="BehaviorTree" uid="uid://birbg5ivch5mp" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
+[ext_resource type="BehaviorTree" uid="uid://cp5yyc0h34ebk" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3
@@ -24,6 +24,101 @@ radius = 0.3
 height = 1.6
 
 [sub_resource type="BlackboardPlan" id="BlackboardPlan_vbc78"]
+
+[sub_resource type="AnimationNodeOneShot" id="AnimationNodeOneShot_2sd7t"]
+filter_enabled = true
+filters = ["%GeneralSkeleton:Chest", "%GeneralSkeleton:Head", "%GeneralSkeleton:LeftHand", "%GeneralSkeleton:LeftLowerArm", "%GeneralSkeleton:LeftShoulder", "%GeneralSkeleton:LeftUpperArm", "%GeneralSkeleton:Neck", "%GeneralSkeleton:RightHand", "%GeneralSkeleton:RightLowerArm", "%GeneralSkeleton:RightShoulder", "%GeneralSkeleton:RightUpperArm", "%GeneralSkeleton:Spine", "%GeneralSkeleton:UpperChest"]
+fadein_time = 0.1
+fadeout_time = 0.1
+
+[sub_resource type="AnimationNodeTransition" id="AnimationNodeTransition_2sd7t"]
+input_0/name = "Digging"
+input_0/auto_advance = false
+input_0/break_loop_at_end = false
+input_0/reset = true
+input_1/name = "Interact"
+input_1/auto_advance = false
+input_1/break_loop_at_end = false
+input_1/reset = true
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_ivbn6"]
+animation = &"animations/Interact"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_kkt58"]
+animation = &"animations/Digging"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_2e4g2"]
+animation = &"animations/Idle"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_ld3of"]
+animation = &"animations/Walk"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_k0tod"]
+animation = &"animations/Sprint"
+
+[sub_resource type="AnimationNodeBlendSpace1D" id="AnimationNodeBlendSpace1D_2sd7t"]
+blend_point_0/node = SubResource("AnimationNodeAnimation_2e4g2")
+blend_point_0/pos = 0.0
+blend_point_0/name = &"animations_Idle"
+blend_point_1/node = SubResource("AnimationNodeAnimation_ld3of")
+blend_point_1/pos = 0.5
+blend_point_1/name = &"animations_Walk"
+blend_point_2/node = SubResource("AnimationNodeAnimation_k0tod")
+blend_point_2/pos = 1.0
+blend_point_2/name = &"animations_Sprint"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_3xw50"]
+animation = &"animations/JumpDown"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_thjwc"]
+animation = &"animations/JumpLoop"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_lxodo"]
+animation = &"animations/JumpUp"
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_0lkdu"]
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_kkt58"]
+advance_mode = 0
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_ivbn6"]
+switch_mode = 2
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_vvkho"]
+advance_mode = 0
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_gwypq"]
+switch_mode = 2
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachine" id="AnimationNodeStateMachine_0lkdu"]
+states/Grounded/node = SubResource("AnimationNodeBlendSpace1D_2sd7t")
+states/Grounded/position = Vector2(550, 85)
+states/Start/position = Vector2(286, 85)
+states/animations_JumpDown/node = SubResource("AnimationNodeAnimation_3xw50")
+states/animations_JumpDown/position = Vector2(550, 309)
+states/animations_JumpLoop/node = SubResource("AnimationNodeAnimation_thjwc")
+states/animations_JumpLoop/position = Vector2(678, 237)
+states/animations_JumpUp/node = SubResource("AnimationNodeAnimation_lxodo")
+states/animations_JumpUp/position = Vector2(678, 157)
+transitions = ["Start", "Grounded", SubResource("AnimationNodeStateMachineTransition_0lkdu"), "Grounded", "animations_JumpUp", SubResource("AnimationNodeStateMachineTransition_kkt58"), "animations_JumpUp", "animations_JumpLoop", SubResource("AnimationNodeStateMachineTransition_ivbn6"), "animations_JumpLoop", "animations_JumpDown", SubResource("AnimationNodeStateMachineTransition_vvkho"), "animations_JumpDown", "Grounded", SubResource("AnimationNodeStateMachineTransition_gwypq")]
+
+[sub_resource type="AnimationNodeBlendTree" id="AnimationNodeBlendTree_t4diu"]
+graph_offset = Vector2(-278.40137, -31.128174)
+nodes/output/position = Vector2(580, 80)
+nodes/Locomotion/node = SubResource("AnimationNodeStateMachine_0lkdu")
+nodes/Locomotion/position = Vector2(-120, 0)
+nodes/ActionOneshot/node = SubResource("AnimationNodeOneShot_2sd7t")
+nodes/ActionOneshot/position = Vector2(360, 20)
+nodes/Animation/node = SubResource("AnimationNodeAnimation_kkt58")
+nodes/Animation/position = Vector2(-240, 200)
+"nodes/Animation 2/node" = SubResource("AnimationNodeAnimation_ivbn6")
+"nodes/Animation 2/position" = Vector2(-240, 400)
+nodes/ActionSelect/node = SubResource("AnimationNodeTransition_2sd7t")
+nodes/ActionSelect/position = Vector2(20, 240)
+node_connections = [&"output", 0, &"ActionOneshot", &"ActionOneshot", 0, &"Locomotion", &"ActionOneshot", 1, &"ActionSelect", &"ActionSelect", 0, &"Animation", &"ActionSelect", 1, &"Animation 2"]
 
 [node name="Colonist" type="CharacterBody3D" unique_id=229374039]
 transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 1, -2.068668e-05, 0.009543855, 1.6087066e-05)
@@ -76,6 +171,17 @@ metadata/_custom_type_script = "uid://bosg2otbbkcma"
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=869776552]
 libraries/animations = ExtResource("11_ghy6r")
+
+[node name="AnimationTree" type="AnimationTree" parent="." unique_id=797451476]
+tree_root = SubResource("AnimationNodeBlendTree_t4diu")
+anim_player = NodePath("../AnimationPlayer")
+parameters/Locomotion/Grounded/blend_position = 0.0
+parameters/ActionOneshot/active = false
+parameters/ActionOneshot/internal_active = false
+parameters/ActionOneshot/request = 0
+parameters/ActionSelect/current_state = ""
+parameters/ActionSelect/transition_request = ""
+parameters/ActionSelect/current_index = -1
 
 [node name="ColonistAnimationController" type="Node" parent="." unique_id=198273646]
 script = ExtResource("16_animctrl")
