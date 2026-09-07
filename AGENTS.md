@@ -80,7 +80,7 @@ When writing or refactoring code for Vek Holdout, prioritize highly granular str
 ### Auxiliary Functions Preference
 - **Granular Decomposition**: Break complex operations, data transformations, or logic branches into small, pure auxiliary functions. If an operation exceeds 15 lines or performs more than one single task (e.g., both parsing a resource and updating an array), it must be split into isolated helpers.
 - **Pure Helpers**: Auxiliary functions should remain pure and deterministic where possible, relying solely on explicitly typed arguments rather than mutations of side-effect-heavy external states.
-- **The Step-Down Rule (Narrative Flow)**: Code must read like a top-down story. Define high-level orchestrator or tool functions at the top of the file, and place auxiliary function definitions **after** the functions that call them. A reader should be able to scan down the script and encounter concepts in the exact order they are consumed.
+- **The Step-Down Rule (Narrative Flow)**: Code must read like a top-down story. Define high-level orchestrator or tool functions at the top of the file, and place auxiliary function definitions **after** the functions that call them. A reader should be able to scan down the script and encounter concepts in the exact order they are consumed. Do not specify "step down order" or "narrative order" in the code comment.
 
 ### Pre-Invocation Commenting
 - **Mandatory Preface Comments**: Every time an auxiliary function is invoked within a primary orchestrating method, a clear, single-line preface comment must be placed directly above the execution line. 
@@ -89,9 +89,9 @@ When writing or refactoring code for Vek Holdout, prioritize highly granular str
 
 #### Structural Example (Narrative Flow):
 ```gdscript
-# =============================================================================
-# Primary Orchestration (Top of file / Called first)
-# =============================================================================
+# =================
+# Primary Functions
+# =================
 
 func process_voxel_placement(target_pos: Vector3i) -> void:
 	# 1. Bounds Evaluation: Resolving a 3x3 neighbor space to ensure alignment with IBlockGrid invariants.
@@ -100,9 +100,9 @@ func process_voxel_placement(target_pos: Vector3i) -> void:
 	# Execute remaining orchestration using area_bounds...
 
 
-# =============================================================================
-# Auxiliary Functions (Bottom of file / Defined after usage)
-# =============================================================================
+# ===================
+# Auxiliary Functions
+# ===================
 
 func _get_grid_bounds(voxel_position: Vector3i) -> Dictionary:
 	## Auxiliary: Calculates boundaries for a 3x3 footprint chunk.
