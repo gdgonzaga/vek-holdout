@@ -46,7 +46,8 @@ For choke-point control and predictive bombardment with area-of-effect turrets (
 | File | Type | Responsibility |
 |---|---|---|
 | `subsystems/combat/components/health_component.gd` | Script | Reusable component (Node): HP + Durability + death signal. Attached to player, colonists, enemies. |
-| `subsystems/combat/enemy_base.gd` | Script | Base for all enemies; extends `CharacterBody3D`, forwards damage, and manages life cycle. |
+| `subsystems/combat/enemy_base.gd` | Script | Base for all enemies; extends `CharacterBody3D`, forwards damage, manages life cycle, and provides stat/moodlet queries (`get_stat_ratio`, `get_stat_value`, `get_active_moodlets`). |
+| `subsystems/combat/enemy_moodlet_visualizer.gd` | Script | In-world 3D billboard visualizer (Node3D) mounted on `EnemyBase` displaying active moodlet icons. |
 | `subsystems/combat/enemies/enemy_swarmer/` | Scene/Script | Prototype swarmer enemy with capsule primitive visual and health component. |
 | `subsystems/combat/components/turret_component.gd` | Script | Turret runtime component: targets nearest enemy, consumes ammo, and fires projectiles. |
 | `subsystems/combat/components/turret_projectile.gd` | Script | Physical moving projectile (Area3D) with direct and explosive splash damage. |

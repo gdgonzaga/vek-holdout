@@ -20,17 +20,17 @@ class_name MoodletDef
 # Primary Functions
 # =================
 
-## Virtual: Evaluates the colonist state and returns the icon index to display.
+## Virtual: Evaluates the entity state and returns the icon index to display.
 ## Returns < 0 (e.g. -1) if the moodlet is inactive/hidden, or >= 0 for the active icon index.
-func evaluate_icon_index(colonist: Colonist) -> int:
+func evaluate_icon_index(entity: Node) -> int:
 	return -1
 
 
-## Safe getter: Resolves the active texture based on colonist state.
+## Safe getter: Resolves the active texture based on entity state.
 ## Returns null if inactive or icons is empty. Clamps to the highest available icon if out-of-bounds.
-func get_active_texture(colonist: Colonist) -> Texture2D:
-	# 1. State Evaluation: Query the active icon index for the given colonist.
-	var index: int = evaluate_icon_index(colonist)
+func get_active_texture(entity: Node) -> Texture2D:
+	# 1. State Evaluation: Query the active icon index for the given entity.
+	var index: int = evaluate_icon_index(entity)
 	if index < 0 or icons.is_empty():
 		return null
 	
@@ -38,10 +38,10 @@ func get_active_texture(colonist: Colonist) -> Texture2D:
 	return _resolve_texture_at_index(index)
 
 
-## Resolves the horizontal spritesheet frame count for the colonist's currently active icon tier.
-func get_hframes(colonist: Colonist) -> int:
-	# 1. State Evaluation: Query the active icon index for the given colonist.
-	var index: int = evaluate_icon_index(colonist)
+## Resolves the horizontal spritesheet frame count for the entity's currently active icon tier.
+func get_hframes(entity: Node) -> int:
+	# 1. State Evaluation: Query the active icon index for the given entity.
+	var index: int = evaluate_icon_index(entity)
 	if index < 0 or icon_hframes.is_empty():
 		return 1
 	
@@ -49,10 +49,10 @@ func get_hframes(colonist: Colonist) -> int:
 	return _resolve_hframes_at_index(index)
 
 
-## Resolves the animation playback speed (FPS) for the colonist's currently active icon tier.
-func get_fps(colonist: Colonist) -> float:
-	# 1. State Evaluation: Query the active icon index for the given colonist.
-	var index: int = evaluate_icon_index(colonist)
+## Resolves the animation playback speed (FPS) for the entity's currently active icon tier.
+func get_fps(entity: Node) -> float:
+	# 1. State Evaluation: Query the active icon index for the given entity.
+	var index: int = evaluate_icon_index(entity)
 	if index >= 0 and index < icon_fps.size() and icon_fps[index] > 0.0:
 		return icon_fps[index]
 	return frame_fps if frame_fps > 0.0 else 6.0

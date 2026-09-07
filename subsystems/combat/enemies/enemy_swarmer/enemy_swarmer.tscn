@@ -2,10 +2,11 @@
 
 [ext_resource type="Script" uid="uid://bs6r1lteu8wbo" path="res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.gd" id="1_script"]
 [ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="2_health"]
+[ext_resource type="Script" uid="uid://s6oulktogq82" path="res://data/moodlets/moodlet_def.gd" id="2_y8rc6"]
+[ext_resource type="Resource" uid="uid://mmltmlexqq6a" path="res://data/moodlets/heart_hp_gauge.tres" id="3_p4t5x"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="3_s35gj"]
 [ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_pathfinder"]
-[ext_resource type="BehaviorTree" path="res://data/ai/trees/enemy_swarmer.tres" id="5_tree"]
-
+[ext_resource type="BehaviorTree" uid="uid://cwtyuagbakotq" path="res://data/ai/trees/enemy_swarmer.tres" id="5_tree"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_shape"]
@@ -19,6 +20,7 @@ collision_layer = 64
 collision_mask = 7
 floor_snap_length = 0.5
 script = ExtResource("1_script")
+moodlet_defs = Array[ExtResource("2_y8rc6")]([ExtResource("3_p4t5x")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1067627258]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
@@ -47,4 +49,3 @@ hop_height = 1.3
 [node name="BTPlayer" type="BTPlayer" parent="." unique_id=1171943375]
 behavior_tree = ExtResource("5_tree")
 blackboard_plan = SubResource("BlackboardPlan_swarmer")
-

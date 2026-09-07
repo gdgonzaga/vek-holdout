@@ -5,6 +5,7 @@ extends CharacterBody3D
 
 @export var speed: float = 5.0
 @export var gravity: float = 9.8
+@export var moodlet_defs: Array[MoodletDef] = []
 
 @onready var health_component: HealthComponent = $HealthComponent
 
@@ -12,6 +13,7 @@ var pathfinder: VoxelPathfinder
 var bt_player: BTPlayer
 
 const _StepClimberScript = preload("res://subsystems/core/step_climber.gd")
+const _VisualizerScript = preload("res://subsystems/combat/enemy_moodlet_visualizer.gd")
 
 const _ARRIVAL_THRESHOLD: float = 0.3
 const _STEP_ARRIVAL_THRESHOLD: float = 0.2
@@ -35,6 +37,9 @@ func _ready() -> void:
 	
 	# 2. AI Component Wiring: Ensuring pathfinder, step climber, and behavior tree player exist.
 	_setup_ai_components()
+	
+	# 3. Moodlet Visualizer Setup: Ensuring billboard visualizer node is mounted.
+	_setup_moodlet_visualizer()
 
 
 func _physics_process(delta: float) -> void:
@@ -44,6 +49,28 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	move_and_slide()
+
+
+## Returns the normalized (0.0 to 1.0) ratio for a given stat, or -1.0 if not found/uninitialized.
+func get_stat_ratio(stat_name: StringName) -> float:
+	# 1. Primary Resolution: Match against health ratio.
+	return _resolve_stat_ratio(stat_name)
+
+
+## Returns the raw scalar value for a given stat, or -1.0 if not found/uninitialized.
+func get_stat_value(stat_name: StringName) -> float:
+	# 1. Raw Resolution: Query raw numerical value for health or maximum health points.
+	return _resolve_stat_value(stat_name)
+
+
+## Returns all currently active moodlets evaluated from moodlet_defs in order.
+## Each element is a Dictionary: { "def": MoodletDef, "index": int, "texture": Texture2D, "name": String }
+func get_active_moodlets() -> Array[Dictionary]:
+	if moodlet_defs.is_empty():
+		return []
+	
+	# 1. Moodlet Collection: Iterate and collect active moodlets from definitions.
+	return _evaluate_all_moodlets()
 
 
 ## Feed a world-space waypoint path from VoxelPathfinder or BT tasks.
@@ -146,6 +173,15 @@ func _setup_ai_components() -> void:
 		add_child(bt_player)
 
 
+func _setup_moodlet_visualizer() -> void:
+	## Auxiliary: Instantiates and binds EnemyMoodletVisualizer if not already attached.
+	var visualizer := get_node_or_null("EnemyMoodletVisualizer") as EnemyMoodletVisualizer
+	if not visualizer:
+		visualizer = _VisualizerScript.new() as EnemyMoodletVisualizer
+		visualizer.name = "EnemyMoodletVisualizer"
+		add_child(visualizer)
+
+
 func _follow_path(delta: float) -> void:
 	## Auxiliary: Advances along waypoints in _path, updating horizontal velocity.
 	if _path_index >= _path.size():
@@ -201,4 +237,55 @@ func _follow_path(delta: float) -> void:
 
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
+
+
+func _resolve_stat_ratio(stat_name: StringName) -> float:
+	## Auxiliary: Resolves normalized 0.0 to 1.0 ratio for health.
+	match stat_name:
+		&"hp", &"health":
+			if not health_component:
+				health_component = get_node_or_null("HealthComponent") as HealthComponent
+			if health_component != null and health_component.max_hp > 0:
+				return float(health_component.current_hp) / float(health_component.max_hp)
+			return 0.0
+		_:
+			return -1.0
+
+
+func _resolve_stat_value(stat_name: StringName) -> float:
+	## Auxiliary: Resolves raw numerical value for health or max health.
+	match stat_name:
+		&"hp", &"health":
+			if not health_component:
+				health_component = get_node_or_null("HealthComponent") as HealthComponent
+			if health_component != null:
+				return float(health_component.current_hp)
+			return -1.0
+		&"max_hp", &"max_health":
+			if not health_component:
+				health_component = get_node_or_null("HealthComponent") as HealthComponent
+			if health_component != null:
+				return float(health_component.max_hp)
+			return -1.0
+		_:
+			return -1.0
+
+
+func _evaluate_all_moodlets() -> Array[Dictionary]:
+	## Auxiliary: Evaluates moodlets in moodlet_defs and constructs the active list.
+	var active: Array[Dictionary] = []
+	for m_def in moodlet_defs:
+		if m_def == null:
+			continue
+		var idx: int = m_def.evaluate_icon_index(self)
+		if idx >= 0:
+			var tex: Texture2D = m_def.get_active_texture(self)
+			if tex != null:
+				active.append({
+					"def": m_def,
+					"index": idx,
+					"texture": tex,
+					"name": m_def.display_name,
+				})
+	return active
 

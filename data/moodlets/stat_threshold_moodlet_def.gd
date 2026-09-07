@@ -19,12 +19,12 @@ enum TriggerMode {
 # Primary Functions
 # =================
 
-func evaluate_icon_index(colonist: Colonist) -> int:
-	if colonist == null:
+func evaluate_icon_index(entity: Node) -> int:
+	if entity == null:
 		return -1
 	
 	# 1. Stat Query: Retrieve the normalized 0.0 to 1.0 ratio for the configured stat.
-	var stat_ratio: float = colonist.get_stat_ratio(stat_id)
+	var stat_ratio: float = _query_entity_stat_ratio(entity)
 	if stat_ratio < 0.0:
 		return -1
 	
@@ -35,6 +35,13 @@ func evaluate_icon_index(colonist: Colonist) -> int:
 # ===================
 # Auxiliary Functions
 # ===================
+
+func _query_entity_stat_ratio(entity: Node) -> float:
+	## Auxiliary: Safely calls get_stat_ratio on entity.
+	if entity.has_method("get_stat_ratio"):
+		return float(entity.get_stat_ratio(stat_id))
+	return -1.0
+
 
 func _match_threshold_index(stat_ratio: float) -> int:
 	## Auxiliary: Compares stat ratio against thresholds array in reverse order to resolve the most severe active tier.
