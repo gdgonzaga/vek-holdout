@@ -9,7 +9,7 @@ extends Node3D
 @export var visibility_range_end: float = 35.0
 @export var pixel_size: float = 0.0005
 
-var _colonist: Colonist99
+var _colonist: Colonist
 var _sprite: Sprite3D
 var _timer: float = 0.0
 
