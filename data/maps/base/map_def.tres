@@ -8,5 +8,7 @@ script = ExtResource("1_hadky")
 id = "base"
 display_name = "Base"
 scene_path = "res://data/maps/base/map.tscn"
+player_spawn = Vector3(18.95382, 0.020000458, -33.04219)
+world_bounds = AABB(-96, -64, -96, 192, 80, 192)
 terrain_gen = ExtResource("2_2lq4g")
 water_enabled = true

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://b0df5auu5wu2o"]
+
+[ext_resource type="Texture2D" uid="uid://cg0fjyv8wqnii" path="res://assets/custom/seed_bag/seed_bag.png" id="1_harc4"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_nwb1o"]
+[ext_resource type="PackedScene" uid="uid://c8waxy46v5xu8" path="res://assets/custom/seed_bag/seed_bag.glb" id="2_qov7v"]
+
+[resource]
+resource_name = "potato seeds"
+script = ExtResource("1_nwb1o")
+id = "potato_seeds"
+weight = 0.02
+icon = ExtResource("1_harc4")
+scene = ExtResource("2_qov7v")
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

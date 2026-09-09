@@ -42,5 +42,6 @@ tending_mode = 1
 tending_milestones = Array[float]([0.5])
 neglect_hours = 8.0
 neglect_yield_penalty = 0.25
+seed_item_id = "potato_seeds"
 yield_tiers = Array[ExtResource("2_tier")]([SubResource("Resource_potato_tier_half"), SubResource("Resource_potato_tier_full")])
 wither_hours = 24.0

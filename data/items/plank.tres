@@ -5,7 +5,7 @@
 [ext_resource type="ArrayMesh" uid="uid://c22rok6mml0ek" path="res://assets/custom_meshes/plank/plank.res" id="2_w8b18"]
 
 [resource]
-resource_name = "Timber Planks"
+resource_name = "plank"
 script = ExtResource("1_oivsr")
 id = "plank"
 weight = 1.5
