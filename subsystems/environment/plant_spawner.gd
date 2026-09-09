@@ -128,7 +128,7 @@ func _try_spawn_at_random_location() -> bool:
 	## Auxiliary: Samples a random coordinate, validates constraints, and places flora if valid.
 	if _map == null or _map_def == null or _furniture_layer == null:
 		return false
-	var bounds: AABB = _map.get_world_bounds()
+	var bounds: AABB = _map_def.world_bounds if _map_def != null else _map.get_world_bounds()
 	var player_pos: Vector3 = _map_def.player_spawn
 	var min_dist_sq: float = _map_def.flora_min_distance * _map_def.flora_min_distance
 
@@ -260,7 +260,11 @@ func _query_ground_height(x: float, z: float) -> float:
 			return gy
 		if smooth.has_method("_pristine_height"):
 			return smooth._pristine_height(int(floor(x)), int(floor(z)))
-	return _map.ground_height_at(x, z)
+	var ground_y: float = _map.ground_height_at(x, z)
+	if is_nan(ground_y):
+		# Default ground plane fallback when physics world is inactive (e.g. in test context).
+		return 0.0
+	return ground_y
 
 
 func _estimate_surface_normal(x: float, z: float, center_y: float) -> Vector3:

@@ -75,7 +75,7 @@ Build or destroy blocky voxel structures.
 - **`LMB`**: Paint block at the targeted cell (uses the surface normal to place against walls/floors).
 - **`Shift + LMB`**: Erase targeted block.
 - **`[` / `]`**: Cycle selected block type (Wood, Stone, Metal, Dirt, etc.).
-- **`B + Mouse Wheel`**: Adjust brush footprint diameter ($1\times1\times1$, $3\times3\times3$, etc.).
+- **`B + Mouse Wheel`**: Adjust brush footprint diameter (1x1x1, 3x3x3, etc.).
 - **`Ctrl + Z`**: Undo block paint or erase stroke.
 
 ### Mode 3: Terrain Mode (`F3`)
@@ -83,7 +83,7 @@ Sculpt continuous Transvoxel SDF terrain.
 
 - **`LMB`**: Add terrain material at the crosshair point.
 - **`Shift + LMB`**: Carve away smooth terrain.
-- **`[` / `]`** or **`B + Mouse Wheel`**: Increase or decrease brush sculpt radius ($0.5\,\text{m}$ to $5.0\,\text{m}$).
+- **`[` / `]`** or **`B + Mouse Wheel`**: Increase or decrease brush sculpt radius (0.5 m to 5.0 m).
 - **`M` / `Shift + M`**: Cycle the terrain material added by `LMB` (from `data/terrain/materials/`; the HUD shows `name (i/N)`). The id persists in the voxel-metadata sidecar and drives mining (`architecture/mining.md`). Each blob shows a colored decal marker from the material's `color` (except the surface material, which matches the terrain's own top band) — iron reads rust, gold reads gold. The terrain itself is textured by depth, dirt fading into rock (a shader look — per-voxel texturing is a documented dead end, F14 in `docs/VOXEL-TOOL-NOTES.md`).
 - **`Ctrl + Z`**: Undo terrain sculpt operation.
 
@@ -92,10 +92,11 @@ Place interactive furniture and appliances (beds, workbenches, crates, doors, li
 
 - **Furniture Palette Sidebar**: Lists all `FurnitureDef` resources in `res://data/furniture/`. Filter by typing in the search box.
 - **`Tab` / `Shift + Tab`**: Cycle through filtered furniture items.
-- **`R`**: Rotate selected furniture by $90^\circ$ yaw.
+- **`R`**: Rotate selected furniture by 90 degrees yaw.
 - **`LMB`**: Place furniture at target anchor position.
 - **`Shift + LMB`**: Remove targeted furniture.
-- **`🌳 Scatter Trees` / `✕ Clear Trees`**: Quick action buttons in the furniture sidebar footer to procedurally scatter random trees across the terrain or remove all authored trees.
+
+*(Note: Trees and vegetation are dynamically managed by the `PlantSpawner` runtime system based on `MapDef` settings rather than statically scattered during authoring.)*
 
 ### Mode 5: Spawn Mode (`F5`)
 Place player and colonist spawn markers.
@@ -115,10 +116,10 @@ Stamp pre-authored `StructureDef` structures (`.vox` imports with palette mappin
 
 You can author the natural terrain's base shape in any external image editor (Krita, GIMP, Photoshop) and import it at map creation:
 
-1. **Paint a grayscale heightmap**: bright pixels are high ground, dark pixels are low. One pixel = one world meter, centered on the world origin (image center sits at world (0,0); image +x → world +x, image +y → world +z). PNG/JPG/BMP/WebP/TGA are accepted; keep it at least 16 px and preferably under 1024×1024 (a 512×512 image is a 512×512 m map).
-2. In the launcher's create form, set **Terrain** to **Heightmap (image)** and click **Browse…** to pick the file. The form previews the image and its footprint (`512×512 px → 512×512 m`).
+1. **Paint a grayscale heightmap**: bright pixels are high ground, dark pixels are low. One pixel = one world meter, centered on the world origin (image center sits at world (0,0); image +x → world +x, image +y → world +z). PNG/JPG/BMP/WebP/TGA are accepted; keep it at least 16 px and preferably under 1024x1024 (a 512x512 image is a 512x512 m map).
+2. In the launcher's create form, set **Terrain** to **Heightmap (image)** and click **Browse…** to pick the file. The form previews the image and its footprint (`512x512 px → 512x512 m`).
 3. Set **Start** / **Range**: pixel brightness 0–1 maps to `Start … Start + Range` meters (e.g. start −6, range 16 → the floor sits at −6 m and the brightest peaks at +10 m).
-4. Toggle **Snap to 1m Grid (Terraced)** (enabled by default): quantizes continuous elevations into discrete 1-meter integer steps ($Y \in \mathbb{Z}$). This creates flat plateaus and stepped terraces where building foundations, floors, and walls sit perfectly flush on the block grid without hovering or clipping.
+4. Toggle **Snap to 1m Grid (Terraced)** (enabled by default): quantizes continuous elevations into discrete 1-meter integer steps (integer Y). This creates flat plateaus and stepped terraces where building foundations, floors, and walls sit perfectly flush on the block grid without hovering or clipping.
 5. **Create & Open** — the editor writes a self-contained `terrain_gen.tres` (quantized image embedded) into the map folder and loads the map with the terrain already generated.
 
 **Sculpting on top still works**: F3 terrain brushes are overrides stored in `terrain.sqlite` — the heightmap stays the base that regenerates wherever you haven't sculpted. Changing the image or span later never rewrites existing sculpts, but they keep their *absolute* heights, so a lowered base may leave them floating (the terrain drawer warns about this).
@@ -138,7 +139,12 @@ Click the **Metadata** button in the top-right toolbar to open the metadata draw
 - **Display Name**: User-friendly title displayed in UI and menus.
 - **Description**: Summary text shown in expedition selectors and map logs.
 - **Map Type**: `BASE` (colony headquarters), `POI` (expedition destination), `BUILDING`, or `TOWN`.
-- **Difficulty**: Target difficulty tier ($1$ to $10$).
+- **Difficulty**: Target difficulty tier (1 to 10).
+- **Flora Regeneration**:
+  - **Flora Spawns / Day**: Number of plant spawn attempts spread across a day (0 = disabled).
+  - **Flora Spawn Cap**: Maximum simultaneous living flora entities allowed on the map.
+  - **Max Spawn Attempts**: Placement attempt budget per spawn before skipping.
+  - **Min Distance**: Minimum distance in meters between spawned plants and existing trees / player spawn.
 
 Metadata edits are automatically saved to `map_def.tres` when saving.
 

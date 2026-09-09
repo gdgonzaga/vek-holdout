@@ -89,3 +89,57 @@ Extends `MoodletDef`. Evaluates stat ratios (`colonist.get_stat_ratio(stat_id)`)
 
 ### Subclass: `ActivityMoodletDef`
 Extends `MoodletDef`. Maps `colonist.get_current_activity()` StringNames (`&"idle"`, `&"mining"`, `&"construction"`, `&"crafting"`, `&"hauling"`, `&"eat"`, `&"rest"`) to `icons` array indices via `activity_icon_map`.
+
+---
+
+## `data/maps/<id>/map_def.tres` (Resource: `map_def.gd`) — `MapDef`
+
+Loadable map and environment metadata definition scanned by `MapLibrary`. Links the authored `map.tscn` with runtime configuration, terrain settings, and dynamic flora parameters.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique map identifier (must match the containing folder name under `data/maps/<id>/`). |
+| `display_name` | `String` | Human-readable map title shown in menus and world map. |
+| `description` | `String` | Description shown in expedition selection and map logs. |
+| `scene_path` | `String` | Path to the map scene file (`res://data/maps/<id>/map.tscn`). |
+| `map_type` | `MapType` | Map category: `BASE` (0), `POI` (1), `BUILDING` (2), or `TOWN` (3). |
+| `player_spawn` | `Vector3` | Fallback player entry spawn coordinate if no `PlayerSpawn` marker is present in the scene. |
+| `enemy_spawns` | `Array[Dictionary]` | Fallback hostile entity spawn definitions (`[{"pos": Vector3, "count": int}]`). |
+| `unlock_condition` | `String` | Unlock prerequisite identifier. |
+| `difficulty` | `int` | Difficulty tier (1 to 10). |
+| `world_bounds` | `AABB` | Discrete playable colony bounding box defining generation and pathfinding limits. |
+| `terrain_gen` | `TerrainGenDef` | Natural smooth terrain parameters (`null` for blocky-only maps). |
+| `water_enabled` | `bool` | Authoring flag indicating whether water flooding was enabled in the editor. |
+| `water_level` | `float` | Baseline water level elevation in meters. |
+| `flora_palette` | `Array[FurnitureDef]` | Flora/tree definitions available for dynamic growth and regeneration on this map. |
+| `flora_spawns_per_day` | `int` | Number of flora spawn attempts distributed across one in-game day (0 = disabled). |
+| `flora_spawn_cap` | `int` | Maximum simultaneous live flora entities permitted on the map. |
+| `flora_max_spawn_attempts` | `int` | Maximum random placement attempts per flora before skipping to avoid infinite loops. |
+| `flora_min_distance` | `float` | Minimum distance in meters between spawned flora and existing trees or player spawn. |
+
+---
+
+## `data/furniture/<id>.tres` / `data/blocks/<id>.tres` (Resource: `buildable_def.gd`, `furniture_def.gd`) — `BuildableDef` & `FurnitureDef`
+
+Data-driven definition for buildable blocks and free-standing furniture entities.
+
+### Base Schema: `BuildableDef`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Canonical identifier across all buildable assets. |
+| `display_name` | `String` | UI label displayed in build menus and inspection tooltips. |
+| `icon` | `Texture2D` | Optional build menu UI icon texture. |
+| `hp` | `int` | Structure durability and damage buffer. |
+| `scene` | `PackedScene` | Optional primary 3D scene (e.g. `.glb` model with sockets/colliders). |
+| `mesh` | `Mesh` | Preview and placement fallback mesh. |
+| `texture` | `Texture2D` | Albedo texture used to construct standard materials. |
+| `texture_variation` | `bool` | Enables per-block UV and brightness randomization shader for blocky voxels. |
+| `material_cost` | `Array[ItemAmount]` | Construction item requirements. |
+| `unlocked_by_default` | `bool` | Whether the item is available at the start of a run. |
+| `build_time` | `float` | Construction time requirement. |
+| `tags` | `Array[String]` | Classification tags (e.g. `["live_flora"]`, `["bed"]`, `["storage"]`) for system queries. |
+
+### Subclass: `FurnitureDef`
+Extends `BuildableDef`. Adds `dimensions` (`Vector3i`, default `1x1x1`) representing the bounding cell-box occupied on the voxel grid, with rotation swapping X and Z extents.
+

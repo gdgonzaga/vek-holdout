@@ -207,6 +207,7 @@ func test_populate_initial_flora_respects_total_attempt_budget() -> void:
 	map_def.flora_max_spawn_attempts = 5
 	# Put player spawn inside tiny world bounds so player proximity check fails every roll
 	map_def.world_bounds = AABB(Vector3(-1, -1, -1), Vector3(2, 2, 2))
+	map.set_world_bounds(map_def.world_bounds)
 	map_def.player_spawn = Vector3(0, 0, 0)
 	map_def.flora_min_distance = 10.0 # Guaranteed rejection
 
