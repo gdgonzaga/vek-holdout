@@ -143,3 +143,22 @@ Data-driven definition for buildable blocks and free-standing furniture entities
 ### Subclass: `FurnitureDef`
 Extends `BuildableDef`. Adds `dimensions` (`Vector3i`, default `1x1x1`) representing the bounding cell-box occupied on the voxel grid, with rotation swapping X and Z extents.
 
+---
+
+## FurnitureDef capability parameters
+
+Nullable sub-resources attached to `FurnitureDef` following the composition pattern.
+
+### `LightParams` (Resource: `light_params.gd`)
+Configures light emission properties for furniture (torches, lamps, campfires). When non-null, `FurnitureLayer` attaches a `LightSourceComponent` node holding an `OmniLight3D`.
+
+| Field | Type | Description |
+|---|---|---|
+| `color` | `Color` | Emission light color (default warm light `Color(1.0, 0.9, 0.7, 1.0)`). |
+| `energy` | `float` | Light intensity energy value (default `1.5`). |
+| `range` | `float` | Maximum illumination radius in meters (default `8.0`). |
+| `attenuation` | `float` | Light attenuation falloff curve factor (default `1.0`). |
+| `shadows_enabled` | `bool` | Whether light casts dynamic shadows (default `false`). |
+| `local_offset` | `Vector3` | Position offset relative to furniture root origin (default `Vector3(0.0, 1.5, 0.0)`). |
+
+

@@ -150,3 +150,39 @@ func test_blueprint_layer_instantiates_scene_hologram_when_provided() -> void:
 	assert_object(holo_mi).is_not_null()
 	assert_object(holo_mi.material_override).is_not_null()
 
+
+func test_furniture_layer_attaches_light_source_component_when_light_params_present() -> void:
+	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
+	var container: Node3D = auto_free(Node3D.new())
+	add_child(container)
+	layer.set_container(container)
+
+	var light_params: LightParams = auto_free(LightParams.new())
+	light_params.color = Color(1.0, 0.5, 0.0, 1.0)
+	light_params.energy = 2.5
+	light_params.range = 10.0
+	light_params.attenuation = 0.8
+	light_params.shadows_enabled = true
+	light_params.local_offset = Vector3(0.0, 2.0, 0.0)
+
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	def.id = "test_lamp"
+	def.mesh = BoxMesh.new()
+	def.dimensions = Vector3i.ONE
+	def.light_params = light_params
+
+	var node: Furniture = layer.spawn(def, Vector3i(0, 0, 0), 0)
+	assert_object(node).is_not_null()
+
+	var component := node.get_node_or_null("LightSourceComponent") as LightSourceComponent
+	assert_object(component).is_not_null()
+	assert_object(component.params).is_equal(light_params)
+
+	var light := component.get_light_node()
+	assert_object(light).is_not_null()
+	assert_float(light.light_energy).is_equal_approx(2.5, 0.01)
+	assert_float(light.omni_range).is_equal_approx(10.0, 0.01)
+	assert_bool(light.shadow_enabled).is_true()
+	assert_vector(light.position).is_equal(Vector3(0.0, 2.0, 0.0))
+
+

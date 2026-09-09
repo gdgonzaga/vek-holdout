@@ -78,3 +78,7 @@ class_name FurnitureDef
 ## targets hostiles and consumes ammunition. Non-null → FurnitureLayer attaches a
 ## TurretComponent child.
 @export var turret_params: TurretParams
+
+## Light emission capability (GDD §7.2): emission properties for light sources.
+## Non-null → FurnitureLayer attaches a LightSourceComponent child.
+@export var light_params: LightParams

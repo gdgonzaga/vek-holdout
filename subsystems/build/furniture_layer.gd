@@ -221,6 +221,12 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		var turret := TurretComponent.new()
 		turret.name = "TurretComponent"
 		root.add_child(turret)
+
+	# Attach a light source component when the def declares light params.
+	if def is FurnitureDef and (def as FurnitureDef).light_params != null:
+		var light_source := LightSourceComponent.new()
+		light_source.name = "LightSourceComponent"
+		root.add_child(light_source)
 	return root
 
 
