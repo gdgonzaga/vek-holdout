@@ -7,6 +7,9 @@ extends GameAction
 
 const _storage_panel_scene: PackedScene = preload("res://ui/storage/storage_panel.tscn")
 
+func _init() -> void:
+	label = "Open Storage"
+
 func execute(actor: Node, target: Node) -> void:
 	var furniture := target as Furniture
 	if furniture == null:

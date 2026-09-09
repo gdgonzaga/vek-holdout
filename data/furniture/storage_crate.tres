@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://d27lkcp1tv235"]
 
 [ext_resource type="Resource" uid="uid://dwnu8etf4kv16" path="res://data/action_options/open_storage_action_option.tres" id="2_4v0eb"]
+[ext_resource type="Resource" path="res://data/action_options/configure_storage_action_option.tres" id="2_filter"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="2_def"]
 [ext_resource type="ArrayMesh" uid="uid://vvw2v2uwwjax" path="res://tmp/Polygon-Mega Survival Construction/Models/Other/extracted/SM_Box_01.SM_Box_01.mesh" id="2_wcp53"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_84588"]
@@ -21,7 +22,7 @@ metadata/_custom_type_script = "uid://taqanw6psc6o"
 
 [resource]
 script = ExtResource("2_def")
-action_options = Array[ExtResource("4_option_script")]([ExtResource("2_4v0eb")])
+action_options = Array[ExtResource("4_option_script")]([ExtResource("2_4v0eb"), ExtResource("2_filter")])
 storage_params = SubResource("Resource_iq4t2")
 material_cost = Array[ExtResource("3_84588")]([SubResource("Resource_cost")])
 id = "storage_crate"

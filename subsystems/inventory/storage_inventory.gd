@@ -11,6 +11,14 @@ extends Inventory
 
 var _storage_params: StorageParams = null
 
+## Specific item IDs that this storage instance is restricted to hold.
+## If empty and allowed_tags is also empty, the storage is unrestricted.
+var allowed_item_ids: Array[String] = []
+
+## Specific item tags that this storage instance is restricted to hold.
+## If empty and allowed_item_ids is also empty, the storage is unrestricted.
+var allowed_tags: Array[String] = []
+
 
 func _ready() -> void:
 	_apply_storage_params()
@@ -26,20 +34,67 @@ func _apply_storage_params() -> void:
 	if params != null:
 		_storage_params = params
 		capacity = params.capacity
+		if allowed_item_ids.is_empty() and not params.allowed_item_ids.is_empty():
+			allowed_item_ids = params.allowed_item_ids.duplicate()
+		if allowed_tags.is_empty() and not params.allowed_tags.is_empty():
+			allowed_tags = params.allowed_tags.duplicate()
 
 
-## Returns true if the storage allows this item based on StorageParams (Hard Gate).
+## Returns true if the storage allows this item based on instance filters (Hard Gate).
 func is_item_allowed(item_id: String) -> bool:
-	if _storage_params == null:
+	if allowed_item_ids.is_empty() and allowed_tags.is_empty():
 		return true
-	if _storage_params.allowed_item_ids.is_empty() and _storage_params.allowed_tags.is_empty():
+	if allowed_item_ids.has(item_id):
 		return true
-	if _storage_params.allowed_item_ids.has(item_id):
-		return true
-	if not _storage_params.allowed_tags.is_empty():
+	if not allowed_tags.is_empty():
 		var def := _get_def(item_id)
 		if def != null:
 			for tag in def.tags:
-				if _storage_params.allowed_tags.has(tag):
+				if allowed_tags.has(tag):
 					return true
 	return false
+
+
+## Adds or removes an item ID from the whitelist.
+func set_item_allowed(item_id: String, allowed: bool) -> void:
+	if allowed:
+		if not allowed_item_ids.has(item_id):
+			allowed_item_ids.append(item_id)
+			inventory_changed.emit()
+	else:
+		if allowed_item_ids.has(item_id):
+			allowed_item_ids.erase(item_id)
+			inventory_changed.emit()
+
+
+## Clears all whitelisted item IDs (making storage accept any item if tags are also empty).
+func clear_allowed_items() -> void:
+	if not allowed_item_ids.is_empty():
+		allowed_item_ids.clear()
+		inventory_changed.emit()
+
+
+# --- SaveSystem contract -----------------------------------------------------
+
+## Snapshot item stacks and instance-level item filter whitelist.
+func serialize() -> Dictionary:
+	var data := super.serialize()
+	if not allowed_item_ids.is_empty():
+		data["allowed_item_ids"] = allowed_item_ids.duplicate()
+	if not allowed_tags.is_empty():
+		data["allowed_tags"] = allowed_tags.duplicate()
+	return data
+
+
+## Restore item stacks and instance-level item filter whitelist.
+func deserialize(data: Dictionary) -> void:
+	super.deserialize(data)
+	allowed_item_ids.clear()
+	var saved_ids: Array = data.get("allowed_item_ids", [])
+	for id in saved_ids:
+		allowed_item_ids.append(str(id))
+	allowed_tags.clear()
+	var saved_tags: Array = data.get("allowed_tags", [])
+	for tag in saved_tags:
+		allowed_tags.append(str(tag))
+

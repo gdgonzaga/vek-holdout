@@ -4,9 +4,11 @@
 [ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_os1o8"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_8pour"]
 [ext_resource type="Texture2D" uid="uid://vvmdstrmy750" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.png" id="2_ln2na"]
+[ext_resource type="Resource" uid="uid://dwnu8etf4kv16" path="res://data/action_options/open_storage_action_option.tres" id="2_nrklc"]
 [ext_resource type="Script" uid="uid://bx8eopmw77d7s" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
 [ext_resource type="Resource" uid="uid://dyoa05atjswxr" path="res://data/items/wooden_stake.tres" id="3_ammo"]
 [ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_ln2na"]
+[ext_resource type="Script" uid="uid://cqa8ehd6p5jke" path="res://data/capability_params/storage_params.gd" id="7_tryv4"]
 [ext_resource type="PackedScene" uid="uid://cavmbwfcd3yyd" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb" id="8_ln2na"]
 [ext_resource type="PackedScene" uid="uid://31a8lrnxigj5" path="res://assets/custom/wooden_stake/wooden_stake.glb" id="8_tryv4"]
 
@@ -15,6 +17,12 @@ script = ExtResource("2_8pour")
 item_def = ExtResource("3_ln2na")
 count = 10
 metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[sub_resource type="Resource" id="Resource_12841"]
+script = ExtResource("7_tryv4")
+capacity = 10.0
+allowed_item_ids = Array[String](["wooden_stake"])
+metadata/_custom_type_script = "uid://cqa8ehd6p5jke"
 
 [sub_resource type="Resource" id="TurretParams_wooden_stake_turret"]
 script = ExtResource("2_tparams_script")
@@ -28,6 +36,8 @@ explosion_radius = 0.0
 [resource]
 script = ExtResource("1_fdef")
 dimensions = Vector3i(2, 2, 2)
+action_options = Array[ExtResource("1_os1o8")]([ExtResource("2_nrklc")])
+storage_params = SubResource("Resource_12841")
 turret_params = SubResource("TurretParams_wooden_stake_turret")
 id = "wooden_stake_turret"
 display_name = "Wooden Stake Turret"

@@ -45,8 +45,11 @@ func setup(actor: Node, target: Node, options: Array[ActionOption], component: I
 		_label.text = target.name
 
 	for option in options:
+		if option == null:
+			return
 		var btn := Button.new()
-		btn.text = option.action.label
+		var action_label := option.action.label if (option.action != null and option.action.label != "") else "Interact"
+		btn.text = action_label
 		btn.disabled = not option.is_available(actor, target)
 		btn.pressed.connect(_on_option_pressed.bind(option))
 		_list.add_child(btn)

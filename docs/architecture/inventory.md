@@ -82,8 +82,8 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 
 **Extends:** Inventory
 **Script:** `storage_inventory.gd`
-**Description:** Per-instance contents of a storage container (crates, shelves). Attached as a child Node of a `Furniture` (named `"StorageInventory"`) by `FurnitureLayer` only when the `FurnitureDef` has `storage_params`; reads `capacity` and item/tag filter restrictions from those `StorageParams` at `_ready`. Enforces definition-level hard gates via `is_item_allowed()`. Player↔crate transfers use the inherited `transfer_to`, which interoperates between any two `Inventory` instances (used by both the storage UI and colonist hauling).
-**Used by:** storage UI (player transfer), `StorageRegistry` (indexing), `HaulingJobDef` (crate↔colonist transfers).
+**Description:** Per-instance contents of a storage container (crates, shelves). Attached as a child Node of a `Furniture` (named `"StorageInventory"`) by `FurnitureLayer` only when the `FurnitureDef` has `storage_params`; reads `capacity` and item/tag filter restrictions from those `StorageParams` at `_ready`. Exposes runtime `allowed_item_ids` and `allowed_tags` whitelists configurable via the storage filter UI (`StorageFilterPanel`), and enforces hard gates via `is_item_allowed()`. Player↔crate transfers use the inherited `transfer_to`, which interoperates between any two `Inventory` instances (used by both the storage UI and colonist hauling).
+**Used by:** storage UI (player transfer), storage filter UI (`StorageFilterPanel`), `StorageRegistry` (indexing), `HaulingJobDef` (crate↔colonist transfers).
 
 ### Class: StorageRegistry
 

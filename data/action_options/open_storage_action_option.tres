@@ -6,6 +6,7 @@
 
 [sub_resource type="Resource" id="Resource_as5br"]
 script = ExtResource("1_as5br")
+label = "Open Storage"
 metadata/_custom_type_script = "uid://djyfgdnnmk0w3"
 
 [resource]
