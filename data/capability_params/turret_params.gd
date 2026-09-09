@@ -62,3 +62,17 @@ enum ProjectileType {
 
 ## Splash radius in meters for EXPLOSIVE projectile type.
 @export var explosion_radius: float = 3.0
+
+@export_group("Particle Effects")
+## Enables muzzle flash particle effect when firing.
+@export var enable_muzzle_flash: bool = true
+
+## Enables continuous smoke/spark particle trail on flying projectiles.
+@export var enable_projectile_trail: bool = true
+
+## Enables particle burst effect on explosive projectile impact.
+@export var enable_explosion_particles: bool = true
+
+## Optional custom PackedScene for explosion particle visual effect.
+@export var explosion_particle_scene: PackedScene = null
+

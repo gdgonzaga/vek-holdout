@@ -183,6 +183,10 @@ func take_damage(amount: int, source: Node) -> void:
 	if _is_dead:
 		return
 	_current_hp -= amount
+
+	# 1. Damage Visuals: Spawning big red impact particles on colonist damage.
+	_spawn_big_red_hit_effect(false)
+
 	if _current_hp <= 0:
 		_current_hp = 0
 		_die()
@@ -204,7 +208,58 @@ func get_max_hp() -> int:
 
 func _die() -> void:
 	_is_dead = true
+
+	# 1. Death Visuals: Spawning big red death particle burst on colonist death.
+	_spawn_big_red_hit_effect(true)
+
 	EventBus.colonist_died.emit(colonist_id)
+
+
+## Auxiliary: Spawns big red particle visual effect at colonist location on taking damage or dying
+func _spawn_big_red_hit_effect(is_death: bool = false) -> void:
+	if get_tree() == null or not is_inside_tree():
+		return
+
+	var tree := get_tree()
+	var scene_root: Node = tree.current_scene if tree.current_scene != null else get_parent()
+	if scene_root == null:
+		return
+
+	var particles := GPUParticles3D.new()
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 180.0 if is_death else 60.0
+	mat.initial_velocity_min = 4.0 if is_death else 2.5
+	mat.initial_velocity_max = 8.0 if is_death else 5.5
+	mat.gravity = Vector3(0, -9.8, 0)
+	mat.scale_min = 0.15 if is_death else 0.12
+	mat.scale_max = 0.35 if is_death else 0.25
+	mat.color = Color(0.95, 0.05, 0.05)
+
+	var draw_mesh := BoxMesh.new()
+	var mesh_size: float = 0.18 if is_death else 0.12
+	draw_mesh.size = Vector3(mesh_size, mesh_size, mesh_size)
+
+	var draw_mat := StandardMaterial3D.new()
+	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	draw_mat.albedo_color = Color(0.95, 0.05, 0.05)
+	draw_mesh.material = draw_mat
+
+	particles.process_material = mat
+	particles.draw_pass_1 = draw_mesh
+	particles.amount = 24 if is_death else 14
+	particles.lifetime = 0.35
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+
+	scene_root.add_child(particles)
+	var spawn_pos := global_position + Vector3(0, 1.0, 0)
+	particles.global_position = spawn_pos
+	particles.emitting = true
+
+	var timer := tree.create_timer(0.4)
+	timer.timeout.connect(particles.queue_free)
+
 
 
 func set_labor_priority(labor_id: String, priority: int) -> void:

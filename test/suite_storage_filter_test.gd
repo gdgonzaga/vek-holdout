@@ -1,7 +1,9 @@
 ## Test suite for StorageInventory whitelist filters and StorageFilterPanel UI.
 extends GdUnitTestSuite
 
+const Doubles = preload("res://test/helpers/doubles.gd")
 const _FilterPanelScene := preload("res://ui/storage_filter/storage_filter_panel.tscn")
+
 const _ConfigureActionScene := preload("res://data/actions/configure_storage_filter_action.gd")
 
 

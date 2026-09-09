@@ -214,8 +214,55 @@ func _fire_at(target: Node3D) -> TurretProjectile:
 
 	var source_node: Node = get_parent() if get_parent() != null else self
 	projectile.setup(origin_xform, dir, params, source_node)
+
+	# 1. Muzzle Flash Visuals: Spawning burst particles at muzzle exit location if configured.
+	if params != null and params.enable_muzzle_flash:
+		_spawn_muzzle_flash(spawn_pos, dir, spawn_parent)
+
 	projectile_fired.emit(projectile, target)
 	return projectile
+
+
+## Auxiliary: Spawns muzzle flash spark and smoke particles at muzzle position on firing
+func _spawn_muzzle_flash(pos: Vector3, direction: Vector3, parent_node: Node) -> void:
+	if parent_node == null or get_tree() == null:
+		return
+
+	var particles := GPUParticles3D.new()
+	var mat := ParticleProcessMaterial.new()
+	var dir_norm := direction.normalized()
+	mat.direction = dir_norm if dir_norm != Vector3.ZERO else Vector3.UP
+	mat.spread = 25.0
+	mat.initial_velocity_min = 4.0
+	mat.initial_velocity_max = 8.0
+	mat.gravity = Vector3(0, -2.0, 0)
+	mat.scale_min = 0.06
+	mat.scale_max = 0.16
+	mat.color = Color(1.0, 0.65, 0.15)
+
+	var draw_mesh := SphereMesh.new()
+	draw_mesh.radius = 0.05
+	draw_mesh.height = 0.1
+
+	var draw_mat := StandardMaterial3D.new()
+	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	draw_mat.albedo_color = Color(1.0, 0.7, 0.2)
+	draw_mesh.material = draw_mat
+
+	particles.process_material = mat
+	particles.draw_pass_1 = draw_mesh
+	particles.amount = 12
+	particles.lifetime = 0.15
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+
+	parent_node.add_child(particles)
+	particles.global_position = pos
+	particles.emitting = true
+
+	var timer := get_tree().create_timer(0.2)
+	timer.timeout.connect(particles.queue_free)
+
 
 
 ## Returns the world position to aim at (center of mass).

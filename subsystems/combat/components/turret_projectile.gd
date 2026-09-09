@@ -14,6 +14,8 @@ var _velocity: Vector3 = Vector3.ZERO
 var _lifetime: float = 0.0
 var _source_turret: Node = null
 var _exploded: bool = false
+var _params: TurretParams = null
+var _trail_particles: GPUParticles3D = null
 
 
 func setup(
@@ -24,6 +26,7 @@ func setup(
 ) -> void:
 	global_transform = origin_transform
 	_source_turret = source
+	_params = params
 	if params != null:
 		speed = params.projectile_speed
 		damage = params.damage
@@ -38,6 +41,11 @@ func setup(
 			if mat_to_use == null:
 				mat_to_use = params.ammo_type.material
 		_apply_visual(mesh_to_use, mat_to_use, scene_to_use)
+
+		# 1. Projectile Flight Visuals: Attaching continuous particle trail if enabled.
+		if params.enable_projectile_trail or params.projectile_type == TurretParams.ProjectileType.EXPLOSIVE:
+			_attach_trail_particles()
+
 	var dir_norm := direction.normalized()
 	if dir_norm != Vector3.ZERO:
 		_velocity = dir_norm * speed
@@ -78,6 +86,10 @@ func _handle_impact(hit_node: Node) -> void:
 		return
 
 	_exploded = true
+
+	# 1. Particle Trail Detachment: Unparenting flight trail so existing smoke/sparks dissolve naturally.
+	_detach_trail_particles()
+
 	if projectile_type == TurretParams.ProjectileType.EXPLOSIVE:
 		_explode()
 	else:
@@ -100,6 +112,10 @@ func _apply_direct_damage(hit_node: Node) -> void:
 
 
 func _explode() -> void:
+	# 1. Explosion Particle Visuals: Spawning explosion burst particles at impact origin.
+	if _params == null or _params.enable_explosion_particles:
+		_spawn_explosion_particles(global_position)
+
 	var damaged_targets: Array[Node] = []
 	var world_3d := get_world_3d()
 	if world_3d != null and world_3d.direct_space_state != null:
@@ -134,6 +150,7 @@ func _explode() -> void:
 				if dist <= explosion_radius:
 					damaged_targets.append(enemy)
 					_damage_target(enemy)
+
 
 
 func _damage_target(target: Node) -> void:
@@ -228,3 +245,152 @@ func _is_source_or_descendant(node: Node) -> bool:
 	if source_parent != null and (node == source_parent or source_parent.is_ancestor_of(node)):
 		return true
 	return false
+
+
+func _attach_trail_particles() -> void:
+	## Auxiliary: Creates and attaches continuous smoke/spark trail particle emitter
+	_trail_particles = GPUParticles3D.new()
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 20.0
+	mat.initial_velocity_min = 0.5
+	mat.initial_velocity_max = 1.5
+	mat.gravity = Vector3(0, 1.0, 0)
+	mat.scale_min = 0.04
+	mat.scale_max = 0.12
+	mat.color = Color(0.6, 0.6, 0.6, 0.6)
+
+	var draw_mesh := SphereMesh.new()
+	draw_mesh.radius = 0.04
+	draw_mesh.height = 0.08
+
+	var draw_mat := StandardMaterial3D.new()
+	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	draw_mat.albedo_color = Color(0.7, 0.7, 0.7, 0.6)
+	draw_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	draw_mesh.material = draw_mat
+
+	_trail_particles.process_material = mat
+	_trail_particles.draw_pass_1 = draw_mesh
+	_trail_particles.amount = 16
+	_trail_particles.lifetime = 0.3
+	_trail_particles.one_shot = false
+
+	add_child(_trail_particles)
+	_trail_particles.emitting = true
+
+
+func _detach_trail_particles() -> void:
+	## Auxiliary: Detaches trail particles on impact so emitted particles dissolve naturally
+	if _trail_particles == null or not is_instance_valid(_trail_particles):
+		return
+	_trail_particles.emitting = false
+	var global_pos := _trail_particles.global_position
+	remove_child(_trail_particles)
+	var parent_target: Node = get_tree().current_scene if (get_tree() != null and get_tree().current_scene != null) else get_parent()
+	if parent_target != null:
+		parent_target.add_child(_trail_particles)
+		_trail_particles.global_position = global_pos
+		var timer := get_tree().create_timer(0.4)
+		timer.timeout.connect(_trail_particles.queue_free)
+	else:
+		_trail_particles.queue_free()
+	_trail_particles = null
+
+
+func _spawn_explosion_particles(pos: Vector3) -> void:
+	## Auxiliary: Spawns multi-layered explosion particle burst at impact origin
+	var tree := get_tree()
+	if tree == null:
+		return
+	var parent_target: Node = tree.current_scene if tree.current_scene != null else get_parent()
+	if parent_target == null:
+		return
+
+	if _params != null and _params.explosion_particle_scene != null:
+		var custom_inst := _params.explosion_particle_scene.instantiate() as Node3D
+		if custom_inst != null:
+			parent_target.add_child(custom_inst)
+			custom_inst.global_position = pos
+			return
+
+	# 1. Fire Burst: Spawning high-velocity outward fire and spark particles.
+	_spawn_fire_burst_particles(pos, parent_target)
+
+	# 2. Smoke Cloud: Spawning rising dark smoke particles.
+	_spawn_smoke_cloud_particles(pos, parent_target)
+
+
+func _spawn_fire_burst_particles(pos: Vector3, parent_node: Node) -> void:
+	## Auxiliary: Spawns high-velocity fire and spark particles scaled by explosion_radius
+	var particles := GPUParticles3D.new()
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 180.0
+	var vel_scale := maxf(explosion_radius, 1.0)
+	mat.initial_velocity_min = vel_scale * 1.5
+	mat.initial_velocity_max = vel_scale * 3.5
+	mat.gravity = Vector3(0, -9.8, 0)
+	mat.scale_min = 0.08
+	mat.scale_max = 0.28
+	mat.color = Color(1.0, 0.55, 0.15)
+
+	var draw_mesh := SphereMesh.new()
+	draw_mesh.radius = 0.08
+	draw_mesh.height = 0.16
+	var draw_mat := StandardMaterial3D.new()
+	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	draw_mat.albedo_color = Color(1.0, 0.6, 0.1)
+	draw_mesh.material = draw_mat
+
+	particles.process_material = mat
+	particles.draw_pass_1 = draw_mesh
+	particles.amount = 24
+	particles.lifetime = 0.35
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+
+	parent_node.add_child(particles)
+	particles.global_position = pos
+	particles.emitting = true
+
+	var timer := get_tree().create_timer(0.4)
+	timer.timeout.connect(particles.queue_free)
+
+
+func _spawn_smoke_cloud_particles(pos: Vector3, parent_node: Node) -> void:
+	## Auxiliary: Spawns rising dark smoke cloud particles scaled by explosion_radius
+	var particles := GPUParticles3D.new()
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 75.0
+	var vel_scale := maxf(explosion_radius, 1.0)
+	mat.initial_velocity_min = vel_scale * 0.8
+	mat.initial_velocity_max = vel_scale * 1.8
+	mat.gravity = Vector3(0, 2.5, 0)
+	mat.scale_min = 0.15
+	mat.scale_max = 0.45
+	mat.color = Color(0.25, 0.25, 0.25, 0.7)
+
+	var draw_mesh := SphereMesh.new()
+	draw_mesh.radius = 0.12
+	draw_mesh.height = 0.24
+	var draw_mat := StandardMaterial3D.new()
+	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	draw_mat.albedo_color = Color(0.25, 0.25, 0.25, 0.7)
+	draw_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	draw_mesh.material = draw_mat
+
+	particles.process_material = mat
+	particles.draw_pass_1 = draw_mesh
+	particles.amount = 16
+	particles.lifetime = 0.6
+	particles.one_shot = true
+	particles.explosiveness = 0.9
+
+	parent_node.add_child(particles)
+	particles.global_position = pos
+	particles.emitting = true
+
+	var timer := get_tree().create_timer(0.7)
+	timer.timeout.connect(particles.queue_free)

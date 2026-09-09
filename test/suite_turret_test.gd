@@ -584,3 +584,81 @@ func test_turret_projectile_collision_mask_includes_enemies_and_terrain() -> voi
 	assert_int(proj.collision_mask & 8).is_equal(0)
 	assert_int(proj.collision_mask & 16).is_equal(0)
 	assert_int(proj.collision_mask & 32).is_equal(0)
+
+
+func test_turret_muzzle_flash_spawns_particle_emitter() -> void:
+	var turret := TurretComponentScript.new() as TurretComponent
+	auto_free(turret)
+	_sandbox.container.add_child(turret)
+
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.enable_muzzle_flash = true
+	turret.params = tparams
+
+	var target := Node3D.new()
+	auto_free(target)
+	_sandbox.container.add_child(target)
+	target.global_position = Vector3(0, 0, 10)
+
+	var proj := turret._fire_at(target)
+	auto_free(proj)
+
+	var found_particles := false
+	for child in _sandbox.container.get_children():
+		if child is GPUParticles3D:
+			found_particles = true
+			break
+	assert_bool(found_particles).is_true()
+
+
+func test_turret_explosive_projectile_attaches_trail_and_spawns_explosion_particles() -> void:
+	var proj := TurretProjectileScript.new() as TurretProjectile
+	auto_free(proj)
+	_sandbox.container.add_child(proj)
+
+	var tparams := TurretParamsScript.new() as TurretParams
+	auto_free(tparams)
+	tparams.projectile_type = TurretParams.ProjectileType.EXPLOSIVE
+	tparams.enable_projectile_trail = true
+	tparams.enable_explosion_particles = true
+	tparams.explosion_radius = 5.0
+
+	proj.setup(Transform3D(), Vector3.FORWARD, tparams, null)
+
+	var has_trail := false
+	for child in proj.get_children():
+		if child is GPUParticles3D:
+			has_trail = true
+			break
+	assert_bool(has_trail).is_true()
+
+	var enemy := _make_mock_enemy(Vector3(0, 0, 2))
+	proj._handle_impact(enemy)
+
+	var container_particles_count := 0
+	for child in _sandbox.container.get_children():
+		if child is GPUParticles3D:
+			container_particles_count += 1
+	assert_int(container_particles_count).is_greater_equal(1)
+
+
+func test_health_component_spawns_damage_particles_on_take_damage() -> void:
+	var entity := Node3D.new()
+	auto_free(entity)
+	_sandbox.container.add_child(entity)
+
+	var health := HealthCompScript.new() as HealthComponent
+	health.name = "HealthComponent"
+	health.max_hp = 100
+	health.show_damage_particles = true
+	entity.add_child(health)
+
+	health.take_damage(20, null)
+
+	var found_red_particles := false
+	for child in _sandbox.container.get_children():
+		if child is GPUParticles3D:
+			found_red_particles = true
+			break
+	assert_bool(found_red_particles).is_true()
