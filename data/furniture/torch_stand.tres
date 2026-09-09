@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://dii7w1ilcy605"]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_phe3w"]
+[ext_resource type="Texture2D" uid="uid://bgam3jrbnapsa" path="res://assets/custom/torch_stand/torch_stand.png" id="2_drknd"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_fh8kr"]
+[ext_resource type="Script" uid="uid://den5pq0a8mmnl" path="res://data/capability_params/light_params.gd" id="3_bpl4c"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="3_drknd"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="4_kwxjn"]
+[ext_resource type="PackedScene" uid="uid://cok6basnrk4eo" path="res://assets/custom/torch_stand/torch_stand.glb" id="4_snf3l"]
+[ext_resource type="Texture2D" uid="uid://ljihkd23l153" path="res://assets/custom/torch_stand/torch_stand_Wood051_1K-JPG_NormalGL.jpg" id="4_w6t4d"]
+[ext_resource type="Texture2D" uid="uid://bipgy18101u01" path="res://assets/custom/torch_stand/torch_stand_Wood051_1K-JPG_Roughness.png" id="5_kwxjn"]
+
+[sub_resource type="Resource" id="Resource_12841"]
+script = ExtResource("3_bpl4c")
+color = Color(1, 0.85637206, 0.31995338, 1)
+energy = 2.0
+local_offset = Vector3(0, 1, 0)
+
+[sub_resource type="Resource" id="Resource_u6rff"]
+script = ExtResource("2_fh8kr")
+item_def = ExtResource("4_kwxjn")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[resource]
+script = ExtResource("3_drknd")
+light_params = SubResource("Resource_12841")
+id = "torch_stand"
+display_name = "torch stand"
+icon = ExtResource("2_drknd")
+scene = ExtResource("4_snf3l")
+normal_texture = ExtResource("4_w6t4d")
+roughness_texture = ExtResource("5_kwxjn")
+material_cost = Array[ExtResource("2_fh8kr")]([SubResource("Resource_u6rff")])
+unlocked_by_default = true
+build_time = 3.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

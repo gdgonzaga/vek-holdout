@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="TerrainGenDef" format=3]
+[gd_resource type="Resource" script_class="TerrainGenDef" format=3 uid="uid://dl3pxr2h61nws"]
 
-[ext_resource type="Script" path="res://data/terrain/terrain_gen_def.gd" id="1_h11nd"]
+[ext_resource type="Script" uid="uid://dtnaktfps2yg6" path="res://data/terrain/terrain_gen_def.gd" id="1_h11nd"]
 
 [sub_resource type="Image" id="Image_h11nd"]
 data = {

@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://csowbhcbqns5v"]
+
+[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_1ut87"]
+[ext_resource type="Texture2D" uid="uid://dk5knrbxo7emy" path="res://assets/custom/wall_torch/wall_torch/wall_torch.png" id="2_1ut87"]
+[ext_resource type="Script" uid="uid://den5pq0a8mmnl" path="res://data/capability_params/light_params.gd" id="3_rphq3"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="4_c0x3t"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="5_76ocg"]
+[ext_resource type="Texture2D" uid="uid://ljihkd23l153" path="res://assets/custom/torch_stand/torch_stand_Wood051_1K-JPG_NormalGL.jpg" id="6_nuqrt"]
+[ext_resource type="Texture2D" uid="uid://bipgy18101u01" path="res://assets/custom/torch_stand/torch_stand_Wood051_1K-JPG_Roughness.png" id="7_gido5"]
+[ext_resource type="PackedScene" uid="uid://ddgrp7174qooy" path="res://assets/custom/wall_torch/wall_torch/wall_torch.glb" id="8_5154f"]
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="9_6ublo"]
+
+[sub_resource type="Resource" id="Resource_12841"]
+script = ExtResource("3_rphq3")
+color = Color(1, 0.85637206, 0.31995338, 1)
+energy = 2.0
+local_offset = Vector3(0, 0.5, 0)
+
+[sub_resource type="Resource" id="Resource_u6rff"]
+script = ExtResource("4_c0x3t")
+item_def = ExtResource("5_76ocg")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[resource]
+script = ExtResource("9_6ublo")
+light_params = SubResource("Resource_12841")
+id = "wall_torch"
+display_name = "wall torch"
+icon = ExtResource("2_1ut87")
+scene = ExtResource("8_5154f")
+normal_texture = ExtResource("6_nuqrt")
+roughness_texture = ExtResource("7_gido5")
+material_cost = Array[ExtResource("4_c0x3t")]([SubResource("Resource_u6rff")])
+unlocked_by_default = true
+build_time = 3.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"
