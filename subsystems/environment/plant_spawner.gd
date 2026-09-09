@@ -58,6 +58,29 @@ func setup(map: Map, map_def: MapDef, furniture_layer: FurnitureLayer) -> void:
 	_recalculate_spawn_interval()
 
 
+## Populates initial flora on a fresh map load up to flora_spawn_cap.
+## Uses a total attempt budget pool of (target_cap * max_attempts_per_flora).
+## Returns the number of placed flora items during this pass.
+func populate_initial_flora() -> int:
+	if _map == null or _map_def == null or _furniture_layer == null:
+		return 0
+	if _map_def.flora_palette.is_empty() or _map_def.flora_spawn_cap <= 0:
+		return 0
+
+	var initial_placed: int = 0
+	var total_attempts: int = 0
+	var max_total_attempts: int = _map_def.flora_spawn_cap * maxi(1, _map_def.flora_max_spawn_attempts)
+
+	while get_live_flora_count() < _map_def.flora_spawn_cap and total_attempts < max_total_attempts:
+		total_attempts += 1
+		# 1. Single Coordinate Attempt: Probes one random coordinate for placement.
+		var spawned := _try_spawn_at_random_location()
+		if spawned:
+			initial_placed += 1
+
+	return initial_placed
+
+
 ## Attempts to spawn a single flora instance on a valid ground coordinate.
 ## Returns true if a tree/plant was successfully placed.
 func attempt_spawn() -> bool:
@@ -70,48 +93,14 @@ func attempt_spawn() -> bool:
 	if get_live_flora_count() >= _map_def.flora_spawn_cap:
 		return false
 
-	var bounds: AABB = _map.get_world_bounds()
-	var player_pos: Vector3 = _map_def.player_spawn
-	var min_dist_sq: float = _map_def.flora_min_distance * _map_def.flora_min_distance
 	var attempts: int = 0
 	var max_attempts: int = maxi(1, _map_def.flora_max_spawn_attempts)
 
 	while attempts < max_attempts:
 		attempts += 1
-		
-		# 2. Coordinate Sampling: Pick random horizontal position inside world bounds.
-		var sample_xz: Vector2 = _sample_random_coordinate(bounds)
-		
-		# 3. Player Proximity Check: Ensure sampled point is not too close to player spawn.
-		if _is_too_close_to_point(sample_xz, Vector2(player_pos.x, player_pos.z), min_dist_sq):
-			continue
-		
-		# 4. Existing Flora Proximity Check: Ensure sampled point is spaced away from other trees.
-		if _is_too_close_to_existing_flora(sample_xz, min_dist_sq):
-			continue
-		
-		# 5. Ground Height Query: Query terrain surface height at column.
-		var ground_y: float = _query_ground_height(sample_xz.x, sample_xz.y)
-		if is_nan(ground_y):
-			continue
-		
-		# 6. Slope Evaluation: Estimate terrain normal to reject steep cliff faces.
-		var normal: Vector3 = _estimate_surface_normal(sample_xz.x, sample_xz.y, ground_y)
-		if not _is_slope_acceptable(normal, DEFAULT_MAX_SLOPE_DEG):
-			continue
-		
-		# 7. Def Selection: Pick random flora definition from the configured palette.
-		var chosen_def: FurnitureDef = _pick_random_flora_def()
-		if chosen_def == null:
-			continue
-		
-		var anchor := Vector3i(int(floor(sample_xz.x)), int(round(ground_y)), int(floor(sample_xz.y)))
-		var yaw: int = _rng.randi_range(0, 3)
-		
-		# 8. World Placement: Spawn the furniture node via FurnitureLayer.
-		var spawned_node: Node3D = _furniture_layer.spawn(chosen_def, anchor, yaw)
-		if spawned_node != null:
-			_cached_flora_count += 1
+		# 2. Single Coordinate Attempt: Probes one random coordinate for placement.
+		var spawned := _try_spawn_at_random_location()
+		if spawned:
 			return true
 
 	return false
@@ -134,6 +123,52 @@ func get_live_flora_count() -> int:
 # ===================
 # Auxiliary Functions
 # ===================
+
+func _try_spawn_at_random_location() -> bool:
+	## Auxiliary: Samples a random coordinate, validates constraints, and places flora if valid.
+	if _map == null or _map_def == null or _furniture_layer == null:
+		return false
+	var bounds: AABB = _map.get_world_bounds()
+	var player_pos: Vector3 = _map_def.player_spawn
+	var min_dist_sq: float = _map_def.flora_min_distance * _map_def.flora_min_distance
+
+	# 1. Coordinate Sampling: Pick random horizontal position inside world bounds.
+	var sample_xz: Vector2 = _sample_random_coordinate(bounds)
+	
+	# 2. Player Proximity Check: Ensure sampled point is not too close to player spawn.
+	if _is_too_close_to_point(sample_xz, Vector2(player_pos.x, player_pos.z), min_dist_sq):
+		return false
+	
+	# 3. Existing Flora Proximity Check: Ensure sampled point is spaced away from other trees.
+	if _is_too_close_to_existing_flora(sample_xz, min_dist_sq):
+		return false
+	
+	# 4. Ground Height Query: Query terrain surface height at column.
+	var ground_y: float = _query_ground_height(sample_xz.x, sample_xz.y)
+	if is_nan(ground_y):
+		return false
+	
+	# 5. Slope Evaluation: Estimate terrain normal to reject steep cliff faces.
+	var normal: Vector3 = _estimate_surface_normal(sample_xz.x, sample_xz.y, ground_y)
+	if not _is_slope_acceptable(normal, DEFAULT_MAX_SLOPE_DEG):
+		return false
+	
+	# 6. Def Selection: Pick random flora definition from the configured palette.
+	var chosen_def: FurnitureDef = _pick_random_flora_def()
+	if chosen_def == null:
+		return false
+	
+	var anchor := Vector3i(int(floor(sample_xz.x)), int(round(ground_y)), int(floor(sample_xz.y)))
+	var yaw: int = _rng.randi_range(0, 3)
+	
+	# 7. World Placement: Spawn the furniture node via FurnitureLayer.
+	var spawned_node: Node3D = _furniture_layer.spawn(chosen_def, anchor, yaw)
+	if spawned_node != null:
+		_cached_flora_count += 1
+		return true
+	
+	return false
+
 
 func _connect_events() -> void:
 	## Auxiliary: Wires EventBus signals for day transitions and furniture lifecycle.

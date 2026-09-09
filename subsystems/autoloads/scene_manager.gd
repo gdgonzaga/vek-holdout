@@ -215,7 +215,7 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 	var furniture_layer: FurnitureLayer = MapWiring.wire_build(m)
 	MapWiring.wire_mining(m)
 	MapWiring.wire_day_night(m)
-	MapWiring.wire_flora(m, map_def, furniture_layer)
+	var flora_spawner: PlantSpawner = MapWiring.wire_flora(m, map_def, furniture_layer)
 
 	# Read spawns once — used for both furniture replay and player positioning.
 	var spawns: Dictionary = SpawnHelpers.read_spawns(m)
@@ -237,6 +237,9 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 			# The markers carry an editor-only PreviewMesh that would duplicate the
 			# spawned mesh and survive deconstruct; now that they're replayed, drop them.
 			SpawnHelpers.clear_furniture_markers(m)
+			# Populate initial natural flora on fresh map load.
+			if flora_spawner != null:
+				flora_spawner.populate_initial_flora()
 
 	if _player != null:
 		var spawn_pos: Vector3 = spawns.player if spawns.player != Vector3.ZERO else map_def.player_spawn

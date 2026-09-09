@@ -165,3 +165,55 @@ func test_day_rollover_resets_spawn_timer_and_syncs_count() -> void:
 	EventBus.day_rolled_over.emit(2)
 
 	assert_float(spawner._spawn_timer).is_equal(0.0)
+
+
+func test_populate_initial_flora_fills_to_cap() -> void:
+	var map := _create_test_map()
+	var fl: FurnitureLayer = auto_free(FurnitureLayer.new())
+	fl.set_container(map.get_furniture_container())
+
+	var flora_def := _create_test_flora_def()
+
+	var map_def: MapDef = auto_free(MapDef.new())
+	map_def.id = "test_map"
+	map_def.flora_palette = [flora_def]
+	map_def.flora_spawn_cap = 4
+	map_def.flora_max_spawn_attempts = 20
+	map_def.world_bounds = AABB(Vector3(-20, -10, -20), Vector3(40, 20, 40))
+	map_def.player_spawn = Vector3(100, 0, 100)
+
+	var spawner: PlantSpawner = auto_free(PlantSpawner.new())
+	add_child(spawner)
+	spawner.setup(map, map_def, fl)
+
+	assert_int(spawner.get_live_flora_count()).is_equal(0)
+
+	var placed := spawner.populate_initial_flora()
+	assert_int(placed).is_equal(4)
+	assert_int(spawner.get_live_flora_count()).is_equal(4)
+
+
+func test_populate_initial_flora_respects_total_attempt_budget() -> void:
+	var map := _create_test_map()
+	var fl: FurnitureLayer = auto_free(FurnitureLayer.new())
+	fl.set_container(map.get_furniture_container())
+
+	var flora_def := _create_test_flora_def()
+
+	var map_def: MapDef = auto_free(MapDef.new())
+	map_def.id = "test_map"
+	map_def.flora_palette = [flora_def]
+	map_def.flora_spawn_cap = 10
+	map_def.flora_max_spawn_attempts = 5
+	# Put player spawn inside tiny world bounds so player proximity check fails every roll
+	map_def.world_bounds = AABB(Vector3(-1, -1, -1), Vector3(2, 2, 2))
+	map_def.player_spawn = Vector3(0, 0, 0)
+	map_def.flora_min_distance = 10.0 # Guaranteed rejection
+
+	var spawner: PlantSpawner = auto_free(PlantSpawner.new())
+	add_child(spawner)
+	spawner.setup(map, map_def, fl)
+
+	var placed := spawner.populate_initial_flora()
+	assert_int(placed).is_equal(0)
+	assert_int(spawner.get_live_flora_count()).is_equal(0)
