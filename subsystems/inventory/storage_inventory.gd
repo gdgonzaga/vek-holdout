@@ -19,6 +19,9 @@ var allowed_item_ids: Array[String] = []
 ## If empty and allowed_item_ids is also empty, the storage is unrestricted.
 var allowed_tags: Array[String] = []
 
+## Storage priority (1 to 5). Higher priority crates are preferred for hauling deposits.
+var priority: int = 3
+
 
 func _ready() -> void:
 	_apply_storage_params()
@@ -34,6 +37,7 @@ func _apply_storage_params() -> void:
 	if params != null:
 		_storage_params = params
 		capacity = params.capacity
+		priority = params.priority
 		if allowed_item_ids.is_empty() and not params.allowed_item_ids.is_empty():
 			allowed_item_ids = params.allowed_item_ids.duplicate()
 		if allowed_tags.is_empty() and not params.allowed_tags.is_empty():
@@ -53,6 +57,14 @@ func is_item_allowed(item_id: String) -> bool:
 				if allowed_tags.has(tag):
 					return true
 	return false
+
+
+## Sets the storage container priority (clamped to 1..5).
+func set_priority(p: int) -> void:
+	var new_priority := clampi(p, 1, 5)
+	if priority != new_priority:
+		priority = new_priority
+		inventory_changed.emit()
 
 
 ## Adds or removes an item ID from the whitelist.
@@ -79,6 +91,7 @@ func clear_allowed_items() -> void:
 ## Snapshot item stacks and instance-level item filter whitelist.
 func serialize() -> Dictionary:
 	var data := super.serialize()
+	data["priority"] = priority
 	if not allowed_item_ids.is_empty():
 		data["allowed_item_ids"] = allowed_item_ids.duplicate()
 	if not allowed_tags.is_empty():
@@ -89,6 +102,7 @@ func serialize() -> Dictionary:
 ## Restore item stacks and instance-level item filter whitelist.
 func deserialize(data: Dictionary) -> void:
 	super.deserialize(data)
+	priority = int(data.get("priority", priority))
 	allowed_item_ids.clear()
 	var saved_ids: Array = data.get("allowed_item_ids", [])
 	for id in saved_ids:

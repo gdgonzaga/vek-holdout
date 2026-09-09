@@ -14,6 +14,7 @@ signal closed()
 @onready var _count_label: Label = %CountLabel
 @onready var _all_items_list: VBoxContainer = %AllItemsList
 @onready var _clear_button: Button = %ClearButton
+@onready var _priority_option: OptionButton = %PriorityOption
 @onready var _status_label: Label = %StatusLabel
 @onready var _allowed_items_list: VBoxContainer = %AllowedItemsList
 @onready var _done_button: Button = %DoneButton
@@ -106,6 +107,22 @@ func _connect_ui_signals() -> void:
 		_clear_button.pressed.connect(_on_clear_pressed)
 	if _search_edit != null:
 		_search_edit.text_changed.connect(_on_search_changed)
+	if _priority_option != null:
+		# 1. Priority Dropdown Setup: Populate 1-5 priority options.
+		_setup_priority_options()
+		_priority_option.item_selected.connect(_on_priority_selected)
+
+
+func _setup_priority_options() -> void:
+	## Auxiliary: Populates the Priority OptionButton with 1-5 levels.
+	if _priority_option == null:
+		return
+	_priority_option.clear()
+	_priority_option.add_item("1 - Lowest Priority", 1)
+	_priority_option.add_item("2 - Low Priority", 2)
+	_priority_option.add_item("3 - Normal Priority", 3)
+	_priority_option.add_item("4 - High Priority", 4)
+	_priority_option.add_item("5 - Highest Priority", 5)
 
 
 func _load_all_item_defs() -> void:
@@ -131,14 +148,34 @@ func _update_title_label() -> void:
 
 
 func _refresh_all_views() -> void:
-	## Auxiliary: Refreshes title, left filterable list, and right allowed list.
+	## Auxiliary: Refreshes title, left filterable list, right allowed list, and priority dropdown.
 	_update_title_label()
 	
-	# 1. Left List Population: Builds all item rows.
+	# 1. Priority Selection Refresh: Syncs OptionButton with current inventory priority.
+	_refresh_priority_selection()
+	
+	# 2. Left List Population: Builds all item rows.
 	_build_all_items_list()
 	
-	# 2. Right List Population: Builds whitelisted allowed items.
+	# 3. Right List Population: Builds whitelisted allowed items.
 	_refresh_allowed_list()
+
+
+func _refresh_priority_selection() -> void:
+	## Auxiliary: Sets selected item on priority dropdown based on storage inventory.
+	if _priority_option == null or _storage_inv == null:
+		return
+	var target_index := clampi(_storage_inv.priority - 1, 0, 4)
+	if _priority_option.selected != target_index:
+		_priority_option.select(target_index)
+
+
+func _on_priority_selected(index: int) -> void:
+	## Auxiliary: Handles player changing priority level via dropdown.
+	if _storage_inv == null:
+		return
+	var new_priority := index + 1
+	_storage_inv.set_priority(new_priority)
 
 
 func _build_all_items_list() -> void:

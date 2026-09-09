@@ -82,7 +82,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 
 **Extends:** Inventory
 **Script:** `storage_inventory.gd`
-**Description:** Per-instance contents of a storage container (crates, shelves). Attached as a child Node of a `Furniture` (named `"StorageInventory"`) by `FurnitureLayer` only when the `FurnitureDef` has `storage_params`; reads `capacity` and item/tag filter restrictions from those `StorageParams` at `_ready`. Exposes runtime `allowed_item_ids` and `allowed_tags` whitelists configurable via the storage filter UI (`StorageFilterPanel`), and enforces hard gates via `is_item_allowed()`. Player↔crate transfers use the inherited `transfer_to`, which interoperates between any two `Inventory` instances (used by both the storage UI and colonist hauling).
+**Description:** Per-instance contents of a storage container (crates, shelves). Attached as a child Node of a `Furniture` (named `"StorageInventory"`) by `FurnitureLayer` only when the `FurnitureDef` has `storage_params`; reads `capacity`, `priority` (1-5), and item/tag filter restrictions from those `StorageParams` at `_ready`. Exposes runtime `allowed_item_ids` and `allowed_tags` whitelists configurable via the storage filter UI (`StorageFilterPanel`), and enforces hard gates via `is_item_allowed()`. Player↔crate transfers use the inherited `transfer_to`, which interoperates between any two `Inventory` instances (used by both the storage UI and colonist hauling).
 **Used by:** storage UI (player transfer), storage filter UI (`StorageFilterPanel`), `StorageRegistry` (indexing), `HaulingJobDef` (crate↔colonist transfers).
 
 ### Class: StorageRegistry
@@ -99,7 +99,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 |---|---|
 | `on_map_wired(container: Node3D) -> void` | Bind to the current map's furniture container. |
 | `find_source(item_ids: Array[String], near: Vector3) -> Furniture` | Nearest crate whose `StorageInventory` holds any of `item_ids` (straight-line; reachability verified later by the pathfinder). Null if none. |
-| `find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furniture` | Nearest crate with space under weight capacity to accept `count` of `item_id`. Null if no storage crate has capacity. |
+| `find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furniture` | Best crate for deposit: evaluates highest `priority` (1-5) first, breaking ties with shortest distance to `near`. Null if no storage crate has capacity. |
 | `has_source_for(item_ids: Array[String]) -> bool` | Any crate holds any of `item_ids`. |
 | `nearest_crate(near: Vector3) -> Furniture` | Nearest crate regardless of contents (for surplus return). |
 | `colony_stock(item_id, near_pos, radius)` | `-> int` | Colony-wide stock of one item: storage crates + unforbidden WorldItems (filtered within `radius` of `near_pos`, default 50 cells) + carried items on colonists and player. |

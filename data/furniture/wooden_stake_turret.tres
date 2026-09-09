@@ -22,6 +22,7 @@ metadata/_custom_type_script = "uid://taqanw6psc6o"
 script = ExtResource("7_tryv4")
 capacity = 10.0
 allowed_item_ids = Array[String](["wooden_stake"])
+priority = 4
 metadata/_custom_type_script = "uid://cqa8ehd6p5jke"
 
 [sub_resource type="Resource" id="TurretParams_wooden_stake_turret"]

@@ -22,6 +22,9 @@ extends Resource
 ## If empty and allowed_item_ids is also empty, the storage is unrestricted.
 @export var allowed_tags: Array[String] = []
 
+## Storage priority (1 to 5). Higher priority storage is preferred for hauling deposits.
+@export_range(1, 5) var priority: int = 3
+
 
 ## Returns true if this definition accepts `item_id`.
 func is_item_allowed(item_id: String) -> bool:

@@ -41,20 +41,24 @@ func find_source(item_ids: Array[String], near: Vector3) -> Furniture:
 	return best
 
 
-## Nearest crate to `near` that can accept `count` of `item_id` (has space under its weight capacity).
+## Best crate to `near` that can accept `count` of `item_id` (has space under its weight capacity).
+## Evaluates crate StorageInventory priority (1 to 5, highest first), breaking ties with shortest distance.
 ## Returns null if no storage crate has capacity for the item.
 func find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furniture:
 	var best: Furniture = null
-	var best_dist_sq: float = 0.0
+	var best_priority: int = -1
+	var best_dist_sq: float = INF
 	for crate in _crates():
 		var inv := inventory_of(crate)
 		if inv == null:
 			continue
 		if not inv.can_add(item_id, count):
 			continue
+		var p: int = inv.priority
 		var d: float = crate.global_position.distance_squared_to(near)
-		if best == null or d < best_dist_sq:
+		if p > best_priority or (p == best_priority and d < best_dist_sq):
 			best = crate
+			best_priority = p
 			best_dist_sq = d
 	return best
 

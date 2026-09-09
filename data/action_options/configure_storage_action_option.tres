@@ -6,7 +6,7 @@
 
 [sub_resource type="Resource" id="Resource_filter_action"]
 script = ExtResource("1_action_script")
-label = "Configure Filter"
+label = "Storage Options"
 
 [resource]
 script = ExtResource("2_option_script")
