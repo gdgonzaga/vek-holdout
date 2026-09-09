@@ -1,14 +1,14 @@
 ---
-title: Game Design Document — Rust Frontier: Colony Defense
+title: Game Design Document — Xeno Frontier: Colony Defense
 tags: [gdd, design, godot]
 area: Projects
 created: 2026-06-19
-updated: 2026-07-04
+updated: 2026-09-10
 status: DRAFT
-version: v2.6 (decisions fold; audit trail in `.archive/v2.6-decisions/`)
+version: v2.7 (scrap punk & alien invasion theme pivot)
 ---
 
-# Rust Frontier: Colony Defense — Game Design Document
+# Xeno Frontier: Colony Defense — Game Design Document
 
 _3D Voxel Colony Survival — Godot 4 (GDScript)_
 
@@ -19,7 +19,7 @@ _3D Voxel Colony Survival — Godot 4 (GDScript)_
 > - When briefing an AI agent, paste the relevant section(s) directly into the prompt.
 
 > **Structural adaptation notes (how this doc differs from the stock template):**
-> The stock template targets a mobile/Android action game. Rust Frontier: Colony Defense is a PC 3D voxel colony survival sim. The following adaptations were made:
+> The stock template targets a mobile/Android action game. Xeno Frontier: Colony Defense is a PC 3D voxel colony survival sim. The following adaptations were made:
 > - **Platform/Technical fields** were rewritten for PC (orientation, min specs, perf targets) instead of Android (ads, UMP/TCF, portrait).
 > - **Three core sections were added** that the template lacks but this game requires as core design (not subsystems): **Colonists** (§6), **Base Building** (§7), and **Starting Conditions** (§9). Per playbook guidance, subsystems must be removable without breaking the core loop; colonists and the voxel base *are* the core loop, so they live in the core, not in Subsystems.
 > - Most of the game's modular systems (Energy, Raids, Expeditions, Equipment, Skills/labor, Time, Save, Mods, Debug) live in **Subsystems (§17)** using the template's structured schema (What it does / Triggers / Inputs / Outputs / States / Fixed values / Does NOT / Dependencies).
@@ -31,18 +31,18 @@ _3D Voxel Colony Survival — Godot 4 (GDScript)_
 
 | Field | Value |
 | --- | --- |
-| **Game title** | Rust Frontier: Colony Defense |
-| **Genre** | Steampunk / low-fantasy voxel colony survival & horde defense (mechanical/frontier theme) |
+| **Game title** | Xeno Frontier: Colony Defense |
+| **Genre** | Scrap punk voxel colony survival & horde defense (salvaged tech / alien invasion theme) |
 | **Engine** | Godot 4 (GDScript) |
 | **Platform** | PC (initial) — consoles later |
 | **Perspective** | Third-person (player character) with colony management overlay |
 | **Colony size** | Up to 10 colonists + the player character (MVP cap: 5) |
 | **World** | Separate maps per location — base and POIs are distinct scenes |
 | **Target audience** | Fans of 7 Days to Die's defense/scavenging loop and RimWorld-style colony management, comfortable with systemic depth (DF-adjacent) but presented in a Minecraft-accessible voxel sandbox. Hardcore-adjacent but not punitive. |
-| **One-sentence description** | Rust Frontier: Colony Defense is a survival colony-sim & horde defense game where you lead a frontier stronghold on the realm's border during a wartime stalemate, fortifying with mechanical traps and brass/iron defenses by day and holding off regular monster horde assaults by night. |
-| **Core fantasy** | The frontier engineer-commander: constructing mechanical fortifications and traps in a buildable voxel world, managing colonist logistics and ammunition economy, holding the line against regular, massive monster hordes sent crashing into the border stronghold. |
+| **One-sentence description** | Xeno Frontier: Colony Defense is a survival colony-sim & horde defense game where you lead a scrap-punk wasteland colony, fortifying with salvaged traps and improvised defenses by day and holding off regular alien invader assaults by night. |
+| **Core fantasy** | The wasteland survivor-commander: constructing scrap metal fortifications and improvised traps in a buildable voxel world, managing colonist logistics and ammunition economy, holding the line against regular, massive alien horde waves sent crashing into the colony stronghold. |
 
-**Theme notes:** Steampunk / low-fantasy mechanical frontier. Sent by the crown to establish a border stronghold during a wartime stalemate. Technology is purely mechanical (steam, clockwork, gears, iron/brass, blackpowder — no magic). Threat is massive regular horde waves of monsters/orcs/beasts testing the colony's defensive perimeter.
+**Theme notes:** Scrap punk / alien invasion wasteland. Sent or surviving on a desolate post-contact frontier. Technology is purely scrap-punk (salvaged metal, repurposed machinery, junk tech, blackpowder/ballistics — no magic). Threat is massive regular horde waves of alien invaders testing the colony's defensive perimeter.
 
 **Audience scope bounds (what we're NOT taking from the reference games):** DF's individual-mood-simulation depth; Minecraft's minute-by-minute block-mining cadence (building here is faster, blueprint-driven).
 
@@ -784,7 +784,7 @@ Defensive structures are voxel-built like everything else. The player chooses wh
 | **Gates / doors** | Openings that colonists and the player can pass through. Enemies will path through open gates if available. |
 | **Watchtowers** | Elevated platforms. A colonist occupies it; ranged attacks from elevation. **400 HP.** MVP: no combat buff (post-MVP: +range/accuracy for the occupant, plus mounted weapons). |
 | **Spike traps** | Placed outside walls. **50 HP, 15 damage on contact.** Loses **10 HP each time it is touched by an enemy** (~5 contacts to destroy). **MVP trigger rule: only enemies trigger it** — colonists and the player pass through with no effect. Persistent until HP 0 (not one-use). *(Post-MVP: revisit trigger rule + HP-per-contact value.)* |
-| **Turrets** | **Implemented Early (Steampunk / Horde Defense Pivot)**: Automated ranged defenses (Wooden Stake Turret, Rock Thrower, Arrow Launcher, Rifle Turret, Bomb Launcher, Gatling Gun Turret). Authored as Furniture capability (`TurretParams` on `FurnitureDef`). Targets the closest enemy within range and draws ammunition directly from Colony storage (or local inventory). Decoupled from the deferred Power system. |
+| **Turrets** | **Implemented Early (Scrap Punk / Horde Defense Pivot)**: Automated ranged defenses (Wooden Stake Turret, Rock Thrower, Arrow Launcher, Rifle Turret, Bomb Launcher, Gatling Gun Turret). Authored as Furniture capability (`TurretParams` on `FurnitureDef`). Targets the closest enemy within range and draws ammunition directly from Colony storage (or local inventory). Decoupled from the deferred Power system. |
 
 #### 7.10.1 Planned Turret Automation: Deployable Sensor & Target Markers
 
@@ -1102,10 +1102,10 @@ See *Colony Management → Loadouts* tab above. Per-colonist assignment in MVP; 
 
 ## 16. Art Direction `[DRAFT]`
 
-- **Visual style:** Steampunk/industrial fantasy assets on a voxel block grid (gears, brass, cast iron, masonry, timber). Theme is mechanical frontier defense against monster swarms. MVP uses purchased asset bundles as **placeholder-final**: good enough to ship, replaced only where clearly wrong.
+- **Visual style:** Scrap punk / salvaged junk technology assets on a voxel block grid (repurposed steel, rusted scrap, salvaged wiring, masonry, timber). Theme is improvised post-apocalyptic frontier defense against alien invaders. MVP uses purchased asset bundles as **placeholder-final**: good enough to ship, replaced only where clearly wrong.
 - **Colour palette:** No mandate for MVP. (Designer's call during the art pass.)
 - **Art for v1.0 (MVP):** Placeholder-final via asset bundles. Block damage states accept placeholder textures per §7.7.
-- **Notes:** Character/animation assets follow the MakeHuman/Mixamo pipeline (see `docs/HOWTO-use-makehuman-mixamo.md`); current character models live in `assets/makehuman/` and shared animations in `assets/mixamo/`. Enemies are **monsters/orcs/beasts** — Brawler/Shooter read as melee/ranged frontline swarms attacking in regular high-volume horde waves.
+- **Notes:** Character/animation assets follow the MakeHuman/Mixamo pipeline (see `docs/HOWTO-use-makehuman-mixamo.md`); current character models live in `assets/makehuman/` and shared animations in `assets/mixamo/`. Enemies are **alien invaders / xeno threats** — Brawler/Shooter read as melee/ranged alien swarms attacking in regular high-volume horde waves.
 
 ---
 
@@ -1918,7 +1918,8 @@ Developer / playtester opens the console and enters commands.
 | 2026-07-27 | **FINAL-tag pass (partial) + Durability rename.** §1 Overview marked `[FINAL]` (theme/audience/pitch locked). All other reviewed sections (§3 Core Loop, §6.11 Damage Resolution, §7.2 Buildables, §17 Energy, §17 Raids, §14 Fixed Values) kept `[DRAFT]` pending playtest. **Armor Points (AP) renamed → Durability** across the GDD; the property now unifies damage-absorption and item-wear into one stat. The Durability *stat* is in MVP (as the ablative hit buffer); the wear-and-repair *loop* stays post-MVP. **Open question added:** how does Durability regenerate (sleep / Workbench repair / fresh armor only)? — see `GDD.gaps.md`. | Conservative FINAL-tagging: lock only what survives pure reasoning; leave feel-dependent values for playtest. Rename resolves the AP-misleads-as-damage-reduction concern and frees "armor"/"damage reduction" for a future DR mechanic. |
 | 2026-07-27 | **Durability recovery + prototype art.** (1) Durability is regained via a **repair crafting job** (post-MVP — covers armor + other items; added as a post-MVP Labor in §6.10). MVP interim: Durability auto-recovers to full on sleep so armor is a reliable per-day buffer. (2) Early prototypes use **capsule proxies** instead of models — no model sourcing needed until prototype → art-pass transition. | Resolves the Durability-regen open question (gaps §2.1) and the asset-cross-check blocker (gaps §3.1). GDD now has 0 MVP-blocking and 0 vertical-slice-blocking open items. |
 | 2026-08-28 | **Theme & Title Pivot:** Title updated to `Rust Frontier: Colony Defense`. Motif pivoted from alien invasion to steampunk/low-fantasy mechanical frontier (no magic, purely mechanical/steam/iron/clockwork/blackpowder technology). Core loop expanded with high-volume regular horde defense (tower defense / horde night dynamic against monster/orc swarms) established as a king's border stronghold during a wartime stalemate. | Player/designer alignment on game identity, market positioning, and fantasy-steampunk tower defense synergy. |
-| 2026-09-04 | **Turrets Early Implementation & Tactical Markers Spec:** Defensive turrets pulled forward from post-MVP into active development in alignment with the horde-defense steampunk stronghold loop. Turrets operate via Furniture capability (`TurretParams`), targeting closest enemies and consuming ammo from colony storage. Sensor markers (configurable radius) and target markers specced as a planned automation feature for predictive AOE/explosive bombardment. | Deepens tower defense tactical gameplay and provides concrete sinks for crafted ammunition types. |
+| 2026-09-04 | **Turrets Early Implementation & Tactical Markers Spec:** Defensive turrets pulled forward from post-MVP into active development in alignment with the horde-defense stronghold loop. Turrets operate via Furniture capability (`TurretParams`), targeting closest enemies and consuming ammo from colony storage. Sensor markers (configurable radius) and target markers specced as a planned automation feature for predictive AOE/explosive bombardment. | Deepens tower defense tactical gameplay and provides concrete sinks for crafted ammunition types. |
+| 2026-09-10 | **Theme Pivot to Scrap Punk & Alien Invaders:** Setting updated to Scrap Punk with Alien Invaders as the primary threat. Technology aesthetics refocused on scrap metal, salvaged machinery, and improvised defenses against alien swarm incursions. | Aligns game identity with player vision for scrap-punk survival aesthetics and xeno horde defense dynamics. |
 | 2026-07-28 | **Fatigue split → Breath + Stamina (Energy subsystem).** Single Fatigue pool (0.0 rested → 1.0 collapsed, filled toward bad) split into two depleting pools (100% fresh → 0% empty, consistent with HP/Durability): **Breath** (short-term burst — sprint/jump/melee/ranged; regenerates +10/sec when idle) and **Stamina** (long-term daily — ambient −0.21/min, ×2 while working; sleep-only recovery; collapse at 0%). Architecturally two separate components: `BreathComponent` (on all entities) + `StaminaComponent` (player + colonists; enemies future). Breath attached to enemies now for future windup/heavy-attack costs without architectural change. "Fatigue" term retired; old subsystem renamed "Energy (Breath + Stamina)". | The original pool conflated two timescales (sprint-burn cleared only on sleep = odd). Split makes sprinting feel good (burst+recover) and keeps the daily-grind pressure distinct. Energy framing matches every other HUD bar. Separate components keep burst-cost and daily-budget mechanics independently evolvable. Driven by ARCHITECTURE.md review item #1 (FatigueComponent referenced but never defined). |
 
 ---
@@ -1931,7 +1932,7 @@ Developer / playtester opens the console and enters commands.
 
 - **§7.1 FINAL-tag list** — which sections to lock as `[FINAL]` (change only via Decisions Log) vs keep `[DRAFT]`. Deferred per designer call; resurface at vertical-slice lock time.
 - **Asset cross-check** — `tmp/required_models.md` lists every MVP model/icon/rig needed; awaiting the designer's "have/need" pass against purchased asset bundles. Open weapon/armor questions flagged in that file.
-- **Theme / monster lore detail** — confirmed steampunk/mechanical frontier setting with monster/orc swarm threats; deeper lore (monarchy border politics, monster origins) is in development and will inform the post-MVP art pass.
+- **Theme / alien lore detail** — confirmed scrap-punk wasteland setting with alien invader swarm threats; deeper lore (alien origins, wasteland factions) is in development and will inform the post-MVP art pass.
 - **Tuning passes** — raid curve, Stamina thresholds, Breath costs, movement feel, spike-trap HP-per-touch, and recovery-on-death are explicitly placeholder and flagged for first playtest.
 
-_Date: 2026-07-04_
+_Date: 2026-09-10_
