@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://dkc21ixx51cg2" path="res://subsystems/player/input_component.gd" id="3_input"]
 [ext_resource type="Script" uid="uid://dpyvcpfh0aifs" path="res://subsystems/inventory/character_inventory.gd" id="4_inv"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="5_step"]
-[ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="6_6her4"]
+[ext_resource type="PackedScene" uid="uid://cigs78j4etaai" path="res://assets/custom/man/man.glb" id="6_2sd7t"]
 [ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="7_efqes"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="8_ip60t"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
@@ -34,9 +34,16 @@ input_1/name = "Interact"
 input_1/auto_advance = false
 input_1/break_loop_at_end = false
 input_1/reset = true
+input_2/name = "AttackOverhead"
+input_2/auto_advance = false
+input_2/break_loop_at_end = false
+input_2/reset = true
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_ivbn6"]
 animation = &"animations/Interact"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_attack"]
+animation = &"animations/AttackOverhead"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_kkt58"]
 animation = &"animations/Digging"
@@ -110,9 +117,11 @@ nodes/Animation/node = SubResource("AnimationNodeAnimation_kkt58")
 nodes/Animation/position = Vector2(-240, 200)
 "nodes/Animation 2/node" = SubResource("AnimationNodeAnimation_ivbn6")
 "nodes/Animation 2/position" = Vector2(-240, 400)
+"nodes/Animation 3/node" = SubResource("AnimationNodeAnimation_attack")
+"nodes/Animation 3/position" = Vector2(-240, 600)
 nodes/ActionSelect/node = SubResource("AnimationNodeTransition_2sd7t")
 nodes/ActionSelect/position = Vector2(20, 240)
-node_connections = [&"output", 0, &"ActionOneshot", &"ActionOneshot", 0, &"Locomotion", &"ActionOneshot", 1, &"ActionSelect", &"ActionSelect", 0, &"Animation", &"ActionSelect", 1, &"Animation 2"]
+node_connections = [&"output", 0, &"ActionOneshot", &"ActionOneshot", 0, &"Locomotion", &"ActionOneshot", 1, &"ActionSelect", &"ActionSelect", 0, &"Animation", &"ActionSelect", 1, &"Animation 2", &"ActionSelect", 2, &"Animation 3"]
 
 [node name="Player" type="CharacterBody3D" unique_id=348076264]
 transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 1, -2.068668e-05, 0.009543855, 1.6087066e-05)
@@ -144,7 +153,7 @@ script = ExtResource("5_step")
 
 [node name="Visuals" type="Node3D" parent="." unique_id=314291199]
 
-[node name="man2" parent="Visuals" unique_id=762226860 instance=ExtResource("6_6her4")]
+[node name="man" parent="Visuals" unique_id=323472675 instance=ExtResource("6_2sd7t")]
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=869776551]
 libraries/animations = ExtResource("7_efqes")

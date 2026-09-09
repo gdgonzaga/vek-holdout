@@ -41,9 +41,16 @@ input_1/name = "Interact"
 input_1/auto_advance = false
 input_1/break_loop_at_end = false
 input_1/reset = true
+input_2/name = "AttackOverhead"
+input_2/auto_advance = false
+input_2/break_loop_at_end = false
+input_2/reset = true
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_ivbn6"]
 animation = &"animations/Interact"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_attack"]
+animation = &"animations/AttackOverhead"
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_kkt58"]
 animation = &"animations/Digging"
@@ -117,9 +124,11 @@ nodes/Animation/node = SubResource("AnimationNodeAnimation_kkt58")
 nodes/Animation/position = Vector2(-240, 200)
 "nodes/Animation 2/node" = SubResource("AnimationNodeAnimation_ivbn6")
 "nodes/Animation 2/position" = Vector2(-240, 400)
+"nodes/Animation 3/node" = SubResource("AnimationNodeAnimation_attack")
+"nodes/Animation 3/position" = Vector2(-240, 600)
 nodes/ActionSelect/node = SubResource("AnimationNodeTransition_2sd7t")
 nodes/ActionSelect/position = Vector2(20, 240)
-node_connections = [&"output", 0, &"ActionOneshot", &"ActionOneshot", 0, &"Locomotion", &"ActionOneshot", 1, &"ActionSelect", &"ActionSelect", 0, &"Animation", &"ActionSelect", 1, &"Animation 2"]
+node_connections = [&"output", 0, &"ActionOneshot", &"ActionOneshot", 0, &"Locomotion", &"ActionOneshot", 1, &"ActionSelect", &"ActionSelect", 0, &"Animation", &"ActionSelect", 1, &"Animation 2", &"ActionSelect", 2, &"Animation 3"]
 
 [node name="Colonist" type="CharacterBody3D" unique_id=229374039]
 transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 1, -2.068668e-05, 0.009543855, 1.6087066e-05)

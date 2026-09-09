@@ -78,14 +78,17 @@ func _process(delta: float) -> void:
 	_update_animation_state()
 
 
-## Triggers an upper-body one-shot action animation (e.g. "Digging", "Interact").
+## Triggers an upper-body one-shot action animation (e.g. "Digging", "Interact", "AttackOverhead").
 func trigger_action(action_name: StringName) -> void:
 	if not anim_tree:
 		return
-		
+
+	# 1. Action Resolution: Resolve generic action or weapon animation names to valid transition keys.
+	var resolved_action: StringName = _resolve_action_animation_name(action_name)
+
 	# Set transition target for the action selector
-	anim_tree.set("parameters/ActionSelect/transition_request", String(action_name))
-	
+	anim_tree.set("parameters/ActionSelect/transition_request", String(resolved_action))
+
 	# Fire the one-shot action overlay node
 	anim_tree.set("parameters/ActionOneshot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
@@ -94,6 +97,18 @@ func trigger_action(action_name: StringName) -> void:
 func cancel_action() -> void:
 	if anim_tree:
 		anim_tree.set("parameters/ActionOneshot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
+
+
+## Auxiliary: Maps incoming generic action or weapon animation names to valid ActionSelect transition names
+func _resolve_action_animation_name(action_name: StringName) -> StringName:
+	var name_str := String(action_name).to_lower()
+	if name_str in ["attackoverhead", "swing", "attack", "strike", "melee"]:
+		return &"AttackOverhead"
+	if name_str in ["interact", "fire", "shoot", "use"]:
+		return &"Interact"
+	if name_str in ["digging", "dig"]:
+		return &"Digging"
+	return action_name
 
 
 ## Sets a forced animation override (e.g. from BT tasks during work/interaction)
