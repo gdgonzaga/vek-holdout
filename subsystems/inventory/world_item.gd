@@ -226,6 +226,8 @@ func _apply_mesh(def: ItemDef) -> void:
 		var inst := def.scene.instantiate() as Node3D
 		if inst != null:
 			_scene_instance = inst
+			# 1. Visual Sanitization: Hide auxiliary collision or hitbox meshes inside instantiated model.
+			_sanitize_visual_nodes(_scene_instance)
 			add_child(_scene_instance)
 			_scene_instance.scale = def.visual_scale if def.visual_scale != Vector3.ZERO else Vector3.ONE
 			if def.material != null:
@@ -274,6 +276,19 @@ func _apply_material_recursive(node: Node, mat: Material) -> void:
 		(node as MeshInstance3D).material_override = mat
 	for child in node.get_children():
 		_apply_material_recursive(child, mat)
+
+
+## Auxiliary: Recursively hides collision, area, or hitbox mesh nodes inside an imported item scene
+func _sanitize_visual_nodes(node: Node) -> void:
+	for child in node.get_children():
+		var child_name := child.name.to_lower()
+		if child is MeshInstance3D:
+			if "hitbox" in child_name or "hibox" in child_name or "area" in child_name or "col" in child_name:
+				(child as MeshInstance3D).visible = false
+		elif child is CollisionShape3D or child is CollisionObject3D or child is Area3D:
+			if child is Node3D:
+				(child as Node3D).visible = false
+		_sanitize_visual_nodes(child)
 
 
 func _get_scene_aabb(root_node: Node3D) -> AABB:
