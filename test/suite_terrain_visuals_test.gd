@@ -191,6 +191,8 @@ func test_smooth_grid_volume_wiring_pushes_shader_uniforms() -> void:
 	assert_object(textures[grid.get_strata_palette()["coal"]]).is_equal(coal.texture)
 	var tints: Array = mat.get_shader_parameter("ore_palette_tint")
 	assert_vector(tints[grid.get_strata_palette()["coal"]]).is_equal(Vector3.ONE)
+	assert_float(mat.get_shader_parameter("ore_blend_radius")).is_equal(1.2)
+	assert_float(mat.get_shader_parameter("ore_warp_strength")).is_equal(0.9)
 
 
 func test_terrain_material_def_pbr_fields() -> void:

@@ -50,8 +50,12 @@ uniform vec3 ore_palette_tint[16];
 uniform sampler2D ore_textures[16] : source_color;
 uniform float ore_roughness = 0.9;
 uniform float ore_metallic = 0.0;
-uniform float ore_warp_scale = 0.8;
-uniform float ore_warp_strength = 0.45;
+uniform float ore_warp_scale = 1.1;
+uniform float ore_warp_strength = 0.7;
+// Half-width of the soft boundary blend zone in meters. Offset taps at this
+// distance from the warped position detect neighbouring materials and blend
+// their colors; 0.5 = half a voxel cell (smooth but tight), 1.0 = full cell.
+uniform float ore_blend_radius = 0.5;
 
 // Procedural Ore Vein parameters (Option 1 fallback when volume_enabled is false):
 uniform bool ore_enabled = false;
@@ -170,21 +174,53 @@ void fragment() {
 			organic_noise3d(sample_pos * ore_warp_scale + vec3(71.9, 13.5, 97.3))
 		) - vec3(0.5);
 		vec3 warped_pos = sample_pos + warp * ore_warp_strength;
-		vec3 uvw = (warped_pos - volume_origin) / volume_size;
-		if (all(greaterThanEqual(uvw, vec3(0.0))) && all(lessThanEqual(uvw, vec3(1.0)))) {
-			float val = texture(strata_volume, uvw).r;
-			int palette_idx = int(round(val * 255.0));
-			if (palette_idx > 0 && palette_idx < 16) {
-				is_ore = true;
-				vec3 tint = ore_palette_tint[palette_idx];
-				if (dot(tint, tint) < 0.001) {
-					tint = vec3(1.0);
+
+		// Multi-tap boundary blend: 4 kernel positions (center with 2x weight + 3 axis offsets).
+		// When near a material boundary, offset taps land in neighbouring regions and their
+		// averaged colors produce a smooth blend zone of width ore_blend_radius.
+		float br = ore_blend_radius;
+		vec3 taps[4];
+		taps[0] = warped_pos;
+		taps[1] = warped_pos + vec3(br, 0.0, 0.0);
+		taps[2] = warped_pos + vec3(0.0, br, 0.0);
+		taps[3] = warped_pos + vec3(0.0, 0.0, br);
+		// Weights: center gets 2, each offset gets 1 (total weight = 5).
+		float tap_weights[4];
+		tap_weights[0] = 2.0;
+		tap_weights[1] = 1.0;
+		tap_weights[2] = 1.0;
+		tap_weights[3] = 1.0;
+
+		vec3 accumulated_ore = vec3(0.0);
+		float accumulated_ore_weight = 0.0;
+		float accumulated_total_weight = 0.0;
+
+		for (int i = 0; i < 4; i++) {
+			vec3 tap_uvw = (taps[i] - volume_origin) / volume_size;
+			float w_i = tap_weights[i];
+			accumulated_total_weight += w_i;
+			if (all(greaterThanEqual(tap_uvw, vec3(0.0))) && all(lessThanEqual(tap_uvw, vec3(1.0)))) {
+				float val = texture(strata_volume, tap_uvw).r;
+				int palette_idx = int(round(val * 255.0));
+				if (palette_idx > 0 && palette_idx < 16) {
+					vec3 tint = ore_palette_tint[palette_idx];
+					if (dot(tint, tint) < 0.001) {
+						tint = vec3(1.0);
+					}
+					accumulated_ore += triplanar_sample_ore(palette_idx, v_world_pos, w) * tint * w_i;
+					accumulated_ore_weight += w_i;
 				}
-				vec3 ore_color = triplanar_sample_ore(palette_idx, v_world_pos, w) * tint;
-				base_color = ore_color;
-				mat_roughness = ore_roughness;
-				mat_metallic = ore_metallic;
 			}
+		}
+
+		// Blend ore into terrain proportionally: full inside, gradual falloff at edges.
+		if (accumulated_ore_weight > 0.0) {
+			is_ore = true;
+			vec3 ore_color = accumulated_ore / accumulated_ore_weight;
+			float ore_fraction = accumulated_ore_weight / accumulated_total_weight;
+			base_color = mix(base_color, ore_color, ore_fraction);
+			mat_roughness = ore_roughness;
+			mat_metallic = ore_metallic;
 		}
 	}
 

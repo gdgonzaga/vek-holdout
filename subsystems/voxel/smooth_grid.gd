@@ -89,6 +89,12 @@ const StrataBakeResult = preload("res://subsystems/voxel/strata_bake_result.gd")
 ## Playable volume bounding box. Prevents voxel generation and streaming beyond limits.
 @export var world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0))
 
+## Half-width of the soft boundary blend zone between terrain materials (in meters).
+@export var ore_blend_radius: float = 2.0
+
+## Domain warp strength for organic distortion of terrain material boundaries.
+@export var ore_warp_strength: float = 1.5
+
 
 func get_world_bounds() -> AABB:
 	return world_bounds
@@ -690,6 +696,8 @@ func _push_band_uniforms(material: ShaderMaterial) -> void:
 		material.set_shader_parameter("volume_size", Vector3(_strata_bake_result.size))
 		material.set_shader_parameter("ore_palette_tint", _build_palette_tints())
 		material.set_shader_parameter("ore_textures", _build_ore_textures(deep))
+		material.set_shader_parameter("ore_blend_radius", ore_blend_radius)
+		material.set_shader_parameter("ore_warp_strength", ore_warp_strength)
 	else:
 		material.set_shader_parameter("volume_enabled", false)
 
@@ -819,7 +827,7 @@ func _pristine_height(x: float, z: float) -> float:
 	if _pristine_cache.has(col):
 		return _pristine_cache[col]
 	var h := _compute_pristine(col.x, col.y)
-	if h == h:  # not NAN
+	if h == h: # not NAN
 		_pristine_cache[col] = h
 	return h
 
