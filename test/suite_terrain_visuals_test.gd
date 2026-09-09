@@ -191,3 +191,22 @@ func test_smooth_grid_volume_wiring_pushes_shader_uniforms() -> void:
 	assert_object(textures[grid.get_strata_palette()["coal"]]).is_equal(coal.texture)
 	var tints: Array = mat.get_shader_parameter("ore_palette_tint")
 	assert_vector(tints[grid.get_strata_palette()["coal"]]).is_equal(Vector3.ONE)
+
+
+func test_terrain_material_def_pbr_fields() -> void:
+	var def: TerrainMaterialDef = auto_free(TerrainMaterialDef.new())
+	def.id = "pbr_terrain"
+	def.texture = SmoothGrid.marker_texture()
+	def.displacement_texture = SmoothGrid.marker_texture()
+	def.metalness_texture = SmoothGrid.marker_texture()
+	def.normal_texture = SmoothGrid.marker_texture()
+	def.roughness_texture = SmoothGrid.marker_texture()
+	def.orme_texture = SmoothGrid.marker_texture()
+
+	assert_object(def.texture).is_not_null()
+	assert_object(def.displacement_texture).is_not_null()
+	assert_object(def.metalness_texture).is_not_null()
+	assert_object(def.normal_texture).is_not_null()
+	assert_object(def.roughness_texture).is_not_null()
+	assert_object(def.orme_texture).is_not_null()
+

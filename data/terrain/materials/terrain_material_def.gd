@@ -57,6 +57,11 @@ class_name TerrainMaterialDef
 ## endpoints (the surface material and the dominant deep material) sample it;
 ## other materials are visually identified by their Decal marker `color`.
 @export var texture: Texture2D = null
+@export var displacement_texture: Texture2D = null
+@export var metalness_texture: Texture2D = null
+@export var normal_texture: Texture2D = null
+@export var roughness_texture: Texture2D = null
+@export var orme_texture: Texture2D = null # Packed ORME texture: Occlusion (R), Roughness (G), Metallic (B), Extra/Emissive (A)
 
 ## Radius of the sphere one placement of this material adds (also the blob
 ## ghost's radius — the preview shows exactly the volume). Fixed size in v1,

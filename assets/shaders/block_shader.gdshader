@@ -1,5 +1,11 @@
 shader_type spatial;
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D roughness_tex : hint_roughness_r, filter_linear_mipmap, repeat_enable;
+uniform sampler2D metallic_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D disp_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D orme_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+
 uniform float uv_offset_strength : hint_range(0.0, 0.3) = 0.16;
 uniform float color_variation : hint_range(0.0, 0.3) = 0.08;
 uniform float rotation_strength : hint_range(0.0, 0.2) = 0.16;
@@ -32,6 +38,15 @@ void fragment() {
 	float brightness = 1.0 + (r3 - 0.5) * color_variation * 2.0;
 
 	ALBEDO = texture(albedo_tex, uv).rgb * brightness;
-	ROUGHNESS = 1.0;
-	METALLIC = 0.0;
+	NORMAL_MAP = texture(normal_tex, uv).rgb;
+
+	vec4 orme_sample = texture(orme_tex, uv);
+	if (orme_sample != vec4(0.0)) {
+		AO = orme_sample.r;
+		ROUGHNESS = orme_sample.g;
+		METALLIC = orme_sample.b;
+	} else {
+		ROUGHNESS = texture(roughness_tex, uv).r;
+		METALLIC = texture(metallic_tex, uv).r;
+	}
 }

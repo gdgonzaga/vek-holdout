@@ -1,9 +1,13 @@
 [gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://cm131ep6qq0ae"]
 
+[ext_resource type="Texture2D" uid="uid://6rnd8kffsisv" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Displacement.png" id="1_qkl7j"]
 [ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://blxnfr58pouh0" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Metalness.png" id="2_f8vvc"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
-[ext_resource type="Texture2D" uid="uid://btgs0jakjp68" path="res://assets/realer_than_real_textures/MT00180-Painted_Metal_Damaged.PNG" id="2_pi78i"]
-[ext_resource type="Resource" path="res://data/items/copper_ore.tres" id="3_copper"]
+[ext_resource type="Texture2D" uid="uid://baxj4pwbe1xpj" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_NormalGL.png" id="3_4t5kh"]
+[ext_resource type="Resource" uid="uid://banad48tku228" path="res://data/items/copper_ore.tres" id="3_copper"]
+[ext_resource type="Texture2D" uid="uid://bgehgqlxjqn3a" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Roughness.png" id="4_lhouu"]
+[ext_resource type="Texture2D" uid="uid://ckdhr7jdxy3y7" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Color.png" id="6_jtwes"]
 
 [sub_resource type="Resource" id="Resource_copper_yield"]
 script = ExtResource("2_item_amount")
@@ -13,8 +17,11 @@ item_def = ExtResource("3_copper")
 script = ExtResource("1_script")
 id = "copper"
 display_name = "copper"
-color = Color(0.85, 0.45, 0.25, 1)
 hp = 350
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_copper_yield")])
 min_depth = 8
-texture = ExtResource("2_pi78i")
+texture = ExtResource("6_jtwes")
+displacement_texture = ExtResource("1_qkl7j")
+metalness_texture = ExtResource("2_f8vvc")
+normal_texture = ExtResource("3_4t5kh")
+roughness_texture = ExtResource("4_lhouu")

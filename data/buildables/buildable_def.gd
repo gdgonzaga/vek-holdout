@@ -32,6 +32,11 @@ class_name BuildableDef
 @export var scene: PackedScene = null
 @export var mesh: Mesh # Preview/placement mesh; voxel blocks MUST occupy (0,0,0)->(1,1,1)
 @export var texture: Texture2D # Albedo texture; BlockLibrary builds a StandardMaterial3D from this
+@export var displacement_texture: Texture2D = null
+@export var metalness_texture: Texture2D = null
+@export var normal_texture: Texture2D = null
+@export var roughness_texture: Texture2D = null
+@export var orme_texture: Texture2D = null # Packed ORME texture: Occlusion (R), Roughness (G), Metallic (B), Extra/Emissive (A)
 @export var texture_variation: bool = false # True → use per-block UV/brightness randomization shader
 @export var material_cost: Array[ItemAmount] = []
 @export var unlocked_by_default: bool = false # available without earning an unlock this run

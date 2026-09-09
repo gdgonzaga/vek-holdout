@@ -23,15 +23,42 @@ static func create_block_model(block_def: BlockDef, ortho_index: int) -> VoxelBl
 	model.resource_name = "%s_%d" % [block_def.id, ortho_index]
 	if block_def.custom_material != null:
 		model.material_override_0 = block_def.custom_material
-	elif block_def.texture != null:
+	elif block_def.texture != null or block_def.normal_texture != null or block_def.roughness_texture != null or block_def.metalness_texture != null or block_def.displacement_texture != null or block_def.orme_texture != null:
 		if block_def.texture_variation:
 			var mat := ShaderMaterial.new()
 			mat.shader = preload("res://assets/shaders/block_shader.gdshader")
 			mat.set_shader_parameter("albedo_tex", block_def.texture)
+			mat.set_shader_parameter("normal_tex", block_def.normal_texture)
+			mat.set_shader_parameter("roughness_tex", block_def.roughness_texture)
+			mat.set_shader_parameter("metallic_tex", block_def.metalness_texture)
+			mat.set_shader_parameter("disp_tex", block_def.displacement_texture)
+			mat.set_shader_parameter("orme_tex", block_def.orme_texture)
 			model.material_override_0 = mat
 		else:
 			var mat := StandardMaterial3D.new()
-			mat.albedo_texture = block_def.texture
+			if block_def.texture != null:
+				mat.albedo_texture = block_def.texture
+			if block_def.normal_texture != null:
+				mat.normal_enabled = true
+				mat.normal_texture = block_def.normal_texture
+			if block_def.orme_texture != null:
+				mat.ao_enabled = true
+				mat.ao_texture = block_def.orme_texture
+				mat.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+				mat.roughness_texture = block_def.orme_texture
+				mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
+				mat.metallic = 1.0
+				mat.metallic_texture = block_def.orme_texture
+				mat.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
+			else:
+				if block_def.roughness_texture != null:
+					mat.roughness_texture = block_def.roughness_texture
+				if block_def.metalness_texture != null:
+					mat.metallic = 1.0
+					mat.metallic_texture = block_def.metalness_texture
+			if block_def.displacement_texture != null:
+				mat.heightmap_enabled = true
+				mat.heightmap_texture = block_def.displacement_texture
 			model.material_override_0 = mat
 
 	# Configure collision generation (disabled for fluids like water).

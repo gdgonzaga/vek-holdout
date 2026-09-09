@@ -132,3 +132,51 @@ func test_base_indices_contain_only_base_defs() -> void:
 	assert_bool(lib.is_base_index(0)).is_false()
 	for variant_idx in range(4, lib.get_voxel_library().get_models().size()):
 		assert_bool(lib.is_base_index(variant_idx)).is_false()
+
+
+func test_pbr_textures_applied_to_material() -> void:
+	# 1. Def Instantiation: Creating a temporary BlockDef with PBR textures.
+	var def := BlockDef.new()
+	def.id = "pbr_test_block"
+	def.texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	def.normal_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	def.roughness_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_L8))
+	def.metalness_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_L8))
+	def.displacement_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_L8))
+
+	# 2. Standard Model Generation: Verifying PBR maps in StandardMaterial3D mode.
+	var std_model := VoxelLibraryGenerator.create_block_model(def, 0)
+	var std_mat := std_model.material_override_0 as StandardMaterial3D
+	assert_object(std_mat).is_not_null()
+	assert_object(std_mat.albedo_texture).is_equal(def.texture)
+	assert_bool(std_mat.normal_enabled).is_true()
+	assert_object(std_mat.normal_texture).is_equal(def.normal_texture)
+	assert_object(std_mat.roughness_texture).is_equal(def.roughness_texture)
+	assert_float(std_mat.metallic).is_equal(1.0)
+	assert_object(std_mat.metallic_texture).is_equal(def.metalness_texture)
+	assert_bool(std_mat.heightmap_enabled).is_true()
+	assert_object(std_mat.heightmap_texture).is_equal(def.displacement_texture)
+
+	# 3. Shader Model Generation: Verifying PBR parameters in ShaderMaterial (texture_variation) mode.
+	def.texture_variation = true
+	var shader_model := VoxelLibraryGenerator.create_block_model(def, 0)
+	var shader_mat := shader_model.material_override_0 as ShaderMaterial
+	assert_object(shader_mat).is_not_null()
+	assert_object(shader_mat.get_shader_parameter("albedo_tex")).is_equal(def.texture)
+	assert_object(shader_mat.get_shader_parameter("normal_tex")).is_equal(def.normal_texture)
+	assert_object(shader_mat.get_shader_parameter("roughness_tex")).is_equal(def.roughness_texture)
+	assert_object(shader_mat.get_shader_parameter("metallic_tex")).is_equal(def.metalness_texture)
+	assert_object(shader_mat.get_shader_parameter("disp_tex")).is_equal(def.displacement_texture)
+
+	# 4. ORME Texture Generation: Verifying ORME channel map bindings.
+	def.texture_variation = false
+	def.orme_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	var orme_model := VoxelLibraryGenerator.create_block_model(def, 0)
+	var orme_mat := orme_model.material_override_0 as StandardMaterial3D
+	assert_object(orme_mat).is_not_null()
+	assert_bool(orme_mat.ao_enabled).is_true()
+	assert_object(orme_mat.ao_texture).is_equal(def.orme_texture)
+	assert_object(orme_mat.roughness_texture).is_equal(def.orme_texture)
+	assert_object(orme_mat.metallic_texture).is_equal(def.orme_texture)
+
+
