@@ -39,9 +39,10 @@ var _heightmap_image: Image = null
 var _heightmap_box: Control = null
 var _file_dialog: FileDialog = null
 
-# Foliage / tree controls
-var _scatter_trees_check: CheckBox
-var _tree_density_select: OptionButton
+# Flora / vegetation controls
+var _flora_spawns_spin: SpinBox
+var _flora_cap_spin: SpinBox
+var _flora_attempts_spin: SpinBox
 
 # Water controls
 var _water_enabled_check: CheckBox
@@ -310,31 +311,58 @@ func _build_ui() -> void:
 	_snap_to_grid_check.toggled.connect(func(_toggled: bool) -> void: _update_heightmap_stats())
 	snap_row.add_child(_snap_to_grid_check)
 
-	# Foliage / tree scattering controls
-	var foliage_row := HBoxContainer.new()
-	foliage_row.add_theme_constant_override("separation", 8)
-	form_vbox.add_child(foliage_row)
+	# Flora / vegetation regeneration controls
+	var flora_title := Label.new()
+	flora_title.text = "Flora (Spawns/Day, Cap, Attempts):"
+	flora_title.add_theme_font_size_override("font_size", 12)
+	flora_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	form_vbox.add_child(flora_title)
 
-	_scatter_trees_check = CheckBox.new()
-	_scatter_trees_check.name = "ScatterTreesCheckBox"
-	_scatter_trees_check.text = "Scatter Trees"
-	_scatter_trees_check.tooltip_text = "Procedurally place trees across terrain on map creation"
-	_scatter_trees_check.button_pressed = true
-	_scatter_trees_check.add_theme_font_size_override("font_size", 12)
-	_scatter_trees_check.toggled.connect(func(pressed: bool) -> void:
-		if _tree_density_select != null:
-			_tree_density_select.visible = pressed
-	)
-	foliage_row.add_child(_scatter_trees_check)
+	var flora_row := HBoxContainer.new()
+	flora_row.add_theme_constant_override("separation", 6)
+	form_vbox.add_child(flora_row)
 
-	_tree_density_select = OptionButton.new()
-	_tree_density_select.name = "TreeDensitySelect"
-	_tree_density_select.add_item("Sparse (~30)")
-	_tree_density_select.add_item("Normal (~75)")
-	_tree_density_select.add_item("Dense (~150)")
-	_tree_density_select.selected = 1
-	_tree_density_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foliage_row.add_child(_tree_density_select)
+	var spawns_lbl := Label.new()
+	spawns_lbl.text = "Rate:"
+	spawns_lbl.add_theme_font_size_override("font_size", 11)
+	flora_row.add_child(spawns_lbl)
+
+	_flora_spawns_spin = SpinBox.new()
+	_flora_spawns_spin.name = "FloraSpawnsSpinBox"
+	_flora_spawns_spin.min_value = 0.0
+	_flora_spawns_spin.max_value = 50.0
+	_flora_spawns_spin.step = 1.0
+	_flora_spawns_spin.value = 0.0
+	_flora_spawns_spin.tooltip_text = "Plants/trees spawned per in-game day (0 = disabled)"
+	flora_row.add_child(_flora_spawns_spin)
+
+	var cap_lbl := Label.new()
+	cap_lbl.text = "Cap:"
+	cap_lbl.add_theme_font_size_override("font_size", 11)
+	flora_row.add_child(cap_lbl)
+
+	_flora_cap_spin = SpinBox.new()
+	_flora_cap_spin.name = "FloraCapSpinBox"
+	_flora_cap_spin.min_value = 0.0
+	_flora_cap_spin.max_value = 300.0
+	_flora_cap_spin.step = 5.0
+	_flora_cap_spin.value = 60.0
+	_flora_cap_spin.tooltip_text = "Maximum concurrent alive flora on map"
+	flora_row.add_child(_flora_cap_spin)
+
+	var att_lbl := Label.new()
+	att_lbl.text = "Try:"
+	att_lbl.add_theme_font_size_override("font_size", 11)
+	flora_row.add_child(att_lbl)
+
+	_flora_attempts_spin = SpinBox.new()
+	_flora_attempts_spin.name = "FloraAttemptsSpinBox"
+	_flora_attempts_spin.min_value = 1.0
+	_flora_attempts_spin.max_value = 50.0
+	_flora_attempts_spin.step = 1.0
+	_flora_attempts_spin.value = 15.0
+	_flora_attempts_spin.tooltip_text = "Max random placement attempts per spawn cycle"
+	flora_row.add_child(_flora_attempts_spin)
 
 	# Water setup controls
 	var water_row := HBoxContainer.new()
@@ -536,8 +564,9 @@ func _on_create_pressed() -> void:
 		"height_start": min_h,
 		"height_range": height_range,
 		"snap_to_grid": _snap_to_grid_check.button_pressed if _snap_to_grid_check != null else false,
-		"scatter_trees": _scatter_trees_check.button_pressed if _scatter_trees_check != null else false,
-		"tree_density": _tree_density_select.selected if _tree_density_select != null else 1,
+		"flora_spawns_per_day": int(_flora_spawns_spin.value) if _flora_spawns_spin != null else 0,
+		"flora_spawn_cap": int(_flora_cap_spin.value) if _flora_cap_spin != null else 60,
+		"flora_max_spawn_attempts": int(_flora_attempts_spin.value) if _flora_attempts_spin != null else 15,
 		"water_enabled": _water_enabled_check.button_pressed if _water_enabled_check != null else false,
 		"water_level": _water_level_spin.value if _water_level_spin != null else -2.0,
 		"world_bounds": bounds,

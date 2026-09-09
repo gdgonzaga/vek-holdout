@@ -100,6 +100,23 @@ static func wire_day_night(map: Map) -> void:
 			map.add_child(cycle)
 
 
+## Wire dynamic flora regeneration (PlantSpawner) into the map.
+static func wire_flora(map: Map, map_def: MapDef, furniture_layer: FurnitureLayer) -> PlantSpawner:
+	if map == null or map_def == null:
+		return null
+	var spawner := map.find_child("PlantSpawner", true, false) as PlantSpawner
+	if spawner == null:
+		spawner = PlantSpawner.new()
+		spawner.name = "PlantSpawner"
+		var env_container := map.find_child("EnvironmentContainer", true, false)
+		if env_container != null:
+			env_container.add_child(spawner)
+		else:
+			map.add_child(spawner)
+	spawner.setup(map, map_def, furniture_layer)
+	return spawner
+
+
 ## Attach the player to the map and wire its camera into BuildController.
 ## Reuses an existing VoxelViewer on the player so repeated map swaps don't
 ## stack viewers (one per swap) — the first swap adds it, subsequent swaps find

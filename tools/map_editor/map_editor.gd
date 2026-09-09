@@ -12,7 +12,6 @@ const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
 const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
 const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_authoring.gd")
 const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
-const TreeScattererClass = preload("res://subsystems/map_authoring/tree_scatterer.gd")
 
 const MAPS_DIR: String = "res://data/maps/"
 const TERRAIN_DIR: String = "res://data/terrain/"
@@ -121,8 +120,6 @@ func _ready() -> void:
 	_hud.block_selected.connect(_on_hud_block_selected)
 	_hud.furniture_selected.connect(_on_hud_furniture_selected)
 	_hud.structure_selected.connect(_on_hud_structure_selected)
-	_hud.scatter_trees_requested.connect(_on_hud_scatter_trees_requested)
-	_hud.clear_trees_requested.connect(_on_hud_clear_trees_requested)
 	_hud.save_requested.connect(save_map)
 	_hud.spawn_type_selected.connect(_on_spawn_type_selected)
 	_hud.terrain_apply_requested.connect(_on_terrain_apply)
@@ -619,7 +616,16 @@ func load_map(map_id: String) -> void:
 		_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
 		_hud.populate_structure_list(_structure_defs, _selected_structure_idx)
 		_hud.set_map_info(map_id, _dirty)
-		_hud.set_metadata(def.display_name, def.description, def.map_type, def.difficulty, def.world_bounds)
+		_hud.set_metadata(
+			def.display_name,
+			def.description,
+			def.map_type,
+			def.difficulty,
+			def.world_bounds,
+			def.flora_spawns_per_day,
+			def.flora_spawn_cap,
+			def.flora_max_spawn_attempts
+		)
 		_hud.set_terrain_available(_smooth_grid != null)
 		_hud.set_terrain_drawer_state(_map_def.terrain_gen)
 		_hud.set_water_drawer_state(def.water_enabled, def.water_level)
@@ -662,18 +668,6 @@ func create_new_map(payload: Dictionary) -> String:
 		_launcher.setup(_scan_maps())
 
 	load_map(map_name)
-
-	if payload.get("scatter_trees", false):
-		var density_val = payload.get("tree_density", 1)
-		var target_count := TreeScattererClass.DENSITY_NORMAL
-		if density_val is int:
-			match density_val:
-				0: target_count = TreeScattererClass.DENSITY_SPARSE
-				1: target_count = TreeScattererClass.DENSITY_NORMAL
-				2: target_count = TreeScattererClass.DENSITY_DENSE
-				_: target_count = density_val
-		_do_scatter_trees(target_count)
-		save_map()
 
 	if payload.get("water_enabled", false):
 		var w_level: float = float(payload.get("water_level", -2.0))
@@ -948,6 +942,12 @@ func _create_map_def(payload: Dictionary, folder_path: String, tscn_path: String
 	def.enemy_spawns = []
 	def.unlock_condition = ""
 	def.difficulty = 1
+	def.flora_spawns_per_day = int(payload.get("flora_spawns_per_day", 0))
+	def.flora_spawn_cap = int(payload.get("flora_spawn_cap", 60))
+	def.flora_max_spawn_attempts = int(payload.get("flora_max_spawn_attempts", 15))
+	var tree1_def := load("res://data/furniture/tree1.tres") as FurnitureDef
+	if tree1_def != null:
+		def.flora_palette = [tree1_def]
 	if payload.has("world_bounds") and payload["world_bounds"] is AABB:
 		def.world_bounds = payload["world_bounds"]
 
@@ -1576,41 +1576,6 @@ func _on_hud_furniture_selected(idx: int) -> void:
 		_update_hud_info()
 
 
-func _on_hud_scatter_trees_requested() -> void:
-	_do_scatter_trees()
-
-
-func _on_hud_clear_trees_requested() -> void:
-	_do_clear_trees()
-
-
-func _do_scatter_trees(target_count: int = TreeScattererClass.DENSITY_NORMAL) -> int:
-	if _map_root == null or _furniture_auth == null:
-		return 0
-	var count := TreeScattererClass.scatter_trees(
-		_map_root,
-		_furniture_auth,
-		[{"id": "tree1", "weight": 1.0}],
-		{"target_count": target_count}
-	)
-	if count > 0:
-		_dirty = true
-		if _hud != null and _map_def != null:
-			_hud.set_map_info(_map_def.id, _dirty)
-	return count
-
-
-func _do_clear_trees() -> int:
-	if _furniture_auth == null:
-		return 0
-	var count := TreeScattererClass.clear_trees(_furniture_auth, ["tree1"])
-	if count > 0:
-		_dirty = true
-		if _hud != null and _map_def != null:
-			_hud.set_map_info(_map_def.id, _dirty)
-	return count
-
-
 func _on_flood_water_requested(water_level: float) -> void:
 	# 1. Water Flooding: Flood open cells below water level with blocky water.
 	flood_water_level(water_level, true)
@@ -2008,6 +1973,12 @@ func save_map() -> void:
 					_map_def.map_type = meta_edits["map_type"]
 				if meta_edits.has("difficulty"):
 					_map_def.difficulty = meta_edits["difficulty"]
+				if meta_edits.has("flora_spawns_per_day"):
+					_map_def.flora_spawns_per_day = meta_edits["flora_spawns_per_day"]
+				if meta_edits.has("flora_spawn_cap"):
+					_map_def.flora_spawn_cap = meta_edits["flora_spawn_cap"]
+				if meta_edits.has("flora_max_spawn_attempts"):
+					_map_def.flora_max_spawn_attempts = meta_edits["flora_max_spawn_attempts"]
 				if meta_edits.has("world_bounds") and meta_edits["world_bounds"] is AABB:
 					_map_def.world_bounds = meta_edits["world_bounds"]
 					if _map_root != null:

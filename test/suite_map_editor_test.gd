@@ -831,12 +831,18 @@ func test_map_editor_metadata_editing_and_save() -> void:
 	editor._hud._meta_desc_input.text = "Custom description for testing"
 	editor._hud._meta_type_option.selected = 1 # POI
 	editor._hud._meta_difficulty_spin.value = 4
+	editor._hud._meta_flora_spawns_spin.value = 5
+	editor._hud._meta_flora_cap_spin.value = 40
+	editor._hud._meta_flora_attempts_spin.value = 10
 
 	var edits := editor._hud.get_metadata_edits()
 	assert_str(edits.get("display_name", "")).is_equal("Custom Base Title")
 	assert_str(edits.get("description", "")).is_equal("Custom description for testing")
 	assert_int(edits.get("map_type", -1)).is_equal(1)
 	assert_int(edits.get("difficulty", -1)).is_equal(4)
+	assert_int(edits.get("flora_spawns_per_day", -1)).is_equal(5)
+	assert_int(edits.get("flora_spawn_cap", -1)).is_equal(40)
+	assert_int(edits.get("flora_max_spawn_attempts", -1)).is_equal(10)
 
 	# Save map syncs metadata into MapDef
 	editor.save_map()
@@ -844,6 +850,9 @@ func test_map_editor_metadata_editing_and_save() -> void:
 	assert_str(editor._map_def.description).is_equal("Custom description for testing")
 	assert_int(editor._map_def.map_type).is_equal(1)
 	assert_int(editor._map_def.difficulty).is_equal(4)
+	assert_int(editor._map_def.flora_spawns_per_day).is_equal(5)
+	assert_int(editor._map_def.flora_spawn_cap).is_equal(40)
+	assert_int(editor._map_def.flora_max_spawn_attempts).is_equal(10)
 	await _dispose_test_editor(editor)
 
 
@@ -1784,32 +1793,35 @@ func test_map_editor_heightmap_creation_with_snapping() -> void:
 	await _dispose_test_editor(editor)
 
 
-## Map editor creation with scatter_trees places tree markers in the map.
-func test_map_editor_new_map_with_scatter_trees() -> void:
-	const TEST_TREE_MAP := "tree_scatter_test_map"
-	_remove_test_map(TEST_TREE_MAP)
+## Map editor creation configures flora parameters and begins with 0 authored trees.
+func test_map_editor_new_map_with_flora_parameters() -> void:
+	const TEST_FLORA_MAP := "flora_params_test_map"
+	_remove_test_map(TEST_FLORA_MAP)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
 
-	var payload := _heightmap_payload(TEST_TREE_MAP)
-	payload["scatter_trees"] = true
-	payload["tree_density"] = 0 # Sparse (~30)
+	var payload := _heightmap_payload(TEST_FLORA_MAP)
+	payload["flora_spawns_per_day"] = 4
+	payload["flora_spawn_cap"] = 50
+	payload["flora_max_spawn_attempts"] = 20
 	editor.create_new_map(payload)
 
+	# Verify flora parameters persisted into MapDef
+	assert_int(editor._map_def.flora_spawns_per_day).is_equal(4)
+	assert_int(editor._map_def.flora_spawn_cap).is_equal(50)
+	assert_int(editor._map_def.flora_max_spawn_attempts).is_equal(20)
+
+	# Verify new maps begin with 0 pre-generated tree markers
 	var spawn_points: Node3D = editor._map_root.get_node("SpawnPoints") as Node3D
 	var tree_count := 0
 	for child in spawn_points.get_children():
 		if child is Marker3D and child.name.begins_with("Furniture_tree1_"):
 			tree_count += 1
 
-	assert_int(tree_count).is_greater(0)
-
-	# Verify clear trees action in editor
-	var cleared := editor._do_clear_trees()
-	assert_int(cleared).is_equal(tree_count)
+	assert_int(tree_count).is_equal(0)
 
 	await _dispose_test_editor(editor)
-	_remove_test_map(TEST_TREE_MAP)
+	_remove_test_map(TEST_FLORA_MAP)
 
 
 func test_map_editor_enemy_spawn_place_and_remove() -> void:

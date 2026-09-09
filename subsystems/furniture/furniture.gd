@@ -35,6 +35,32 @@ func _ready() -> void:
 	if def_id != "":
 		add_to_group(StringName(def_id))
 	add_to_group(&"furniture")
+	# 1. Tag Groups Registration: Registers node into groups based on definition tags.
+	_register_tag_groups()
+
+
+## Returns whether this furniture instance carries the specified classification tag.
+func has_tag(tag: String) -> bool:
+	if def == null:
+		return false
+	return def.tags.has(tag)
+
+
+## Returns all classification tags declared on this furniture's definition.
+func get_tags() -> Array[String]:
+	if def == null:
+		return []
+	return def.tags
+
+
+func _register_tag_groups() -> void:
+	## Auxiliary: Registers the node into string groups matching its definition tags.
+	if def == null:
+		return
+	for tag: String in def.tags:
+		if tag != "":
+			add_to_group(StringName(tag))
+			add_to_group(StringName("tag_%s" % tag))
 
 
 ## All voxel cells this furniture occupies. Derived from global_position and

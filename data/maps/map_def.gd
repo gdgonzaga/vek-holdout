@@ -37,6 +37,24 @@ enum MapType { BASE, POI, BUILDING, TOWN }
 ## Authoring metadata for the Map Editor: baseline water height in meters (Y axis).
 @export var water_level: float = -2.0
 
+# ==========================================
+# Flora & Vegetation Regeneration Parameters
+# ==========================================
+## Flora definitions available to spawn dynamically on this map.
+@export var flora_palette: Array[FurnitureDef] = []
+
+## Total number of plants/trees to attempt spawning across an in-game day (0 = disabled).
+@export var flora_spawns_per_day: int = 0
+
+## Maximum number of alive flora items allowed on the map simultaneously.
+@export var flora_spawn_cap: int = 60
+
+## Maximum random placement attempts per spawn cycle to find valid soil before skipping.
+@export var flora_max_spawn_attempts: int = 15
+
+## Minimum distance in meters between spawned flora and existing trees or player spawn.
+@export var flora_min_distance: float = 4.0
+
 
 func get_horizontal_size() -> Vector2:
 	return Vector2(world_bounds.size.x, world_bounds.size.z)

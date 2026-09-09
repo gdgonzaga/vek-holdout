@@ -15,8 +15,6 @@ signal block_selected(index: int)
 signal furniture_selected(index: int)
 signal structure_selected(index: int)
 signal save_requested()
-signal scatter_trees_requested()
-signal clear_trees_requested()
 ## Terrain drawer: the editor writes def params / image, then reloads the map.
 signal terrain_apply_requested()
 ## The user asked for a heightmap image file — the editor owns the FileDialog.
@@ -72,6 +70,9 @@ var _meta_difficulty_spin: SpinBox
 var _meta_bounds_xz_spin: SpinBox
 var _meta_bounds_min_y_spin: SpinBox
 var _meta_bounds_max_y_spin: SpinBox
+var _meta_flora_spawns_spin: SpinBox
+var _meta_flora_cap_spin: SpinBox
+var _meta_flora_attempts_spin: SpinBox
 
 var _terrain_button: Button
 var _terrain_drawer: PanelContainer
@@ -252,34 +253,6 @@ func _build_ui() -> void:
 	_yaw_label.add_theme_font_size_override("font_size", 11)
 	_yaw_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	dims_yaw_hbox.add_child(_yaw_label)
-
-	# Foliage quick actions
-	var tree_actions_hbox := HBoxContainer.new()
-	tree_actions_hbox.name = "TreeActionsHBox"
-	tree_actions_hbox.add_theme_constant_override("separation", 6)
-	furn_footer.add_child(tree_actions_hbox)
-
-	var scatter_btn := Button.new()
-	scatter_btn.name = "ScatterTreesButton"
-	scatter_btn.text = "🌳 Scatter Trees"
-	scatter_btn.tooltip_text = "Procedurally scatter random trees across the terrain"
-	scatter_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scatter_btn.add_theme_font_size_override("font_size", 11)
-	scatter_btn.pressed.connect(func() -> void:
-		scatter_trees_requested.emit()
-	)
-	tree_actions_hbox.add_child(scatter_btn)
-
-	var clear_btn := Button.new()
-	clear_btn.name = "ClearTreesButton"
-	clear_btn.text = "✕ Clear Trees"
-	clear_btn.tooltip_text = "Remove all authored trees from this map"
-	clear_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	clear_btn.add_theme_font_size_override("font_size", 11)
-	clear_btn.pressed.connect(func() -> void:
-		clear_trees_requested.emit()
-	)
-	tree_actions_hbox.add_child(clear_btn)
 
 	# Backward-compatible references
 	_furniture_info_panel = _furniture_palette
@@ -590,6 +563,56 @@ func _build_ui() -> void:
 	_meta_bounds_max_y_spin.value = 16.0
 	_meta_bounds_max_y_spin.tooltip_text = "Maximum Y / height ceiling in meters (positive)"
 	bounds_grid.add_child(_meta_bounds_max_y_spin)
+
+	# Flora & Vegetation Parameters
+	var flora_title := Label.new()
+	flora_title.text = "Flora Regeneration:"
+	flora_title.add_theme_font_size_override("font_size", 11)
+	flora_title.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	meta_vbox.add_child(flora_title)
+
+	var flora_grid := HBoxContainer.new()
+	flora_grid.add_theme_constant_override("separation", 6)
+	meta_vbox.add_child(flora_grid)
+
+	var spawns_lbl := Label.new()
+	spawns_lbl.text = "Rate:"
+	spawns_lbl.add_theme_font_size_override("font_size", 10)
+	flora_grid.add_child(spawns_lbl)
+
+	_meta_flora_spawns_spin = SpinBox.new()
+	_meta_flora_spawns_spin.min_value = 0.0
+	_meta_flora_spawns_spin.max_value = 50.0
+	_meta_flora_spawns_spin.step = 1.0
+	_meta_flora_spawns_spin.value = 0.0
+	_meta_flora_spawns_spin.tooltip_text = "Plants/trees spawned per in-game day (0 = disabled)"
+	flora_grid.add_child(_meta_flora_spawns_spin)
+
+	var cap_lbl := Label.new()
+	cap_lbl.text = "Cap:"
+	cap_lbl.add_theme_font_size_override("font_size", 10)
+	flora_grid.add_child(cap_lbl)
+
+	_meta_flora_cap_spin = SpinBox.new()
+	_meta_flora_cap_spin.min_value = 0.0
+	_meta_flora_cap_spin.max_value = 300.0
+	_meta_flora_cap_spin.step = 5.0
+	_meta_flora_cap_spin.value = 60.0
+	_meta_flora_cap_spin.tooltip_text = "Maximum concurrent alive flora on map"
+	flora_grid.add_child(_meta_flora_cap_spin)
+
+	var att_lbl := Label.new()
+	att_lbl.text = "Try:"
+	att_lbl.add_theme_font_size_override("font_size", 10)
+	flora_grid.add_child(att_lbl)
+
+	_meta_flora_attempts_spin = SpinBox.new()
+	_meta_flora_attempts_spin.min_value = 1.0
+	_meta_flora_attempts_spin.max_value = 50.0
+	_meta_flora_attempts_spin.step = 1.0
+	_meta_flora_attempts_spin.value = 15.0
+	_meta_flora_attempts_spin.tooltip_text = "Max random placement attempts per spawn cycle"
+	flora_grid.add_child(_meta_flora_attempts_spin)
 
 	root.add_child(_metadata_panel)
 
@@ -1138,7 +1161,16 @@ func clear_coordinates() -> void:
 		_coord_label.text = ""
 
 
-func set_metadata(display_name: String, description: String, map_type: int, difficulty: int, world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0))) -> void:
+func set_metadata(
+	display_name: String,
+	description: String,
+	map_type: int,
+	difficulty: int,
+	world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0)),
+	flora_spawns_per_day: int = 0,
+	flora_spawn_cap: int = 60,
+	flora_max_spawn_attempts: int = 15
+) -> void:
 	if _meta_display_name_input != null:
 		_meta_display_name_input.text = display_name
 	if _meta_desc_input != null:
@@ -1153,6 +1185,12 @@ func set_metadata(display_name: String, description: String, map_type: int, diff
 		_meta_bounds_min_y_spin.value = world_bounds.position.y
 	if _meta_bounds_max_y_spin != null:
 		_meta_bounds_max_y_spin.value = world_bounds.position.y + world_bounds.size.y
+	if _meta_flora_spawns_spin != null:
+		_meta_flora_spawns_spin.value = float(flora_spawns_per_day)
+	if _meta_flora_cap_spin != null:
+		_meta_flora_cap_spin.value = float(flora_spawn_cap)
+	if _meta_flora_attempts_spin != null:
+		_meta_flora_attempts_spin.value = float(flora_max_spawn_attempts)
 
 
 func get_metadata_edits() -> Dictionary:
@@ -1171,6 +1209,12 @@ func get_metadata_edits() -> Dictionary:
 		var max_y := float(_meta_bounds_max_y_spin.value)
 		var total_height := max_y - min_y
 		out["world_bounds"] = AABB(Vector3(-xz_val * 0.5, min_y, -xz_val * 0.5), Vector3(xz_val, total_height, xz_val))
+	if _meta_flora_spawns_spin != null:
+		out["flora_spawns_per_day"] = int(_meta_flora_spawns_spin.value)
+	if _meta_flora_cap_spin != null:
+		out["flora_spawn_cap"] = int(_meta_flora_cap_spin.value)
+	if _meta_flora_attempts_spin != null:
+		out["flora_max_spawn_attempts"] = int(_meta_flora_attempts_spin.value)
 	return out
 
 
