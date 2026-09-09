@@ -94,3 +94,40 @@ Behavior trees interact with jobs using dedicated custom tasks (`subsystems/ai/t
 
 - **`BTActionClaimJob`**: Ticked by `bt_generic_work.tres` / `bt_haul_single_trip.tres`. Queries `JobBoard.get_best_job_for()`, claims via `try_claim_units()` (fractional) or `try_assign()` (legacy `Job`), populates blackboard variables (`active_job`, `target_pos`, `source_node`, `target_node`), and manages lazy tool retention. Legacy claims consult `JobDef.work_site` for this cycle's walk target. Spent claims and completed/cancelled jobs on the blackboard are dropped so a fresh claim is made instead of re-satisfying finished work.
 - **`BTActionPerformWork`**: Ticked while adjacent to work site. Plays `work_animation`, runs for the def-derived duration (`work_duration`, dynamic `begin`, divided by the actor's skill multiplier), then fires the terminal effect — `apply_work_units()` on `JobInstance`/`WorkerClaim`, or `JobDef.complete(actor, job)` on legacy `Job`s — releasing the blackboard reference (and the legacy assignee slot) so the next tick claims fresh work. Preempted cycles fire `JobDef.on_abort`.
+
+---
+
+## Multi-Step Job Sequences (`JobSequence`)
+
+Complex colony tasks require multiple jobs executed in strict order (e.g. Haul materials to frame, then Construct building; Haul ingredients, then Craft at workbench).
+
+```
+               +-------------------------------------------------+
+               |                   JobSequence                   |
+               +-------------------------------------------------+
+               | - id: "seq_123"                                 |
+               | - step_job_ids: ["haul_job", "build_job"]       |
+               | - current_step_index: 0                         |
+               +-------------------------------------------------+
+                                      |
+                      +---------------+---------------+
+                      |                               |
+                      v                               v
+             +------------------+            +------------------+
+             |  Step 0: Haul    |            |  Step 1: Build   |
+             |  (ACTIVE)        |            |  (PENDING/GATED) |
+             +------------------+            +------------------+
+```
+
+### 1. `JobSequence` (`subsystems/jobs/job_sequence.gd`)
+- **Ordered Steps**: Maintains `step_job_ids: Array[String]` and `current_step_index: int`.
+- **Step Gating**: Child jobs store `sequence_id`. When queried via `is_available()`, future steps evaluate to `false` until their predecessor completes. Inactive future steps are also shielded from `_prune_dead_jobs()`.
+- **Step Advancement**: When the active step completes and closes (`should_close() == true`), `JobBoard._advance_owning_sequence()` advances `current_step_index += 1`, immediately unlocking the next step.
+- **Cascade Cancellation**: Cancelling the sequence or calling `JobBoard.cancel_sequence()` cancels and removes all child jobs in the sequence across the board.
+- **Persistence**: Serialized via `JobBoard.serialize() / deserialize()` into the Colony save payload.
+
+### 2. `JobSequenceDef` (`data/jobs/job_sequence_def.gd`)
+Data-driven factory templates for instantiating sequences:
+- **`ConstructionSequenceDef`**: Inspects a placed `Blueprint`. If materials are needed, generates `[Step 0: HaulingJobDef -> Step 1: ConstructionJobDef]`. If costless, omits Step 0.
+- **`CraftingSequenceDef`**: Inspects `CraftingStation`. Generates `[Step 0: HaulingJobDef -> Step 1: CraftingJobDef]`.
+

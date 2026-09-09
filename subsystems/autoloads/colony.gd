@@ -444,6 +444,7 @@ func serialize() -> Dictionary:
 	return {
 		"colonists": list,
 		"squads": squads.duplicate(true),
+		"job_board": job_board.serialize() if job_board != null else {},
 	}
 
 
@@ -451,6 +452,8 @@ func deserialize(data: Dictionary) -> void:
 	reset_for_new_game()
 	_pending_colonist_records.assign(data.get("colonists", []))
 	squads = data.get("squads", {}).duplicate(true)
+	if job_board != null and data.has("job_board"):
+		job_board.deserialize(data["job_board"])
 
 
 ## Clears active colonists, pending restores, and registered jobs.

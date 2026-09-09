@@ -84,3 +84,29 @@ Setting `max_assignees > 1` allows multiple colonists to claim work units on the
 
 - When a worker claims a job via `BTActionClaimJob`, `JobInstance.try_claim_units()` reserves a batch up to worker carrying capacity or remaining work units (`unclaimed_units`).
 - If work is interrupted, `JobInstance.abandon_claim()` releases unworked units back into the pool for other colonists.
+
+---
+
+## Tool Tag Discipline & Requirements
+
+Jobs that require specific tools declare them via the `required_tool_tag` property:
+
+```gdscript
+required_tool_tag = &"pickaxe"
+```
+
+> [!IMPORTANT]
+> **Do NOT use `conditions` for required tools.**
+> Def-level `conditions` check colonist capabilities prior to job selection. Putting a tool condition there would mean a toolless worker can never claim the job to go fetch the tool from storage. The universal work tree checks `required_tool_tag` and handles fetching automatically.
+
+---
+
+## Authoring Multi-Step Pipelines (`JobSequenceDef`)
+
+When a gameplay task requires multiple distinct stages (e.g. Haul materials to site, then Build structure), create a `JobSequenceDef` subclass (`data/jobs/*_sequence_def.gd`):
+
+1. Extend `JobSequenceDef` (`data/jobs/job_sequence_def.gd`).
+2. Override `_build_steps(sequence: JobSequence, target: Node, anchor: Vector3i) -> void`:
+   - Inspect target state (e.g. `MaterialSink.needed_item_ids()`).
+   - Create step jobs (`Job.from_def(...)`), bind `job.sequence_id = sequence.id`, register on `JobBoard.add_job()`, and append to `sequence.add_step(job.id)`.
+3. The board handles linear step unlocking, pruning protection for pending steps, and cascading cancellation automatically.

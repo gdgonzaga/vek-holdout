@@ -23,6 +23,9 @@ signal job_failed(job_id: String, reason: String)
 # job.id (String) -> Job.
 var _jobs: Dictionary = {}
 
+# sequence_id (String) -> JobSequence.
+var _sequences: Dictionary = {}
+
 # job_id (String) -> Dictionary of { colonist_id (String): expiry_msec (int) }
 var _colonist_blacklists: Dictionary = {}
 
@@ -56,6 +59,28 @@ func remove_job(job_id: String) -> void:
 
 func get_job(job_id: String) -> RefCounted:
 	return _jobs.get(job_id)
+
+
+## Registers a multi-step JobSequence.
+func add_sequence(seq: JobSequence) -> void:
+	if seq.id == "":
+		seq.id = Tools.generate_uuid()
+	_sequences[seq.id] = seq
+
+
+## Retrieves a registered JobSequence by ID, or null.
+func get_sequence(sequence_id: String) -> JobSequence:
+	return _sequences.get(sequence_id)
+
+
+## Cancels a sequence and all its child jobs.
+func cancel_sequence(sequence_id: String) -> void:
+	var seq: JobSequence = _sequences.get(sequence_id)
+	if seq != null:
+		seq.cancel()
+		for jid in seq.step_job_ids:
+			remove_job(jid)
+		_sequences.erase(sequence_id)
 
 
 func has_jobs() -> bool:
@@ -226,16 +251,35 @@ func _prune_dead_jobs() -> void:
 	var dead: Array[String] = []
 	for job_id in _jobs:
 		var job: Variant = _jobs[job_id]
+		var is_dead := false
 		if "target_node" in job and job.target_node != null and (not is_instance_valid(job.target_node) or job.target_node.is_queued_for_deletion()):
-			dead.append(job_id)
+			is_dead = true
 		elif job.has_method("should_close"):
 			if job.should_close():
-				dead.append(job_id)
+				is_dead = true
 		elif "is_completed" in job and "is_cancelled" in job:
 			if job.is_completed or job.is_cancelled:
-				dead.append(job_id)
+				is_dead = true
+
+		if is_dead:
+			dead.append(job_id)
+			# 1. Sequence Advancement: If completed step was part of an active sequence, advance it.
+			_advance_owning_sequence(job_id, job)
+
 	for job_id in dead:
 		_jobs.erase(job_id)
+
+
+func _advance_owning_sequence(job_id: String, job: Variant) -> void:
+	## Auxiliary: Advances sequence step if the pruned job was an active step.
+	var seq_id: String = str(job.sequence_id) if "sequence_id" in job else ""
+	if seq_id == "":
+		return
+	var seq: JobSequence = _sequences.get(seq_id)
+	if seq != null and seq.is_step_active(job_id):
+		seq.advance_step()
+		if seq.status == JobSequence.Status.COMPLETED:
+			_sequences.erase(seq_id)
 
 
 ## Record a failure: increment the count, release any assignees, emit job_failed
@@ -298,7 +342,29 @@ func clear_blacklists() -> void:
 	_colonist_blacklists.clear()
 
 
-## Clears all registered jobs and blacklists.
+## Clears all registered jobs, sequences, and blacklists.
 func clear() -> void:
 	_jobs.clear()
+	_sequences.clear()
 	_colonist_blacklists.clear()
+
+
+# --- SaveSystem contract -----------------------------------------------------
+
+func serialize() -> Dictionary:
+	var seq_data: Array[Dictionary] = []
+	for seq: JobSequence in _sequences.values():
+		if is_instance_valid(seq):
+			seq_data.append(seq.serialize())
+	return {
+		"sequences": seq_data,
+	}
+
+
+func deserialize(data: Dictionary) -> void:
+	_sequences.clear()
+	for s_entry: Dictionary in data.get("sequences", []):
+		var seq := JobSequence.new()
+		seq.deserialize(s_entry)
+		if seq.id != "":
+			_sequences[seq.id] = seq

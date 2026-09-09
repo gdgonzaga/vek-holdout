@@ -71,6 +71,9 @@ var failure_count: int = 0
 ## Targeted colonist id (if this job is designated for a specific colonist, e.g. DeployJob).
 var target_colonist_id: String = ""
 
+## Optional owning JobSequence identifier. If non-empty, this job is part of a pipeline.
+var sequence_id: String = ""
+
 
 
 ## Build a Job from a JobDef: fresh uuid, the def back-ref, the labor_id +
@@ -136,6 +139,9 @@ func is_available_for(colonist: Colonist = null) -> bool:
 		return false
 	if _assigned_colonists.size() >= max_assignees:
 		return false
+	# 1. Sequence Gating: Verify if this step is currently active in its sequence.
+	if sequence_id != "" and not _is_sequence_step_active():
+		return false
 	var def_ok := true
 	if def != null:
 		if colonist != null and def.has_method("is_available_for"):
@@ -153,9 +159,38 @@ func is_available_for(colonist: Colonist = null) -> bool:
 func should_close() -> bool:
 	if not _assigned_colonists.is_empty():
 		return false
+	# 1. Sequence Preservation: Do not close if this job is an inactive step in a live sequence.
+	if sequence_id != "" and _is_sequence_step_pending():
+		return false
 	if def != null and def.has_method("should_close"):
 		return bool(def.call("should_close", self))
 	return not is_available()
+
+
+func _is_sequence_step_active() -> bool:
+	## Auxiliary: Queries Colony.job_board to check if this step is active.
+	if sequence_id == "":
+		return true
+	var colony: Node = Engine.get_main_loop().root.get_node_or_null("Colony") if Engine.get_main_loop() != null else null
+	if colony != null and "job_board" in colony and colony.job_board != null:
+		var seq: Variant = colony.job_board.get_sequence(sequence_id)
+		if seq != null and seq.has_method("is_step_active"):
+			return bool(seq.is_step_active(id))
+	return true
+
+
+func _is_sequence_step_pending() -> bool:
+	## Auxiliary: Checks if this job is part of a live sequence but not active yet.
+	if sequence_id == "":
+		return false
+	var colony: Node = Engine.get_main_loop().root.get_node_or_null("Colony") if Engine.get_main_loop() != null else null
+	if colony != null and "job_board" in colony and colony.job_board != null:
+		var seq: Variant = colony.job_board.get_sequence(sequence_id)
+		if seq != null:
+			if "status" in seq and int(seq.status) == 1: # JobSequence.Status.ACTIVE
+				if seq.has_method("is_step_active") and not seq.is_step_active(id):
+					return true
+	return false
 
 
 func _to_string() -> String:

@@ -63,6 +63,9 @@ var is_completed: bool = false
 ## True if the job was cancelled
 var is_cancelled: bool = false
 
+## Optional owning JobSequence identifier. If non-empty, this job is part of a pipeline.
+var sequence_id: String = ""
+
 
 ## Factory for standard spatial work jobs (mining, farming, building, crafting).
 static func create(
@@ -237,12 +240,26 @@ func cancel_job() -> void:
 
 ## True if the job can accept more worker claims.
 func is_available() -> bool:
+	if sequence_id != "" and not _is_sequence_step_active():
+		return false
 	return not is_completed and not is_cancelled and unclaimed_units > 0
 
 
 ## Actor-aware check for duck-typing with Job.
 func is_available_for(_colonist: Variant = null) -> bool:
 	return is_available()
+
+
+func _is_sequence_step_active() -> bool:
+	## Auxiliary: Queries Colony.job_board to check if this step is active.
+	if sequence_id == "":
+		return true
+	var colony: Node = Engine.get_main_loop().root.get_node_or_null("Colony") if Engine.get_main_loop() != null else null
+	if colony != null and "job_board" in colony and colony.job_board != null:
+		var seq: Variant = colony.job_board.get_sequence(sequence_id)
+		if seq != null and seq.has_method("is_step_active"):
+			return bool(seq.is_step_active(id))
+	return true
 
 
 ## Total work units left until job completion.
