@@ -84,7 +84,9 @@ Content rule: durations/animations/units are authored in the `.tres` (`work_dura
 - **CraftingJobDef** — works a station's ready order, produces via `CraftingStation.produce`, resolves via `complete_order` (maintain orders requeue). Claims the station for the craft (arbitration vs. the player's CraftAction); claim races no-op and retry.
 - **HarvestJobDef** — resolves yields via `Harvestable.complete`; `begin` = crop-driven `effective_work_time()` minus persisted partial work.
 - **FarmingJobDef + Sow/Water/Tend** — one cycle against the plot's `Growable` (`_needs` predicate + `_apply` effect); availability tracks what the plot currently needs.
-- **HaulingJobDef** — repeated fetch/deliver cycles through the generic work tree (no dedicated leg tree): `work_site` picks crate-vs-sink by carry state, `complete` does the instant transfer, and the loop ends by satisfaction (`should_close`) — never a terminal `_finish`. Drought-persistent: unclaimable while no crate stocks a needed material, registered until the sink is satisfied. Surplus after a satisfied deliver returns to the nearest crate (tools exempt).
+- **CollectItemJobDef** (`data/jobs/collect_item_job_def.gd`) — Atomic, single-destination job to pick up a specific `WorldItem`. Performs `PickupAction`, transfers item into colonist pockets, and unregisters the `WorldItem`. Gated by `StorageRegistry.find_storage_for` (storage guard) and `WorldItem.is_on_purge_cooldown()`.
+- **DepositItemJobDef** (`data/jobs/deposit_item_job_def.gd`) — Atomic, single-destination job to deposit carried loose items into a single target `Furniture` container (crate/shelf). Completes via `Inventory.transfer_to` and awards hauling XP.
+- **HaulingJobDef** — Multi-leg or sequence material hauling for construction blueprints and crafting stations: `work_site` picks crate-vs-sink by carry state, `complete` performs transfers, and the loop ends by satisfaction (`should_close`). Drought-persistent: unclaimable while no crate stocks a needed material, registered until the sink is satisfied. Surplus after satisfied delivery returns to the nearest crate (tools exempt).
 
 ---
 
@@ -130,4 +132,43 @@ Complex colony tasks require multiple jobs executed in strict order (e.g. Haul m
 Data-driven factory templates for instantiating sequences:
 - **`ConstructionSequenceDef`**: Inspects a placed `Blueprint`. If materials are needed, generates `[Step 0: HaulingJobDef -> Step 1: ConstructionJobDef]`. If costless, omits Step 0.
 - **`CraftingSequenceDef`**: Inspects `CraftingStation`. Generates `[Step 0: HaulingJobDef -> Step 1: CraftingJobDef]`.
+
+---
+
+## Atomic Hauling Pipeline (`CollectItemJob` & `DepositItemJob`)
+
+General item hauling from the ground to colony storage is decoupled into **atomic, single-leg jobs** coordinated by [`ColonistItemManager`](colonists.md#class-colonistitemmanager):
+
+```
+                   +----------------------------------+
+                   |          WorldItem on Ground     |
+                   +----------------+-----------------+
+                                    |
+                                    v
+                   +----------------------------------+
+                   |         CollectItemJob           |  (Pickup to Colonist Pockets)
+                   +----------------+-----------------+
+                                    |
+          +-------------------------+-------------------------+
+          | (Opportunistic Batching within 12m radius)       |
+          v                                                   v
++----------------------------------+         +----------------------------------+
+|      DepositItemJob (Crate A)    |         |     DepositItemJob (Crate B)     |
+|      (Transfers matching items)  |  ---->  |     (Remaining items if needed)  |
++----------------------------------+         +----------------------------------+
+```
+
+1. **`CollectItemJobDef`**:
+   - Picks up a target `WorldItem` and places it in colonist inventory via `PickupAction`.
+   - **Storage Guard**: Evaluates `StorageRegistry.find_storage_for(item_id, pos, 1) != null` to ensure ground items are never collected if the colony has no crate space to store them.
+   - **Purge Cooldown**: Ignores ground items where `world_item.is_on_purge_cooldown() == true`.
+
+2. **`DepositItemJobDef`**:
+   - Directs colonist to a single target `Furniture` crate that can accept at least one carried item.
+   - Deposits items via `Inventory.transfer_to` and awards hauling skill XP.
+
+3. **Looping & Fallback via `ColonistItemManager`**:
+   - **Opportunistic Gathering**: After picking up an item, the manager batches nearby `WorldItem` candidates (within 12m radius) if remaining carry capacity and storage space permit.
+   - **Tier 1 Hygiene (Sequential Crate Deposit)**: If loose items remain after depositing at Crate A, `ColonistItemManager` assigns a new `DepositItemJob` targeting Crate B until pockets are cleared.
+   - **Tier 2 Hygiene (Purge Drop Fallback)**: If all colony storage is full while loose items remain, items are dropped on the ground with a 20-second purge cooldown, ending the loop and freeing the colonist for other duties.
 

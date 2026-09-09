@@ -99,6 +99,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 |---|---|
 | `on_map_wired(container: Node3D) -> void` | Bind to the current map's furniture container. |
 | `find_source(item_ids: Array[String], near: Vector3) -> Furniture` | Nearest crate whose `StorageInventory` holds any of `item_ids` (straight-line; reachability verified later by the pathfinder). Null if none. |
+| `find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furniture` | Nearest crate with space under weight capacity to accept `count` of `item_id`. Null if no storage crate has capacity. |
 | `has_source_for(item_ids: Array[String]) -> bool` | Any crate holds any of `item_ids`. |
 | `nearest_crate(near: Vector3) -> Furniture` | Nearest crate regardless of contents (for surplus return). |
 | `colony_stock(item_id, near_pos, radius)` | `-> int` | Colony-wide stock of one item: storage crates + unforbidden WorldItems (filtered within `radius` of `near_pos`, default 50 cells) + carried items on colonists and player. |
@@ -110,5 +111,6 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 - **Weight-based, not slot-based.** No `ItemStack` or fixed slot array. Items accumulate freely; the only constraint is total weight.
 - **transfer_to() uses remove-first-then-add.** Prevents item duplication. If the target is full, overflow items are returned to the source.
 - **transfer_to() return value:** Returns the number of items that did **not** end up in the target. This covers both "target was full" (partial transfer) and "source didn't have enough" (requested 10, source had 3 → returns 7).
+- **Ground Item Purge Cooldown:** `WorldItem` instances dropped via Tier 2 inventory hygiene fallback (when colony storage is full) receive a 20-second cooldown timestamp (`purge_cooldown_until_msec`), preventing `CollectItemJob` from re-claiming them in an immediate loop.
 - **`_get_def()` is the test seam.** Unit tests subclass `Inventory` and override `_get_def()` with a mock dictionary; no `.tres` files needed in the test suite.
 - **ItemDB autoload** follows the same pattern as `BuildLibrary` and `MapLibrary`: scan a `data/` directory at startup into an `id → def` map, read-only after `_ready`. ItemDB keys by the `ItemDef.id` field (e.g. `wood_block`); the `.tres` filename is just the file location, not the identity.

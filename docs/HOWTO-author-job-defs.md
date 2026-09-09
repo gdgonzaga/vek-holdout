@@ -110,3 +110,19 @@ When a gameplay task requires multiple distinct stages (e.g. Haul materials to s
    - Inspect target state (e.g. `MaterialSink.needed_item_ids()`).
    - Create step jobs (`Job.from_def(...)`), bind `job.sequence_id = sequence.id`, register on `JobBoard.add_job()`, and append to `sequence.add_step(job.id)`.
 3. The board handles linear step unlocking, pruning protection for pending steps, and cascading cancellation automatically.
+
+---
+
+## Authoring Atomic Hauling Defs (`CollectItemJobDef` & `DepositItemJobDef`)
+
+For general ground-to-crate item transport, hauling uses atomic, single-leg job definitions rather than monolithic multi-site loops:
+
+- **`CollectItemJobDef`**:
+  - Sets `labor_id = "hauling"`, `work_duration = 0.5`, `work_animation = &"Interact"`.
+  - Targets a specific `WorldItem`.
+  - Enforces `StorageRegistry.find_storage_for(item_id, item_pos)` and `not world_item.is_on_purge_cooldown()` in `is_available_for()`.
+- **`DepositItemJobDef`**:
+  - Sets `labor_id = "hauling"`, `work_duration = 0.5`, `work_animation = &"Interact"`.
+  - Targets a specific `Furniture` storage container.
+  - Enforces carried loose items and container weight capacity.
+  - Multi-crate routing and ground purge fallbacks are orchestrated automatically by `ColonistItemManager`.

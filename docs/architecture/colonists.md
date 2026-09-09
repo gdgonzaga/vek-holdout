@@ -11,14 +11,14 @@ The **Colonists** subsystem (`subsystems/colonists/`) manages colonist entity in
                                   |     Colonist      |  (Entity root node)
                                   +---------+---------+
                                             |
-        +-------------------+---------------+---------------+-------------------+
-        |                   |                               |                   |
-        v                   v                               v                   v
-+---------------+   +---------------+               +---------------+   +---------------+
-| ColonistBrain |   | ColonistNeeds |               |   BTPlayer    |   |VoxelPathfinder|
-+---------------+   +---------------+               +---------------+   +-------+-------+
-(Utility AI)        (Hunger/Rest/Rec)               (LimboAI Engine)            | delegates
-                                                                                v
+        +-------------------+---------------+---------------+-------------------+---------------------+
+        |                   |                               |                   |                     |
+        v                   v                               v                   v                     v
++---------------+   +---------------+               +---------------+   +---------------+     +-------------------+
+| ColonistBrain |   | ColonistNeeds |               |   BTPlayer    |   |VoxelPathfinder|     |ColonistItemManager|
++---------------+   +---------------+               +---------------+   +-------+-------+     +-------------------+
+(Utility AI)        (Hunger/Rest/Rec)               (LimboAI Engine)            | delegates           (Pocket Hygiene &
+                                                                                v                      Batch Gathering)
                                                                         +---------------+
                                                                         |Pathfinding-   |
                                                                         |Strategy       |
@@ -49,6 +49,13 @@ see the class reference below and docs/HOWTO-use-makehuman-mixamo.md.)
 - `bt_player`: `@onready var bt_player: BTPlayer = $BTPlayer`
 - `animation_controller`: `@onready var animation_controller = $ColonistAnimationController`
 - `pathfinder`: `@onready var pathfinder: VoxelPathfinder = $VoxelPathfinder`
+- `item_manager`: `@onready var item_manager: ColonistItemManager = $ColonistItemManager`
+
+### Class: ColonistItemManager
+
+**Extends:** Node  
+**Script:** `subsystems/colonists/colonist_item_manager.gd`  
+**Description:** Component managing carried inventory hygiene and opportunistic multi-item gathering. Distinguishes loose materials from tools/equipped items, coordinates single-crate auto-deposits, handles ground purge fallbacks with cooldowns, and batches nearby collect jobs within a 12m radius up to carry weight and colony storage availability.
 
 ### Class: ColonistBrain
 
@@ -79,6 +86,23 @@ see the class reference below and docs/HOWTO-use-makehuman-mixamo.md.)
 **Extends:** Node3D  
 **Script:** `subsystems/colonists/colonist_moodlet_visualizer.gd`  
 **Description:** In-world 3D billboard visualizer mounted on `Colonist` (`colonist.tscn`). Periodically (every 0.25s) evaluates `colonist.get_active_moodlets()` and displays the highest-priority active status icon on a `Sprite3D` billboard with distance culling (`visibility_range_end = 35.0`).
+
+---
+
+## Smart Pocket Management & Inventory Hygiene
+
+`ColonistItemManager` enforces clean colonist pockets across all behavioral loops:
+
+1. **Loose Item Identification**:
+   - Any inventory item not currently equipped and lacking the `"tool"` item tag is treated as loose cargo.
+2. **Opportunistic Multi-Item Gathering**:
+   - Following the completion of a `CollectItemJob`, `ColonistItemManager` searches for other `CollectItemJob` candidates within `GATHER_RADIUS` (12m).
+   - Candidates are collected in the same trip if they satisfy **both** remaining colonist weight capacity and `StorageRegistry.find_storage_for(item_id, colonist_pos) != null`. Can batch heterogeneous materials (e.g. 5 Wood + 2 Stone).
+3. **Two-Tier Hygiene Execution**:
+   - **Tier 1 (Single-Crate Deposit Loop)**: When loose materials are carried, the manager finds the nearest storage crate that can accept at least one held item and assigns an atomic `DepositItemJob`. Upon completion, if loose materials remain, the manager immediately selects the next capable crate.
+   - **Tier 2 (Purge Drop Fallback)**: If no storage container in the colony can accept any remaining loose items, the colonist drops the items on the ground via `colonist.drop_item()`. Dropped `WorldItem`s receive a 20-second purge cooldown (`purge_cooldown_until_msec`), preventing immediate re-pickup loops.
+4. **Behavior Tree Gating (`BTActionClaimJob`)**:
+   - Prior to claiming unrelated labor (e.g. mining or building), `BTActionClaimJob` checks `item_manager.has_loose_items()`. If loose items exist, it runs hygiene to deposit or purge items before proceeding to the designated task.
 
 ---
 
