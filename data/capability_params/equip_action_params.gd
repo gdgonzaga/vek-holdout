@@ -6,7 +6,6 @@ extends Resource
 
 @export var id: String = ""
 @export var cooldown_seconds: float = 0.5
-@export var use_animation: String = "use"
 @export var audio_event: String = ""
 
 

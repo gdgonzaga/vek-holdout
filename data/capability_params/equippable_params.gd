@@ -13,7 +13,7 @@ enum SlotType {
 }
 
 @export var slot_type: SlotType = SlotType.MAIN_HAND
-@export var mesh_scene: PackedScene = null
-@export var animation_stance: String = "default"
+@export var stance_animation: StringName = &"idle"
+@export var use_animation: StringName = &"use"
 @export var primary_action: EquipActionParams = null
 @export var secondary_action: EquipActionParams = null

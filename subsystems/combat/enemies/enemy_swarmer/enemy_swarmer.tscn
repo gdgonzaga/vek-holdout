@@ -6,7 +6,7 @@
 [ext_resource type="Resource" uid="uid://mmltmlexqq6a" path="res://data/moodlets/heart_hp_gauge.tres" id="3_p4t5x"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="3_s35gj"]
 [ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_pathfinder"]
-[ext_resource type="BehaviorTree" uid="uid://cwtyuagbakotq" path="res://data/ai/trees/enemy_swarmer.tres" id="5_tree"]
+[ext_resource type="BehaviorTree" uid="uid://b5ctwqgyqs538" path="res://data/ai/trees/enemy_swarmer.tres" id="5_tree"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_shape"]
