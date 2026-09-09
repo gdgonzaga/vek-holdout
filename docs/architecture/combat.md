@@ -51,6 +51,9 @@ For choke-point control and predictive bombardment with area-of-effect turrets (
 | `subsystems/combat/enemies/enemy_swarmer/` | Scene/Script | Prototype swarmer enemy with capsule primitive visual and health component. |
 | `subsystems/combat/components/turret_component.gd` | Script | Turret runtime component: targets nearest enemy, consumes ammo, and fires projectiles. |
 | `subsystems/combat/components/turret_projectile.gd` | Script | Physical moving projectile (Area3D) with direct and explosive splash damage. |
+| `data/capability_params/combat_action_params.gd` | Script (Resource) | Base capability sub-resource for combat actions: base damage and effective range. |
+| `data/capability_params/melee_action_params.gd` | Script (Resource) | Capability sub-resource for melee actions: windup timing, active hitbox window, impact audio. Projects melee ray from actor chest in camera aim direction against bodies and Area3D hitboxes. |
+| `data/capability_params/ranged_action_params.gd` | Script (Resource) | Capability sub-resource for ranged actions: ammo cost/item, projectile/hitscan, spread, tracers. |
 | `data/capability_params/turret_params.gd` | Script (Resource) | Capability sub-resource on `FurnitureDef`: range, fire rate, damage, ammo type, projectile mesh/speed/type. |
 | `damage_resolver.gd` | Script | (Planned) Static/class: applies damage per §6.11. AP-equivalent (Durability) depletes first, overflow to HP. |
 | `breath_component.gd` | Script | (Planned) Reusable component (Node): Breath pool (burst energy). |
