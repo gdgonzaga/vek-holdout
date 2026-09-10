@@ -47,6 +47,7 @@ const JobRowScript := preload("res://ui/colony_management/job_row.gd")
 @onready var _skills_grid: VBoxContainer = %SkillsGrid
 @onready var _detail_inventory_weight_label: Label = %DetailInventoryWeightLabel
 @onready var _detail_item_list: VBoxContainer = %DetailItemList
+@onready var _equipment_panel: ColonistEquipmentPanel = %ColonistEquipmentPanel
 
 var _colonist_refresh_timer: float = 0.0
 const COLONIST_REFRESH_INTERVAL: float = 0.25
@@ -184,6 +185,8 @@ func _update_details_view() -> void:
 	if _selected_colonist == null or not is_instance_valid(_selected_colonist):
 		_no_selection_label.visible = true
 		_details_content.visible = false
+		if _equipment_panel != null:
+			_equipment_panel.set_colonist(null)
 		return
 
 	_no_selection_label.visible = false
@@ -201,6 +204,8 @@ func _update_details_view() -> void:
 
 	_populate_skills()
 	_populate_carried_items()
+	if _equipment_panel != null:
+		_equipment_panel.set_colonist(_selected_colonist)
 
 
 func _refresh_live_colonist_details() -> void:
@@ -242,6 +247,9 @@ func _refresh_live_colonist_details() -> void:
 		_detail_blacklist_label.text = _resolve_blacklist_info(_selected_colonist)
 
 	_populate_carried_items()
+
+	if _equipment_panel != null:
+		_equipment_panel.refresh_display()
 
 	if _colonist_list != null:
 		for child in _colonist_list.get_children():

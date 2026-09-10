@@ -40,6 +40,9 @@ const SLOT_ACCEPTED_TAGS: Dictionary = {
 ## EquipmentVisualizer listens to this to update 3D meshes.
 signal slot_changed(slot_id: String, item: ItemDef)
 
+## Emitted whenever a slot's desired target item changes.
+signal desired_slot_changed(slot_id: String, item_id: String)
+
 ## Live slot contents. All 8 keys always present; values are ItemDef or null.
 var _slots: Dictionary = {
 	"head":      null,
@@ -50,6 +53,18 @@ var _slots: Dictionary = {
 	"off_hand":  null,
 	"holster":   null,
 	"back":      null,
+}
+
+## Desired target item ID for each slot. All 8 keys present; values are item_id or "".
+var _desired_slots: Dictionary = {
+	"head":      "",
+	"torso":     "",
+	"legs":      "",
+	"feet":      "",
+	"main_hand": "",
+	"off_hand":  "",
+	"holster":   "",
+	"back":      "",
 }
 
 
@@ -137,16 +152,72 @@ func swap_hand_to_holster() -> void:
 	_perform_hand_holster_swap()
 
 
-## Snapshot: returns {slot_id: item_def_id} for SaveSystem persistence.
+## Returns the desired item ID for slot_id ("" if none).
+func get_desired_item(slot_id: String) -> String:
+	return _desired_slots.get(slot_id, "")
+
+
+## Sets the desired item ID for slot_id.
+func set_desired_item(slot_id: String, item_id: String) -> void:
+	if not SLOT_ACCEPTED_TAGS.has(slot_id):
+		return
+	_desired_slots[slot_id] = item_id
+	desired_slot_changed.emit(slot_id, item_id)
+
+
+## Clears the desired item for slot_id.
+func clear_desired_item(slot_id: String) -> void:
+	set_desired_item(slot_id, "")
+
+
+## Returns a copy of the desired slots dictionary.
+func get_all_desired_items() -> Dictionary:
+	return _desired_slots.duplicate()
+
+
+## Returns true if the desired item is currently equipped in slot_id.
+## If no item is desired (""), returns true only if the slot is empty.
+func is_desired_equipped(slot_id: String) -> bool:
+	var desired: String = get_desired_item(slot_id)
+	var current: ItemDef = get_item(slot_id)
+	if desired.is_empty():
+		return current == null
+	return current != null and current.id == desired
+
+
+## Static domain helper: queries ItemDB and returns all ItemDefs that can be equipped to slot_id.
+static func get_eligible_items_for_slot(slot_id: String) -> Array[ItemDef]:
+	var eligible: Array[ItemDef] = []
+	if not SLOT_ACCEPTED_TAGS.has(slot_id):
+		return eligible
+	var accepted: Array = SLOT_ACCEPTED_TAGS[slot_id]
+	for item_def: ItemDef in ItemDB.get_all_defs():
+		if item_def == null:
+			continue
+		for tag: String in accepted:
+			if item_def.has_tag(tag):
+				eligible.append(item_def)
+				break
+	return eligible
+
+
+## Snapshot: returns {slot_id: item_def_id} along with "_desired" dictionary for SaveSystem persistence.
 ## Empty slots are stored as "" so the key set is always complete.
 func serialize() -> Dictionary:
-	return _build_serialize_dict()
+	var data: Dictionary = _build_serialize_dict()
+	data["_desired"] = _desired_slots.duplicate()
+	return data
 
 
-## Restore from a serialize() dict. Unknown item IDs are silently skipped
-## (item was removed from data between saves).
+## Restore from a serialize() dict. Unknown item IDs are silently skipped.
 func deserialize(data: Dictionary) -> void:
 	_apply_deserialize_dict(data)
+	if data.has("_desired") and data["_desired"] is Dictionary:
+		_apply_deserialize_desired_dict(data["_desired"])
+	elif data.has("desired") and data["desired"] is Dictionary:
+		_apply_deserialize_desired_dict(data["desired"])
+	else:
+		_reset_desired_slots()
 
 # ====================
 # Auxiliary Functions
@@ -214,3 +285,15 @@ func _apply_deserialize_dict(data: Dictionary) -> void:
 			_slots[slot_id] = ItemDB.get_def(item_id)
 		else:
 			_slots[slot_id] = null
+
+
+func _apply_deserialize_desired_dict(desired_data: Dictionary) -> void:
+	## Auxiliary: Restores desired slot assignments from saved dictionary.
+	for slot_id: String in _desired_slots:
+		_desired_slots[slot_id] = str(desired_data.get(slot_id, ""))
+
+
+func _reset_desired_slots() -> void:
+	## Auxiliary: Clears all desired slot assignments to empty strings.
+	for slot_id: String in _desired_slots:
+		_desired_slots[slot_id] = ""

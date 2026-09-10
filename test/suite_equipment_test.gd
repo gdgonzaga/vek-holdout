@@ -309,3 +309,78 @@ func test_bt_action_equip_tool_fails_when_item_not_found() -> void:
 
 	var status: int = action.execute(0.1)
 	assert_int(status).is_equal(BTAction.FAILURE)
+
+
+# ==============================
+# Desired Slots API
+# ==============================
+
+func test_desired_slots_initialize_empty() -> void:
+	var eq: Equipment = _make_equipment()
+	for slot_id: String in Equipment.SLOT_ACCEPTED_TAGS:
+		assert_str(eq.get_desired_item(slot_id)).is_equal("")
+
+
+func test_set_and_get_desired_item() -> void:
+	var eq: Equipment = _make_equipment()
+	eq.set_desired_item(Equipment.SLOT_MAIN_HAND, "iron_axe")
+	assert_str(eq.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("iron_axe")
+	# Other slots remain untouched
+	assert_str(eq.get_desired_item(Equipment.SLOT_HOLSTER)).is_equal("")
+
+
+func test_clear_desired_item() -> void:
+	var eq: Equipment = _make_equipment()
+	eq.set_desired_item(Equipment.SLOT_HEAD, "iron_helmet")
+	eq.clear_desired_item(Equipment.SLOT_HEAD)
+	assert_str(eq.get_desired_item(Equipment.SLOT_HEAD)).is_equal("")
+
+
+func test_desired_slot_changed_signal() -> void:
+	var eq: Equipment = _make_equipment()
+	var counter := Doubles.SignalCounter.new(eq.desired_slot_changed)
+	eq.set_desired_item(Equipment.SLOT_MAIN_HAND, "pickaxe")
+	assert_int(counter.read()).is_equal(1)
+
+
+func test_is_desired_equipped_status() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	var club: ItemDef = _make_item("club", ["weapon"])
+
+	# No desired set, slot empty -> true
+	assert_bool(eq.is_desired_equipped(Equipment.SLOT_MAIN_HAND)).is_true()
+
+	# Desired set to "axe", slot empty -> false
+	eq.set_desired_item(Equipment.SLOT_MAIN_HAND, "axe")
+	assert_bool(eq.is_desired_equipped(Equipment.SLOT_MAIN_HAND)).is_false()
+
+	# Slot has club, desired is axe -> false
+	eq.equip(Equipment.SLOT_MAIN_HAND, club)
+	assert_bool(eq.is_desired_equipped(Equipment.SLOT_MAIN_HAND)).is_false()
+
+	# Slot has axe, desired is axe -> true
+	eq.equip(Equipment.SLOT_MAIN_HAND, axe)
+	assert_bool(eq.is_desired_equipped(Equipment.SLOT_MAIN_HAND)).is_true()
+
+
+func test_get_eligible_items_for_slot() -> void:
+	# Main hand accepts "tool" and "weapon"
+	var eligible: Array[ItemDef] = Equipment.get_eligible_items_for_slot(Equipment.SLOT_MAIN_HAND)
+	assert_object(eligible).is_not_null()
+	# Every returned item must carry at least tool or weapon
+	for def: ItemDef in eligible:
+		assert_bool(def.has_tag("tool") or def.has_tag("weapon")).is_true()
+
+
+func test_serialize_and_deserialize_desired_slots() -> void:
+	var eq1: Equipment = _make_equipment()
+	eq1.set_desired_item(Equipment.SLOT_MAIN_HAND, "axe")
+	eq1.set_desired_item(Equipment.SLOT_HEAD, "helmet")
+	var data: Dictionary = eq1.serialize()
+
+	var eq2: Equipment = _make_equipment()
+	eq2.deserialize(data)
+	assert_str(eq2.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("axe")
+	assert_str(eq2.get_desired_item(Equipment.SLOT_HEAD)).is_equal("helmet")
+	assert_str(eq2.get_desired_item(Equipment.SLOT_TORSO)).is_equal("")

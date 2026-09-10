@@ -453,3 +453,87 @@ func test_jobs_tab_populates_hauling_and_construction_jobs() -> void:
 
 	# Clean up
 	Colony.job_board.clear()
+
+
+func test_colonist_equipment_panel_renders_eight_slots() -> void:
+	Colony.colonists.clear()
+	var col_packed: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_packed.instantiate() as Colonist)
+	colonist.colonist_id = "eq_test_1"
+	colonist.display_name = "Worker Bob"
+	add_child(colonist)
+	Colony.colonists.append(colonist)
+
+	_scene.call("_refresh_colonist_roster")
+
+	var eq_panel: ColonistEquipmentPanel = _scene.get_node("%ColonistEquipmentPanel") as ColonistEquipmentPanel
+	assert_object(eq_panel).is_not_null()
+	assert_bool(eq_panel.visible).is_true()
+
+	var slots_container: VBoxContainer = eq_panel.get_node("%SlotsContainer") as VBoxContainer
+	assert_object(slots_container).is_not_null()
+	assert_int(slots_container.get_child_count()).is_equal(8)
+
+
+func test_colonist_equipment_slot_row_updates_on_equip() -> void:
+	Colony.colonists.clear()
+	var col_packed: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_packed.instantiate() as Colonist)
+	colonist.colonist_id = "eq_test_2"
+	colonist.display_name = "Worker Alice"
+	add_child(colonist)
+	Colony.colonists.append(colonist)
+
+	_scene.call("_refresh_colonist_roster")
+
+	var eq_panel: ColonistEquipmentPanel = _scene.get_node("%ColonistEquipmentPanel") as ColonistEquipmentPanel
+	assert_object(eq_panel).is_not_null()
+
+	# Equip an item
+	var axe: ItemDef = auto_free(ItemDef.new())
+	axe.id = "test_axe"
+	axe.tags = ["tool"]
+	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, axe)
+	eq_panel.refresh_display()
+
+	var slots_container: VBoxContainer = eq_panel.get_node("%SlotsContainer") as VBoxContainer
+	var main_hand_row: EquipmentSlotRow = null
+	for row: EquipmentSlotRow in slots_container.get_children():
+		if row.get_slot_id() == Equipment.SLOT_MAIN_HAND:
+			main_hand_row = row
+			break
+
+	assert_object(main_hand_row).is_not_null()
+	var eq_label: Label = main_hand_row.get_node("%EquippedLabel") as Label
+	assert_str(eq_label.text).is_equal("test_axe")
+
+
+func test_colonist_equipment_picker_sets_desired_item() -> void:
+	Colony.colonists.clear()
+	var col_packed: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_packed.instantiate() as Colonist)
+	colonist.colonist_id = "eq_test_3"
+	colonist.display_name = "Worker Charlie"
+	add_child(colonist)
+	Colony.colonists.append(colonist)
+
+	_scene.call("_refresh_colonist_roster")
+
+	var eq_panel: ColonistEquipmentPanel = _scene.get_node("%ColonistEquipmentPanel") as ColonistEquipmentPanel
+	var picker: Control = eq_panel.get_node("%DesiredPickerSection") as Control
+	assert_bool(picker.visible).is_false()
+
+	# Request edit for main_hand
+	eq_panel.call("_on_slot_edit_requested", Equipment.SLOT_MAIN_HAND)
+	assert_bool(picker.visible).is_true()
+
+	var search_input: LineEdit = eq_panel.get_node("%SearchInput") as LineEdit
+	assert_str(search_input.text).is_equal("")
+
+	var items_container: VBoxContainer = eq_panel.get_node("%ItemsContainer") as VBoxContainer
+	assert_bool(items_container.get_child_count() > 0).is_true()
+
+	# Select a desired item
+	eq_panel.call("_select_desired_item", "test_target_tool")
+	assert_str(colonist.equipment.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("test_target_tool")
+	assert_bool(picker.visible).is_false()
