@@ -27,3 +27,9 @@ extends Resource
 
 func is_equippable() -> bool:
 	return equippable != null
+
+
+## Returns true if this item carries the given tag. Used by Equipment to
+## validate slot eligibility without exposing the tags array directly.
+func has_tag(tag: String) -> bool:
+	return tags.has(tag)

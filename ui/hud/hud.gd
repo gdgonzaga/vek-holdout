@@ -195,7 +195,8 @@ func _refresh_inventory() -> void:
 		# Equip button for equippable items
 		if def.is_equippable():
 			var equip_btn := Button.new()
-			if _player != null and _player.equipped_item == def:
+			var hand_item: ItemDef = _player.equipment.get_item(Equipment.SLOT_MAIN_HAND) if _player != null and _player.equipment != null else null
+			if hand_item == def:
 				equip_btn.text = "Equipped"
 				equip_btn.pressed.connect(func() -> void:
 					if _player != null:

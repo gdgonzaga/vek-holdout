@@ -38,7 +38,11 @@ var _wiggle_dir: Vector3 = Vector3.ZERO
 
 var _current_hp: int = 100
 var _is_dead: bool = false
-var equipped_item: ItemDef = null
+
+## Equipment component — 8 slots keyed by slot ID. Created in _ready.
+## Use equipment.get_item(Equipment.SLOT_MAIN_HAND) for direct access.
+var equipment: Equipment
+
 @onready var interaction: InteractionComponent = get_node_or_null("InteractionComponent") as InteractionComponent
 
 func _ready() -> void:
@@ -84,6 +88,12 @@ func _ready() -> void:
 	inv.name = "Inventory"
 	add_child(inv)
 	inventory = inv
+
+	# Equipment component: 8-slot gear state. Must be added before
+	# EquipmentVisualizer so the sibling Equipment node exists when the
+	# visualizer connects its slot_changed signal in its own _ready.
+	_ensure_equipment()
+
 	_current_hp = colonist_def.max_hp
 	floor_max_angle = deg_to_rad(60.0)
 	if interaction == null:
@@ -452,114 +462,53 @@ func serialize() -> Dictionary:
 		"skills": skill_set.serialize() if skill_set != null else {},
 		"needs": needs.serialize() if needs != null else {},
 		"inventory": inventory.serialize() if inventory != null else {},
+		"equipment": equipment.serialize() if equipment != null else {},
 		"pos": [global_position.x, global_position.y, global_position.z],
 	}
 
 
-## Equip an item to the colonist.
-func equip_item(item: ItemDef) -> void:
-	equipped_item = item
-
-	# 1. Visual Attachment: Update 3D equipped item visual mesh on skeleton attachment socket.
-	_update_equipped_item_visual(item)
-
-
-## Unequip the colonist's current item.
-func unequip_item() -> void:
-	equipped_item = null
-
-	# 1. Visual Detachment: Clear 3D equipped item visual mesh from skeleton attachment socket.
-	_update_equipped_item_visual(null)
+## Equips item to main_hand via the Equipment component. Returns false if the
+## item has no valid slot (not a tool/weapon). Visual update is handled
+## automatically by EquipmentVisualizer via Equipment.slot_changed.
+func equip_item(item: ItemDef) -> bool:
+	_ensure_equipment()
+	# Attempt main_hand first; fall back to the first valid slot.
+	var slot: String = Equipment.SLOT_MAIN_HAND
+	if not equipment.can_equip_to(slot, item):
+		slot = equipment.get_slot_for_item(item)
+	if slot.is_empty():
+		return false
+	return equipment.equip(slot, item)
 
 
-## Auxiliary: Updates or clears the instantiated weapon/tool visual node attached to the character's skeleton
-func _update_equipped_item_visual(item: ItemDef) -> void:
-	# 1. Socket Resolution: Locate or create the right-hand BoneAttachment3D on the active Skeleton3D.
-	var socket: BoneAttachment3D = _get_or_create_hand_socket(&"socket_hand_r")
-	if socket == null:
-		return
-
-	# 2. Socket Cleanup: Remove and free any previously attached weapon visual nodes.
-	_clear_socket_children(socket)
-
-	if item == null:
-		return
-
-	# 3. Instance Visual: Instantiate weapon PackedScene or MeshInstance3D and attach to socket.
-	_attach_item_visual_to_socket(item, socket)
+## Unequips whatever is in main_hand. Returns the removed ItemDef or null.
+## Visual update is handled automatically by EquipmentVisualizer.
+func unequip_item() -> ItemDef:
+	_ensure_equipment()
+	return equipment.unequip(Equipment.SLOT_MAIN_HAND)
 
 
-## Auxiliary: Finds an existing BoneAttachment3D or creates and configures one on the Skeleton3D
-func _get_or_create_hand_socket(preferred_socket_bone: StringName) -> BoneAttachment3D:
-	var skeleton := find_child("*Skeleton*", true, false) as Skeleton3D
-	if skeleton == null:
+## Convenience accessor — returns the item currently in main_hand, or null.
+func get_equipped_item() -> ItemDef:
+	if equipment == null:
 		return null
-
-	var existing_socket := skeleton.get_node_or_null("RightHandAttachment") as BoneAttachment3D
-	if existing_socket != null:
-		return existing_socket
-
-	# 1. Bone Resolution: Find the best matching bone name for hand attachment.
-	var bone_name: String = _resolve_hand_bone_name(skeleton, preferred_socket_bone)
-	if bone_name.is_empty():
-		return null
-
-	var new_socket := BoneAttachment3D.new()
-	new_socket.name = "RightHandAttachment"
-	new_socket.bone_name = bone_name
-	skeleton.add_child(new_socket)
-	return new_socket
+	return equipment.get_item(Equipment.SLOT_MAIN_HAND)
 
 
-## Auxiliary: Resolves the best available bone name in the skeleton for hand socket attachment
-func _resolve_hand_bone_name(skeleton: Skeleton3D, preferred: StringName) -> String:
-	if skeleton.find_bone(String(preferred)) != -1:
-		return String(preferred)
-	if skeleton.find_bone("RightHand") != -1:
-		return "RightHand"
-	if skeleton.find_bone("mixamorig:RightHand") != -1:
-		return "mixamorig:RightHand"
-	for i in range(skeleton.get_bone_count()):
-		var b_name := skeleton.get_bone_name(i)
-		if "righthand" in b_name.to_lower() or "hand_r" in b_name.to_lower() or "hand.r" in b_name.to_lower():
-			return b_name
-	return ""
-
-
-## Auxiliary: Removes and frees all children nodes currently attached to a socket
-func _clear_socket_children(socket: BoneAttachment3D) -> void:
-	for child in socket.get_children():
-		socket.remove_child(child)
-		child.queue_free()
-
-
-## Auxiliary: Instantiates and attaches the 3D visual representation of an ItemDef to a socket
-func _attach_item_visual_to_socket(item: ItemDef, socket: BoneAttachment3D) -> void:
-	if item.scene != null:
-		var visual_node: Node = item.scene.instantiate()
-		if visual_node is Node3D:
-			(visual_node as Node3D).name = "EquippedVisual"
-			# 1. Node Sanitization: Hide auxiliary collision/hitbox meshes inside imported weapon model.
-			_sanitize_weapon_visual_nodes(visual_node)
-			socket.add_child(visual_node)
-	elif item.mesh != null:
-		var mesh_instance := MeshInstance3D.new()
-		mesh_instance.name = "EquippedVisual"
-		mesh_instance.mesh = item.mesh
-		socket.add_child(mesh_instance)
-
-
-## Auxiliary: Recursively hides collision, area, or hitbox mesh nodes inside an imported weapon scene
-func _sanitize_weapon_visual_nodes(node: Node) -> void:
-	for child in node.get_children():
-		var child_name := child.name.to_lower()
-		if child is MeshInstance3D:
-			if "hitbox" in child_name or "hibox" in child_name or "area" in child_name or "col" in child_name:
-				(child as MeshInstance3D).visible = false
-		elif child is CollisionShape3D or child is CollisionObject3D or child is Area3D:
-			if child is Node3D:
-				(child as Node3D).visible = false
-		_sanitize_weapon_visual_nodes(child)
+func _ensure_equipment() -> void:
+	## Auxiliary: Ensures Equipment and EquipmentVisualizer children exist and are wired.
+	if equipment == null:
+		var eq := Equipment.new()
+		eq.name = "Equipment"
+		add_child(eq)
+		equipment = eq
+	var vis := get_node_or_null("EquipmentVisualizer") as EquipmentVisualizer
+	if vis == null:
+		vis = EquipmentVisualizer.new()
+		vis.name = "EquipmentVisualizer"
+		add_child(vis)
+	if not equipment.slot_changed.is_connected(vis.on_slot_changed):
+		equipment.slot_changed.connect(vis.on_slot_changed)
 
 
 func deserialize(data: Dictionary) -> void:
@@ -576,6 +525,9 @@ func deserialize(data: Dictionary) -> void:
 		needs.deserialize(data["needs"])
 	if inventory != null and data.has("inventory"):
 		inventory.deserialize(data["inventory"])
+	# Equipment must deserialize after inventory since slots are separate stores.
+	if equipment != null and data.has("equipment"):
+		equipment.deserialize(data["equipment"])
 	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
 	if bt_player != null:

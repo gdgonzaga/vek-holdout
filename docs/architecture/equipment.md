@@ -1,145 +1,144 @@
-# Subsystem: Equipment & Loadouts
+# Subsystem: Equipment
 
-Per-character equipped gear + named loadout templates that auto-equip on raid/expedition and auto-return to storage on return. GDD §17 Equipment + §12 Loadout Template editor.
+Per-character 8-slot gear system. `Equipment` (Node component) holds concrete `ItemDef` references keyed by slot ID. `EquipmentVisualizer` (sibling Node) owns all 3D visual attachment logic. Both live under `subsystems/equipment/`. GDD §17 Equipment.
 
-> **Implementation status: planned, not yet built.** `subsystems/equipment/` and `data/loadouts/` are empty, and `data/weapons/` + `data/armor/` don't exist — none of the classes below (`equipment.gd`, `loadout_manager.gd`, `discovered_gear.gd`) exist anywhere in the codebase. Everything on this page is design intent (the loadout data schema is tracked as planned in [Data Schemas](data-schemas.md)); treat it as the spec to implement against, not a description of current code.
+> **Implementation status: implemented.** `equipment.gd` and `equipment_visualizer.gd` exist and are code-created on every `Colonist` and `Player` in `_ready`. Loadout templates (`LoadoutManager`, `DiscoveredGear`) and armor/shield data schemas are future scope.
 
-**Design notes:**
-- **`Equipment` is a component on each character** (8 slots: 6 armor + melee + ranged). Pairs with HealthComponent — HealthComponent's `max_durability` is the sum of equipped armor Durability values.
-- **`LoadoutTemplate` = slot → item_def_id mapping** (abstract, not concrete instances). Equipping resolves the template to concrete items pulled from storage at equip time. Handles "discovered gear" + "nearest unclaimed" rules cleanly.
-- **Templates live in `data/loadouts/`** (player-created, saved per run). The *catalog* of equippable item_defs lives in `data/items/` (already specced) + `data/weapons/` + `data/armor/` (C9 schemas pending).
-- **"Discovered gear" lives on Colony** (run-state, persists + saves, like Memorial/KeyItemPool): tracks which item_def_ids the colony has possessed at least once. Gates the loadout-slot picker UI.
-- **Auto-equip/unequip subscribes to existing EventBus signals** (`raid_started`, `expedition_started`, `raid_ended`, `expedition_ended`) — no new trigger signals.
-- Player character's `Gear` tab in the Player screen uses the same Equipment component (manual equip, no loadout template needed for the player in MVP).
+---
+
+## Slot Design
+
+| Slot ID | Constant | Accepted Tags | Notes |
+|---|---|---|---|
+| `head` | `SLOT_HEAD` | `equip_head` | Armor |
+| `torso` | `SLOT_TORSO` | `equip_torso` | Armor |
+| `legs` | `SLOT_LEGS` | `equip_legs` | Armor |
+| `feet` | `SLOT_FEET` | `equip_feet` | Armor |
+| `main_hand` | `SLOT_MAIN_HAND` | `tool`, `weapon` | Active working/combat hand |
+| `off_hand` | `SLOT_OFF_HAND` | `shield` | Placeholder — shield items not yet authored |
+| `holster` | `SLOT_HOLSTER` | `tool`, `weapon` | Stored tool; swaps with main_hand |
+| `back` | `SLOT_BACK` | `equip_back`, `shield` | Back carry; shield stow destination |
+
+Slot routing is **tag-based**: items declare eligibility via `ItemDef.tags`. `EquippableParams` no longer has a `SlotType` enum — it owns only animation and action parameters.
+
+---
 
 ## Files
 
 | File | Type | Responsibility |
 |---|---|---|
-| `equipment.gd` | Script (component) | Per-character equipped gear (8 slots). Holds concrete item references; exposes `get_total_durability()` for HealthComponent. Does NOT own loadout templates (those are data + Colony). |
-| `loadout_manager.gd` | Script (on Colony autoload) | Holds player-created templates; resolves + executes auto-equip/unequip on raid/expedition signals. Owns the "nearest unclaimed item" resolution. |
-| `discovered_gear.gd` | Script (on Colony autoload) | Tracks item_def_ids the colony has ever possessed (once per run). Gates the loadout-slot picker. Subscribes to Inventory `item_picked_up`. |
-| `../data/loadouts/` | Data | Player-created templates, saved per run. See [Data Schemas](data-schemas.md). |
-| `../data/armor/` | Data | Armor defs per slot per tier (Durability values from GDD §17). Schema pending (C9). |
-| `../data/weapons/` | Data | Weapon defs (Knife, Pistol; Club/Bow post-MVP). Schema pending (C9). |
+| `equipment.gd` | Script (`class_name Equipment`, extends Node) | Per-character slot state. No visual logic. Serializable. |
+| `equipment_visualizer.gd` | Script (`class_name EquipmentVisualizer`, extends Node) | Visual attachment: listens to `Equipment.slot_changed`, instantiates GLB/mesh on per-slot skeleton sockets. |
+
+Both are code-created as child nodes in `Colonist._ready` and `Player._ready`. `Equipment` must be added before `EquipmentVisualizer` so the sibling exists when the visualizer wires `slot_changed` in its own `_ready`.
+
+---
 
 ## Signals
 
-| Signal | Emitted by | Listeners | Via EventBus? | Flows |
-|---|---|---|---|---|
-| `equip_completed(character, slot, item_id)` | `equipment.gd` | HealthComponent (recalc max_durability), HUD | No | Equip from Loadout |
-| `unequip_completed(character, slot)` | `equipment.gd` | HealthComponent (recalc), HUD | No | Unequip on Return |
+| Signal | Emitted by | Listeners | Via EventBus? |
+|---|---|---|---|
+| `slot_changed(slot_id, item)` | `Equipment` | `EquipmentVisualizer` (direct ref), HUD (direct ref) | No |
 
-*(Auto-equip triggers come from existing `raid_started` / `expedition_started` / `raid_ended` / `expedition_ended` signals on EventBus — Equipment subscribes, doesn't emit new triggers.)*
+---
 
-## Flow Trace: Player creates a loadout template + assigns it
+## Visual Socket Architecture
 
-**Trigger:** Player opens Colony screen → Loadouts tab → clicks New.
+`EquipmentVisualizer` resolves one `BoneAttachment3D` socket per slot from the parent's `Skeleton3D`. Resolution order:
 
-1. UI creates a blank `LoadoutTemplate` (random default name, all slots empty).
-2. Player names it; clicks each slot to assign:
-   - Slot picker queries `Colony.discovered_gear.get_discovered_for_slot(slot)` → filters to item_defs valid for that slot + discovered this run.
-   - Player picks one (or "auto-assign" → MVP: nearest unclaimed item for that slot in storage).
-3. Player saves the template → written to `Colony.loadout_manager.templates` (and to `data/loadouts/` on save).
-4. Player assigns the template to a colonist via the per-colonist dropdown.
+1. **Scene-authored socket** — looks for a child named `EquipSocket_<slot_id>` on the skeleton (e.g. `EquipSocket_main_hand`). Author these in `colonist.tscn` / `player.tscn` for precise placement.
+2. **Auto-created socket** — if not found, tries bone names from `SLOT_BONE_HINTS[slot_id]` (e.g. `["socket_hand_r", "RightHand", "mixamorig:RightHand"]` for `main_hand`). Creates a `BoneAttachment3D` named `EquipSocket_<slot_id>` on the first match.
+3. **Skip** — if no bone hint matches (e.g. `holster` with no authored socket), the slot has no visual and is silently ignored.
 
-**End state:** Named template exists with slot→item_def_id mappings; assigned to one or more colonists.
+Armor slots (`head`, `torso`, `legs`, `feet`, `back`) are scaffolded but fire no visuals until art assets and scene sockets are added.
 
-## Flow Trace: Colonist auto-equips loadout on raid start
+---
 
-**Trigger:** EventBus emits `raid_started(raid_data)`.
+## Main-hand / Holster Swap
 
-1. `LoadoutManager` (on Colony) listens → for each colonist with an assigned template:
-2. For each slot in the template: resolve `item_def_id` to a concrete item from colony storage (nearest unclaimed of that type).
-3. Move item: storage → `colonist.equipment.equip(slot, item)`.
-4. `Equipment` emits `equip_completed` → HealthComponent recalculates `max_durability` (sum of equipped armor).
-5. If no matching item in storage: slot stays empty (partial equip); Job Log notes the gap.
+`Equipment.swap_hand_for_tag(needed_tag)` is the key AI helper:
 
-**End state:** Colonist equipped per template (best-effort); Durability updated; ready for raid.
+1. `main_hand` already has the tag → no-op, return `true`.
+2. `holster` has the tag → swap `main_hand` ↔ `holster`, return `true`.
+3. Neither → return `false` (caller fetches from inventory).
 
-## Flow Trace: Colonist returns equipment to storage on return
+`BTActionEquipTool` calls this before work execution and falls back to pulling the tool from the carry inventory.
 
-**Trigger:** EventBus emits `raid_ended(outcome)` or `expedition_ended(result)`.
+---
 
-1. `LoadoutManager` listens → for each returning colonist:
-2. For each equipped slot: move item → `colonist.equipment.unequip(slot)` → back to colony storage (via Inventory add flow).
-3. `Equipment` emits `unequip_completed` → HealthComponent recalculates `max_durability` (back to 0 if no permanent armor).
-4. Items now available in storage for reassignment or repair.
+## Inventory vs Equipment
 
-**End state:** Colonist bare; equipment in storage; Durability reset.
+Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` equips a tool from inventory it calls `inventory.remove(item_id, 1)` then `equipment.equip(slot, item_def)`. Colonists keep their tool equipped across jobs (no unequip on job end); `swap_hand_for_tag` handles switching for a different job.
+
+---
 
 ## Class Reference
 
 ### Class: Equipment
 
-**Extends:** Node (component on Player + each Colonist)
-**Script:** `equipment.gd` (in `equipment/`)
-**Description:** Per-character equipped gear (8 slots). Holds concrete item references; HealthComponent reads total Durability from it.
-**Used by:** HealthComponent (max_durability calc), Combat (weapon damage/ammo), HUD (gear display), LoadoutManager (equip/unequip target).
+**Extends:** Node (component on Player + each Colonist)  
+**Script:** `subsystems/equipment/equipment.gd`
 
-**Properties:**
+**Constants:**
 
-| Property | Type | Description |
-|---|---|---|
-| `slots` | `Dictionary[String, Item]` | 8 entries keyed by slot id (`"armor_head"`, `"armor_body"`, ..., `"melee"`, `"ranged"`). Values are concrete `Item` refs or null. |
+`SLOT_HEAD`, `SLOT_TORSO`, `SLOT_LEGS`, `SLOT_FEET`, `SLOT_MAIN_HAND`, `SLOT_OFF_HAND`, `SLOT_HOLSTER`, `SLOT_BACK` — canonical slot ID strings.
+
+`SLOT_ACCEPTED_TAGS: Dictionary` — maps each slot ID to its accepted tag list.
 
 **Signals:**
 
 | Signal | Description |
 |---|---|
-| `equip_completed(character, slot, item_id)` | For HealthComponent recalc + HUD refresh. |
-| `unequip_completed(character, slot)` | For HealthComponent recalc + HUD refresh. |
+| `slot_changed(slot_id: String, item: ItemDef)` | Emitted on every equip or unequip. `item` is null on unequip. |
 
 **Functions:**
 
-| Function | Description |
-|---|---|
-| `equip(slot: String, item: Item) -> void` | Places item in slot; emits `equip_completed`. |
-| `unequip(slot: String) -> Item` | Removes + returns item; emits `unequip_completed`. |
-| `get_total_durability() -> int` | Sum of equipped armor Durability values. Called by HealthComponent. |
-| `get_weapon_damage() -> int` | Melee weapon's fixed damage (or 0 if none). |
-| `get_active_ranged() -> Item` | The ranged-weapon Item (for ammo consumption). |
-
-### Class: LoadoutManager
-
-**Extends:** Node (child of Colony autoload)
-**Script:** `loadout_manager.gd` (in `equipment/`)
-**Description:** Holds player-created loadout templates; resolves + executes auto-equip/unequip on raid/expedition signals. Owns the "nearest unclaimed item" resolution.
-**Used by:** UI (Loadouts tab — create/assign/delete), Colony (subscribes raid/expedition signals).
-
-**Properties:**
-
-| Property | Type | Description |
+| Function | Returns | Description |
 |---|---|---|
-| `templates` | `Array[LoadoutTemplate]` | Player-created templates (saved per run in `data/loadouts/`). |
-| `assignments` | `Dictionary[String, String]` | colonist_id → template_id. |
+| `can_equip_to(slot_id, item_def)` | `bool` | True if item carries at least one accepted tag for the slot. |
+| `equip(slot_id, item_def)` | `bool` | Places item; emits `slot_changed`. False if tags invalid. |
+| `unequip(slot_id)` | `ItemDef` | Removes and returns item; emits `slot_changed`. Null if empty. |
+| `get_item(slot_id)` | `ItemDef` | Current item in slot, or null. |
+| `is_empty(slot_id)` | `bool` | True if slot holds no item. |
+| `get_slot_for_item(item_def)` | `String` | First valid empty slot (prefers main_hand/holster), or "". |
+| `has_item_with_tag(tag)` | `bool` | True if any equipped slot holds an item with the tag. |
+| `swap_hand_for_tag(needed_tag)` | `bool` | main_hand/holster swap helper. See design above. |
+| `swap_hand_to_holster()` | `void` | Unconditional main_hand ↔ holster swap. |
+| `serialize()` | `Dictionary` | `{slot_id: item_id}` — empty slots stored as "". |
+| `deserialize(data)` | `void` | Restores from serialized dict via `ItemDB`. Unknown IDs silently null. |
 
-**Functions:**
+### Class: EquipmentVisualizer
 
-| Function | Description |
-|---|---|
-| `create_template(name: String) -> String` | Returns new template_id. |
-| `delete_template(template_id: String) -> void` | Also clears any assignments referencing it. |
-| `assign(colonist_id: String, template_id: String) -> void` | Per-colonist assignment. |
-| `auto_equip_for_raid() -> void` | Called on `raid_started`; resolves + equips all assigned colonists. |
-| `auto_unequip_on_return() -> void` | Called on `raid_ended`/`expedition_ended`; returns all equipped to storage. |
+**Extends:** Node (sibling of Equipment on Player + each Colonist)  
+**Script:** `subsystems/equipment/equipment_visualizer.gd`
 
-### Class: DiscoveredGear
+**Constants:**
 
-**Extends:** Node (child of Colony autoload)
-**Script:** `discovered_gear.gd` (in `equipment/`)
-**Description:** Once-per-run tracking of item_def_ids the colony has possessed. Gates the loadout-slot picker. Subscribes to Inventory signals.
-**Used by:** UI (Loadouts slot picker), LoadoutManager (auto-equip candidates).
+`SLOT_BONE_HINTS: Dictionary` — per-slot ordered list of bone name candidates for auto-socket creation.
 
-**Properties:**
-
-| Property | Type | Description |
-|---|---|---|
-| `discovered` | `Array[String]` | item_def_ids ever possessed this run. Saved with Colony. |
-
-**Functions:**
+**Functions (public):**
 
 | Function | Description |
 |---|---|
-| `mark_discovered(item_def_id: String) -> void` | Called on item pickup; idempotent. |
-| `get_discovered_for_slot(slot: String) -> Array[String]` | Filters discovered item_defs valid for the slot (for the picker UI). |
+| `on_slot_changed(slot_id, item)` | Connected to `Equipment.slot_changed` in `_ready`. Clears old visual and attaches new GLB/mesh on the slot socket. |
+
+---
+
+## BT Integration
+
+`BTActionEquipTool` (`subsystems/ai/tasks/actions/bt_action_equip_tool.gd`):
+- Reads `required_tool_tag` from blackboard (falls back to active job's `required_tool_tag`).
+- Calls `equipment.swap_hand_for_tag(tag)` — succeeds if tool already equipped.
+- Falls back to `inventory` scan → `equipment.equip(SLOT_MAIN_HAND, item)`.
+
+`BTConditionHasTool` also checks `Equipment.has_item_with_tag` before scanning inventory, so an already-equipped tool satisfies the condition without carry inventory lookup.
+
+---
+
+## Future scope (not yet built)
+
+- **`LoadoutManager`** (child of Colony autoload) — player-created slot→item_def_id templates, auto-equip on `raid_started` / auto-unequip on `raid_ended`. See tech-debt.md.
+- **`DiscoveredGear`** (child of Colony autoload) — tracks item_def_ids ever possessed; gates loadout-slot picker UI.
+- **Armor + shield items** — `data/armor/` and `data/shields/` schemas (C9 in TODO.md).
+- **Durability sum** — `Equipment.get_total_durability() -> int` for HealthComponent once armor items ship.
+

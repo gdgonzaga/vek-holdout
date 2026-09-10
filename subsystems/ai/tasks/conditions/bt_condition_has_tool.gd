@@ -56,6 +56,15 @@ func _tick(_delta: float) -> Status:
 	# If no requirement exists, condition passes vacuously
 	if req_tag == "" and req_id == "":
 		return SUCCESS
+
+	# Check equipment slots first — an already-equipped item satisfies the condition
+	# without needing to fetch from the carry inventory.
+	var eq: Equipment = agent.get_node_or_null("Equipment") as Equipment
+	if eq != null:
+		if req_tag != "" and eq.has_item_with_tag(req_tag):
+			return SUCCESS
+		if req_id != "" and eq.get_item(req_id) != null:
+			return SUCCESS
 		
 	var inv = null
 	if "inventory" in agent and agent.inventory != null:

@@ -27,7 +27,8 @@ The **Colonists** subsystem (`subsystems/colonists/`) manages colonist entity in
                                                                          Smoothed, Theta*)
 
 (Scene also mounts: ColonistAnimationController + AnimationPlayer [mixamo library] —
-see the class reference below and docs/HOWTO-use-makehuman-mixamo.md.)
+see the class reference below and docs/HOWTO-use-makehuman-mixamo.md. Also code-created in _ready:
+CharacterInventory, Equipment, and EquipmentVisualizer — see docs/architecture/equipment.md.)
 ```
 
 ---
@@ -38,12 +39,14 @@ see the class reference below and docs/HOWTO-use-makehuman-mixamo.md.)
 
 **Extends:** CharacterBody3D  
 **Script:** `subsystems/colonists/colonist.gd`  
-**Description:** Physical entity representing a colonist in the world. Owns HP state, carry inventory, skill set, labor priorities, and attached components (`ColonistBrain`, `ColonistNeeds`, `BTPlayer`, `VoxelPathfinder`, `ColonistAnimationController`).
+**Description:** Physical entity representing a colonist in the world. Owns HP state, carry inventory (`CharacterInventory`), equipment (`Equipment`, `EquipmentVisualizer`), skill set, labor priorities, and attached components (`ColonistBrain`, `ColonistNeeds`, `BTPlayer`, `VoxelPathfinder`, `ColonistAnimationController`).
 
 **Key Properties & Components:**
 - `colonist_id`: Unique identifier (`String`).
 - `colonist_def`: `ColonistDef` resource configuring base stats.
 - `labor_priorities`: Dictionary mapping `labor_id` -> priority weight (`0..5`).
+- `inventory`: `var inventory: CharacterInventory` (carry inventory, code-created in `_ready`).
+- `equipment`: `var equipment: Equipment` (8-slot equipment component, code-created in `_ready`).
 - `brain`: `@onready var brain: ColonistBrain = $ColonistBrain`
 - `needs`: `@onready var needs: ColonistNeeds = $ColonistNeeds`
 - `bt_player`: `@onready var bt_player: BTPlayer = $BTPlayer`

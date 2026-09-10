@@ -13,14 +13,14 @@ func test_item_def_default_not_equippable() -> void:
 func test_item_def_with_equippable_params() -> void:
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "test_sword"
+	item.tags = ["weapon", "melee"]
 	var equip: EquippableParams = auto_free(EquippableParams.new())
-	equip.slot_type = EquippableParams.SlotType.MAIN_HAND
 	equip.stance_animation = &"melee_1h"
 	item.equippable = equip
 
 	assert_bool(item.is_equippable()).is_true()
 	assert_object(item.equippable).is_not_null()
-	assert_int(item.equippable.slot_type).is_equal(EquippableParams.SlotType.MAIN_HAND)
+	assert_bool(item.has_tag("weapon")).is_true()
 	assert_str(String(item.equippable.stance_animation)).is_equal("melee_1h")
 
 
@@ -77,8 +77,8 @@ func test_melee_action_params_schema() -> void:
 func test_load_assault_rifle_tres() -> void:
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "assault_rifle"
+	item.tags = ["weapon", "ranged"]
 	var equip: EquippableParams = auto_free(EquippableParams.new())
-	equip.slot_type = EquippableParams.SlotType.TWO_HAND
 	equip.stance_animation = &"rifle"
 	var combat: RangedActionParams = auto_free(RangedActionParams.new())
 	combat.id = "rifle_fire"
@@ -92,7 +92,7 @@ func test_load_assault_rifle_tres() -> void:
 	assert_str(item.id).is_equal("assault_rifle")
 	assert_bool(item.is_equippable()).is_true()
 	assert_object(item.equippable).is_not_null()
-	assert_int(item.equippable.slot_type).is_equal(EquippableParams.SlotType.TWO_HAND)
+	assert_bool(item.has_tag("weapon")).is_true()
 	assert_str(String(item.equippable.stance_animation)).is_equal("rifle")
 	assert_object(item.equippable.primary_action).is_not_null()
 	assert_bool(item.equippable.primary_action is CombatActionParams).is_true()
@@ -109,18 +109,20 @@ func test_colonist_equip_item() -> void:
 	var colonist: Colonist = auto_free(Colonist.new())
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "sample_item"
+	item.tags = ["tool"]
 	colonist.equip_item(item)
-	assert_object(colonist.equipped_item).is_equal(item)
+	assert_object(colonist.get_equipped_item()).is_equal(item)
 
 
 func test_player_equip_and_unequip_item() -> void:
 	var player: Player = auto_free(Player.new())
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "sample_weapon"
+	item.tags = ["weapon"]
 	player.equip_item(item)
-	assert_object(player.equipped_item).is_equal(item)
+	assert_object(player.get_equipped_item()).is_equal(item)
 	player.unequip_item()
-	assert_object(player.equipped_item).is_null()
+	assert_object(player.get_equipped_item()).is_null()
 
 
 func test_player_weapon_visual_attachment_with_skeleton() -> void:
@@ -132,10 +134,12 @@ func test_player_weapon_visual_attachment_with_skeleton() -> void:
 
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "test_club"
+	item.tags = ["weapon"]
 	item.mesh = BoxMesh.new()
 
 	player.equip_item(item)
-	var socket: BoneAttachment3D = skeleton.get_node_or_null("RightHandAttachment") as BoneAttachment3D
+	# EquipmentVisualizer creates EquipSocket_main_hand on the skeleton's RightHand bone.
+	var socket: BoneAttachment3D = skeleton.get_node_or_null("EquipSocket_main_hand") as BoneAttachment3D
 	assert_object(socket).is_not_null()
 	assert_str(socket.bone_name).is_equal("RightHand")
 	assert_int(socket.get_child_count()).is_equal(1)
@@ -155,10 +159,12 @@ func test_colonist_weapon_visual_attachment_with_custom_socket() -> void:
 
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "test_baton"
+	item.tags = ["tool"]
 	item.mesh = CylinderMesh.new()
 
 	colonist.equip_item(item)
-	var socket: BoneAttachment3D = skeleton.get_node_or_null("RightHandAttachment") as BoneAttachment3D
+	# EquipmentVisualizer prefers socket_hand_r per SLOT_BONE_HINTS["main_hand"].
+	var socket: BoneAttachment3D = skeleton.get_node_or_null("EquipSocket_main_hand") as BoneAttachment3D
 	assert_object(socket).is_not_null()
 	assert_str(socket.bone_name).is_equal("socket_hand_r")
 	assert_int(socket.get_child_count()).is_equal(1)

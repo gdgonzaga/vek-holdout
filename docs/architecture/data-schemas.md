@@ -161,4 +161,20 @@ Configures light emission properties for furniture (torches, lamps, campfires). 
 | `shadows_enabled` | `bool` | Whether light casts dynamic shadows (default `false`). |
 | `local_offset` | `Vector3` | Position offset relative to furniture root origin (default `Vector3(0.0, 1.5, 0.0)`). |
 
+---
+
+## ItemDef capability parameters
+
+Nullable sub-resources attached to `ItemDef` (`data/capability_params/`) following the composition pattern.
+
+### `EquippableParams` (Resource: `equippable_params.gd`)
+Configures animation and combat actions for equippable items. Slot routing is tag-based via `ItemDef.tags` (accepted tags in `Equipment.SLOT_ACCEPTED_TAGS`).
+
+| Field | Type | Description |
+|---|---|---|
+| `stance_animation` | `StringName` | Idle stance animation when equipped (default `&"idle"`). |
+| `use_animation` | `StringName` | Attack/use animation triggered by primary action (default `&"use"`). |
+| `primary_action` | `EquipActionParams` | Action triggered on primary input / weapon swing. |
+| `secondary_action` | `EquipActionParams` | Action triggered on secondary input / block / aim. |
+
 

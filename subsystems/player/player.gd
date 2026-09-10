@@ -48,8 +48,8 @@ signal interactable_changed(component: InteractionComponent)
 @onready var command_controller: CommandController = get_node_or_null("CommandController") as CommandController
 @onready var anim_controller: PlayerAnimationController = get_node_or_null("AnimationController") as PlayerAnimationController
 
-## The item currently equipped by the player (null if empty).
-var equipped_item: ItemDef = null
+## Equipment component — 8 slots. Code-created in _ready alongside skill_set.
+var equipment: Equipment
 var _equipped_action_cooldown: float = 0.0
 
 ## Player skill progression (the same SkillSet colonists use — GDD §6.3).
@@ -99,8 +99,10 @@ func drop_item(item_id: String, count: int = 1) -> WorldItem:
 	if dropped_count <= 0:
 		return null
 
-	if equipped_item != null and equipped_item.id == item_id and not inventory.has_item(item_id, 1):
-		unequip_item()
+	if equipment != null and equipment.get_item(Equipment.SLOT_MAIN_HAND) != null:
+		var hand_item: ItemDef = equipment.get_item(Equipment.SLOT_MAIN_HAND)
+		if hand_item.id == item_id and not inventory.has_item(item_id, 1):
+			equipment.unequip(Equipment.SLOT_MAIN_HAND)
 
 	var forward := -global_transform.basis.z
 	var spawn_pos := global_position + Vector3(0.0, 1.2, 0.0) + forward * 0.8
@@ -132,6 +134,7 @@ func serialize() -> Dictionary:
 		"cam_yaw": _rig.get_yaw(),
 		"cam_pitch": _rig.get_pitch(),
 		"inventory": inventory.serialize(),
+		"equipment": equipment.serialize() if equipment != null else {},
 	}
 
 
@@ -147,6 +150,8 @@ func deserialize(data: Dictionary) -> void:
 	_rig.snap_to_target()
 	if data.has("inventory"):
 		inventory.deserialize(data["inventory"])
+	if data.has("equipment") and equipment != null:
+		equipment.deserialize(data["equipment"])
 	var guard := get_node_or_null("GroundSafetyGuard") as GroundSafetyGuard
 	if guard != null:
 		guard.rearm()
@@ -167,6 +172,11 @@ func _ready() -> void:
 	skills.name = "SkillSet"
 	add_child(skills)
 	skill_set = skills
+
+	# Equipment component: 8-slot gear state. Added before EquipmentVisualizer
+	# so the sibling node exists when the visualizer wires slot_changed in _ready.
+	_ensure_equipment()
+
 	# React to a buildable selection (emitted by the build menu) by entering
 	# Blueprint mode + recapturing the mouse. The selected id itself goes straight
 	# to BuildController via the same signal — Player doesn't carry it.
@@ -526,123 +536,55 @@ func _resolve_air_axis(neg_held: bool, pos_held: bool, momentum: float) -> float
 		return momentum if momentum < 0.0 else -jump_move_speed
 	return 0.0 # released -> axis stops dead
 
-## Equip an item to the player.
-func equip_item(item: ItemDef) -> void:
-	equipped_item = item
-	if item != null:
-		print("[Player] Equipped item: %s" % item.id)
-	else:
-		print("[Player] Equipped item: null")
-
-	# 1. Visual Attachment: Update 3D equipped item visual mesh on skeleton attachment socket.
-	_update_equipped_item_visual(item)
-
-
-## Unequip the player's current item.
-func unequip_item() -> void:
-	equipped_item = null
-	print("[Player] Unequipped item")
-
-	# 1. Visual Detachment: Clear 3D equipped item visual mesh from skeleton attachment socket.
-	_update_equipped_item_visual(null)
+## Equips item to main_hand via the Equipment component. Returns false if the
+## item has no valid slot. Visual update is handled automatically by
+## EquipmentVisualizer via Equipment.slot_changed.
+func equip_item(item: ItemDef) -> bool:
+	_ensure_equipment()
+	# Attempt main_hand first; fall back to the first valid slot.
+	var slot: String = Equipment.SLOT_MAIN_HAND
+	if not equipment.can_equip_to(slot, item):
+		slot = equipment.get_slot_for_item(item)
+	if slot.is_empty():
+		return false
+	return equipment.equip(slot, item)
 
 
-## Auxiliary: Updates or clears the instantiated weapon/tool visual node attached to the character's skeleton
-func _update_equipped_item_visual(item: ItemDef) -> void:
-	# 1. Socket Resolution: Locate or create the right-hand BoneAttachment3D on the active Skeleton3D.
-	var socket: BoneAttachment3D = _get_or_create_hand_socket(&"socket_hand_r")
-	if socket == null:
-		return
-
-	# 2. Socket Cleanup: Remove and free any previously attached weapon visual nodes.
-	_clear_socket_children(socket)
-
-	if item == null:
-		return
-
-	# 3. Instance Visual: Instantiate weapon PackedScene or MeshInstance3D and attach to socket.
-	_attach_item_visual_to_socket(item, socket)
+## Unequips whatever is in main_hand. Returns the removed ItemDef or null.
+func unequip_item() -> ItemDef:
+	_ensure_equipment()
+	return equipment.unequip(Equipment.SLOT_MAIN_HAND)
 
 
-## Auxiliary: Finds an existing BoneAttachment3D or creates and configures one on the Skeleton3D
-func _get_or_create_hand_socket(preferred_socket_bone: StringName) -> BoneAttachment3D:
-	var skeleton := find_child("*Skeleton*", true, false) as Skeleton3D
-	if skeleton == null:
+## Convenience accessor — returns the item currently in main_hand, or null.
+func get_equipped_item() -> ItemDef:
+	if equipment == null:
 		return null
-
-	var existing_socket := skeleton.get_node_or_null("RightHandAttachment") as BoneAttachment3D
-	if existing_socket != null:
-		return existing_socket
-
-	# 1. Bone Resolution: Find the best matching bone name for hand attachment.
-	var bone_name: String = _resolve_hand_bone_name(skeleton, preferred_socket_bone)
-	if bone_name.is_empty():
-		return null
-
-	var new_socket := BoneAttachment3D.new()
-	new_socket.name = "RightHandAttachment"
-	new_socket.bone_name = bone_name
-	skeleton.add_child(new_socket)
-	return new_socket
+	return equipment.get_item(Equipment.SLOT_MAIN_HAND)
 
 
-## Auxiliary: Resolves the best available bone name in the skeleton for hand socket attachment
-func _resolve_hand_bone_name(skeleton: Skeleton3D, preferred: StringName) -> String:
-	if skeleton.find_bone(String(preferred)) != -1:
-		return String(preferred)
-	if skeleton.find_bone("RightHand") != -1:
-		return "RightHand"
-	if skeleton.find_bone("mixamorig:RightHand") != -1:
-		return "mixamorig:RightHand"
-	for i in range(skeleton.get_bone_count()):
-		var b_name := skeleton.get_bone_name(i)
-		if "righthand" in b_name.to_lower() or "hand_r" in b_name.to_lower() or "hand.r" in b_name.to_lower():
-			return b_name
-	return ""
-
-
-## Auxiliary: Removes and frees all children nodes currently attached to a socket
-func _clear_socket_children(socket: BoneAttachment3D) -> void:
-	for child in socket.get_children():
-		socket.remove_child(child)
-		child.queue_free()
-
-
-## Auxiliary: Instantiates and attaches the 3D visual representation of an ItemDef to a socket
-func _attach_item_visual_to_socket(item: ItemDef, socket: BoneAttachment3D) -> void:
-	if item.scene != null:
-		var visual_node: Node = item.scene.instantiate()
-		if visual_node is Node3D:
-			(visual_node as Node3D).name = "EquippedVisual"
-			# 1. Node Sanitization: Hide auxiliary collision/hitbox meshes inside imported weapon model.
-			_sanitize_weapon_visual_nodes(visual_node)
-			socket.add_child(visual_node)
-	elif item.mesh != null:
-		var mesh_instance := MeshInstance3D.new()
-		mesh_instance.name = "EquippedVisual"
-		mesh_instance.mesh = item.mesh
-		socket.add_child(mesh_instance)
-
-
-## Auxiliary: Recursively hides collision, area, or hitbox mesh nodes inside an imported weapon scene
-func _sanitize_weapon_visual_nodes(node: Node) -> void:
-	for child in node.get_children():
-		var child_name := child.name.to_lower()
-		if child is MeshInstance3D:
-			if "hitbox" in child_name or "hibox" in child_name or "area" in child_name or "col" in child_name:
-				(child as MeshInstance3D).visible = false
-		elif child is CollisionShape3D or child is CollisionObject3D or child is Area3D:
-			if child is Node3D:
-				(child as Node3D).visible = false
-		_sanitize_weapon_visual_nodes(child)
-
+func _ensure_equipment() -> void:
+	## Auxiliary: Ensures Equipment and EquipmentVisualizer children exist and are wired.
+	if equipment == null:
+		var eq := Equipment.new()
+		eq.name = "Equipment"
+		add_child(eq)
+		equipment = eq
+	var vis := get_node_or_null("EquipmentVisualizer") as EquipmentVisualizer
+	if vis == null:
+		vis = EquipmentVisualizer.new()
+		vis.name = "EquipmentVisualizer"
+		add_child(vis)
+	if not equipment.slot_changed.is_connected(vis.on_slot_changed):
+		equipment.slot_changed.connect(vis.on_slot_changed)
 
 
 ## Execute the equipped item's primary action.
 func _execute_equipped_primary_action() -> void:
-	if equipped_item == null or not equipped_item.is_equippable():
+	var active_item: ItemDef = equipment.get_item(Equipment.SLOT_MAIN_HAND) if equipment != null else null
+	if active_item == null or not active_item.is_equippable():
 		return
-	var equip_params: EquippableParams = equipped_item.equippable
+	var equip_params: EquippableParams = active_item.equippable
 	if equip_params == null or equip_params.primary_action == null:
 		return
 	if _equipped_action_cooldown > 0.0:
@@ -657,8 +599,9 @@ func _on_primary_action() -> void:
 	if _busy or mode != Mode.NORMAL or UiGate.is_input_blocked():
 		return
 
-	if equipped_item != null and equipped_item.is_equippable():
-		var anim: StringName = equipped_item.equippable.use_animation if (equipped_item.equippable and equipped_item.equippable.use_animation != &"") else &"Interact"
+	var active_item: ItemDef = equipment.get_item(Equipment.SLOT_MAIN_HAND) if equipment != null else null
+	if active_item != null and active_item.is_equippable():
+		var anim: StringName = active_item.equippable.use_animation if (active_item.equippable and active_item.equippable.use_animation != &"") else &"Interact"
 		# 1. Action Animation Trigger: Trigger item action animation.
 		_trigger_animation_action(anim)
 		_execute_equipped_primary_action()
