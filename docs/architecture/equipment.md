@@ -2,7 +2,7 @@
 
 Per-character 8-slot gear system. `Equipment` (Node component) holds concrete `ItemDef` references keyed by slot ID. `EquipmentVisualizer` (sibling Node) owns all 3D visual attachment logic. Both live under `subsystems/equipment/`. GDD §17 Equipment.
 
-> **Implementation status: implemented.** `equipment.gd` and `equipment_visualizer.gd` exist and are code-created on every `Colonist` and `Player` in `_ready`. Loadout templates (`LoadoutManager`, `DiscoveredGear`) and armor/shield data schemas are future scope.
+> **Implementation status: implemented.** `equipment.gd` and `equipment_visualizer.gd` exist and are code-created on every `Colonist` and `Player` in `_ready`. Loadout fulfillment via `EquipmentAudit` and `FetchEquipmentJobDef` is active. Loadout templates (`LoadoutManager`, `DiscoveredGear`) and armor/shield data schemas are future scope.
 
 ---
 
@@ -16,10 +16,12 @@ Per-character 8-slot gear system. `Equipment` (Node component) holds concrete `I
 | `feet` | `SLOT_FEET` | `equip_feet` | Armor |
 | `main_hand` | `SLOT_MAIN_HAND` | `tool`, `weapon` | Active working/combat hand |
 | `off_hand` | `SLOT_OFF_HAND` | `shield` | Placeholder — shield items not yet authored |
-| `holster` | `SLOT_HOLSTER` | `tool`, `weapon` | Stored tool; swaps with main_hand |
+| `holster` | `SLOT_HOLSTER` | `tool`, `weapon` | Sidearm slot; swaps with main_hand |
 | `back` | `SLOT_BACK` | `equip_back`, `shield` | Back carry; shield stow destination |
 
 Slot routing is **tag-based**: items declare eligibility via `ItemDef.tags`. `EquippableParams` no longer has a `SlotType` enum — it owns only animation and action parameters.
+
+In the Colony Management UI, `holster` is labeled as **"Sidearm"** via `EquipmentSlotRow.SLOT_DISPLAY_NAMES`.
 
 ---
 
@@ -27,10 +29,14 @@ Slot routing is **tag-based**: items declare eligibility via `ItemDef.tags`. `Eq
 
 | File | Type | Responsibility |
 |---|---|---|
-| `equipment.gd` | Script (`class_name Equipment`, extends Node) | Per-character slot state. No visual logic. Serializable. |
+| `equipment.gd` | Script (`class_name Equipment`, extends Node) | Per-character slot state and desired target assignments. No visual logic. Serializable. |
 | `equipment_visualizer.gd` | Script (`class_name EquipmentVisualizer`, extends Node) | Visual attachment: listens to `Equipment.slot_changed`, instantiates GLB/mesh on per-slot skeleton sockets. |
+| `equipment_audit.gd` | Script (`class_name EquipmentAudit`) | Static helper library executing desired equipment audits, swap-first resolution, and fetch job creation. |
+| `fetch_equipment_job.gd` | Script (`class_name FetchEquipmentJob`, extends Job) | Targeted job carrying `target_slot` and `target_item_id`. |
+| `fetch_equipment_job_def.gd` | Script (`class_name FetchEquipmentJobDef`, extends JobDef) | Work logic for equipment fetching: path to storage, direct equip in `complete()`, desire invalidation. |
+| `data/jobs/fetch_equipment.tres` | Resource (`FetchEquipmentJobDef`) | Singleton job def resource for equipment retrieval. |
 
-Both are code-created as child nodes in `Colonist._ready` and `Player._ready`. `Equipment` must be added before `EquipmentVisualizer` so the sibling exists when the visualizer wires `slot_changed` in its own `_ready`.
+Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `Colonist._ready` and `Player._ready`. `Equipment` must be added before `EquipmentVisualizer` so the sibling exists when the visualizer wires `slot_changed` in its own `_ready`.
 
 ---
 
@@ -39,6 +45,7 @@ Both are code-created as child nodes in `Colonist._ready` and `Player._ready`. `
 | Signal | Emitted by | Listeners | Via EventBus? |
 |---|---|---|---|
 | `slot_changed(slot_id, item)` | `Equipment` | `EquipmentVisualizer` (direct ref), HUD (direct ref) | No |
+| `desired_slot_changed(slot_id, item_id)` | `Equipment` | `ColonistEquipmentPanel`, UI rows (direct ref) | No |
 
 ---
 
@@ -58,11 +65,41 @@ Armor slots (`head`, `torso`, `legs`, `feet`, `back`) are scaffolded but fire no
 
 `Equipment.swap_hand_for_tag(needed_tag)` is the key AI helper:
 
-1. `main_hand` already has the tag → no-op, return `true`.
-2. `holster` has the tag → swap `main_hand` ↔ `holster`, return `true`.
-3. Neither → return `false` (caller fetches from inventory).
+1. `main_hand` already has the tag -> no-op, return `true`.
+2. `holster` has the tag -> swap `main_hand` <-> `holster`, return `true`.
+3. Neither -> return `false` (caller fetches from inventory).
 
 `BTActionEquipTool` calls this before work execution and falls back to pulling the tool from the carry inventory.
+
+---
+
+## Desired Loadout & Equipment Fulfillment
+
+Colonists maintain a desired item ID for each slot in `Equipment._desired_slots`. The colony management UI allows players to configure these targets per colonist.
+
+### Audit Trigger Points
+
+`EquipmentAudit.run_audit(colonist, job_board)` runs at two specific points:
+1. **At Job Claim Boundaries (`BTActionClaimJob`)**: Called in `_cleanup_incompatible_held_items` before normal labor claims.
+2. **At Idle Fallback (`JobBoard.get_best_job_for`)**: Called when no labor or haul job is selected, immediately returning newly posted fetch jobs to prevent idle wandering.
+
+### Audit Resolution Sequence
+
+1. **Hand Pair Audit (`main_hand` & `holster`)**: Checks whether the desired item for either slot is currently in the partner slot. If so, swaps directly without generating a fetch job.
+2. **Shield Pair Audit (`off_hand` & `back`)**: Swaps shields between off_hand and back if the desired item is in the opposite slot.
+3. **Single Slot Audit (Armor & Remainder)**:
+   - If slot is already satisfied -> no-op.
+   - If slot has wrong item -> unequip into carry inventory (skipped if carry is full).
+   - If desired item is in carry inventory -> equip immediately (no job needed).
+   - If a fetch job already targets this slot+item -> skip duplicate.
+   - If item is in colony storage -> post `FetchEquipmentJob`.
+
+### Fetch Equipment Job (`FetchEquipmentJobDef`)
+
+- **Priority**: Has priority `500` in `JobBoard.get_best_job_for`, higher than all normal labor (max ~150) but lower than deploy commands (`1000`).
+- **Dynamic Crate Resolution**: `work_site()` re-queries `StorageRegistry.find_storage_for()` every navigation cycle so destroyed crates trigger transparent rerouting.
+- **Defensive Completion**: In `complete()`, the item is equipped to the slot *before* removing it from the storage crate to ensure no items are destroyed if equip validation fails.
+- **Stale Invalidation**: `is_available_for()` and `should_close()` check if the desired item for the slot was modified while the job was in flight, retiring stale jobs cleanly.
 
 ---
 
@@ -90,6 +127,7 @@ Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` 
 | Signal | Description |
 |---|---|
 | `slot_changed(slot_id: String, item: ItemDef)` | Emitted on every equip or unequip. `item` is null on unequip. |
+| `desired_slot_changed(slot_id: String, item_id: String)` | Emitted when a desired target item changes. |
 
 **Functions:**
 
@@ -103,9 +141,15 @@ Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` 
 | `get_slot_for_item(item_def)` | `String` | First valid empty slot (prefers main_hand/holster), or "". |
 | `has_item_with_tag(tag)` | `bool` | True if any equipped slot holds an item with the tag. |
 | `swap_hand_for_tag(needed_tag)` | `bool` | main_hand/holster swap helper. See design above. |
-| `swap_hand_to_holster()` | `void` | Unconditional main_hand ↔ holster swap. |
-| `serialize()` | `Dictionary` | `{slot_id: item_id}` — empty slots stored as "". |
-| `deserialize(data)` | `void` | Restores from serialized dict via `ItemDB`. Unknown IDs silently null. |
+| `swap_hand_to_holster()` | `void` | Unconditional main_hand <-> holster swap. |
+| `get_desired_item(slot_id)` | `String` | Returns configured desired item ID for slot ("" if none). |
+| `set_desired_item(slot_id, item_id)` | `void` | Sets target desired item ID; emits `desired_slot_changed`. |
+| `clear_desired_item(slot_id)` | `void` | Clears target desired item ID. |
+| `get_all_desired_items()` | `Dictionary` | Returns duplicate of `_desired_slots`. |
+| `is_desired_equipped(slot_id)` | `bool` | True if current equipped item matches desired item ID. |
+| `get_eligible_items_for_slot(slot_id)` | `Array[ItemDef]` | Static helper querying `ItemDB` for items accepted by slot. |
+| `serialize()` | `Dictionary` | `{slot_id: item_id, "_desired": desired_dict}`. |
+| `deserialize(data)` | `void` | Restores slots and desired slot targets from serialized dict. |
 
 ### Class: EquipmentVisualizer
 
@@ -122,6 +166,12 @@ Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` 
 |---|---|
 | `on_slot_changed(slot_id, item)` | Connected to `Equipment.slot_changed` in `_ready`. Clears old visual and attaches new GLB/mesh on the slot socket. |
 
+### Class: EquipmentAudit
+
+**Script:** `subsystems/equipment/equipment_audit.gd`
+
+Static audit and loadout fulfillment coordinator. Evaluates colonist equipment, carry inventory, and colony storage to execute swaps, equips, and job dispatching.
+
 ---
 
 ## BT Integration
@@ -129,7 +179,10 @@ Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` 
 `BTActionEquipTool` (`subsystems/ai/tasks/actions/bt_action_equip_tool.gd`):
 - Reads `required_tool_tag` from blackboard (falls back to active job's `required_tool_tag`).
 - Calls `equipment.swap_hand_for_tag(tag)` — succeeds if tool already equipped.
-- Falls back to `inventory` scan → `equipment.equip(SLOT_MAIN_HAND, item)`.
+- Falls back to `inventory` scan -> `equipment.equip(SLOT_MAIN_HAND, item)`.
+
+`BTActionClaimJob` (`subsystems/ai/tasks/actions/bt_action_claim_job.gd`):
+- Calls `EquipmentAudit.run_audit()` in `_cleanup_incompatible_held_items` to ensure colonists equip their desired loadout before starting labor.
 
 `BTConditionHasTool` also checks `Equipment.has_item_with_tag` before scanning inventory, so an already-equipped tool satisfies the condition without carry inventory lookup.
 
@@ -137,8 +190,7 @@ Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` 
 
 ## Future scope (not yet built)
 
-- **`LoadoutManager`** (child of Colony autoload) — player-created slot→item_def_id templates, auto-equip on `raid_started` / auto-unequip on `raid_ended`. See tech-debt.md.
+- **`LoadoutManager`** (child of Colony autoload) — player-created slot->item_def_id templates, auto-equip on `raid_started` / auto-unequip on `raid_ended`. See tech-debt.md.
 - **`DiscoveredGear`** (child of Colony autoload) — tracks item_def_ids ever possessed; gates loadout-slot picker UI.
 - **Armor + shield items** — `data/armor/` and `data/shields/` schemas (C9 in TODO.md).
 - **Durability sum** — `Equipment.get_total_durability() -> int` for HealthComponent once armor items ship.
-

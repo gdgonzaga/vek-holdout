@@ -145,8 +145,17 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 		elif "job_def" in job and job.job_def != null and "labor_id" in job.job_def:
 			labor_id_str = str(job.job_def.labor_id)
 		var is_deploy: bool = labor_id_str == "deploy" or ("def" in job and job.def is DeployJobDef) or ("job_def" in job and job.job_def is DeployJobDef)
-		var priority: int = 1000 if is_deploy else int(colonist.labor_priorities.get(labor_id_str, colonist.labor_priorities.get(StringName(labor_id_str), 0)))
-		if priority <= 0 and not is_deploy:
+		var is_fetch_equip: bool = ("def" in job and job.def is FetchEquipmentJobDef) or ("job_def" in job and job.job_def is FetchEquipmentJobDef)
+		var priority: int
+		if is_deploy:
+			# Deploy (stationing) always wins — highest urgency.
+			priority = 1000
+		elif is_fetch_equip:
+			# Fetch-equipment beats all labor but yields to deploy.
+			priority = FetchEquipmentJobDef.FETCH_EQUIP_PRIORITY
+		else:
+			priority = int(colonist.labor_priorities.get(labor_id_str, colonist.labor_priorities.get(StringName(labor_id_str), 0)))
+		if priority <= 0 and not is_deploy and not is_fetch_equip:
 			continue
 		var def_obj: Resource = null
 		if "def" in job:
@@ -237,7 +246,35 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 						haul_job.max_assignees = 1
 						return haul_job
 
+	# If no labor or haul job was found, run the equipment audit so fetch jobs
+	# are generated even when the colonist is idle (no labor on the board).
+	# This closes the timing gap where a colonist would wander after a fetch job
+	# completes if no other job exists to trigger BTActionClaimJob's audit hook.
+	if best == null:
+		# Re-query for a fetch-equipment job that was just posted by the audit.
+		EquipmentAudit.run_audit(colonist, self)
+		best = _find_fetch_job_for(colonist)
+
 	return best
+
+
+## Returns the first available FetchEquipmentJob on the board designated for
+## this colonist, or null. Used immediately after the idle-fallback audit run.
+func _find_fetch_job_for(colonist: Colonist) -> FetchEquipmentJob:
+	for job: Variant in _jobs.values():
+		if not (job is FetchEquipmentJob):
+			continue
+		var fj: FetchEquipmentJob = job as FetchEquipmentJob
+		if fj.target_colonist_id != colonist.colonist_id:
+			continue
+		var is_avail := false
+		if fj.has_method("is_available_for"):
+			is_avail = bool(fj.is_available_for(colonist))
+		elif fj.has_method("is_available"):
+			is_avail = bool(fj.is_available())
+		if is_avail:
+			return fj
+	return null
 
 
 ## Drop dead jobs that have no assignees left to drain them (a haul job whose

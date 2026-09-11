@@ -122,7 +122,16 @@ func _tick(_delta: float) -> Status:
 
 
 func _cleanup_incompatible_held_items(colonist: Colonist, job: Variant = null) -> void:
-	if colonist == null or colonist.inventory == null or not colonist.hands_full():
+	if colonist == null:
+		return
+
+	# Equipment audit: reconcile desired loadout slots before item hygiene so the
+	# colonist equips correct gear and unequips wrong gear on every claim boundary.
+	var colony_node: Node = colonist.get_node_or_null("/root/Colony")
+	if colony_node != null and "job_board" in colony_node and colony_node.job_board != null:
+		EquipmentAudit.run_audit(colonist, colony_node.job_board)
+
+	if colonist.inventory == null or not colonist.hands_full():
 		return
 
 	# 1. Tool check

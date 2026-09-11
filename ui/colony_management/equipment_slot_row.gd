@@ -68,9 +68,15 @@ func _connect_button_signals() -> void:
 		_unequip_button.pressed.connect(_on_unequip_pressed)
 
 
+## Display name overrides for slots whose UI label differs from their slot ID.
+## Add entries here when a slot's canonical name needs a player-facing alias.
+const SLOT_DISPLAY_NAMES: Dictionary = {
+	"holster": "Sidearm",
+}
+
 func _format_slot_name(raw_slot: String) -> String:
-	## Auxiliary: Converts internal snake_case slot ID to title case.
-	return raw_slot.replace("_", " ").capitalize()
+	## Auxiliary: Converts internal slot ID to title case, applying display name overrides.
+	return SLOT_DISPLAY_NAMES.get(raw_slot, raw_slot.replace("_", " ").capitalize())
 
 
 func _update_equipped_display() -> void:
