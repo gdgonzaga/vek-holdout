@@ -115,7 +115,64 @@ The root task of the colonist behavior tree is a **`BTDynamicSelector`**. Unlike
 
 ---
 
-## 4. Critical AI Gotchas & Lessons Learned
+## 4. Multi-Leg Job & Hauling Contracts
+
+Certain labors in Vek Holdout cannot be satisfied in a single instant interaction. In particular, hauling and construction operate across multiple distinct legs.
+
+### Hauling Lifecycle (Fetch -> Deliver)
+1. **Leg 1 (Pickup / Fetch)**:
+   - Colonist navigates to the ground item (`WorldItem`) or source crate.
+   - Colonist executes pickup: the items move into the colonist's inventory pockets, and the ground item count drops to 0 (`item.hide_item()`).
+   - **Critical Invariant**: Leg 1 is NOT the end of the job. `JobDef.job_complete(job)` must return `false` while items remain in transit.
+2. **Leg 2 (Delivery / Deposit)**:
+   - `BTActionClaimJob` detects that the colonist already holds an active hauling job, preserves `active_job` on the blackboard, and invokes `_update_active_job_target_pos()`.
+   - `_update_active_job_target_pos()` queries `job.def.work_site(colonist, job)`, dynamically redirecting `target_pos` to the destination storage crate or construction sink.
+   - `BTActionNavigateTo` walks the colonist to the crate.
+   - `BTActionPerformWork` verifies proximity (`distance_to(crate) <= 2.2`), transfers the carried materials into crate inventory, and calls `_finish(actor, job)`.
+   - `_finish()` marks `job.is_completed = true`, unassigns the actor, and prunes the job from `Colony.job_board`.
+
+### Terminal vs. Progressive Job Completion in `BTActionPerformWork`
+- **Legacy Single-Shot Jobs** (Digging, Single Harvest): Calling `job.def.complete(agent, job)` immediately triggers `_finish()`, setting `job.is_completed = true`.
+- **Multi-Leg & Progressive Jobs** (Hauling, Fractional Jobs): Calling `complete()` only concludes the active leg. `BTActionPerformWork` calls `_is_job_def_completed(job)`:
+  - If `job.is_completed` or `job.is_finished()` is true, or `def.job_complete(job)` returns true, `_release_job_reference()` clears `active_job` from the blackboard.
+  - If the job requires further legs, `active_job` is retained on the blackboard so `BTActionClaimJob` steps to the next phase on the subsequent tick.
+
+---
+
+## 5. Inventory Hygiene & Item Dribbling Prevention
+
+When a colonist finishes a job, switches goals, or claims a new task, carried items must be reconciled without causing infinite AI feedback loops.
+
+### The "Item Dribbling" Loop
+- If a colonist holding surplus materials (e.g. remaining wood from an interrupted build or canceled haul) blindly drops those items onto the ground (`WorldItem.spawn_at`), `Colony.register_world_item()` immediately detects the new world item.
+- `Colony` registers a fresh hauling job for that item on `JobBoard`.
+- On the next frame, the same colonist (or a nearby colonist) evaluates `JobBoard.get_best_job_for()`, claims the hauling job, picks up the dropped item, runs hygiene checks, drops it again, and repeats infinitely (the "dribbling" loop).
+
+### The Solution: Stow-or-Cleanup
+- In `BTActionClaimJob._cleanup_incompatible_held_items()`:
+  - Carried tools are preserved or equipped via `EquipmentAudit`.
+  - Needed materials for the active job (e.g. materials for the target sink) are never discarded.
+  - Any surplus unneeded materials are handled via `_stow_or_cleanup_unneeded_items()`: the system attempts to deposit them directly into colony crates before falling back to dropping them on the ground.
+
+---
+
+## 6. Spatial Bounds & Void Filtering
+
+Vek Holdout supports arbitrary voxel terrain depth, including deep mining shafts, underground caverns, and open sky voids.
+
+- **Dynamic Map Bounds**:
+  - `MapDef` defines the playable coordinate volume (`world_bounds: AABB`).
+  - During map startup, `MapWiring.wire_colonists()` injects this volume into the colony coordinator:
+    `Colony.set_world_bounds(map.get_world_bounds())`
+- **Void Rejection**:
+  - When blocks are mined or destroyed over voids, items may fall below the lowest playable floor.
+  - `Colony.register_world_item()` and `Colony._spawn_world_item_haul_job()` verify that:
+    `if _world_bounds.has_volume() and item.global_position.y < _world_bounds.position.y: return`
+  - This dynamically adapts to deep mines of any depth while preventing out-of-bounds items from creating unreachable jobs that stall colonists.
+
+---
+
+## 7. Critical AI Gotchas & Lessons Learned
 
 Developing and debugging the hybrid Utility + LimboAI system revealed several subtle edge cases. Keep these invariants in mind when modifying AI or job systems.
 
@@ -127,7 +184,7 @@ Developing and debugging the hybrid Utility + LimboAI system revealed several su
 ### 2. Job Slot Capacity Self-Rejection (The Claim/Drop Loop)
 - **The Issue**: Single-colonist jobs (like Construction or Harvesting) have `max_assignees = 1`. When a colonist claims the job, `_assigned_colonists` has size 1.
 - **The Pitfall**: On the very next tick, `BTActionClaimJob` validates the ongoing job by calling `job.is_available_for(colonist)`. If `is_available_for` checks `_assigned_colonists.size() >= max_assignees` without verifying if the querying colonist is **already assigned**, it evaluates `1 >= 1` (true) and reports the job as unavailable!
-- **Symptom**: The colonist unassigns the job, drops `active_job`, claims it again on the same frame, and loops at 60 Hz. The behavior tree is trapped in `ClaimJob`, wiping navigation every frame and causing the colonist to wander while UI displays the job activity.
+- **Symptom**: The colonist unassigns the job, drops `active_job`, claims it again on the same frame, and loops at 60 Hz. The behavior tree is trapped in `ClaimJob`, wiping navigation every frame and causing the colonist to wander while UI displays flickering activity badges.
 - **Fix**: In `Job.is_available_for(colonist)`:
   ```gdscript
   var is_already_assigned: bool = colonist != null and is_assigned(colonist.colonist_id)
@@ -138,7 +195,15 @@ Developing and debugging the hybrid Utility + LimboAI system revealed several su
 ### 3. Blueprint Volume Self-Occupancy
 - **The Issue**: Construction jobs require clear space around the blueprint to prevent entities from being entombed inside solid structures upon completion (`_is_blueprint_occupied()`).
 - **The Pitfall**: If `ConstructionJobDef.is_available_for(job, actor)` does not pass `actor` as `exclude_actor` to `_is_blueprint_occupied(bp, actor)`, the builder standing at or adjacent to the blueprint will flag the blueprint as occupied by *themselves*.
-- **Symptom**: The builder claims the job, walks up to the blueprint, and immediately drops the job because they are standing too close to their own construction site.
+- **Symptom**: The builder claims the job, walks up to the blueprint, and immediately drops the job because they are standing inside their own construction bounding box.
+- **Fix**: In `ConstructionJobDef`:
+  ```gdscript
+  func is_available_for(job: Variant, actor: Node = null) -> bool:
+      var bp := _blueprint_of(job)
+      if bp == null:
+          return false
+      return not _is_blueprint_occupied(bp, actor)
+  ```
 
 ### 4. Blackboard vs. Colonist State Desynchronization (`active_job` vs `current_job`)
 - **The Issue**: `Colonist.get_current_activity()` drives overhead UI badges and moodlets by checking `blackboard.get_var("active_job")` with a fallback to `colonist.current_job`.
@@ -157,7 +222,7 @@ Developing and debugging the hybrid Utility + LimboAI system revealed several su
 
 ---
 
-## 5. Telemetry & Debugging AI Loops
+## 8. Telemetry & Debugging AI Loops
 
 When colonists exhibit stuttering, rapid state oscillation, or idle wandering during active work:
 
@@ -169,6 +234,6 @@ When colonists exhibit stuttering, rapid state oscillation, or idle wandering du
    - `[JOB_BOARD]`: Shows job evaluation rejections (e.g. `tool requirement failed`).
    - `[TOOL]`: Shows `ConditionHasTool` or `EquipTool` failures.
    - `[TASK]`: Shows behavior tree task lifecycle transitions (`ENTER`, `RUNNING`, `SUCCESS`, `FAILURE`).
-3. Look for repetition:
-   - If `JobClaim CLAIMED` appears every frame with 16ms timestamps, check `is_available_for` capacity gates.
-   - If `NavigateTo FAILURE` appears, verify `target_pos` resolution and voxel pathfinder reachability.
+3. Look for repetition patterns:
+   - **Frame oscillation (16ms repetitions)**: If `JobClaim CLAIMED` appears every frame, check `is_available_for` capacity gates or blueprint occupancy.
+   - **Navigation resets**: If `NavigateTo ENTER` immediately alternates with `Wander ENTER`, check if an action is failing on path generation or wiping sibling path ownership.

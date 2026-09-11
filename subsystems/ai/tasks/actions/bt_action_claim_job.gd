@@ -61,6 +61,8 @@ func _tick(_delta: float) -> Status:
 				if agent is Colonist:
 					(agent as Colonist).current_job = null
 			else:
+				# 1. Target Synchronization: Updates target_pos if multi-leg job changes site.
+				_update_active_job_target_pos(colonist, existing_job)
 				_cleanup_incompatible_held_items(colonist, existing_job)
 				return SUCCESS
 
@@ -250,3 +252,28 @@ func _sync_tool_requirements_to_blackboard(def_obj: Resource) -> void:
 	else:
 		blackboard.erase_var(&"required_equipped_tags")
 		blackboard.erase_var(&"required_tool_tag")
+
+
+func _update_active_job_target_pos(colonist: Colonist, job: Variant) -> void:
+	## Auxiliary: Dynamically updates target_pos on blackboard for continuing multi-leg jobs.
+	if blackboard == null or colonist == null or job == null:
+		return
+	if "def" in job and job.def != null and job.def.has_method("work_site"):
+		var site: Variant = job.def.work_site(colonist, job)
+		if site is Vector3:
+			blackboard.set_var(target_pos_var, site)
+			return
+		elif site is Node3D:
+			blackboard.set_var(target_pos_var, (site as Node3D).global_position)
+			return
+	if "target_pos" in job:
+		blackboard.set_var(target_pos_var, job.target_pos)
+	elif "target_position" in job:
+		blackboard.set_var(target_pos_var, job.target_position)
+	elif "world_position" in job:
+		blackboard.set_var(target_pos_var, job.world_position)
+	elif "anchor_cell" in job and job.anchor_cell != Vector3i.MAX:
+		blackboard.set_var(target_pos_var, Vector3(job.anchor_cell) + Vector3(0.5, 0.5, 0.5))
+	elif "target_node" in job and job.target_node != null and is_instance_valid(job.target_node):
+		if job.target_node is Node3D:
+			blackboard.set_var(target_pos_var, (job.target_node as Node3D).global_position)

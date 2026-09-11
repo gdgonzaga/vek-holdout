@@ -74,6 +74,17 @@ var target_colonist_id: String = ""
 ## Optional owning JobSequence identifier. If non-empty, this job is part of a pipeline.
 var sequence_id: String = ""
 
+## Completion flag for job lifecycle tracking.
+var is_completed: bool = false
+
+## Cancellation flag for job lifecycle tracking.
+var is_cancelled: bool = false
+
+
+## True when this job has fulfilled its lifecycle contract and completed.
+func is_finished() -> bool:
+	return is_completed
+
 
 
 ## Build a Job from a JobDef: fresh uuid, the def back-ref, the labor_id +
@@ -137,7 +148,8 @@ func is_available() -> bool:
 func is_available_for(colonist: Colonist = null) -> bool:
 	if Time.get_ticks_msec() < sleep_until_msec:
 		return false
-	if _assigned_colonists.size() >= max_assignees:
+	var is_already_assigned: bool = colonist != null and is_assigned(colonist.colonist_id)
+	if not is_already_assigned and _assigned_colonists.size() >= max_assignees:
 		return false
 	# 1. Sequence Gating: Verify if this step is currently active in its sequence.
 	if sequence_id != "" and not _is_sequence_step_active():
@@ -157,6 +169,8 @@ func is_available_for(colonist: Colonist = null) -> bool:
 ## def-less jobs fall back to the not-accepting-more check). Called by
 ## ColonistAI after unassign and by the board's prune.
 func should_close() -> bool:
+	if is_completed or is_cancelled:
+		return true
 	if not _assigned_colonists.is_empty():
 		return false
 	# 1. Sequence Preservation: Do not close if this job is an inactive step in a live sequence.

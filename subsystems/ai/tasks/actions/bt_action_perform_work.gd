@@ -150,7 +150,8 @@ func _tick(delta: float) -> Status:
 			finished = true
 		elif "def" in job and job.def != null:
 			job.def.complete(agent, job)
-			finished = true
+			# 1. Multi-Leg Completion Check: Verifies if multi-leg or single-shot JobDef is fully satisfied.
+			finished = _is_job_def_completed(job)
 		elif job.has_method("complete"):
 			job.complete(agent)
 			finished = true
@@ -160,6 +161,32 @@ func _tick(delta: float) -> Status:
 
 	_cycle_finished = true
 	return SUCCESS
+
+
+func _is_job_def_completed(job: Variant) -> bool:
+	## Auxiliary: Checks if a Job with a JobDef is completed and should release its claim.
+	if job == null or not is_instance_valid(job):
+		return true
+	if "is_completed" in job and bool(job.is_completed):
+		return true
+	if job.has_method("is_finished") and bool(job.is_finished()):
+		return true
+	if "id" in job and str(job.id) != "" and agent is Node:
+		var colony := (agent as Node).get_node_or_null("/root/Colony")
+		if colony != null and "job_board" in colony and colony.job_board != null:
+			if colony.job_board.has_method("has_job") and not colony.job_board.has_job(str(job.id)):
+				return true
+			elif colony.job_board.has_method("get_job") and colony.job_board.get_job(str(job.id)) == null:
+				return true
+	if "def" in job and job.def != null:
+		var def: Variant = job.def
+		if def is HaulingJobDef:
+			return bool(def.job_complete(job)) or bool(def.should_close(job))
+		if def.has_method("job_complete"):
+			return bool(def.job_complete(job))
+		if def.has_method("should_close"):
+			return bool(def.should_close(job))
+	return true
 
 
 ## True when the worked object has no remaining progress: a JobInstance that

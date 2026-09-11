@@ -41,12 +41,16 @@ func complete(actor: Node, job: Variant) -> void:
 
 
 ## A construction job is claimable while its blueprint exists and its volume
-## is clear. The slot gate (max_assignees=1) keeps it to one builder.
-func is_available(job: Variant) -> bool:
+## is clear of other actors (excluding the assigned builder).
+func is_available_for(job: Variant, actor: Node = null) -> bool:
 	var bp := _blueprint_of(job)
 	if bp == null:
 		return false
-	return not _is_blueprint_occupied(bp)
+	return not _is_blueprint_occupied(bp, actor)
+
+
+func is_available(job: Variant) -> bool:
+	return is_available_for(job, null)
 
 
 ## Leaves the board only when the blueprint is actually freed (built or

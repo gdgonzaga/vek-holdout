@@ -274,7 +274,7 @@ func _is_colonist_hauling(colonist: Colonist) -> bool:
 		if j is Job and j.def is HaulingJobDef:
 			if "_assigned_colonists" in j:
 				var assigned: Array = j._assigned_colonists
-				if assigned.has(colonist) or assigned.has(str(colonist)):
+				if assigned.has(colonist.colonist_id):
 					return true
 		elif j != null and is_instance_valid(j) and j.has_method("is_claimed_by"):
 			if j.is_claimed_by(colonist):

@@ -439,6 +439,105 @@ func test_equipment_audit_equips_carried_tool_before_hygiene() -> void:
 	assert_int(crate_inv.get_item_count("axe")).is_equal(0)
 
 
+func test_is_available_for_accepts_already_assigned_colonist() -> void:
+	var def := _make_def("construction", [])
+	var job := Job.from_def(def)
+	job.max_assignees = 1
+	var colonist: Colonist = _sandbox.make_colonist()
+	assert_bool(job.try_assign(colonist)).is_true()
+	assert_int(job._assigned_colonists.size()).is_equal(1)
+	assert_bool(job.is_available_for(colonist)).is_true()
+
+	var other_colonist: Colonist = _sandbox.make_colonist()
+	assert_bool(job.is_available_for(other_colonist)).is_false()
+
+
+func test_construction_available_for_builder_at_blueprint() -> void:
+	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
+	bp.target_def_id = "workbench"
+	bp.def = BuildLibrary.get_def("workbench")
+	_sandbox.container.add_child(bp)
+	bp.global_position = Vector3(2.0, 0.0, 2.0)
+	var job := Job.from_def(CONSTRUCTION_DEF)
+	job.target_node = bp
+
+	var builder: Colonist = _sandbox.make_colonist()
+	builder.global_position = Vector3(2.0, 0.0, 2.0)
+	assert_bool(CONSTRUCTION_DEF.is_available_for(job, builder)).is_true()
+	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
+
+
+func test_world_item_haul_multileg_lifecycle() -> void:
+	var crate := _sandbox.make_crate("plank", 0)
+	crate.global_position = Vector3(0, 0, 0)
+	var crate_inv: Inventory = _sandbox.test_registry.inventory_of(crate)
+
+	var ground_item: WorldItem = WorldItem.spawn_at(self, "plank", 4, Vector3(5, 0, 5))
+	auto_free(ground_item)
+	Colony.register_world_item(ground_item)
+
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(5, 0, 5)
+
+	var job_ref: RefCounted = Colony.job_board.get_best_job_for(colonist)
+	assert_object(job_ref).is_not_null()
+	var job := job_ref as Job
+	assert_bool(job.try_assign(colonist)).is_true()
+
+	var bb := Blackboard.new()
+	bb.set_var(&"active_job", job)
+
+	# Leg 1: Pick up
+	var claim_task := BTActionClaimJob.new()
+	auto_free(claim_task)
+	claim_task.initialize(colonist, bb, colonist)
+	assert_int(claim_task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_bool(bb.has_var(&"target_pos")).is_true()
+	assert_vector(bb.get_var(&"target_pos")).is_equal_approx(Vector3(5, 0, 5), Vector3(0.1, 0.1, 0.1))
+
+	var work_task := BTActionPerformWork.new()
+	auto_free(work_task)
+	work_task.initialize(colonist, bb, colonist)
+	assert_int(work_task.execute(1.5)).is_equal(BTAction.SUCCESS)
+
+	# After Leg 1, colonist carries the planks, but job is NOT released yet
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(4)
+	assert_bool(bb.has_var(&"active_job")).is_true()
+	assert_bool(job.is_assigned(colonist.colonist_id)).is_true()
+
+	# Leg 2: Walk to crate
+	colonist.global_position = Vector3(0, 0, 0)
+	assert_int(claim_task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_bool(bb.has_var(&"target_pos")).is_true()
+	assert_vector(bb.get_var(&"target_pos")).is_equal_approx(Vector3(0, 0, 0), Vector3(0.1, 0.1, 0.1))
+
+	# Leg 2: Deposit to crate
+	assert_int(work_task.execute(1.5)).is_equal(BTAction.SUCCESS)
+	assert_int(crate_inv.get_item_count("plank")).is_equal(4)
+	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+	assert_bool(bb.has_var(&"active_job")).is_false()
+	assert_bool(job.is_assigned(colonist.colonist_id)).is_false()
+
+
+func test_world_item_below_world_bounds_is_rejected() -> void:
+	Colony.set_world_bounds(AABB(Vector3(-50, -10, -50), Vector3(100, 50, 100)))
+
+	# Item below lowest point of the map (Y = -15 < -10)
+	var void_item: WorldItem = WorldItem.spawn_at(self, "plank", 1, Vector3(0, -15, 0))
+	auto_free(void_item)
+	Colony.register_world_item(void_item)
+
+	# Verify it was not registered on the job board
+	assert_int(Colony.job_board.get_jobs().size()).is_equal(0)
+
+	# Item within bounds (Y = -5 >= -10)
+	var valid_item: WorldItem = WorldItem.spawn_at(self, "plank", 1, Vector3(0, -5, 0))
+	auto_free(valid_item)
+	Colony.register_world_item(valid_item)
+
+	assert_int(Colony.job_board.get_jobs().size()).is_equal(1)
+
+
 # ── Test doubles ──────────────────────────────────────────────────────────────
 
 ## Minimal non-Blueprint MaterialSink: owes 3 planks until `satisfied` flips
