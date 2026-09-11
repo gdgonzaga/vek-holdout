@@ -99,7 +99,7 @@ func _get_equipment() -> Equipment:
 
 func _equip_from_inventory(eq: Equipment, req_id: String, req_tags: Array[StringName]) -> bool:
 	## Auxiliary: Searches the agent's carry inventory for a matching item,
-	##            removes one from inventory, and equips it to main_hand.
+	##            stows any held item, removes one from inventory, and equips it to main_hand.
 	if eq == null or not is_instance_valid(agent):
 		return false
 	var inv: Inventory = _get_inventory()
@@ -120,13 +120,21 @@ func _equip_from_inventory(eq: Equipment, req_id: String, req_tags: Array[String
 		return false
 
 	inv.remove(matching_id, 1)
-	return eq.equip(Equipment.SLOT_MAIN_HAND, item_def)
+	var success: bool = eq.stow_and_equip(Equipment.SLOT_MAIN_HAND, item_def, inv)
+	if not success:
+		inv.add(matching_id, 1)
+		return false
+	return true
 
 
 func _get_inventory() -> Inventory:
-	## Auxiliary: Returns the Inventory node on the agent using duck-typed access.
+	## Auxiliary: Returns the Inventory node on the agent using duck-typed access or child lookup.
 	if "inventory" in agent and agent.inventory != null:
 		return agent.inventory as Inventory
+	if is_instance_valid(agent) and agent is Node:
+		var inv_node := (agent as Node).get_node_or_null("Inventory") as Inventory
+		if inv_node != null:
+			return inv_node
 	return null
 
 

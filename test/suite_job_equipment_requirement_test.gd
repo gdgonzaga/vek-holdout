@@ -6,7 +6,7 @@ const Doubles := preload("res://test/helpers/doubles.gd")
 const ColonySandboxHelper := preload("res://test/helpers/colony_sandbox.gd")
 
 var _sandbox: ColonySandboxHelper
-var _registered_item_ids: Array[String] = []
+var _previous_item_defs: Dictionary = {}
 
 # ==============================
 # Helpers
@@ -18,9 +18,12 @@ func before_test() -> void:
 
 func after_test() -> void:
 	if ItemDB != null:
-		for id_val in _registered_item_ids:
-			ItemDB._defs_by_id.erase(id_val)
-	_registered_item_ids.clear()
+		for id_val in _previous_item_defs:
+			if _previous_item_defs[id_val] != null:
+				ItemDB._defs_by_id[id_val] = _previous_item_defs[id_val]
+			else:
+				ItemDB._defs_by_id.erase(id_val)
+	_previous_item_defs.clear()
 	_sandbox.restore()
 
 
@@ -30,8 +33,9 @@ func _make_item(id_val: String, item_tags: Array[String], item_weight: float = 1
 	def.tags = item_tags
 	def.weight = item_weight
 	if ItemDB != null:
+		if not _previous_item_defs.has(id_val):
+			_previous_item_defs[id_val] = ItemDB._defs_by_id.get(id_val, null)
 		ItemDB._defs_by_id[id_val] = def
-	_registered_item_ids.append(id_val)
 	return def
 
 
@@ -191,3 +195,51 @@ func test_perform_work_aborts_when_tool_broken_or_unequipped() -> void:
 
 	# Next tick without tool: FAILURE (clean abort)
 	assert_int(work_action.execute(0.1)).is_equal(BTAction.FAILURE)
+
+
+func test_end_to_end_auto_fetch_stow_work_and_restore_cycle() -> void:
+	var colonist: Colonist = _make_colonist()
+	colonist.set_labor_priority("mining", 3)
+
+	var sword: ItemDef = _make_item("iron_sword", ["weapon"])
+	var _pick: ItemDef = _make_item("mining_pick", ["mining_tool", "tool"])
+
+	# Colonist has sword equipped in main_hand, and sword configured as desired weapon
+	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, sword)
+	colonist.equipment.set_desired_item(Equipment.SLOT_MAIN_HAND, "iron_sword")
+
+	# Storage has a mining_pick
+	_sandbox.make_crate("mining_pick", 1)
+
+	# Job board has a mining job requiring mining_tool
+	var def: JobDef = _make_work_job_def("", [&"mining_tool"])
+	var job: Job = Job.from_def(def)
+	job.id = "mining_job_e2e"
+	Colony.job_board.add_job(job)
+
+	# 1. JobBoard intercepts with FetchEquipmentJob
+	var intercepted_job = Colony.job_board.get_best_job_for(colonist)
+	assert_object(intercepted_job).is_not_null()
+	assert_bool(intercepted_job is FetchEquipmentJob).is_true()
+	var fetch_job := intercepted_job as FetchEquipmentJob
+	assert_bool(fetch_job.is_labor_intercept).is_true()
+	assert_str(fetch_job.target_item_id).is_equal("mining_pick")
+
+	# 2. Colonist completes fetch job: tool equipped, sword stowed to holster
+	fetch_job.def.complete(colonist, fetch_job)
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("mining_pick")
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_HOLSTER).id).is_equal("iron_sword")
+
+	# 3. Colonist claims the original mining work job directly now that tool is equipped
+	var work_job = Colony.job_board.get_best_job_for(colonist)
+	assert_object(work_job).is_not_null()
+	assert_str(work_job.id).is_equal("mining_job_e2e")
+
+	# 4. Finish the mining job and remove from board
+	Colony.job_board.remove_job("mining_job_e2e")
+
+	# 5. Colonist falls idle: EquipmentAudit runs and restores desired iron_sword to main_hand
+	EquipmentAudit.run_audit(colonist, Colony.job_board)
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("iron_sword")
+	# Tool is in holster after hand/holster swap
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_HOLSTER).id).is_equal("mining_pick")

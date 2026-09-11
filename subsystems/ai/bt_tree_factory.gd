@@ -9,6 +9,7 @@ const BTActionClaimJobScript = preload("res://subsystems/ai/tasks/actions/bt_act
 const BTActionUseSmartObjectScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd")
 const BTActionHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd")
 const BTActionWanderScript = preload("res://subsystems/ai/tasks/actions/bt_action_wander.gd")
+const BTActionEquipToolScript = preload("res://subsystems/ai/tasks/actions/bt_action_equip_tool.gd")
 
 const BTConditionHasToolScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd")
 const BTConditionInGroupScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_in_group.gd")
@@ -35,14 +36,18 @@ static func create_generic_work_tree() -> BehaviorTree:
 	var has_tool_cond = BTConditionHasToolScript.new()
 	tool_selector.add_child(has_tool_cond)
 	root.add_child(tool_selector)
+
+	# 3. Equip Tool (Ensure tool in main_hand, swapping/stowing as necessary)
+	var equip_tool = BTActionEquipToolScript.new()
+	root.add_child(equip_tool)
 	
-	# 3. Navigate to work site
+	# 4. Navigate to work site
 	var nav_task = BTActionNavigateToScript.new()
 	nav_task.target_var = &"target_pos"
 	nav_task.arrival_distance = 1.8
 	root.add_child(nav_task)
 	
-	# 4. Perform Work
+	# 5. Perform Work
 	var work_task = BTActionPerformWorkScript.new()
 	work_task.job_var = &"active_job"
 	root.add_child(work_task)

@@ -61,15 +61,23 @@ Armor slots (`head`, `torso`, `legs`, `feet`, `back`) are scaffolded but fire no
 
 ---
 
-## Main-hand / Holster Swap
+## Main-hand / Holster Swap & Cascading Stow
 
 `Equipment.swap_hand_for_tag(needed_tag)` is the key AI helper:
 
 1. `main_hand` already has the tag -> no-op, return `true`.
 2. `holster` has the tag -> swap `main_hand` <-> `holster`, return `true`.
-3. Neither -> return `false` (caller fetches from inventory).
+3. Neither -> return `false` (caller fetches from inventory or storage).
 
-`BTActionEquipTool` calls this before work execution and falls back to pulling the tool from the carry inventory.
+`Equipment.stow_and_equip(slot_id, item_def, inventory)` provides safe cascading stow:
+1. If the target slot already holds the exact same item, returns `true` (no-op).
+2. If the target slot is currently empty, equips the item directly.
+3. If the target slot is occupied (e.g. `main_hand` holding a weapon):
+   - Attempts to stow the displaced item into `holster` if `holster` is empty and eligible.
+   - If `holster` is unavailable, attempts to stow into `inventory` (carry pockets).
+   - If neither stow destination has room, the operation fails and returns `false` without modifying equipment.
+
+`BTActionEquipTool` calls `swap_hand_for_tag` before work execution. If the tool is carried in inventory, it removes 1 unit and executes `stow_and_equip(SLOT_MAIN_HAND, tool_def, inventory)` to preserve the previously held weapon/tool.
 
 ---
 
@@ -99,13 +107,16 @@ Colonists maintain a desired item ID for each slot in `Equipment._desired_slots`
 - **Priority**: Has priority `500` in `JobBoard.get_best_job_for`, higher than all normal labor (max ~150) but lower than deploy commands (`1000`).
 - **Dynamic Crate Resolution**: `work_site()` re-queries `StorageRegistry.find_storage_for()` every navigation cycle so destroyed crates trigger transparent rerouting.
 - **Defensive Completion**: In `complete()`, the item is equipped to the slot *before* removing it from the storage crate to ensure no items are destroyed if equip validation fails.
-- **Stale Invalidation**: `is_available_for()` and `should_close()` check if the desired item for the slot was modified while the job was in flight, retiring stale jobs cleanly.
+- **Labor Intercept Mode**: Jobs created via `JobBoard._create_and_post_intercept_fetch_job` set `is_labor_intercept = true`. These bypass the colonist `_desired_slots` requirement in `is_available_for()` and `should_close()`, and call `stow_and_equip()` on completion to cleanly stow the held weapon/tool.
+- **Stale Invalidation**: Standard loadout fetch jobs check if the desired item for the slot was modified while the job was in flight, retiring stale jobs cleanly.
 
 ---
 
 ## Inventory vs Equipment
 
-Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` equips a tool from inventory it calls `inventory.remove(item_id, 1)` then `equipment.equip(slot, item_def)`. Colonists keep their tool equipped across jobs (no unequip on job end); `swap_hand_for_tag` handles switching for a different job.
+Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` equips a tool from inventory it calls `inventory.remove(item_id, 1)` then `equipment.stow_and_equip(SLOT_MAIN_HAND, item_def, inventory)`. Colonists keep their tool equipped across jobs (no unequip on job end); `swap_hand_for_tag` handles switching for a different job.
+
+When colonists fall idle and perform storage hygiene, `JobBoard._find_best_crate_for_inventory` respects `_is_item_desired_by_colonist`, allowing colonists to keep desired loadout items in their pockets while depositing temporary labor tools back into colony crates.
 
 ---
 
@@ -142,6 +153,7 @@ Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` 
 | `has_item_with_tag(tag)` | `bool` | True if any equipped slot holds an item with the tag. |
 | `swap_hand_for_tag(needed_tag)` | `bool` | main_hand/holster swap helper. See design above. |
 | `swap_hand_to_holster()` | `void` | Unconditional main_hand <-> holster swap. |
+| `stow_and_equip(slot_id, item_def, inventory)` | `bool` | Equips item into slot, cascading existing item into holster or inventory if needed. |
 | `get_desired_item(slot_id)` | `String` | Returns configured desired item ID for slot ("" if none). |
 | `set_desired_item(slot_id, item_id)` | `void` | Sets target desired item ID; emits `desired_slot_changed`. |
 | `clear_desired_item(slot_id)` | `void` | Clears target desired item ID. |

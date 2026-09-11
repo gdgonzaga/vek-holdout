@@ -1,28 +1,32 @@
 [gd_resource type="BehaviorTree" format=3]
 
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="1_fs6vk"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="2_ase14"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="3_5clci"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="4_pm8y7"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="1_ase14"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="2_5clci"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_equip_tool.gd" id="3_pm8y7"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="4_smv1o"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="5_pl514"]
 
-[sub_resource type="BTAction" id="BTAction_smv1o"]
-script = ExtResource("1_fs6vk")
+[sub_resource type="BTAction" id="BTAction_lq23x"]
+script = ExtResource("1_ase14")
 
-[sub_resource type="BTCondition" id="BTCondition_pl514"]
-script = ExtResource("2_ase14")
+[sub_resource type="BTCondition" id="BTCondition_18be8"]
+script = ExtResource("2_5clci")
 
-[sub_resource type="BTSelector" id="BTSelector_lq23x"]
-children = [SubResource("BTCondition_pl514")]
+[sub_resource type="BTSelector" id="BTSelector_nlvq2"]
+children = [SubResource("BTCondition_18be8")]
 
-[sub_resource type="BTAction" id="BTAction_18be8"]
-script = ExtResource("3_5clci")
+[sub_resource type="BTAction" id="BTAction_mgwiw"]
+script = ExtResource("3_pm8y7")
 
-[sub_resource type="BTAction" id="BTAction_nlvq2"]
-script = ExtResource("4_pm8y7")
+[sub_resource type="BTAction" id="BTAction_sdr4p"]
+script = ExtResource("4_smv1o")
 
-[sub_resource type="BTSequence" id="BTSequence_mgwiw"]
-children = [SubResource("BTAction_smv1o"), SubResource("BTSelector_lq23x"), SubResource("BTAction_18be8"), SubResource("BTAction_nlvq2")]
+[sub_resource type="BTAction" id="BTAction_o4ki8"]
+script = ExtResource("5_pl514")
+
+[sub_resource type="BTSequence" id="BTSequence_0bgy2"]
+children = [SubResource("BTAction_lq23x"), SubResource("BTSelector_nlvq2"), SubResource("BTAction_mgwiw"), SubResource("BTAction_sdr4p"), SubResource("BTAction_o4ki8")]
 
 [resource]
 description = "Universal work sequence executing claims and work units"
-root_task = SubResource("BTSequence_mgwiw")
+root_task = SubResource("BTSequence_0bgy2")

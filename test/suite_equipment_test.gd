@@ -4,14 +4,27 @@
 extends GdUnitTestSuite
 
 const Doubles = preload("res://test/helpers/doubles.gd")
-# ==============================
-# Helpers
-# ==============================
+var _previous_item_defs: Dictionary = {}
 
-func _make_item(id_val: String, item_tags: Array[String]) -> ItemDef:
+func after_test() -> void:
+	if ItemDB != null:
+		for id_val in _previous_item_defs:
+			if _previous_item_defs[id_val] != null:
+				ItemDB._defs_by_id[id_val] = _previous_item_defs[id_val]
+			else:
+				ItemDB._defs_by_id.erase(id_val)
+	_previous_item_defs.clear()
+
+
+func _make_item(id_val: String, item_tags: Array[String], item_weight: float = 1.0) -> ItemDef:
 	var def: ItemDef = auto_free(ItemDef.new())
 	def.id = id_val
 	def.tags = item_tags
+	def.weight = item_weight
+	if ItemDB != null:
+		if not _previous_item_defs.has(id_val):
+			_previous_item_defs[id_val] = ItemDB._defs_by_id.get(id_val, null)
+		ItemDB._defs_by_id[id_val] = def
 	return def
 
 
@@ -384,3 +397,88 @@ func test_serialize_and_deserialize_desired_slots() -> void:
 	assert_str(eq2.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("axe")
 	assert_str(eq2.get_desired_item(Equipment.SLOT_HEAD)).is_equal("helmet")
 	assert_str(eq2.get_desired_item(Equipment.SLOT_TORSO)).is_equal("")
+
+
+func test_stow_and_equip_to_empty_main_hand() -> void:
+	var eq: Equipment = _make_equipment()
+	var pick: ItemDef = _make_item("pickaxe", ["tool"])
+	var ok: bool = eq.stow_and_equip(Equipment.SLOT_MAIN_HAND, pick)
+	assert_bool(ok).is_true()
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("pickaxe")
+
+
+func test_stow_and_equip_stows_to_empty_holster() -> void:
+	var eq: Equipment = _make_equipment()
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, sword)
+
+	var ok: bool = eq.stow_and_equip(Equipment.SLOT_MAIN_HAND, pick)
+	assert_bool(ok).is_true()
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("pickaxe")
+	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("sword")
+
+
+func test_stow_and_equip_stows_to_inventory_when_holster_occupied() -> void:
+	var eq: Equipment = _make_equipment()
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var pistol: ItemDef = _make_item("pistol", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, sword)
+	eq.equip(Equipment.SLOT_HOLSTER, pistol)
+
+	var inv: Inventory = auto_free(Inventory.new())
+	inv.capacity = 100.0
+	var ok: bool = eq.stow_and_equip(Equipment.SLOT_MAIN_HAND, pick, inv)
+	assert_bool(ok).is_true()
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("pickaxe")
+	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
+	assert_int(inv.get_item_count("sword")).is_equal(1)
+
+
+func test_stow_and_equip_fails_when_inventory_full_and_holster_occupied() -> void:
+	var eq: Equipment = _make_equipment()
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var pistol: ItemDef = _make_item("pistol", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, sword)
+	eq.equip(Equipment.SLOT_HOLSTER, pistol)
+
+	var inv: Inventory = auto_free(Inventory.new())
+	inv.capacity = 0.5  # Too small to accept sword (weight 1.0)
+	var ok: bool = eq.stow_and_equip(Equipment.SLOT_MAIN_HAND, pick, inv)
+	assert_bool(ok).is_false()
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("sword")
+	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
+
+
+func test_bt_action_equip_tool_stows_main_hand_to_inventory() -> void:
+	var colonist: CharacterBody3D = auto_free(CharacterBody3D.new())
+	add_child(colonist)
+	var eq: Equipment = _make_equipment()
+	eq.name = "Equipment"
+	colonist.add_child(eq)
+	var inv: Inventory = auto_free(Inventory.new())
+	inv.name = "Inventory"
+	inv.capacity = 100.0
+	colonist.add_child(inv)
+
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var pistol: ItemDef = _make_item("pistol", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, sword)
+	eq.equip(Equipment.SLOT_HOLSTER, pistol)
+	inv.add("pickaxe", 1)
+
+	var bb: Blackboard = auto_free(Blackboard.new())
+	bb.set_var(&"required_equipped_tags", [&"tool"])
+
+	var action: BTAction = auto_free(BTActionEquipTool.new()) as BTAction
+	action.initialize(colonist, bb, colonist)
+	var status: int = action.execute(0.1)
+
+	assert_int(status).is_equal(BTAction.SUCCESS)
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("pickaxe")
+	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
+	assert_int(inv.get_item_count("sword")).is_equal(1)
+	assert_int(inv.get_item_count("pickaxe")).is_equal(0)

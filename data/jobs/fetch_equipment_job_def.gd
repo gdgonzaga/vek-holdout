@@ -48,12 +48,16 @@ func is_available_for(job: Variant, actor: Node = null) -> bool:
 
 	# Slot already satisfied — nothing to do.
 	if colonist != null and colonist.equipment != null:
-		if colonist.equipment.is_desired_equipped(fetch_job.target_slot):
+		var current_in_slot: ItemDef = colonist.equipment.get_item(fetch_job.target_slot)
+		if current_in_slot != null and current_in_slot.id == fetch_job.target_item_id:
 			return false
-		# Desired item changed while job was in flight — this job is stale.
-		var current_desired: String = colonist.equipment.get_desired_item(fetch_job.target_slot)
-		if current_desired != fetch_job.target_item_id:
-			return false
+		if not fetch_job.is_labor_intercept:
+			if colonist.equipment.is_desired_equipped(fetch_job.target_slot):
+				return false
+			# Desired item changed while job was in flight — this job is stale.
+			var current_desired: String = colonist.equipment.get_desired_item(fetch_job.target_slot)
+			if current_desired != fetch_job.target_item_id:
+				return false
 
 	# Item must exist somewhere in colony storage.
 	return _item_in_storage(fetch_job.target_item_id)
@@ -73,12 +77,13 @@ func should_close(job: Variant) -> bool:
 		var current_item: ItemDef = colonist.equipment.get_item(fetch_job.target_slot)
 		if current_item != null and current_item.id == fetch_job.target_item_id:
 			return true
-		if colonist.equipment.is_desired_equipped(fetch_job.target_slot):
-			return true
-		# Desired item changed — this job targets the old desire.
-		var current_desired: String = colonist.equipment.get_desired_item(fetch_job.target_slot)
-		if current_desired != "" and current_desired != fetch_job.target_item_id:
-			return true
+		if not fetch_job.is_labor_intercept:
+			if colonist.equipment.is_desired_equipped(fetch_job.target_slot):
+				return true
+			# Desired item changed — this job targets the old desire.
+			var current_desired: String = colonist.equipment.get_desired_item(fetch_job.target_slot)
+			if current_desired != "" and current_desired != fetch_job.target_item_id:
+				return true
 
 	# Item no longer reachable anywhere in colony storage.
 	if not _item_in_storage(fetch_job.target_item_id):
@@ -126,19 +131,26 @@ func complete(actor: Node, job: Variant) -> void:
 		_finish(actor, job)
 		return
 
-	# 5. Handle an occupied slot — unequip existing wrong item into carry inventory
-	#    if capacity allows. If carry is full, skip this cycle; the job remains alive
-	#    and the audit will retry after normal hygiene frees capacity.
+	# 5. Handle an occupied slot.
 	var current_in_slot: ItemDef = colonist.equipment.get_item(fetch_job.target_slot)
 	if current_in_slot != null and current_in_slot.id != fetch_job.target_item_id:
-		if not _unequip_slot_to_inventory(colonist, fetch_job.target_slot):
-			return  # Carry full — retry next audit cycle.
+		if fetch_job.is_labor_intercept:
+			# For labor intercepts, cascade to holster first then carry inventory.
+			if not colonist.equipment.stow_and_equip(fetch_job.target_slot, item_def, colonist.inventory):
+				return  # Cannot equip or stow — retry next cycle.
+			crate_inv.remove(fetch_job.target_item_id, 1)
+			_finish(actor, job)
+			return
+		else:
+			# For loadout fulfillment, unequip directly into carry inventory.
+			if not _unequip_slot_to_inventory(colonist, fetch_job.target_slot):
+				return  # Carry full — retry next audit cycle.
 
 	# 6. Equip BEFORE removing from crate: if equip somehow fails after the tag
 	#    guard above, the item stays safely in storage.
 	var equipped: bool = colonist.equipment.equip(fetch_job.target_slot, item_def)
 	if not equipped:
-		return  # Should not reach here after can_equip_to guard; defensive only.
+		return  # Defensive only.
 
 	# 7. Only now remove the item from the crate.
 	crate_inv.remove(fetch_job.target_item_id, 1)
@@ -156,7 +168,8 @@ static func create_job(
 		colonist: Colonist,
 		slot_id: String,
 		item_id: String,
-		def_resource: FetchEquipmentJobDef) -> FetchEquipmentJob:
+		def_resource: FetchEquipmentJobDef,
+		is_intercept: bool = false) -> FetchEquipmentJob:
 	var job := FetchEquipmentJob.new()
 	job.id = Tools.generate_uuid()
 	job.def = def_resource
@@ -166,6 +179,7 @@ static func create_job(
 	job.target_colonist_id = colonist.colonist_id
 	job.target_slot = slot_id
 	job.target_item_id = item_id
+	job.is_labor_intercept = is_intercept
 	# Best-effort initial location for distance scoring in get_best_job_for.
 	var crate: Furniture = Colony.storage_registry.find_storage_for(item_id, colonist.global_position) \
 			if Colony.storage_registry != null else null

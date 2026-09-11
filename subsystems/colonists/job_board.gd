@@ -285,6 +285,9 @@ func _find_best_crate_for_inventory(colonist: Colonist) -> Furniture:
 
 	for item_id: Variant in colonist.inventory.items.keys():
 		var id_str := str(item_id)
+		# 1. Desired Loadout Guard: Colonists keep their configured loadout gear in pockets.
+		if _is_item_desired_by_colonist(colonist, id_str):
+			continue
 		var count: int = colonist.inventory.get_item_count(id_str)
 		if count <= 0:
 			continue
@@ -292,6 +295,17 @@ func _find_best_crate_for_inventory(colonist: Colonist) -> Furniture:
 		if crate != null:
 			return crate
 	return null
+
+
+func _is_item_desired_by_colonist(colonist: Colonist, item_id: String) -> bool:
+	## Auxiliary: Returns true if item_id matches any desired slot target for this colonist.
+	if colonist == null or colonist.equipment == null:
+		return false
+	var desired_dict: Dictionary = colonist.equipment.get_all_desired_items()
+	for slot_id: String in desired_dict:
+		if desired_dict[slot_id] == item_id:
+			return true
+	return false
 
 
 ## Returns the first available FetchEquipmentJob on the board designated for
@@ -395,7 +409,7 @@ func _create_and_post_intercept_fetch_job(colonist: Colonist, item_id: String) -
 	## Auxiliary: Creates, registers, and returns a targeted FetchEquipmentJob for the colonist.
 	var fetch_def: FetchEquipmentJobDef = preload("res://data/jobs/fetch_equipment.tres")
 	var fetch_job: FetchEquipmentJob = FetchEquipmentJobDef.create_job(
-		colonist, Equipment.SLOT_MAIN_HAND, item_id, fetch_def
+		colonist, Equipment.SLOT_MAIN_HAND, item_id, fetch_def, true
 	)
 	add_job(fetch_job)
 	return fetch_job

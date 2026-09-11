@@ -7,7 +7,7 @@ const Doubles := preload("res://test/helpers/doubles.gd")
 const ColonySandboxHelper := preload("res://test/helpers/colony_sandbox.gd")
 
 var _sandbox: ColonySandboxHelper
-var _registered_item_ids: Array[String] = []
+var _previous_item_defs: Dictionary = {}
 
 # ==============================
 # Helpers
@@ -19,9 +19,12 @@ func before_test() -> void:
 
 func after_test() -> void:
 	if ItemDB != null:
-		for id_val in _registered_item_ids:
-			ItemDB._defs_by_id.erase(id_val)
-	_registered_item_ids.clear()
+		for id_val in _previous_item_defs:
+			if _previous_item_defs[id_val] != null:
+				ItemDB._defs_by_id[id_val] = _previous_item_defs[id_val]
+			else:
+				ItemDB._defs_by_id.erase(id_val)
+	_previous_item_defs.clear()
 	_sandbox.restore()
 
 
@@ -31,8 +34,9 @@ func _make_item(id_val: String, item_tags: Array[String], item_weight: float = 1
 	def.tags = item_tags
 	def.weight = item_weight
 	if ItemDB != null:
+		if not _previous_item_defs.has(id_val):
+			_previous_item_defs[id_val] = ItemDB._defs_by_id.get(id_val, null)
 		ItemDB._defs_by_id[id_val] = def
-	_registered_item_ids.append(id_val)
 	return def
 
 
@@ -454,3 +458,79 @@ func test_slot_row_displays_holster_as_sidearm() -> void:
 func test_slot_row_other_slots_use_title_case() -> void:
 	assert_bool(EquipmentSlotRow.SLOT_DISPLAY_NAMES.has("head")).is_false()
 	assert_bool(EquipmentSlotRow.SLOT_DISPLAY_NAMES.has("main_hand")).is_false()
+
+
+# ==============================
+# Labor Intercept Fetch Jobs
+# ==============================
+
+func test_fetch_job_def_is_available_when_labor_intercept_even_if_desire_empty() -> void:
+	var colonist: Colonist = _make_colonist()
+	var _item: ItemDef = _make_item("intercept_tool", ["tool"])
+	_sandbox.make_crate("intercept_tool", 1)
+
+	var def: FetchEquipmentJobDef = _make_fetch_job_def()
+	var job: FetchEquipmentJob = FetchEquipmentJobDef.create_job(
+		colonist, Equipment.SLOT_MAIN_HAND, "intercept_tool", def, true
+	)
+
+	# Desired slot is empty (""), but is_labor_intercept is true
+	assert_str(colonist.equipment.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("")
+	assert_bool(def.is_available_for(job, colonist)).is_true()
+
+
+func test_fetch_job_def_should_not_close_when_labor_intercept_and_desire_empty() -> void:
+	var colonist: Colonist = _make_colonist()
+	var _item: ItemDef = _make_item("intercept_tool", ["tool"])
+	_sandbox.make_crate("intercept_tool", 1)
+
+	var def: FetchEquipmentJobDef = _make_fetch_job_def()
+	var job: FetchEquipmentJob = FetchEquipmentJobDef.create_job(
+		colonist, Equipment.SLOT_MAIN_HAND, "intercept_tool", def, true
+	)
+
+	assert_str(colonist.equipment.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("")
+	assert_bool(def.should_close(job)).is_false()
+
+
+func test_complete_stows_to_holster_on_labor_intercept() -> void:
+	var colonist: Colonist = _make_colonist()
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var _pick: ItemDef = _make_item("mining_pick", ["tool"])
+	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, sword)
+	_sandbox.make_crate("mining_pick", 1)
+
+	var def: FetchEquipmentJobDef = _make_fetch_job_def()
+	var job: FetchEquipmentJob = FetchEquipmentJobDef.create_job(
+		colonist, Equipment.SLOT_MAIN_HAND, "mining_pick", def, true
+	)
+	Colony.job_board.add_job(job)
+
+	def.complete(colonist, job)
+
+	# Pick in main_hand, sword cascaded into empty holster
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("mining_pick")
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_HOLSTER).id).is_equal("sword")
+
+
+func test_complete_stows_to_inventory_on_labor_intercept_when_holster_occupied() -> void:
+	var colonist: Colonist = _make_colonist()
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var pistol: ItemDef = _make_item("pistol", ["weapon"])
+	var _pick: ItemDef = _make_item("mining_pick", ["tool"])
+	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, sword)
+	colonist.equipment.equip(Equipment.SLOT_HOLSTER, pistol)
+	_sandbox.make_crate("mining_pick", 1)
+
+	var def: FetchEquipmentJobDef = _make_fetch_job_def()
+	var job: FetchEquipmentJob = FetchEquipmentJobDef.create_job(
+		colonist, Equipment.SLOT_MAIN_HAND, "mining_pick", def, true
+	)
+	Colony.job_board.add_job(job)
+
+	def.complete(colonist, job)
+
+	# Pick in main_hand, pistol stays in holster, sword stowed into carry inventory
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("mining_pick")
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
+	assert_bool(colonist.inventory.has_item("sword", 1)).is_true()

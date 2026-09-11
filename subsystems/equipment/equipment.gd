@@ -85,6 +85,28 @@ func equip(slot_id: String, item_def: ItemDef) -> bool:
 	return true
 
 
+## Equips item_def into slot_id, displacing any existing item to holster (if empty)
+## or carry inventory if holster is occupied or ineligible.
+func stow_and_equip(slot_id: String, item_def: ItemDef, inventory: Inventory = null) -> bool:
+	if not can_equip_to(slot_id, item_def):
+		return false
+	var current: ItemDef = get_item(slot_id)
+	if current == null:
+		return equip(slot_id, item_def)
+	if current.id == item_def.id:
+		return true
+
+	# 1. Holster Displacement: Attempting to stow the held item into the holster slot first.
+	if _try_stow_to_holster(slot_id, current):
+		return equip(slot_id, item_def)
+
+	# 2. Inventory Displacement: Stashing the held item into carry inventory if capacity allows.
+	if _try_stow_to_inventory(slot_id, current, inventory):
+		return equip(slot_id, item_def)
+
+	return false
+
+
 ## Removes and returns the item in slot_id, or null if the slot is empty.
 ## Caller is responsible for returning the item to inventory if needed.
 func unequip(slot_id: String) -> ItemDef:
@@ -324,6 +346,26 @@ func _perform_hand_holster_swap() -> void:
 	_slots[SLOT_HOLSTER] = hand_item
 	slot_changed.emit(SLOT_MAIN_HAND, holster_item)
 	slot_changed.emit(SLOT_HOLSTER, hand_item)
+
+
+func _try_stow_to_holster(slot_id: String, current_item: ItemDef) -> bool:
+	## Auxiliary: Moves item from slot_id to holster if slot is main_hand, holster is empty, and accepts the item.
+	if slot_id != SLOT_MAIN_HAND or not is_empty(SLOT_HOLSTER):
+		return false
+	if not can_equip_to(SLOT_HOLSTER, current_item):
+		return false
+	unequip(slot_id)
+	equip(SLOT_HOLSTER, current_item)
+	return true
+
+
+func _try_stow_to_inventory(slot_id: String, current_item: ItemDef, inventory: Inventory) -> bool:
+	## Auxiliary: Unequips item from slot_id and places it into the provided carry inventory.
+	if inventory == null or not inventory.can_add(current_item.id, 1):
+		return false
+	unequip(slot_id)
+	inventory.add(current_item.id, 1)
+	return true
 
 
 func _build_serialize_dict() -> Dictionary:
