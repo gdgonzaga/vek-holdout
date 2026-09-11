@@ -398,6 +398,47 @@ func test_construction_gated_when_standing_inside_two_stacked_blueprints() -> vo
 	SceneManager.set_player(old_player)
 
 
+## Carried unequipped tools in colonist pockets generate Store Carried Items and deposit into crates.
+func test_store_carried_items_deposits_carried_tools_to_crate() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("axe", 0)
+	var crate_inv: Inventory = _sandbox.test_registry.inventory_of(crate)
+	crate.global_position = Vector3(5.0, 0.0, 5.0)
+
+	colonist.inventory.add("axe", 1)
+	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
+
+	var best_job: RefCounted = Colony.job_board.get_best_job_for(colonist)
+	assert_object(best_job).is_not_null()
+	assert_bool(best_job is Job).is_true()
+	var haul_job: Job = best_job as Job
+	assert_str(haul_job.title).is_equal("Store Carried Items")
+
+	HAULING_DEF.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("axe")).is_equal(0)
+	assert_int(crate_inv.get_item_count("axe")).is_equal(1)
+
+
+## Desired equipment in pockets is equipped immediately during audit rather than routed to crates.
+func test_equipment_audit_equips_carried_tool_before_hygiene() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("axe", 0)
+	var crate_inv: Inventory = _sandbox.test_registry.inventory_of(crate)
+	crate.global_position = Vector3(5.0, 0.0, 5.0)
+
+	colonist.equipment.set_desired_item(Equipment.SLOT_MAIN_HAND, "axe")
+	colonist.inventory.add("axe", 1)
+	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
+	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_null()
+
+	var job: RefCounted = Colony.job_board.get_best_job_for(colonist)
+	assert_object(job).is_null()
+	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_not_null()
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("axe")
+	assert_int(colonist.inventory.get_item_count("axe")).is_equal(0)
+	assert_int(crate_inv.get_item_count("axe")).is_equal(0)
+
+
 # ── Test doubles ──────────────────────────────────────────────────────────────
 
 ## Minimal non-Blueprint MaterialSink: owes 3 planks until `satisfied` flips

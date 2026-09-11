@@ -29,8 +29,6 @@ func work_site(actor: Node, job: Variant) -> Variant:
 		var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
 		if pocket != null:
 			for item_id in pocket.items.keys():
-				if _is_tool(str(item_id)):
-					continue
 				var count: int = pocket.get_item_count(str(item_id))
 				if count <= 0:
 					continue
@@ -88,8 +86,6 @@ func complete(actor: Node, job: Variant) -> void:
 		var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
 		if pocket != null and crate_inv != null:
 			for item_id in pocket.items.keys().duplicate():
-				if _is_tool(str(item_id)):
-					continue
 				var count: int = pocket.get_item_count(str(item_id))
 				if count > 0:
 					pocket.transfer_to(crate_inv, str(item_id), count)
@@ -158,8 +154,6 @@ func complete(actor: Node, job: Variant) -> void:
 						WorldItem.spawn_at(actor, world_item.item_id, count, actor_pos + Vector3(0, 0.5, 0))
 				if crate_inv != null:
 					for other_id in pocket.items.keys().duplicate():
-						if _is_tool(str(other_id)):
-							continue
 						var other_count: int = pocket.get_item_count(str(other_id))
 						if other_count > 0 and crate_inv.can_add(str(other_id), 1):
 							pocket.transfer_to(crate_inv, str(other_id), other_count)
@@ -387,8 +381,6 @@ func _return_surplus_to_crate(actor: Node) -> void:
 	## Use find_storage_for per item so full crates are skipped and newly-placed
 	## shelves are picked up; fall back to spawning a WorldItem on the floor.
 	for item_id in pocket.items.keys().duplicate():
-		if _is_tool(str(item_id)):
-			continue
 		var count: int = pocket.get_item_count(str(item_id))
 		if count <= 0:
 			continue

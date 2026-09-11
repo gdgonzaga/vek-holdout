@@ -140,10 +140,13 @@ func _cleanup_incompatible_held_items(colonist: Colonist, job: Variant = null) -
 
 	if not req_tags.is_empty():
 		var has_matching: bool = false
-		for t: StringName in req_tags:
-			if colonist.inventory.has_item_tag(String(t)):
-				has_matching = true
-				break
+		if colonist.equipment != null and colonist.equipment.has_required_equipment("", req_tags):
+			has_matching = true
+		else:
+			for t: StringName in req_tags:
+				if colonist.inventory.has_item_tag(String(t)):
+					has_matching = true
+					break
 		if not has_matching:
 			colonist.drop_held_item()
 
