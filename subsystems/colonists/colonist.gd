@@ -13,7 +13,11 @@ var colonist_id: String
 var display_name: String
 var labor_priorities: Dictionary
 var raid_stance: int
-var current_job: Variant = null
+var current_job: Variant = null:
+	set(value):
+		if current_job != value:
+			ColonistLogger.log_msg(self, &"JOB", "current_job set to: %s (was: %s)" % [str(value), str(current_job)])
+		current_job = value
 var squad_id: String = ""
 var skill_set: SkillSet
 var stamina_component: StaminaComponent

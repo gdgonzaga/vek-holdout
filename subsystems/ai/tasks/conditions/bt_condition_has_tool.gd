@@ -101,6 +101,7 @@ func _tick(_delta: float) -> Status:
 			if inv.has_item_tag(String(tag)):
 				return SUCCESS
 					
+	ColonistLogger.log_msg(agent as Node, &"TOOL", "ConditionHasTool FAILURE. req_id: %s, req_tags: %s" % [req_id, str(req_tags)])
 	return FAILURE
 
 

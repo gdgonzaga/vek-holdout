@@ -178,6 +178,7 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 		if def_obj != null and not is_fetch_equip and not is_deploy:
 			var req_status: Dictionary = _evaluate_tool_requirement(colonist, def_obj)
 			if not req_status["eligible"]:
+				ColonistLogger.log_msg(colonist, &"JOB_EVAL", "Job %s rejected: tool requirement failed" % str(job_id))
 				continue
 			if req_status["needs_fetch"]:
 				needs_fetch = true
@@ -213,13 +214,16 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 
 	# 1. Fetch Equipment Intercept: If selected labor needs equipment from storage, post and claim targeted fetch job.
 	if best != null and best_needs_fetch:
-		return _create_and_post_intercept_fetch_job(colonist, best_fetch_item_id)
+		var fetch_job = _create_and_post_intercept_fetch_job(colonist, best_fetch_item_id)
+		ColonistLogger.log_msg(colonist, &"JOB_BOARD", "Selected FetchEquipmentJob intercept for item: %s" % best_fetch_item_id)
+		return fetch_job
 
 	# 2. Idle Equipment Audit: Reconcile desired loadout and equip carried gear before hygiene runs.
 	if best == null:
 		# Auxiliary Call: Reconciles equipment loadout slots and queries newly-posted fetch jobs.
 		var fetch_job: FetchEquipmentJob = _audit_equipment_for_colonist(colonist)
 		if fetch_job != null:
+			ColonistLogger.log_msg(colonist, &"JOB_BOARD", "Selected audit fetch job")
 			return fetch_job
 
 	# 3. Carried Item Hygiene: Route surplus carried items in pockets to capable storage crates.
@@ -227,8 +231,11 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 		# Auxiliary Call: Creates a Store Carried Items haul job for loose pocket items.
 		var store_job: Job = _try_create_store_carried_items_job(colonist)
 		if store_job != null:
+			ColonistLogger.log_msg(colonist, &"JOB_BOARD", "Selected Store Carried Items job")
 			return store_job
 
+	if best != null:
+		ColonistLogger.log_msg(colonist, &"JOB_BOARD", "Selected best job: %s" % ("id: " + str(best.id) if "id" in best else "Fractional claim"))
 	return best
 
 

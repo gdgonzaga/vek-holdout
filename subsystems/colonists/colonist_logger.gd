@@ -44,10 +44,10 @@ static func log_brain_eval(
 	colonist: Node,
 	winning_goal: StringName,
 	scores: Dictionary,
-	deficits: Dictionary,
-	target: Variant,
-	critical: bool,
-	inertia: bool
+	deficits: Dictionary = {},
+	target: Variant = null,
+	critical: bool = false,
+	inertia: bool = false
 ) -> void:
 	# 1. Active Check: Skip if colonist logging is disabled.
 	if not is_enabled():

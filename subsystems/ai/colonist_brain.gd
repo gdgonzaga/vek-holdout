@@ -50,6 +50,7 @@ func evaluate_goals() -> void:
 
 	var scores: Dictionary = {}
 	var best_targets: Dictionary = {}
+	var deficits: Dictionary = {}
 
 	# 1. Evaluate need-based goals
 	if _needs != null:
@@ -57,6 +58,7 @@ func evaluate_goals() -> void:
 		for need_id in defs:
 			var def: Resource = defs[need_id]
 			var deficit: float = _needs.get_deficit(need_id)
+			deficits[need_id] = deficit
 			var base_score: float = 0.0
 			if def.response_curve != null:
 				base_score = def.response_curve.sample(deficit)
@@ -131,10 +133,11 @@ func evaluate_goals() -> void:
 			winning_goal = goal
 
 	bt_player.blackboard.set_var(&"current_goal", winning_goal)
-	if best_targets.has(winning_goal):
-		bt_player.blackboard.set_var(&"target_smart_object", best_targets[winning_goal])
-	else:
-		bt_player.blackboard.set_var(&"target_smart_object", null)
+	var winning_target: Variant = best_targets.get(winning_goal, null)
+	bt_player.blackboard.set_var(&"target_smart_object", winning_target)
+
+	# 1. Utility AI Evaluation Logging: Record evaluated desires and chosen behavior.
+	ColonistLogger.log_brain_eval(colonist, winning_goal, scores, deficits, winning_target, has_critical_need, active_goal != &"none")
 
 
 func _get_work_score(actor: Node) -> float:

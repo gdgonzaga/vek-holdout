@@ -43,6 +43,7 @@ func _tick(_delta: float) -> Status:
 	if _equip_from_inventory(eq, req_id, req_tags):
 		return SUCCESS
 
+	ColonistLogger.log_msg(agent as Node, &"TOOL", "EquipTool FAILURE. req_id: %s, req_tags: %s" % [req_id, str(req_tags)])
 	return FAILURE
 
 ## ====================

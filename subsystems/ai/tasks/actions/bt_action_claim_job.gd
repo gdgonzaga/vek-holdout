@@ -35,6 +35,7 @@ func _tick(_delta: float) -> Status:
 		var existing_claim: Variant = blackboard.get_var(claim_var)
 		if existing_claim != null and is_instance_valid(existing_claim):
 			if _claim_is_spent(existing_claim):
+				ColonistLogger.log_msg(colonist, &"JOB", "Claim spent, clearing active_claim and job")
 				blackboard.erase_var(claim_var)
 				blackboard.erase_var(job_var)
 				if agent is Colonist:
@@ -47,7 +48,15 @@ func _tick(_delta: float) -> Status:
 	if blackboard.has_var(job_var):
 		var existing_job: Variant = blackboard.get_var(job_var)
 		if existing_job != null and is_instance_valid(existing_job):
-			if _job_is_dead(existing_job):
+			var is_dead: bool = _job_is_dead(existing_job)
+			if not is_dead and colonist != null and existing_job.has_method("is_available_for"):
+				if not existing_job.is_available_for(colonist):
+					ColonistLogger.log_msg(colonist, &"JOB", "Job no longer available for colonist")
+					is_dead = true
+					if existing_job.has_method("unassign"):
+						existing_job.unassign(colonist)
+			if is_dead:
+				ColonistLogger.log_msg(colonist, &"JOB", "Job dead, clearing active_job")
 				blackboard.erase_var(job_var)
 				if agent is Colonist:
 					(agent as Colonist).current_job = null
@@ -65,12 +74,14 @@ func _tick(_delta: float) -> Status:
 		
 	var best_job = job_board.get_best_job_for(colonist)
 	if best_job == null:
+		ColonistLogger.log_job_claim(colonist, &"REJECT", "", "", "No available eligible jobs on board")
 		return FAILURE
 		
 	# Fractional JobInstance support
 	if best_job.has_method("try_claim_units"):
 		var claim = best_job.try_claim_units(colonist)
 		if claim == null:
+			ColonistLogger.log_job_claim(colonist, &"REJECT", str(best_job.id) if "id" in best_job else "", str(best_job.labor_id) if "labor_id" in best_job else "", "try_claim_units returned null")
 			return FAILURE
 		blackboard.set_var(claim_var, claim)
 		blackboard.set_var(job_var, best_job)
@@ -82,14 +93,16 @@ func _tick(_delta: float) -> Status:
 		elif "target_position" in best_job:
 			blackboard.set_var(target_pos_var, best_job.target_position)
 			
-		# 1. Tool Requirement Synchronization: Populates blackboard with tool ID and tags.
-		_sync_tool_requirements_to_blackboard(best_job.job_def if "job_def" in best_job else null)
+		var def_obj: Resource = best_job.job_def if "job_def" in best_job else null
+		_sync_tool_requirements_to_blackboard(def_obj)
 		_cleanup_incompatible_held_items(colonist, best_job)
+		ColonistLogger.log_job_claim(colonist, &"CLAIMED", str(best_job.id) if "id" in best_job else "", str(best_job.labor_id) if "labor_id" in best_job else "", "Fractional claim")
 		return SUCCESS
 		
 	# Legacy Job support
 	if best_job.has_method("try_assign"):
 		if not best_job.try_assign(colonist):
+			ColonistLogger.log_job_claim(colonist, &"REJECT", str(best_job.id) if "id" in best_job else "", str(best_job.labor_id) if "labor_id" in best_job else "", "try_assign returned false")
 			return FAILURE
 		blackboard.set_var(job_var, best_job)
 		colonist.current_job = best_job
@@ -107,6 +120,7 @@ func _tick(_delta: float) -> Status:
 		# 1. Tool Requirement Synchronization: Populates blackboard with tool ID and tags.
 		_sync_tool_requirements_to_blackboard(best_job.def if "def" in best_job else null)
 		_cleanup_incompatible_held_items(colonist, best_job)
+		ColonistLogger.log_job_claim(colonist, &"CLAIMED", str(best_job.id) if "id" in best_job else "", str(best_job.labor_id) if "labor_id" in best_job else "", "Legacy assignment")
 		return SUCCESS
 		
 	return FAILURE

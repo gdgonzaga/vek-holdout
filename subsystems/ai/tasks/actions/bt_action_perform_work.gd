@@ -181,6 +181,8 @@ func _nothing_left_to_work(job: Variant) -> bool:
 ## should_close prune can retire a satisfied job and another colonist may take
 ## the next cycle.
 func _release_job_reference(job: Variant = null) -> void:
+	if agent is Node:
+		ColonistLogger.log_msg(agent as Node, &"JOB", "PerformWork: Releasing job reference %s" % str(job))
 	if blackboard:
 		blackboard.erase_var(job_var)
 		blackboard.erase_var(&"active_claim")
