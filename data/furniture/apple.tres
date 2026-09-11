@@ -59,9 +59,12 @@ metadata/_custom_type_script = "uid://da6860d16q6up"
 [resource]
 script = ExtResource("3_pt4hy")
 default_scene = ExtResource("1_vm7km")
+dimensions = Vector3i(1, 4, 1)
+growth_time_hours = 24.0
 regrowth_stage_index = 2
 stages = Array[ExtResource("4_ta1rp")]([SubResource("Resource_ppqfb"), SubResource("Resource_yfx5d"), SubResource("Resource_fmtk7"), SubResource("Resource_kevgp")])
 id = "apple_tree"
 display_name = "apple tree"
 hp = 150
+tags = Array[String](["live_flora", "tree", "timber", "wood", "fruit_bearing"])
 metadata/_custom_type_script = "uid://bixq35rllmek5"

@@ -221,10 +221,13 @@ func _update_stage_visuals(stage: WildFloraStage, flora_def: WildFloraDef) -> vo
 
 
 func _scale_interaction_collider(v_scale: Vector3) -> void:
-	## Auxiliary: Scales BuildCollider and collision shapes with stage growth.
+	## Auxiliary: Scales BuildCollider and adjusts position so the base remains grounded across stage growth.
 	var build_shape := get_node_or_null("BuildBody/BuildCollider") as CollisionShape3D
 	if build_shape != null:
+		var flora_def := _get_flora_def()
+		var height: float = float(flora_def.dimensions.y) if flora_def != null else 1.0
 		build_shape.scale = v_scale
+		build_shape.position = Vector3(0.0, height * v_scale.y * 0.5, 0.0)
 
 
 func _calculate_hours_delta(delta: float) -> float:

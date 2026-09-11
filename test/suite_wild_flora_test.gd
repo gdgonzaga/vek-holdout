@@ -206,3 +206,32 @@ func test_wild_flora_foraging_spawns_drops_towards_actor() -> void:
 
 	actor.free()
 
+
+func test_wild_flora_collider_scaling_and_grounded_position() -> void:
+	var def := _create_test_flora_def("test_tree_collider")
+	def.dimensions = Vector3i(1, 4, 1)
+	def.stages[0].visual_scale = Vector3(0.2, 0.2, 0.2)
+	def.stages[1].visual_scale = Vector3(0.6, 0.6, 0.6)
+	def.stages[2].visual_scale = Vector3(1.0, 1.0, 1.0)
+
+	var anchor := Vector3i(15, 0, 15)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var flora := node as WildFlora
+	var build_shape := flora.get_node_or_null("BuildBody/BuildCollider") as CollisionShape3D
+	assert_object(build_shape).is_not_null()
+
+	# Stage 0: Sprout (scale 0.2) -> height = 0.8m, center Y = 0.4m
+	flora.set_growth_progress(0.0)
+	assert_float(build_shape.scale.y).is_equal_approx(0.2, 0.01)
+	assert_float(build_shape.position.y).is_equal_approx(0.4, 0.01)
+
+	# Stage 1: Young (scale 0.6) -> height = 2.4m, center Y = 1.2m
+	flora.set_growth_progress(0.5)
+	assert_float(build_shape.scale.y).is_equal_approx(0.6, 0.01)
+	assert_float(build_shape.position.y).is_equal_approx(1.2, 0.01)
+
+	# Stage 2: Mature (scale 1.0) -> height = 4.0m, center Y = 2.0m
+	flora.set_growth_progress(1.0)
+	assert_float(build_shape.scale.y).is_equal_approx(1.0, 0.01)
+	assert_float(build_shape.position.y).is_equal_approx(2.0, 0.01)
+

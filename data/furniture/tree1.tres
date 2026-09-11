@@ -43,6 +43,7 @@ fell_yields = Array[ExtResource("3_amount")]([SubResource("Resource_yield_mature
 resource_name = "Tree"
 script = ExtResource("1_def")
 default_scene = ExtResource("6_scene")
+dimensions = Vector3i(1, 4, 1)
 growth_time_hours = 36.0
 stages = Array[ExtResource("2_stage")]([SubResource("Resource_stage_0"), SubResource("Resource_stage_1"), SubResource("Resource_stage_2")])
 id = "tree1"
