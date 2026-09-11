@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://bj2rrfbruw83o"]
+
+[ext_resource type="Script" uid="uid://ck40vkswllpr6" path="res://data/capability_params/melee_action_params.gd" id="1_b4cj6"]
+[ext_resource type="Script" uid="uid://dyh6tnhsxf1ie" path="res://data/capability_params/equippable_params.gd" id="2_sqssh"]
+[ext_resource type="Texture2D" uid="uid://bty2k6njq8sy7" path="res://assets/custom/carpenters_hammer/carpenters_hammer.png" id="3_b4cj6"]
+[ext_resource type="PackedScene" uid="uid://bdqqp5mjo8dv7" path="res://assets/custom/carpenters_hammer/carpenters_hammer.glb" id="4_sqssh"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="5_vshcv"]
+
+[sub_resource type="Resource" id="Resource_combat_action"]
+script = ExtResource("1_b4cj6")
+windup_seconds = 0.5
+active_seconds = 0.1
+hit_audio_event = "melee_impact"
+damage = 20.0
+range_meters = 1.0
+id = "baton_strike"
+cooldown_seconds = 0.4
+audio_event = "melee_swing"
+
+[sub_resource type="Resource" id="Resource_equippable"]
+script = ExtResource("2_sqssh")
+stance_animation = &"Idle"
+use_animation = &"AttackOverhead"
+primary_action = SubResource("Resource_combat_action")
+
+[resource]
+resource_name = "carpenter's hammer"
+script = ExtResource("5_vshcv")
+id = "carpenters_hammer"
+weight = 2.0
+icon = ExtResource("3_b4cj6")
+scene = ExtResource("4_sqssh")
+tags = Array[String](["construction_tool", "tool"])
+equippable = SubResource("Resource_equippable")
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

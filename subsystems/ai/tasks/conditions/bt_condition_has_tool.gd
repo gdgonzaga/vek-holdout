@@ -28,64 +28,80 @@ func _tick(_delta: float) -> Status:
 	if not agent:
 		return FAILURE
 		
-	var req_tag: String = String(default_tool_tag)
+	var req_tags: Array[StringName] = []
+	if default_tool_tag != &"":
+		req_tags.append(default_tool_tag)
 	var req_id: String = default_tool_id
 	
 	if blackboard:
-		if blackboard.has_var(tool_tag_var):
-			var var_tag: Variant = blackboard.get_var(tool_tag_var)
-			if var_tag != null and str(var_tag) != "":
-				req_tag = str(var_tag)
-			
-		if blackboard.has_var(tool_id_var):
+		if blackboard.has_var(&"required_equipped") and str(blackboard.get_var(&"required_equipped")) != "":
+			req_id = str(blackboard.get_var(&"required_equipped"))
+		elif blackboard.has_var(tool_id_var):
 			var var_id: Variant = blackboard.get_var(tool_id_var)
 			if var_id != null and str(var_id) != "":
 				req_id = str(var_id)
+
+		if blackboard.has_var(&"required_equipped_tags"):
+			var raw_tags: Variant = blackboard.get_var(&"required_equipped_tags")
+			if raw_tags is Array:
+				for t: Variant in raw_tags:
+					req_tags.append(StringName(str(t)))
+		if blackboard.has_var(tool_tag_var):
+			var var_tag: Variant = blackboard.get_var(tool_tag_var)
+			if var_tag != null and str(var_tag) != "":
+				var s_tag := StringName(str(var_tag))
+				if not req_tags.has(s_tag):
+					req_tags.append(s_tag)
 			
-		if req_tag == "" and req_id == "":
+		if req_tags.is_empty() and req_id == "":
 			# Fallback to active_job inspection
 			var job: Variant = null
 			if blackboard.has_var(&"active_job"):
 				job = blackboard.get_var(&"active_job")
+			elif blackboard.has_var(&"active_claim"):
+				job = blackboard.get_var(&"active_claim")
 			if job != null and is_instance_valid(job):
-				if "required_tool_tag" in job and str(job.required_tool_tag) != "":
-					req_tag = str(job.required_tool_tag)
-				elif "def" in job and job.def != null and "required_tool_tag" in job.def:
-					req_tag = str(job.def.required_tool_tag)
+				var def_obj: Resource = job.def if "def" in job and job.def != null else (job.job_def if "job_def" in job else null)
+				if def_obj != null:
+					if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
+						req_id = str(def_obj.required_equipped)
+					if def_obj.has_method("get_effective_required_tags"):
+						req_tags = def_obj.get_effective_required_tags()
+					elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
+						for t: Variant in def_obj.required_equipped_tags:
+							req_tags.append(StringName(str(t)))
+					elif "required_tool_tag" in def_obj and str(def_obj.required_tool_tag) != "":
+						req_tags.append(StringName(str(def_obj.required_tool_tag)))
 
 	# If no requirement exists, condition passes vacuously
-	if req_tag == "" and req_id == "":
+	if req_tags.is_empty() and req_id == "":
 		return SUCCESS
 
 	# Check equipment slots first — an already-equipped item satisfies the condition
 	# without needing to fetch from the carry inventory.
 	var eq: Equipment = agent.get_node_or_null("Equipment") as Equipment
-	if eq != null:
-		if req_tag != "" and eq.has_item_with_tag(req_tag):
-			return SUCCESS
-		if req_id != "" and eq.get_item(req_id) != null:
-			return SUCCESS
+	if eq != null and eq.has_required_equipment(req_id, req_tags):
+		return SUCCESS
 		
-	var inv = null
+	var inv: Inventory = null
 	if "inventory" in agent and agent.inventory != null:
-		inv = agent.inventory
+		inv = agent.inventory as Inventory
 		
 	if inv == null:
 		return FAILURE
 		
-	# Check specific ID match
+	# Check specific ID match in inventory
 	if req_id != "":
 		if inv.has_method("has_item") and inv.has_item(req_id, 1):
 			return SUCCESS
 		if inv.has_method("get_item_count") and inv.get_item_count(req_id) > 0:
 			return SUCCESS
 			
-	# Check tag match
-	if req_tag != "":
-		if "items" in inv and inv.items is Dictionary:
-			for item_id in inv.items.keys():
-				if inv.items[item_id] > 0 and _item_has_tag(str(item_id), req_tag):
-					return SUCCESS
+	# Check tag match in inventory
+	if not req_tags.is_empty():
+		for tag in req_tags:
+			if inv.has_item_tag(String(tag)):
+				return SUCCESS
 					
 	return FAILURE
 

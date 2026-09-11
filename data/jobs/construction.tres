@@ -8,4 +8,5 @@ script = ExtResource("1_script")
 id = "construction"
 display_name = "Construction"
 labor_id = "construction"
+required_equipped_tags = Array[StringName]([&"construction_tool"])
 work_duration = 0.0

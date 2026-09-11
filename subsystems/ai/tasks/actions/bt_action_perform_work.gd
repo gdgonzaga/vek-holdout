@@ -104,6 +104,10 @@ func _enter() -> void:
 
 
 func _tick(delta: float) -> Status:
+	# 1. Equipment Continuity Check: Verifies the tool has not broken or been disarmed mid-cycle.
+	if not _is_required_tool_equipped():
+		return FAILURE
+
 	_elapsed += delta
 	if _elapsed < _target_duration:
 		return RUNNING
@@ -210,3 +214,57 @@ func _resolve_anim_controller() -> void:
 		_anim_controller = agent.get_node_or_null("ColonistAnimationController")
 		if not _anim_controller:
 			_anim_controller = agent.find_child("ColonistAnimationController", true, false)
+
+
+func _is_required_tool_equipped() -> bool:
+	## Auxiliary: Returns true if the agent still holds any tool required by the active job.
+	var def_obj: Resource = _resolve_active_job_def()
+	if def_obj == null:
+		return true
+
+	var reqs: Dictionary = _extract_job_equipment_requirements(def_obj)
+	var req_id: String = str(reqs.get("item_id", ""))
+	var req_tags: Array[StringName] = reqs.get("tags", [] as Array[StringName])
+	if req_id == "" and req_tags.is_empty():
+		return true
+
+	if not (agent is Node):
+		return false
+	var eq: Equipment = (agent as Node).get_node_or_null("Equipment") as Equipment
+	if eq == null:
+		return false
+	return eq.has_required_equipment(req_id, req_tags)
+
+
+func _resolve_active_job_def() -> Resource:
+	## Auxiliary: Resolves the JobDef Resource associated with the currently worked job.
+	var job: Variant = _job_ref
+	if job == null and blackboard:
+		if blackboard.has_var(job_var):
+			job = blackboard.get_var(job_var)
+		elif blackboard.has_var(&"active_claim"):
+			job = blackboard.get_var(&"active_claim")
+	if job == null or not is_instance_valid(job):
+		return null
+	if "def" in job and job.def != null:
+		return job.def as Resource
+	if "job_def" in job and job.job_def != null:
+		return job.job_def as Resource
+	return null
+
+
+func _extract_job_equipment_requirements(def_obj: Resource) -> Dictionary:
+	## Auxiliary: Extracts required item ID and tag array from a job definition.
+	var req_id: String = ""
+	var req_tags: Array[StringName] = []
+	if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
+		req_id = str(def_obj.required_equipped)
+	if def_obj.has_method("get_effective_required_tags"):
+		req_tags = def_obj.get_effective_required_tags()
+	elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
+		for t: Variant in def_obj.required_equipped_tags:
+			if t is StringName or t is String:
+				req_tags.append(StringName(str(t)))
+	elif "required_tool_tag" in def_obj and str(def_obj.required_tool_tag) != "":
+		req_tags.append(StringName(str(def_obj.required_tool_tag)))
+	return {"item_id": req_id, "tags": req_tags}

@@ -24,21 +24,23 @@ func _tick(_delta: float) -> Status:
 	if not agent:
 		return FAILURE
 
-	# 1. Tag Resolution: Read the required tag from blackboard or fall back to active job.
-	var req_tag: StringName = _resolve_required_tag()
-	if req_tag == &"":
+	# 1. Requirements Resolution: Read required equipment ID and tags from blackboard or active job.
+	var reqs: Dictionary = _resolve_equipment_requirements()
+	var req_id: String = str(reqs.get("item_id", ""))
+	var req_tags: Array[StringName] = reqs.get("tags", [] as Array[StringName])
+	if req_id == "" and req_tags.is_empty():
 		# No tool requirement — nothing to equip, action is vacuously successful.
 		return SUCCESS
 
 	# 2. Equipment Lookup: Attempt a swap between main_hand and holster first
 	#    (zero inventory churn — the tool is already equipped somewhere).
 	var eq: Equipment = _get_equipment()
-	if eq != null and eq.swap_hand_for_tag(req_tag):
+	if eq != null and eq.swap_hand_for_requirements(req_id, req_tags):
 		return SUCCESS
 
 	# 3. Inventory Lookup: Find the first matching item in the carry inventory
 	#    and move it into main_hand.
-	if _equip_from_inventory(eq, req_tag):
+	if _equip_from_inventory(eq, req_id, req_tags):
 		return SUCCESS
 
 	return FAILURE
@@ -47,29 +49,45 @@ func _tick(_delta: float) -> Status:
 ## Auxiliary Functions
 ## ====================
 
-func _resolve_required_tag() -> StringName:
-	## Auxiliary: Reads required_tool_tag from the blackboard, with fallback to the active job def.
-	if blackboard == null:
-		return &""
-	if blackboard.has_var(&"required_tool_tag"):
-		var raw: Variant = blackboard.get_var(&"required_tool_tag")
-		var tag: StringName = StringName(str(raw)) if raw != null else &""
-		if tag != &"":
-			return tag
-	# Fallback: inspect the active job/claim for its required_tool_tag field.
-	var job: Variant = null
-	if blackboard.has_var(&"active_job"):
-		job = blackboard.get_var(&"active_job")
-	if blackboard.has_var(&"active_claim") and job == null:
-		job = blackboard.get_var(&"active_claim")
-	if job != null and is_instance_valid(job):
-		if "required_tool_tag" in job and str(job.required_tool_tag) != "":
-			return StringName(str(job.required_tool_tag))
-		if "job_def" in job and job.job_def != null and "required_tool_tag" in job.job_def:
-			return StringName(str(job.job_def.required_tool_tag))
-		if "def" in job and job.def != null and "required_tool_tag" in job.def:
-			return StringName(str(job.def.required_tool_tag))
-	return &""
+func _resolve_equipment_requirements() -> Dictionary:
+	## Auxiliary: Resolves required equipment ID and tags from blackboard or active job def.
+	var req_id: String = ""
+	var req_tags: Array[StringName] = []
+	if blackboard:
+		if blackboard.has_var(&"required_equipped"):
+			req_id = str(blackboard.get_var(&"required_equipped"))
+		if blackboard.has_var(&"required_equipped_tags"):
+			var raw: Variant = blackboard.get_var(&"required_equipped_tags")
+			if raw is Array:
+				for t: Variant in raw:
+					req_tags.append(StringName(str(t)))
+		elif blackboard.has_var(&"required_tool_tag"):
+			var raw_tag: Variant = blackboard.get_var(&"required_tool_tag")
+			if raw_tag != null and str(raw_tag) != "":
+				req_tags.append(StringName(str(raw_tag)))
+
+	# Fallback: inspect the active job/claim for its def fields.
+	if req_id == "" and req_tags.is_empty():
+		var job: Variant = null
+		if blackboard != null:
+			if blackboard.has_var(&"active_job"):
+				job = blackboard.get_var(&"active_job")
+			elif blackboard.has_var(&"active_claim"):
+				job = blackboard.get_var(&"active_claim")
+		if job != null and is_instance_valid(job):
+			var def_obj: Resource = job.def if "def" in job and job.def != null else (job.job_def if "job_def" in job else null)
+			if def_obj != null:
+				if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
+					req_id = str(def_obj.required_equipped)
+				if def_obj.has_method("get_effective_required_tags"):
+					req_tags = def_obj.get_effective_required_tags()
+				elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
+					for t: Variant in def_obj.required_equipped_tags:
+						req_tags.append(StringName(str(t)))
+				elif "required_tool_tag" in def_obj and str(def_obj.required_tool_tag) != "":
+					req_tags.append(StringName(str(def_obj.required_tool_tag)))
+
+	return {"item_id": req_id, "tags": req_tags}
 
 
 func _get_equipment() -> Equipment:
@@ -79,18 +97,21 @@ func _get_equipment() -> Equipment:
 	return agent.get_node_or_null("Equipment") as Equipment
 
 
-func _equip_from_inventory(eq: Equipment, tag: StringName) -> bool:
-	## Auxiliary: Searches the agent's carry inventory for an item matching tag,
+func _equip_from_inventory(eq: Equipment, req_id: String, req_tags: Array[StringName]) -> bool:
+	## Auxiliary: Searches the agent's carry inventory for a matching item,
 	##            removes one from inventory, and equips it to main_hand.
-	##            Returns true if the equip succeeded.
 	if eq == null or not is_instance_valid(agent):
 		return false
 	var inv: Inventory = _get_inventory()
 	if inv == null:
 		return false
 
-	# Find an item ID in the inventory that carries the needed tag.
-	var matching_id: String = _find_inventory_item_with_tag(inv, String(tag))
+	var matching_id: String = ""
+	if req_id != "" and inv.has_item(req_id, 1):
+		matching_id = req_id
+	else:
+		matching_id = _find_inventory_item_with_tags(inv, req_tags)
+
 	if matching_id.is_empty():
 		return false
 
@@ -98,7 +119,6 @@ func _equip_from_inventory(eq: Equipment, tag: StringName) -> bool:
 	if item_def == null:
 		return false
 
-	# Move item from carry bag to equipment slot.
 	inv.remove(matching_id, 1)
 	return eq.equip(Equipment.SLOT_MAIN_HAND, item_def)
 
@@ -110,13 +130,15 @@ func _get_inventory() -> Inventory:
 	return null
 
 
-func _find_inventory_item_with_tag(inv: Inventory, tag: String) -> String:
-	## Auxiliary: Iterates inventory items and returns the first item_id whose ItemDef carries tag.
+func _find_inventory_item_with_tags(inv: Inventory, tags: Array[StringName]) -> String:
+	## Auxiliary: Iterates inventory items and returns the first item_id whose ItemDef carries any matching tag.
 	if not ("items" in inv) or not (inv.items is Dictionary):
 		return ""
 	for item_id: String in inv.items.keys():
 		if inv.items[item_id] > 0:
 			var def: ItemDef = ItemDB.get_def(item_id)
-			if def != null and def.has_tag(tag):
-				return item_id
+			if def != null:
+				for tag: StringName in tags:
+					if tag != &"" and def.has_tag(String(tag)):
+						return item_id
 	return ""

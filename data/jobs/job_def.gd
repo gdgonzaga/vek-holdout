@@ -34,8 +34,26 @@ class_name JobDef
 @export var display_name: String   # "Construction" — Job Log / UI label.
 @export var labor_id: String       # a LaborDef.id; gates get_best_job_for's filter.
 
-## Required tool tag for this job (e.g. &"pickaxe", &"axe", &"pruning_kit").
+## Specific required item ID equipped for this job (e.g. "laser_drill"). Empty if tag-based.
+@export var required_equipped: String = ""
+
+## Required equipment tags for this job (e.g. [&"mining_tool"]). Colonist must equip an item with at least one matching tag.
+@export var required_equipped_tags: Array[StringName] = []
+
+## Required tool tag for this job (e.g. &"pickaxe", &"axe", &"pruning_kit"). Legacy fallback.
 @export var required_tool_tag: StringName = &""
+
+## Returns consolidated array of required tags from required_equipped_tags.
+func get_effective_required_tags() -> Array[StringName]:
+	var tags: Array[StringName] = []
+	for t: StringName in required_equipped_tags:
+		if t != &"" and not tags.has(t):
+			tags.append(t)
+	return tags
+
+## Returns true if this job definition requires any specific tool or equipment tags.
+func has_equipment_requirement() -> bool:
+	return required_equipped != "" or not required_equipped_tags.is_empty()
 
 ## Animation to play during work execution (e.g. &"interact", &"digging").
 @export var work_animation: StringName = &"Interact"

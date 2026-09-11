@@ -6,14 +6,14 @@
 [ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_he54h"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
 [ext_resource type="Script" uid="uid://bosg2otbbkcma" path="res://subsystems/colonists/colonist_debug_visualizer.gd" id="7_3o0mj"]
-[ext_resource type="PackedScene" uid="uid://cf7ydtl6hpdey" path="res://assets/makehuman/man2/man2.glb" id="10_p62sj"]
+[ext_resource type="PackedScene" uid="uid://b475cytwcyxt8" path="res://assets/custom/man_a/man_a.glb" id="10_ld3of"]
 [ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="11_ghy6r"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="13_jjjcm"]
 [ext_resource type="Script" uid="uid://b6618sv10mkib" path="res://subsystems/colonists/colonist_animation_controller.gd" id="16_animctrl"]
 [ext_resource type="Script" uid="uid://duqrdd3t7rag6" path="res://subsystems/actions/interaction_component.gd" id="17_interact"]
 [ext_resource type="Script" uid="uid://cxe5kqjdff8h4" path="res://subsystems/ai/colonist_needs.gd" id="18_needs"]
 [ext_resource type="Script" uid="uid://nv5v5unavf1x" path="res://subsystems/ai/colonist_brain.gd" id="19_brain"]
-[ext_resource type="BehaviorTree" uid="uid://tpswmt5ua6e8" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
+[ext_resource type="BehaviorTree" uid="uid://bu5b35npb48x8" path="res://data/ai/trees/colonist_root.tres" id="20_tree"]
 [ext_resource type="Script" uid="uid://b03c3i0vmdpsg" path="res://subsystems/colonists/colonist_moodlet_visualizer.gd" id="21_moodletvis"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
@@ -177,7 +177,7 @@ metadata/_custom_type_script = "uid://bosg2otbbkcma"
 
 [node name="Visuals" type="Node3D" parent="." unique_id=314291200]
 
-[node name="man2" parent="Visuals" unique_id=762226860 instance=ExtResource("10_p62sj")]
+[node name="man_a" parent="Visuals" unique_id=620170369 instance=ExtResource("10_ld3of")]
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=869776552]
 libraries/animations = ExtResource("11_ghy6r")

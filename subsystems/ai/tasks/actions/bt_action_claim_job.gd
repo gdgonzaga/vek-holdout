@@ -82,13 +82,8 @@ func _tick(_delta: float) -> Status:
 		elif "target_position" in best_job:
 			blackboard.set_var(target_pos_var, best_job.target_position)
 			
-		var tool_tag: StringName = &""
-		if "job_def" in best_job and best_job.job_def != null and "required_tool_tag" in best_job.job_def:
-			tool_tag = best_job.job_def.required_tool_tag
-		if tool_tag != &"":
-			blackboard.set_var(&"required_tool_tag", tool_tag)
-		else:
-			blackboard.erase_var(&"required_tool_tag")
+		# 1. Tool Requirement Synchronization: Populates blackboard with tool ID and tags.
+		_sync_tool_requirements_to_blackboard(best_job.job_def if "job_def" in best_job else null)
 		_cleanup_incompatible_held_items(colonist, best_job)
 		return SUCCESS
 		
@@ -108,13 +103,9 @@ func _tick(_delta: float) -> Status:
 			blackboard.set_var(target_pos_var, Vector3(best_job.anchor_cell) + Vector3(0.5, 0.5, 0.5))
 		elif best_job.target_node != null and is_instance_valid(best_job.target_node):
 			blackboard.set_var(target_pos_var, (best_job.target_node as Node3D).global_position if best_job.target_node is Node3D else Vector3.ZERO)
-		var tool_tag: StringName = &""
-		if best_job.def != null and "required_tool_tag" in best_job.def:
-			tool_tag = best_job.def.required_tool_tag
-		if tool_tag != &"":
-			blackboard.set_var(&"required_tool_tag", tool_tag)
-		else:
-			blackboard.erase_var(&"required_tool_tag")
+		
+		# 1. Tool Requirement Synchronization: Populates blackboard with tool ID and tags.
+		_sync_tool_requirements_to_blackboard(best_job.def if "def" in best_job else null)
 		_cleanup_incompatible_held_items(colonist, best_job)
 		return SUCCESS
 		
@@ -138,8 +129,22 @@ func _cleanup_incompatible_held_items(colonist: Colonist, job: Variant = null) -
 	var req_tag: StringName = &""
 	if blackboard.has_var(&"required_tool_tag"):
 		req_tag = blackboard.get_var(&"required_tool_tag")
-	if req_tag != &"":
-		if not colonist.inventory.has_item_tag(String(req_tag)):
+	var req_tags: Array[StringName] = []
+	if blackboard.has_var(&"required_equipped_tags"):
+		var raw: Variant = blackboard.get_var(&"required_equipped_tags")
+		if raw is Array:
+			for t: Variant in raw:
+				req_tags.append(StringName(str(t)))
+	if req_tag != &"" and not req_tags.has(req_tag):
+		req_tags.append(req_tag)
+
+	if not req_tags.is_empty():
+		var has_matching: bool = false
+		for t: StringName in req_tags:
+			if colonist.inventory.has_item_tag(String(t)):
+				has_matching = true
+				break
+		if not has_matching:
 			colonist.drop_held_item()
 
 	# 2. Inventory hygiene for non-tool items
@@ -200,3 +205,35 @@ func _job_is_dead(job: Variant) -> bool:
 	if "is_cancelled" in job and bool(job.is_cancelled):
 		return true
 	return false
+
+
+func _sync_tool_requirements_to_blackboard(def_obj: Resource) -> void:
+	## Auxiliary: Populates blackboard with tool ID and tag requirements from job def.
+	if blackboard == null:
+		return
+	var req_id: String = ""
+	var req_tags: Array[StringName] = []
+	if def_obj != null:
+		if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
+			req_id = str(def_obj.required_equipped)
+		if def_obj.has_method("get_effective_required_tags"):
+			req_tags = def_obj.get_effective_required_tags()
+		elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
+			for t: Variant in def_obj.required_equipped_tags:
+				req_tags.append(StringName(str(t)))
+		if "required_tool_tag" in def_obj and str(def_obj.required_tool_tag) != "":
+			var legacy_tag := StringName(str(def_obj.required_tool_tag))
+			if not req_tags.has(legacy_tag):
+				req_tags.append(legacy_tag)
+
+	if req_id != "":
+		blackboard.set_var(&"required_equipped", req_id)
+	else:
+		blackboard.erase_var(&"required_equipped")
+
+	if not req_tags.is_empty():
+		blackboard.set_var(&"required_equipped_tags", req_tags)
+		blackboard.set_var(&"required_tool_tag", req_tags[0])
+	else:
+		blackboard.erase_var(&"required_equipped_tags")
+		blackboard.erase_var(&"required_tool_tag")

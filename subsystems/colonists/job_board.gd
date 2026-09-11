@@ -121,6 +121,8 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 	var best: RefCounted = null
 	var best_priority: int = -1
 	var best_dist_sq: float = 0.0
+	var best_needs_fetch: bool = false
+	var best_fetch_item_id: String = ""
 	var from: Vector3 = colonist.global_position
 	for job_id in _jobs:
 		var job: Variant = _jobs[job_id]
@@ -169,6 +171,18 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 			elif job is Job and def_obj.has_method("meets_requirements"):
 				if not def_obj.meets_requirements(colonist, job):
 					continue
+
+		# 1. Tool Requirement Check: Evaluates whether the colonist holds the required tool or if one is in storage.
+		var needs_fetch: bool = false
+		var fetch_item_id: String = ""
+		if def_obj != null and not is_fetch_equip and not is_deploy:
+			var req_status: Dictionary = _evaluate_tool_requirement(colonist, def_obj)
+			if not req_status["eligible"]:
+				continue
+			if req_status["needs_fetch"]:
+				needs_fetch = true
+				fetch_item_id = str(req_status["resolved_item_id"])
+
 		# If colonist is already carrying materials for this haul job, give it continuation bonus
 		if def_obj is HaulingJobDef and def_obj.has_method("_carries_item"):
 			var wi = def_obj._world_item_of(job)
@@ -188,10 +202,18 @@ func get_best_job_for(colonist: Colonist) -> RefCounted:
 			best = job
 			best_priority = priority
 			best_dist_sq = dist_sq
+			best_needs_fetch = needs_fetch
+			best_fetch_item_id = fetch_item_id
 		elif priority == best_priority:
 			if dist_sq < best_dist_sq:
 				best = job
 				best_dist_sq = dist_sq
+				best_needs_fetch = needs_fetch
+				best_fetch_item_id = fetch_item_id
+
+	# 1. Fetch Equipment Intercept: If selected labor needs equipment from storage, post and claim targeted fetch job.
+	if best != null and best_needs_fetch:
+		return _create_and_post_intercept_fetch_job(colonist, best_fetch_item_id)
 
 	# If no job was selected, but colonist is carrying non-tool items AND is
 	# not currently assigned to any haul job (which would mean a FETCH/DELIVER
@@ -275,6 +297,94 @@ func _find_fetch_job_for(colonist: Colonist) -> FetchEquipmentJob:
 		if is_avail:
 			return fj
 	return null
+
+
+func _evaluate_tool_requirement(colonist: Colonist, def_obj: Resource) -> Dictionary:
+	## Auxiliary: Checks if colonist satisfies tool requirements or if an item in storage can be fetched.
+	var req_id: String = ""
+	var req_tags: Array[StringName] = []
+	if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
+		req_id = str(def_obj.required_equipped)
+	if def_obj.has_method("get_effective_required_tags"):
+		req_tags = def_obj.get_effective_required_tags()
+	elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
+		for t: Variant in def_obj.required_equipped_tags:
+			if t is StringName or t is String:
+				req_tags.append(StringName(str(t)))
+
+	# No tool requirements defined for this job.
+	if req_id == "" and req_tags.is_empty():
+		return {"eligible": true, "needs_fetch": false, "resolved_item_id": ""}
+
+	# 1. Held Possession Check: Checks if colonist already has matching tool equipped or in inventory.
+	if _colonist_has_required_tool(colonist, req_id, req_tags):
+		return {"eligible": true, "needs_fetch": false, "resolved_item_id": ""}
+
+	# 2. Storage Search: Queries colony crates for an available unreserved tool.
+	var resolved_id: String = _find_available_tool_in_storage(colonist, req_id, req_tags)
+	if resolved_id != "":
+		return {"eligible": true, "needs_fetch": true, "resolved_item_id": resolved_id}
+
+	return {"eligible": false, "needs_fetch": false, "resolved_item_id": ""}
+
+
+func _colonist_has_required_tool(colonist: Colonist, req_id: String, req_tags: Array[StringName]) -> bool:
+	## Auxiliary: True if colonist currently has required equipment equipped or in carry bag.
+	if colonist == null:
+		return false
+	if colonist.equipment != null and colonist.equipment.has_required_equipment(req_id, req_tags):
+		return true
+	return _colonist_carries_matching_tool(colonist, req_id, req_tags)
+
+
+func _colonist_carries_matching_tool(colonist: Colonist, req_id: String, req_tags: Array[StringName]) -> bool:
+	## Auxiliary: True if colonist carry inventory holds an item matching req_id or tags.
+	if colonist == null or colonist.inventory == null:
+		return false
+	if req_id != "" and colonist.inventory.has_item(req_id, 1):
+		return true
+	for tag: StringName in req_tags:
+		if tag != &"" and colonist.inventory.has_item_tag(String(tag)):
+			return true
+	return false
+
+
+func _find_available_tool_in_storage(colonist: Colonist, req_id: String, req_tags: Array[StringName]) -> String:
+	## Auxiliary: Searches storage for matching item ID, ensuring unreserved count > 0.
+	var colony_node: Node = colonist.get_node_or_null("/root/Colony")
+	if colony_node == null or not ("storage_registry" in colony_node) or colony_node.storage_registry == null:
+		return ""
+	var reg: StorageRegistry = colony_node.storage_registry
+	var candidate_id: String = reg.find_closest_item_matching(req_id, req_tags, colonist.global_position)
+	if candidate_id == "":
+		return ""
+
+	var stock_count: int = reg.colony_stock(candidate_id)
+	var pending_fetches: int = _count_pending_fetches_for(candidate_id)
+	if stock_count - pending_fetches <= 0:
+		return ""
+	return candidate_id
+
+
+func _count_pending_fetches_for(item_id: String) -> int:
+	## Auxiliary: Counts active FetchEquipmentJobs targeting this item ID.
+	var count: int = 0
+	for job: Variant in _jobs.values():
+		if job is FetchEquipmentJob:
+			var fj := job as FetchEquipmentJob
+			if fj.target_item_id == item_id:
+				count += 1
+	return count
+
+
+func _create_and_post_intercept_fetch_job(colonist: Colonist, item_id: String) -> FetchEquipmentJob:
+	## Auxiliary: Creates, registers, and returns a targeted FetchEquipmentJob for the colonist.
+	var fetch_def: FetchEquipmentJobDef = preload("res://data/jobs/fetch_equipment.tres")
+	var fetch_job: FetchEquipmentJob = FetchEquipmentJobDef.create_job(
+		colonist, Equipment.SLOT_MAIN_HAND, item_id, fetch_def
+	)
+	add_job(fetch_job)
+	return fetch_job
 
 
 ## Drop dead jobs that have no assignees left to drain them (a haul job whose

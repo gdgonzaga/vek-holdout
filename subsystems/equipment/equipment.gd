@@ -129,6 +129,19 @@ func has_item_with_tag(tag: String) -> bool:
 	return _find_slot_with_tag(tag) != ""
 
 
+## Returns true if any equipped slot holds the specific item ID or an item with any of the tags.
+func has_required_equipment(item_id: String, tags: Array[StringName]) -> bool:
+	# 1. Item ID Evaluation: Checking exact item ID across all equipped slots.
+	if item_id != "" and _has_equipped_item_id(item_id):
+		return true
+
+	# 2. Tag Evaluation: Checking if any slot holds an item matching any requested tag.
+	if not tags.is_empty() and _has_any_equipped_tag(tags):
+		return true
+
+	return false
+
+
 ## Checks main_hand then holster for needed_tag. Swaps if the needed item is in
 ## the holster but not the hand. Returns true if the hand now holds the tag.
 ## Returns false if neither slot has a matching item (caller must fetch from inventory).
@@ -139,6 +152,21 @@ func swap_hand_for_tag(needed_tag: StringName) -> bool:
 
 	# Holster has the needed item — swap it into the hand.
 	if _holster_has_tag(needed_tag):
+		_perform_hand_holster_swap()
+		return true
+
+	return false
+
+
+## Swaps main_hand and holster if the requested item ID or tag is in the holster.
+## Returns true if main_hand now holds a matching item, false otherwise.
+func swap_hand_for_requirements(item_id: String, tags: Array[StringName]) -> bool:
+	# 1. Active Hand Evaluation: Check if main_hand already satisfies the requirements.
+	if _slot_matches_requirements(SLOT_MAIN_HAND, item_id, tags):
+		return true
+
+	# 2. Holster Evaluation: Check if holster satisfies requirements and swap to main_hand.
+	if _slot_matches_requirements(SLOT_HOLSTER, item_id, tags):
 		_perform_hand_holster_swap()
 		return true
 
@@ -244,6 +272,36 @@ func _find_slot_with_tag(tag: String) -> String:
 		if item != null and item.has_tag(tag):
 			return slot_id
 	return ""
+
+
+func _has_equipped_item_id(item_id: String) -> bool:
+	## Auxiliary: Checks if any slot holds an item with the given ID.
+	for slot_id: String in _slots:
+		var item: ItemDef = _slots[slot_id]
+		if item != null and item.id == item_id:
+			return true
+	return false
+
+
+func _has_any_equipped_tag(tags: Array[StringName]) -> bool:
+	## Auxiliary: Checks if any slot holds an item carrying at least one of the tags.
+	for tag: StringName in tags:
+		if tag != &"" and _find_slot_with_tag(String(tag)) != "":
+			return true
+	return false
+
+
+func _slot_matches_requirements(slot_id: String, item_id: String, tags: Array[StringName]) -> bool:
+	## Auxiliary: Checks if the specified slot holds an item matching item_id or any of tags.
+	var item: ItemDef = _slots.get(slot_id, null)
+	if item == null:
+		return false
+	if item_id != "" and item.id == item_id:
+		return true
+	for tag: StringName in tags:
+		if tag != &"" and item.has_tag(String(tag)):
+			return true
+	return false
 
 
 func _hand_already_has_tag(tag: StringName) -> bool:

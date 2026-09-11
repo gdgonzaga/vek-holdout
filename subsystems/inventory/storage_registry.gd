@@ -63,6 +63,13 @@ func find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furnitu
 	return best
 
 
+## Finds the closest item ID in storage matching item_id or any tag in tags.
+## Returns "" if no matching item is available in storage.
+func find_closest_item_matching(item_id: String, tags: Array[StringName], near: Vector3) -> String:
+	# 1. Candidate Evaluation: Search all crates for items matching item_id or tags.
+	return _find_matching_item_in_crates(item_id, tags, near)
+
+
 ## True if any crate holds at least one of `item_ids`. Used by the producer
 ## (Colony._on_blueprint_placed) to decide haul-vs-construct, and by hauling's
 ## is_available gate so a no-source haul job is never claimable (and thus pruned).
@@ -171,5 +178,51 @@ func inventory_of(crate: Furniture) -> StorageInventory:
 func _has_any(inv: StorageInventory, item_ids: Array[String]) -> bool:
 	for id in item_ids:
 		if inv.get_item_count(id) > 0:
+			return true
+	return false
+
+
+func _find_matching_item_in_crates(item_id: String, tags: Array[StringName], near: Vector3) -> String:
+	## Auxiliary: Searches crates for nearest item matching item_id or any tag in tags.
+	var best_item_id: String = ""
+	var best_dist_sq: float = INF
+	for crate: Furniture in _crates():
+		var inv: StorageInventory = inventory_of(crate)
+		if inv == null:
+			continue
+		var matched_id: String = _find_matching_item_in_inventory(inv, item_id, tags)
+		if matched_id != "":
+			var d_sq: float = crate.global_position.distance_squared_to(near)
+			if d_sq < best_dist_sq:
+				best_dist_sq = d_sq
+				best_item_id = matched_id
+	return best_item_id
+
+
+func _find_matching_item_in_inventory(inv: StorageInventory, item_id: String, tags: Array[StringName]) -> String:
+	## Auxiliary: Returns first matching item_id in the given inventory with positive count.
+	if inv.items == null or not (inv.items is Dictionary):
+		return ""
+	if item_id != "" and inv.get_item_count(item_id) > 0:
+		return item_id
+	if not tags.is_empty():
+		for key: Variant in inv.items.keys():
+			var cid: String = str(key)
+			if inv.get_item_count(cid) <= 0:
+				continue
+			if _item_def_matches_tags(cid, tags):
+				return cid
+	return ""
+
+
+func _item_def_matches_tags(cid: String, tags: Array[StringName]) -> bool:
+	## Auxiliary: Checks if the ItemDef for cid carries at least one of the tags.
+	if ItemDB == null:
+		return false
+	var def: ItemDef = ItemDB.get_def(cid)
+	if def == null:
+		return false
+	for tag: StringName in tags:
+		if tag != &"" and def.has_tag(String(tag)):
 			return true
 	return false

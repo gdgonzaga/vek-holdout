@@ -1,4 +1,4 @@
-[gd_resource type="BehaviorTree" format=3 uid="uid://b5ctwqgyqs538"]
+[gd_resource type="BehaviorTree" format=3 uid="uid://d1lw6ub3vl6qc"]
 
 [ext_resource type="Script" uid="uid://clv35wq5ixo15" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="1_u6rff"]
 [ext_resource type="Script" uid="uid://bxx0eyw1gf6am" path="res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd" id="2_12841"]

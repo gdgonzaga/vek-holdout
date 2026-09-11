@@ -65,14 +65,19 @@ func should_close(job: Variant) -> bool:
 		return true
 
 	var colonist: Colonist = _resolve_colonist(fetch_job.target_colonist_id)
+	if colonist == null:
+		return true
 
 	# Slot is now satisfied (item equipped by any means).
-	if colonist != null and colonist.equipment != null:
+	if colonist.equipment != null:
+		var current_item: ItemDef = colonist.equipment.get_item(fetch_job.target_slot)
+		if current_item != null and current_item.id == fetch_job.target_item_id:
+			return true
 		if colonist.equipment.is_desired_equipped(fetch_job.target_slot):
 			return true
 		# Desired item changed — this job targets the old desire.
 		var current_desired: String = colonist.equipment.get_desired_item(fetch_job.target_slot)
-		if current_desired != fetch_job.target_item_id:
+		if current_desired != "" and current_desired != fetch_job.target_item_id:
 			return true
 
 	# Item no longer reachable anywhere in colony storage.
@@ -176,7 +181,7 @@ func _find_crate(item_id: String, from: Vector3) -> Furniture:
 	## Auxiliary: Queries StorageRegistry for the nearest crate containing item_id.
 	if Colony == null or Colony.storage_registry == null:
 		return null
-	return Colony.storage_registry.find_storage_for(item_id, from)
+	return Colony.storage_registry.find_source([item_id], from)
 
 
 func _crate_inventory(crate: Furniture) -> Inventory:
@@ -192,7 +197,7 @@ func _item_in_storage(item_id: String) -> bool:
 	## Auxiliary: True if at least one crate in colony storage contains item_id.
 	if Colony == null or Colony.storage_registry == null:
 		return false
-	return Colony.storage_registry.find_storage_for(item_id, Vector3.ZERO) != null
+	return Colony.storage_registry.has_source_for([item_id])
 
 
 func _resolve_colonist(colonist_id: String) -> Colonist:
