@@ -534,3 +534,37 @@ func test_complete_stows_to_inventory_on_labor_intercept_when_holster_occupied()
 	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("mining_pick")
 	assert_str(colonist.equipment.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
 	assert_bool(colonist.inventory.has_item("sword", 1)).is_true()
+
+
+func test_idle_audit_unequips_unassigned_work_tool_to_inventory_when_no_desired_gear() -> void:
+	var colonist: Colonist = _make_colonist()
+	var hammer: ItemDef = _make_item("hammer", ["tool", "construction_tool"])
+	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, hammer)
+
+	# Desired gear is empty string
+	assert_str(colonist.equipment.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("")
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("hammer")
+	assert_int(colonist.inventory.get_item_count("hammer")).is_equal(0)
+
+	# Run audit when idle
+	EquipmentAudit.run_audit(colonist, Colony.job_board)
+
+	# Hammer should be unequipped to carry pockets
+	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_null()
+	assert_int(colonist.inventory.get_item_count("hammer")).is_equal(1)
+
+
+func test_idle_audit_preserves_non_tool_gear_when_no_desired_gear() -> void:
+	var colonist: Colonist = _make_colonist()
+	var sword: ItemDef = _make_item("sword", ["weapon", "melee"])
+	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, sword)
+
+	# Desired gear is empty string
+	assert_str(colonist.equipment.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("")
+
+	# Run audit when idle
+	EquipmentAudit.run_audit(colonist, Colony.job_board)
+
+	# Sword (weapon, not tool) should stay equipped
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("sword")
+	assert_int(colonist.inventory.get_item_count("sword")).is_equal(0)

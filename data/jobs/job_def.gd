@@ -40,9 +40,6 @@ class_name JobDef
 ## Required equipment tags for this job (e.g. [&"mining_tool"]). Colonist must equip an item with at least one matching tag.
 @export var required_equipped_tags: Array[StringName] = []
 
-## Required tool tag for this job (e.g. &"pickaxe", &"axe", &"pruning_kit"). Legacy fallback.
-@export var required_tool_tag: StringName = &""
-
 ## Returns consolidated array of required tags from required_equipped_tags.
 func get_effective_required_tags() -> Array[StringName]:
 	var tags: Array[StringName] = []

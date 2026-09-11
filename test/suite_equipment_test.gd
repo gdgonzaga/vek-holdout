@@ -482,3 +482,19 @@ func test_bt_action_equip_tool_stows_main_hand_to_inventory() -> void:
 	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
 	assert_int(inv.get_item_count("sword")).is_equal(1)
 	assert_int(inv.get_item_count("pickaxe")).is_equal(0)
+
+
+func test_panel_unequip_preserves_item_in_inventory() -> void:
+	var colonist_scene: PackedScene = preload("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(colonist_scene.instantiate()) as Colonist
+	add_child(colonist)
+
+	var hammer: ItemDef = _make_item("hammer", ["tool"])
+	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, hammer)
+
+	var panel := auto_free(ColonistEquipmentPanel.new()) as ColonistEquipmentPanel
+	panel._colonist = colonist
+	panel._on_slot_unequip_requested(Equipment.SLOT_MAIN_HAND)
+
+	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_null()
+	assert_int(colonist.inventory.get_item_count("hammer")).is_equal(1)

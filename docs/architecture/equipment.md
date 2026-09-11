@@ -189,9 +189,9 @@ Static audit and loadout fulfillment coordinator. Evaluates colonist equipment, 
 ## BT Integration
 
 `BTActionEquipTool` (`subsystems/ai/tasks/actions/bt_action_equip_tool.gd`):
-- Reads `required_tool_tag` from blackboard (falls back to active job's `required_tool_tag`).
+- Reads `required_equipped_tags` / `required_tool_tag` from blackboard (falls back to active job's `required_equipped_tags`).
 - Calls `equipment.swap_hand_for_tag(tag)` — succeeds if tool already equipped.
-- Falls back to `inventory` scan -> `equipment.equip(SLOT_MAIN_HAND, item)`.
+- Falls back to `inventory` scan -> `equipment.stow_and_equip(SLOT_MAIN_HAND, item, inventory)`.
 
 `BTActionClaimJob` (`subsystems/ai/tasks/actions/bt_action_claim_job.gd`):
 - Calls `EquipmentAudit.run_audit()` in `_cleanup_incompatible_held_items` to ensure colonists equip their desired loadout before starting labor.

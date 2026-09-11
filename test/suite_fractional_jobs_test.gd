@@ -19,7 +19,8 @@ func _create_dummy_job_def(
 	def.display_name = "Mine Voxel"
 	def.labor_id = "mining"
 	def.work_animation = anim
-	def.required_tool_tag = tool_tag
+	if tool_tag != &"":
+		def.required_equipped_tags = [tool_tag]
 	def.default_units_per_cycle = units_per_swing
 	def.work_duration = duration
 	def.base_priority = 0.8

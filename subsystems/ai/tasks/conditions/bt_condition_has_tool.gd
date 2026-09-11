@@ -70,8 +70,6 @@ func _tick(_delta: float) -> Status:
 					elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
 						for t: Variant in def_obj.required_equipped_tags:
 							req_tags.append(StringName(str(t)))
-					elif "required_tool_tag" in def_obj and str(def_obj.required_tool_tag) != "":
-						req_tags.append(StringName(str(def_obj.required_tool_tag)))
 
 	# If no requirement exists, condition passes vacuously
 	if req_tags.is_empty() and req_id == "":

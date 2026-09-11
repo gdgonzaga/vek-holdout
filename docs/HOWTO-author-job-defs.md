@@ -17,7 +17,8 @@ A `JobDef` is a text-based Godot `.tres` Resource (`data/jobs/*.tres` extending 
 | `id` | `String` | `""` | Internal template identifier (e.g. `"construction"`, `"mining"`, `"hauling"`). |
 | `display_name` | `String` | `""` | Human-readable label shown in UI and debug logs (e.g. `"Construction"`). |
 | `labor_id` | `String` | `""` | The labor category ID matching colonist labor priorities (e.g. `"mining"`, `"hauling"`). |
-| `required_tool_tag` | `StringName` | `&""` | Equipment tag required for this job (e.g. `&"pickaxe"`, `&"axe"`, `&"pruning_kit"`). |
+| `required_equipped` | `String` | `""` | Specific required item ID equipped for this job (e.g. `"laser_drill"`). |
+| `required_equipped_tags` | `Array[StringName]` | `[]` | Equipment tags required for this job (e.g. `[&"mining_tool"]`, `[&"construction_tool"]`). |
 | `work_animation` | `StringName` | `&"Interact"` | Animation played during work execution cycles. Must match a key in the shared mixamo AnimationLibrary (`assets/mixamo/mixamo.res`) exactly, case included — currently `Idle`, `Walk`, `Jump`, `Digging`, `Interact` (see `docs/HOWTO-use-makehuman-mixamo.md`). Unknown keys warn once and fall back (`Sprint`→`Walk`, else `Idle`). |
 | `work_duration` | `float` | `1.2` | Duration in seconds per work cycle/swing, before the worker's skill multiplier. Author `0.0` for dynamic-duration labors — the def's `begin(actor, job)` then supplies the per-target duration (construction's `build_time`, crafting's recipe `base_time`, crop-driven harvest). |
 | `default_units_per_cycle` | `int` | `20` | Default work units accomplished per swing cycle. |
@@ -67,7 +68,7 @@ script = ExtResource("1_jobdef")
 id = "construction"
 display_name = "Build Structure"
 labor_id = "construction"
-required_tool_tag = &"hammer"
+required_equipped_tags = Array[StringName]([&"construction_tool"])
 work_animation = &"Interact"
 work_duration = 1.0
 default_units_per_cycle = 25
@@ -89,15 +90,15 @@ Setting `max_assignees > 1` allows multiple colonists to claim work units on the
 
 ## Tool Tag Discipline & Requirements
 
-Jobs that require specific tools declare them via the `required_tool_tag` property:
+Jobs that require specific tools declare them via the `required_equipped_tags` property:
 
 ```gdscript
-required_tool_tag = &"pickaxe"
+required_equipped_tags = Array[StringName]([&"mining_tool"])
 ```
 
 > [!IMPORTANT]
 > **Do NOT use `conditions` for required tools.**
-> Def-level `conditions` check colonist capabilities prior to job selection. Putting a tool condition there would mean a toolless worker can never claim the job to go fetch the tool from storage. The universal work tree checks `required_tool_tag` and handles fetching automatically.
+> Def-level `conditions` check colonist capabilities prior to job selection. Putting a tool condition there would mean a toolless worker can never claim the job to go fetch the tool from storage. The universal work tree and `JobBoard` check `required_equipped_tags` and handle fetching automatically.
 
 ---
 

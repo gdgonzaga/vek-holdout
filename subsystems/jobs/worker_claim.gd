@@ -82,7 +82,9 @@ func get_work_duration() -> float:
 ## Tool tag required for this work, derived from JobDef if available.
 func get_required_tool_tag() -> StringName:
 	if job != null and job.job_def != null:
-		return job.job_def.required_tool_tag
+		var tags: Array[StringName] = job.job_def.get_effective_required_tags()
+		if not tags.is_empty():
+			return tags[0]
 	return &""
 
 

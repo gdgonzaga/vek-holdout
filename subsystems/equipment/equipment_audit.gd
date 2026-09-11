@@ -104,7 +104,7 @@ static func _audit_shield_pair(colonist: Colonist, job_board: JobBoard) -> void:
 static func _audit_single_slot(
 		colonist: Colonist, slot_id: String, job_board: JobBoard) -> void:
 	## Auxiliary: Audits one slot. Steps:
-	##   1. Skip if no desired item is set for this slot.
+	##   1. Unequip temporary work tools into carry inventory if no desired item is set.
 	##   2. Skip if slot is already satisfied.
 	##   3. Unequip wrong item into carry inventory (skip if carry full).
 	##   4. Equip from carry inventory immediately if item is already carried.
@@ -112,6 +112,9 @@ static func _audit_single_slot(
 	##   6. Post a FetchEquipmentJob if the item is in colony storage.
 	var desired_id: String = colonist.equipment.get_desired_item(slot_id)
 	if desired_id == "":
+		var current_item: ItemDef = colonist.equipment.get_item(slot_id)
+		if current_item != null and current_item.has_tag("tool"):
+			_unequip_to_inventory(colonist, slot_id)
 		return
 
 	# Already satisfied — nothing to do this cycle.

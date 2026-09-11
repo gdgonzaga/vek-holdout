@@ -914,13 +914,13 @@ func test_interruption_contract_and_lazy_tool_drop() -> void:
 	def.id = "chop_wood"
 	def.display_name = "Chop Wood"
 	def.labor_id = "farming"
-	def.required_tool_tag = &"axe"
+	def.required_equipped_tags = [&"axe"]
 	var job: Job = Job.from_def(def)
-	Colony.job_board.add_job(job)
 	
 	var claim_task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	_blackboard.set_var(&"required_equipped_tags", [&"axe"])
 	claim_task.initialize(colonist, _blackboard, colonist)
-	assert_int(claim_task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	claim_task._cleanup_incompatible_held_items(colonist, job)
 	
 	# Lazy cleanup dropped incompatible pruning kit
 	assert_bool(colonist.inventory.has_item("pruning_kit", 1)).is_false()

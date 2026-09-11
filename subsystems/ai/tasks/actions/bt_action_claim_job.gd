@@ -224,10 +224,6 @@ func _sync_tool_requirements_to_blackboard(def_obj: Resource) -> void:
 		elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
 			for t: Variant in def_obj.required_equipped_tags:
 				req_tags.append(StringName(str(t)))
-		if "required_tool_tag" in def_obj and str(def_obj.required_tool_tag) != "":
-			var legacy_tag := StringName(str(def_obj.required_tool_tag))
-			if not req_tags.has(legacy_tag):
-				req_tags.append(legacy_tag)
 
 	if req_id != "":
 		blackboard.set_var(&"required_equipped", req_id)

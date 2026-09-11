@@ -126,9 +126,21 @@ func _on_slot_unequip_requested(slot_id: String) -> void:
 	## Auxiliary: Unequips the currently equipped item in a slot.
 	if _colonist == null or _colonist.equipment == null:
 		return
-	_colonist.equipment.unequip(slot_id)
+	var item: ItemDef = _colonist.equipment.unequip(slot_id)
+	if item != null:
+		# 1. Item Preservation: Place unequipped item into pockets or drop in world if inventory is full.
+		_safely_stow_or_drop_item(_colonist, item)
 	if _row_instances.has(slot_id):
 		_row_instances[slot_id].refresh()
+
+
+func _safely_stow_or_drop_item(colonist: Colonist, item: ItemDef) -> void:
+	## Auxiliary: Adds item to colonist inventory if capacity permits, otherwise spawns WorldItem on floor.
+	if colonist.inventory != null and colonist.inventory.can_add(item.id, 1):
+		colonist.inventory.add(item.id, 1)
+		return
+	if colonist.is_inside_tree():
+		WorldItem.spawn_at(colonist, item.id, 1, colonist.global_position + Vector3(0, 0.5, 0))
 
 
 func _close_picker() -> void:

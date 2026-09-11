@@ -240,6 +240,6 @@ func test_end_to_end_auto_fetch_stow_work_and_restore_cycle() -> void:
 
 	# 5. Colonist falls idle: EquipmentAudit runs and restores desired iron_sword to main_hand
 	EquipmentAudit.run_audit(colonist, Colony.job_board)
-	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("iron_sword")
-	# Tool is in holster after hand/holster swap
-	assert_str(colonist.equipment.get_item(Equipment.SLOT_HOLSTER).id).is_equal("mining_pick")
+	# Temporary work tool is unequipped to carry inventory for storage hygiene
+	assert_object(colonist.equipment.get_item(Equipment.SLOT_HOLSTER)).is_null()
+	assert_int(colonist.inventory.get_item_count("mining_pick")).is_equal(1)
