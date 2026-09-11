@@ -33,6 +33,7 @@ Last updated: 2026-08-25 (AI Subsystem & Behavior Trees integration complete —
 | [Inventory](inventory.md) | Weight-based inventory, ItemDef, ItemDB autoload | §4.5, §7.3 |
 | [Crafting](crafting.md) | Recipes, Workbench/Forge, craft Jobs | §7.9 |
 | [Farming](farming.md) | Farm plots, hydration, tending, crop growth & yields | §6 |
+| [Wild Flora](wild-flora.md) | Trees, bushes, wild plants, foraging, real-time felling & stage progression | §6, §7.4 |
 | [Hunger](hunger.md) | HungerComponent, FoodParams, starvation, pocket feeding, player food | §6.12 |
 | [Mining](mining.md) | Voxel digging, strata materials, dig box designation, markers | §7.5 |
 | [UI](ui.md) | HUD + all full-screen screens | §12 |

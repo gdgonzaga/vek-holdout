@@ -30,6 +30,7 @@ res://
 │   ├── crafting/       # Recipe model, station logic, craft-Job flow
 │   ├── farming/        # Growable component, CropLibrary — crop lifecycle
 │   ├── harvesting/     # Harvestable component — work-time + yield resolution
+│   ├── environment/    # WildFlora runtime entity, plant spawner, vegetation lifecycle
 │   ├── mining/         # Dig box designation controller, 3D preview, markers
 │   └── actions/        # Interaction runtime + data: InteractionComponent, GameAction
 ├── ui/                 # HUD + all full-screen UIs
@@ -93,6 +94,7 @@ res://
 | Inventory | `subsystems/inventory/` | Weight-based inventory, items, carrying capacity. |
 | Crafting | `subsystems/crafting/` | Workbench/Forge station recipes and craft jobs. |
 | Farming | `subsystems/farming/` | Farm plot growables, hydration, crop lifecycle. |
+| Wild Flora | `subsystems/environment/` | Wild flora lifecycle, perennial foraging, real-time felling, and tree scattering. |
 | Hunger | `subsystems/colonists/` | Physiological satiety tracking, FoodParams, starvation, and LimboAI feeding. |
 | Mining | `subsystems/mining/` | Dig box designation, strata materials, designation markers. |
 | UI | `ui/` | persistent HUD, full-screen screens, dialogs. |

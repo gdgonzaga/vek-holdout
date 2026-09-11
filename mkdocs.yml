@@ -43,6 +43,7 @@ nav:
     - Inventory: architecture/inventory.md
     - Crafting: architecture/crafting.md
     - Farming: architecture/farming.md
+    - "Wild Flora": architecture/wild-flora.md
     - Hunger: architecture/hunger.md
     - UI: architecture/ui.md
     - "Game Log": architecture/game-log.md
@@ -65,6 +66,7 @@ nav:
     - "Authoring Behavior Trees": HOWTO-author-behavior-trees.md
     - "Authoring Blocks": HOWTO-author-blocks.md
     - "Authoring Crops": HOWTO-author-crops.md
+    - "Authoring Wild Flora": HOWTO-author-wild-flora.md
     - "Authoring Interactions": HOWTO-author-interactions.md
     - "Authoring Job Definitions": HOWTO-author-job-defs.md
     - "Authoring Maps": HOWTO-author-maps.md
