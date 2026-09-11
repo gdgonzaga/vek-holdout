@@ -97,7 +97,7 @@ CharacterInventory, Equipment, and EquipmentVisualizer — see docs/architecture
 `ColonistItemManager` enforces clean colonist pockets across all behavioral loops:
 
 1. **Loose Item Identification**:
-   - Any inventory item not currently equipped and lacking the `"tool"` item tag is treated as loose cargo.
+   - Any inventory item in carry pockets (`colonist.inventory`) not currently equipped in `Equipment` slots is treated as loose cargo. Carried tools are protected from dirt-floor drops during job transitions/interruptions, but are storable in crates during item hygiene.
 2. **Opportunistic Multi-Item Gathering**:
    - Following the completion of a `CollectItemJob`, `ColonistItemManager` searches for other `CollectItemJob` candidates within `GATHER_RADIUS` (12m).
    - Candidates are collected in the same trip if they satisfy **both** remaining colonist weight capacity and `StorageRegistry.find_storage_for(item_id, colonist_pos) != null`. Can batch heterogeneous materials (e.g. 5 Wood + 2 Stone).

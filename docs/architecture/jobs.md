@@ -86,7 +86,7 @@ Content rule: durations/animations/units are authored in the `.tres` (`work_dura
 - **FarmingJobDef + Sow/Water/Tend** — one cycle against the plot's `Growable` (`_needs` predicate + `_apply` effect); availability tracks what the plot currently needs.
 - **CollectItemJobDef** (`data/jobs/collect_item_job_def.gd`) — Atomic, single-destination job to pick up a specific `WorldItem`. Performs `PickupAction`, transfers item into colonist pockets, and unregisters the `WorldItem`. Gated by `StorageRegistry.find_storage_for` (storage guard) and `WorldItem.is_on_purge_cooldown()`.
 - **DepositItemJobDef** (`data/jobs/deposit_item_job_def.gd`) — Atomic, single-destination job to deposit carried loose items into a single target `Furniture` container (crate/shelf). Completes via `Inventory.transfer_to` and awards hauling XP.
-- **HaulingJobDef** — Multi-leg or sequence material hauling for construction blueprints and crafting stations: `work_site` picks crate-vs-sink by carry state, `complete` performs transfers, and the loop ends by satisfaction (`should_close`). Drought-persistent: unclaimable while no crate stocks a needed material, registered until the sink is satisfied. Surplus after satisfied delivery returns to the nearest crate (tools exempt).
+- **HaulingJobDef** — Multi-leg or sequence material hauling for construction blueprints and crafting stations: `work_site` picks crate-vs-sink by carry state, `complete` performs transfers, and the loop ends by satisfaction (`should_close`). Drought-persistent: unclaimable while no crate stocks a needed material, registered until the sink is satisfied. Surplus after satisfied delivery returns to storage crates.
 
 ---
 
