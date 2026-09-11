@@ -403,3 +403,37 @@ func test_crop_stage_scenes_instantiation() -> void:
 	CropLibrary._crops_by_id.erase("test_custom_crop")
 
 
+func test_harvestable_complete_spawns_drops_towards_harvester() -> void:
+	var anchor := Vector3i(30, 0, 30)
+	var trough: Furniture = _furniture_layer.spawn(TROUGH_DEF, anchor, 0)
+	var growable := trough.get_node_or_null("Growable") as Growable
+	var harvestable := trough.get_node_or_null("Harvestable") as Harvestable
+
+	growable.plant("potato")
+	growable.set_growth_progress(1.0)
+	growable.set_crop_state(Growable.CropState.MATURE)
+
+	var actor := Node3D.new()
+	actor.position = trough.global_position + Vector3(2.0, 0.0, 0.0)
+	_sandbox.container.add_child(actor)
+
+	var success := harvestable.complete(actor)
+	assert_bool(success).is_true()
+
+	# Find spawned world item
+	var items: Array[Node] = _sandbox.container.get_tree().get_nodes_in_group("world_items")
+	var found_item: WorldItem = null
+	for it in items:
+		var wi := it as WorldItem
+		if wi != null and is_instance_valid(wi) and wi.item_id == "potato":
+			found_item = wi
+			break
+
+	assert_object(found_item).is_not_null()
+	# Verify item is offset towards actor (+X direction) rather than exactly at trough center
+	assert_float(found_item.position.x).is_greater(trough.global_position.x + 0.3)
+
+	actor.free()
+
+
+

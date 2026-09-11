@@ -80,10 +80,9 @@ func forage(actor: Node) -> bool:
 	
 	var stage := get_current_stage()
 	var flora_def := _get_flora_def()
-	var drop_origin: Vector3 = global_position + Vector3(0.0, 0.5, 0.0)
 	
-	# 1. Yield Spawning: Spawn fruit item drops into the world.
-	_spawn_item_amounts(stage.harvest_yields, drop_origin)
+	# 1. Yield Spawning: Spawn fruit item drops scattered clear of trunk mesh.
+	_spawn_harvest_yields(stage.harvest_yields, actor)
 	
 	if flora_def != null and flora_def.destroy_on_fruit_harvest:
 		# 2. Plant Removal: Uproot single-harvest wild plants.
@@ -288,20 +287,69 @@ func _on_health_entity_died(_entity: Node) -> void:
 func _on_felled() -> void:
 	## Auxiliary: Spawns active stage fell yields + ripe fruit yields and destroys plant.
 	var stage := get_current_stage()
-	var drop_origin := global_position + Vector3(0.0, 0.5, 0.0)
 	
 	if stage != null:
-		# 1. Fell Yields: Spawn wood logs, branches, or fiber.
-		_spawn_item_amounts(stage.fell_yields, drop_origin)
-		
-		# 2. Fruit Yields: If ripe, also drop fruits that were on the tree/bush.
+		var combined_yields: Array[ItemAmount] = []
+		combined_yields.append_array(stage.fell_yields)
 		if stage.can_harvest_fruit:
-			_spawn_item_amounts(stage.harvest_yields, drop_origin)
+			combined_yields.append_array(stage.harvest_yields)
+		
+		# 1. Yield Scattering: Spawn logs, branches, and fruits distributed radially around trunk base.
+		_spawn_radial_yields(combined_yields)
 	
 	if GameLog != null:
 		GameLog.info("Felled %s" % label)
 	
+	# 2. Plant Destruction: Remove tree node from furniture layer.
 	_destroy_flora()
+
+
+func _spawn_harvest_yields(amounts: Array[ItemAmount], actor: Node) -> void:
+	## Auxiliary: Spawns harvested fruit drops directed towards the actor or scattered clear of trunk.
+	var tree := get_tree()
+	if tree == null:
+		return
+	
+	var actor_3d := actor as Node3D
+	var has_actor := actor_3d != null and actor_3d.is_inside_tree()
+	var to_actor: Vector3 = (actor_3d.global_position - global_position) if has_actor else Vector3.ZERO
+	to_actor.y = 0.0
+	
+	var base_dir: Vector3 = to_actor.normalized() if to_actor.length_squared() > 0.01 else Vector3.FORWARD
+	var total_entries := amounts.size()
+	
+	for i in range(total_entries):
+		var entry := amounts[i]
+		if entry == null or entry.item_def == null or entry.count <= 0:
+			continue
+		
+		# Angle offset across multiple yields
+		var spread_angle := (float(i) - float(total_entries - 1) * 0.5) * 0.35 if has_actor else (float(i) * TAU / float(maxi(1, total_entries)))
+		var dir := base_dir.rotated(Vector3.UP, spread_angle)
+		var spawn_pos := global_position + dir * 0.8 + Vector3(0.0, 0.5, 0.0)
+		var impulse_dir := (dir + Vector3(0.0, 0.8, 0.0)).normalized()
+		
+		WorldItem.spawn_at(tree, entry.item_def.id, entry.count, spawn_pos, impulse_dir, 2.0)
+
+
+func _spawn_radial_yields(amounts: Array[ItemAmount]) -> void:
+	## Auxiliary: Spawns felling yields scattered evenly in a circle around trunk base.
+	var tree := get_tree()
+	if tree == null:
+		return
+	
+	var total_entries := amounts.size()
+	for i in range(total_entries):
+		var entry := amounts[i]
+		if entry == null or entry.item_def == null or entry.count <= 0:
+			continue
+		
+		var angle := float(i) * TAU / float(maxi(1, total_entries)) + randf_range(-0.2, 0.2)
+		var dir := Vector3(cos(angle), 0.0, sin(angle))
+		var spawn_pos := global_position + dir * 0.85 + Vector3(0.0, 0.5, 0.0)
+		var impulse_dir := (dir + Vector3(0.0, 0.9, 0.0)).normalized()
+		
+		WorldItem.spawn_at(tree, entry.item_def.id, entry.count, spawn_pos, impulse_dir, 2.2)
 
 
 func _spawn_item_amounts(amounts: Array[ItemAmount], origin: Vector3) -> void:

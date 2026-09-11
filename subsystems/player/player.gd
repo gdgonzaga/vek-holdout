@@ -390,8 +390,48 @@ func _interaction_raycast() -> Dictionary:
 	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * interact_distance)
 	query.collide_with_bodies = true
 	query.collide_with_areas = false
-	query.exclude = [get_rid()]
-	return space.intersect_ray(query)
+	
+	# 1. Multi-Hit Resolution: Resolve discrete WorldItems or Colonists prioritized through coarse BuildBody bounding boxes.
+	return _resolve_best_interaction_hit(space, query)
+
+
+func _resolve_best_interaction_hit(space: PhysicsDirectSpaceState3D, query: PhysicsRayQueryParameters3D) -> Dictionary:
+	## Auxiliary: Performs sequential raycasts to detect discrete items or colonists occluded by coarse BuildBody boxes.
+	var excluded: Array[RID] = [get_rid()]
+	query.exclude = excluded
+	
+	var first_hit: Dictionary = {}
+	var max_steps := 6
+	
+	for _i in range(max_steps):
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			break
+		
+		var collider: Node = hit.collider as Node
+		if collider == null:
+			break
+		
+		# Record the initial hit as baseline fallback
+		if first_hit.is_empty():
+			first_hit = hit
+		
+		# Direct hit on discrete interactable entity (WorldItem or Colonist)
+		if collider is WorldItem or collider.get_parent() is WorldItem or collider is Colonist:
+			return hit
+		
+		# If colliding with a coarse interaction bounding box (BuildBody on Layer 5), exclude and continue
+		if collider is CollisionObject3D:
+			var col_obj := collider as CollisionObject3D
+			if col_obj.name == "BuildBody" or col_obj.get_collision_layer_value(5):
+				excluded.append(col_obj.get_rid())
+				query.exclude = excluded
+				continue
+		
+		# Hit opaque physical geometry (terrain or solid structure), cannot see through
+		break
+	
+	return first_hit
 
 
 ## Every-frame crosshair check. Updates _current_interactable so the HUD can

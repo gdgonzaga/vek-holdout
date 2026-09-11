@@ -169,3 +169,40 @@ func test_furniture_layer_box_queries() -> void:
 	var trees_in_box := _furniture_layer.get_wild_flora_in_box(Vector3i(0, 0, 0), Vector3i(10, 0, 10), "tree")
 	assert_int(trees_in_box.size()).is_equal(1)
 	assert_str(trees_in_box[0].def_id).is_equal("flora_a")
+
+
+func test_wild_flora_foraging_spawns_drops_towards_actor() -> void:
+	var def := _create_test_flora_def("test_forage_offset_flora")
+	var item_amount := ItemAmount.new()
+	var dummy_item := ItemDef.new()
+	dummy_item.id = "test_apple"
+	item_amount.item_def = dummy_item
+	item_amount.count = 2
+	def.stages[2].harvest_yields = [item_amount]
+
+	var anchor := Vector3i(10, 0, 10)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var flora := node as WildFlora
+	flora.set_growth_progress(1.0)
+
+	var actor := Node3D.new()
+	actor.position = flora.global_position + Vector3(2.0, 0.0, 0.0)
+	_sandbox.container.add_child(actor)
+
+	var success := flora.forage(actor)
+	assert_bool(success).is_true()
+
+	var items: Array[Node] = _sandbox.container.get_tree().get_nodes_in_group("world_items")
+	var found_item: WorldItem = null
+	for it in items:
+		var wi := it as WorldItem
+		if wi != null and is_instance_valid(wi) and wi.item_id == "test_apple":
+			found_item = wi
+			break
+
+	assert_object(found_item).is_not_null()
+	# Verify item is spawned offset towards actor in +X direction
+	assert_float(found_item.position.x).is_greater(flora.global_position.x + 0.3)
+
+	actor.free()
+

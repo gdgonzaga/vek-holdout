@@ -783,3 +783,39 @@ func test_carried_materials_allow_sink_job_assignment_without_crate_source() -> 
 	sink_job.def.complete(colonist, sink_job)
 	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
 	assert_bool(sink.has_complete_materials()).is_true()
+
+
+func test_player_interaction_raycast_prioritizes_world_item_inside_build_body() -> void:
+	var player := _sandbox.make_player()
+	player.global_position = Vector3(0.0, 1.0, 0.0)
+
+	# Create a BuildBody StaticBody3D at (0, 1, 3)
+	var build_body := StaticBody3D.new()
+	build_body.name = "BuildBody"
+	build_body.set_collision_layer_value(5, true)
+	var col_shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(2.0, 2.0, 2.0)
+	col_shape.shape = box
+	build_body.add_child(col_shape)
+	build_body.position = Vector3(0.0, 1.0, 3.0)
+	_sandbox.container.add_child(build_body)
+
+	# Create a WorldItem inside the BuildBody at (0, 1, 3.2)
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.position = Vector3(0.0, 1.0, 3.2)
+	item.setup("wood", 1, false)
+	_sandbox.container.add_child(item)
+
+	var space := _sandbox.container.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(Vector3(0.0, 1.0, 0.0), Vector3(0.0, 1.0, 5.0))
+	query.collide_with_bodies = true
+	query.collide_with_areas = false
+
+	var best_hit := player._resolve_best_interaction_hit(space, query)
+	assert_bool(best_hit.is_empty()).is_false()
+	assert_object(best_hit.collider).is_equal(item)
+
+	build_body.free()
+

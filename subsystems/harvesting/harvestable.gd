@@ -89,14 +89,12 @@ func effective_work_time() -> float:
 ## or remove the furniture node. Returns true if successfully harvested.
 func complete(actor: Node) -> bool:
 	var growable := _furniture.get_node_or_null("Growable") as Growable if _furniture != null else null
-	var drop_pos := _get_drop_pos(actor)
 
 	if growable != null:
 		var yields := growable.get_harvest_yields()
-		for entry in yields:
-			if entry == null or entry.item_def == null:
-				continue
-			_spawn_drop(entry.item_def.id, entry.count, drop_pos)
+		# 1. Harvest Yield Spawning: Spawn crop yields directed towards actor or away from plot center.
+		_spawn_harvest_entries(yields, actor)
+		
 		if _furniture != null:
 			GameLog.info("Harvested %s" % _furniture.label)
 		growable.on_harvested(actor)
@@ -106,11 +104,10 @@ func complete(actor: Node) -> bool:
 	var p := params()
 	if p == null:
 		return false
-	for entry in p.yields:
-		if entry == null or entry.item_def == null:
-			continue
-		var id := entry.item_def.id
-		_spawn_drop(id, entry.count, drop_pos)
+	
+	# 2. Resource Harvest Spawning: Spawn felled furniture/resource yields.
+	_spawn_harvest_entries(p.yields, actor)
+	
 	if _furniture != null:
 		GameLog.info("Harvested %s" % _furniture.label)
 	var anchor := anchor_cell()
@@ -125,23 +122,51 @@ func complete(actor: Node) -> bool:
 	return true
 
 
-func _spawn_drop(item_id: String, count: int, pos: Vector3) -> void:
+func _spawn_harvest_entries(amounts: Array[ItemAmount], actor: Node) -> void:
+	## Auxiliary: Spawns item amounts with positions and impulses calculated relative to harvester.
+	var total_entries := amounts.size()
+	for i in range(total_entries):
+		var entry := amounts[i]
+		if entry == null or entry.item_def == null or entry.count <= 0:
+			continue
+		
+		# 1. Drop Transform Calculation: Compute clear spawn position and outward impulse.
+		var drop_info: Dictionary = _calculate_harvest_drop_transform(actor, i, total_entries)
+		
+		# 2. World Item Spawn: Instantiate physical item drop.
+		_spawn_drop(entry.item_def.id, entry.count, drop_info.get("pos", Vector3.ZERO), drop_info.get("impulse", Vector3.UP))
+
+
+func _calculate_harvest_drop_transform(actor: Node, index: int, total: int) -> Dictionary:
+	## Auxiliary: Computes drop spawn position and impulse vector clear of furniture footprint.
+	var center := _furniture.global_position if _furniture != null and _furniture.is_inside_tree() else Vector3.ZERO
+	if center == Vector3.ZERO and actor is Node3D and (actor as Node3D).is_inside_tree():
+		center = (actor as Node3D).global_position
+	
+	var actor_3d := actor as Node3D
+	var has_actor := actor_3d != null and actor_3d.is_inside_tree()
+	var to_actor: Vector3 = (actor_3d.global_position - center) if has_actor else Vector3.ZERO
+	to_actor.y = 0.0
+	
+	var base_dir: Vector3 = to_actor.normalized() if to_actor.length_squared() > 0.01 else Vector3.FORWARD
+	var spread_angle := (float(index) - float(total - 1) * 0.5) * 0.3 if has_actor else (float(index) * TAU / float(maxi(1, total)))
+	var dir := base_dir.rotated(Vector3.UP, spread_angle)
+	
+	return {
+		"pos": center + dir * 0.75 + Vector3(0.0, 0.5, 0.0),
+		"impulse": (dir + Vector3(0.0, 0.85, 0.0)).normalized()
+	}
+
+
+func _spawn_drop(item_id: String, count: int, pos: Vector3, impulse_dir: Vector3 = Vector3.UP) -> void:
+	## Auxiliary: Spawns a WorldItem instance in the active scene tree.
 	if count <= 0 or item_id == "":
 		return
 	var tree := get_tree()
 	if tree != null:
-		WorldItem.spawn_at(tree, item_id, count, pos)
+		WorldItem.spawn_at(tree, item_id, count, pos, impulse_dir, 2.0)
 	elif _furniture != null and _furniture.get_parent() != null:
-		WorldItem.spawn_at(_furniture.get_parent(), item_id, count, pos)
-
-
-func _get_drop_pos(actor: Node) -> Vector3:
-	if _furniture != null and _furniture.is_inside_tree():
-		return _furniture.global_position + Vector3(0.0, 0.5, 0.0)
-	var node3d := actor as Node3D
-	if node3d != null and node3d.is_inside_tree():
-		return node3d.global_position + Vector3(0.0, 0.5, 0.0)
-	return Vector3.ZERO
+		WorldItem.spawn_at(_furniture.get_parent(), item_id, count, pos, impulse_dir, 2.0)
 
 
 func _pocket_of(actor: Node) -> Inventory:
