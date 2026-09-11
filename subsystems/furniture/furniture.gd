@@ -75,7 +75,7 @@ func get_footprint_cells() -> Array[Vector3i]:
 	# so the center-based math below would land one cell off. Runs for
 	# blueprints too (Blueprint extends Furniture and its def is the TARGET's
 	# def) — that's how colonist job pathing reaches here with a BlockDef.
-	if not def is FurnitureDef:
+	if not (def is FurnitureDef or def is WildFloraDef):
 		return [Vector3i(
 			int(round(global_position.x)),
 			int(round(global_position.y)),

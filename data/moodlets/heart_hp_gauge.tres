@@ -10,7 +10,7 @@
 [resource]
 script = ExtResource("1_5bqta")
 stat_id = &"health"
-thresholds = Array[float]([1.0, 0.75, 0.5, 0.25, 0.0])
+thresholds = Array[float]([1.0, 0.9, 0.5, 0.25, 0.0])
 icons = Array[Texture2D]([ExtResource("1_7gfqw"), ExtResource("2_5vxis"), ExtResource("3_bfl16"), ExtResource("4_w7giy"), ExtResource("5_5537f")])
 line_number = 5
 metadata/_custom_type_script = "uid://cjjndnu01sf2i"

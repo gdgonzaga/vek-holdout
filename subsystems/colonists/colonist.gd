@@ -335,7 +335,7 @@ func _resolve_stat_ratio(stat_name: StringName) -> float:
 				return hunger_component.get_hunger_ratio()
 			if needs != null and needs.needs.has(stat_name):
 				return needs.get_need(stat_name)
-			return 1.0
+			return -1.0
 		_:
 			if needs != null and needs.needs.has(stat_name):
 				return needs.get_need(stat_name)
@@ -356,7 +356,7 @@ func _resolve_stat_value(stat_name: StringName) -> float:
 				return hunger_component.current_hunger
 			if needs != null and needs.needs.has(stat_name):
 				return needs.get_need(stat_name)
-			return 1.0
+			return -1.0
 		_:
 			if needs != null and needs.needs.has(stat_name):
 				return needs.get_need(stat_name)

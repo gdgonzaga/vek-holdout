@@ -1,0 +1,383 @@
+class_name WildFlora
+extends Furniture
+## Runtime instance for wild flora (trees, bushes, and harvestable wild plants).
+## Manages stage-based visual progression, HealthComponent durability,
+## real-time axe damage resolution, and perennial fruit foraging cycles.
+
+const STATE_KEY_GROWTH := "growth_progress"
+
+@export var growth_progress: float = 0.0: set = set_growth_progress
+
+var health_component: HealthComponent
+var harvestable: Harvestable
+
+var _active_stage_index: int = -1
+var _stage_visual_instance: Node3D = null
+var _rng := RandomNumberGenerator.new()
+
+
+func _ready() -> void:
+	super._ready()
+	_rng.randomize()
+	
+	# 1. HealthComponent Setup: Ensure health component exists and connects to entity lifecycle.
+	_setup_health_component()
+	
+	# 2. Initial Progress Resolution: Restore from state or randomize initial growth.
+	_initialize_growth_progress()
+	
+	# 3. Collision Layer Configuration: Set blocking or pass-through character collision.
+	_apply_movement_collision_policy()
+	
+	# 4. Stage State Synchronization: Instantiate visual representation and configure HP.
+	_sync_to_current_stage(true)
+
+
+func _process(delta: float) -> void:
+	if GameState.paused:
+		return
+	
+	var flora_def := _get_flora_def()
+	if flora_def == null or flora_def.growth_time_hours <= 0.0:
+		return
+	
+	if growth_progress >= 1.0:
+		return
+	
+	# 1. Delta Calculation: Convert real-time delta to in-game hours.
+	var hours_delta: float = _calculate_hours_delta(delta)
+	
+	# 2. Progress Advance: Add fractional progress towards full maturity.
+	var new_prog: float = minf(1.0, growth_progress + (hours_delta / flora_def.growth_time_hours))
+	set_growth_progress(new_prog)
+
+
+## Sets the current growth progress (0.0 to 1.0) and updates stage visuals if changed.
+func set_growth_progress(val: float) -> void:
+	var clamped := clampf(val, 0.0, 1.0)
+	growth_progress = clamped
+	state[STATE_KEY_GROWTH] = growth_progress
+	
+	var flora_def := _get_flora_def()
+	if flora_def != null:
+		var target_stage_idx: int = flora_def.get_stage_index_for_progress(growth_progress)
+		if target_stage_idx != _active_stage_index:
+			# 1. Stage Refresh: Reconfigure visuals, HP, and interaction for new stage.
+			_sync_to_current_stage(false)
+
+
+## Returns whether this flora currently bears mature fruit ready for foraging.
+func can_forage() -> bool:
+	var stage := get_current_stage()
+	return stage != null and stage.can_harvest_fruit and not stage.harvest_yields.is_empty()
+
+
+## Gathers mature fruit/produce from the flora.
+## Resets growth to regrowth_stage_index, or destroys plant if destroy_on_fruit_harvest is true.
+func forage(actor: Node) -> bool:
+	if not can_forage():
+		return false
+	
+	var stage := get_current_stage()
+	var flora_def := _get_flora_def()
+	var drop_origin: Vector3 = global_position + Vector3(0.0, 0.5, 0.0)
+	
+	# 1. Yield Spawning: Spawn fruit item drops into the world.
+	_spawn_item_amounts(stage.harvest_yields, drop_origin)
+	
+	if flora_def != null and flora_def.destroy_on_fruit_harvest:
+		# 2. Plant Removal: Uproot single-harvest wild plants.
+		_destroy_flora()
+		return true
+	
+	# 3. Perennial Regrowth: Reset progress to configured post-harvest stage.
+	var reset_progress: float = 0.0
+	if flora_def != null and flora_def.stages.size() > flora_def.regrowth_stage_index and flora_def.regrowth_stage_index >= 0:
+		reset_progress = flora_def.stages[flora_def.regrowth_stage_index].min_progress
+	
+	set_growth_progress(reset_progress)
+	if GameLog != null:
+		GameLog.info("Harvested %s" % label)
+	return true
+
+
+## Physical damage entry point (weapons, tools, raid attacks, explosions).
+func take_damage(raw_amount: int, source: Node = null) -> void:
+	if health_component == null or health_component.is_dead or raw_amount <= 0:
+		return
+	
+	# 1. Damage Scaling: Calculate weapon-type effectiveness on wood/foliage.
+	var effective_damage: int = _calculate_effective_damage(raw_amount, source)
+	
+	# 2. Damage Application: Apply scaled damage to health component.
+	health_component.take_damage(effective_damage, source)
+
+
+## Returns the active growth stage definition.
+func get_current_stage() -> WildFloraStage:
+	var flora_def := _get_flora_def()
+	if flora_def == null:
+		return null
+	return flora_def.get_stage_for_progress(growth_progress)
+
+
+# =============================================================================
+# Auxiliary Functions (Step-down narrative order)
+# =============================================================================
+
+func _setup_health_component() -> void:
+	## Auxiliary: Resolves or instantiates HealthComponent child node.
+	health_component = get_node_or_null("HealthComponent") as HealthComponent
+	if health_component == null:
+		health_component = HealthComponent.new()
+		health_component.name = "HealthComponent"
+		health_component.show_damage_particles = false
+		add_child(health_component)
+	else:
+		health_component.show_damage_particles = false
+	
+	if not health_component.entity_died.is_connected(_on_health_entity_died):
+		health_component.entity_died.connect(_on_health_entity_died)
+	if not health_component.damaged.is_connected(_on_health_damaged):
+		health_component.damaged.connect(_on_health_damaged)
+
+
+func _initialize_growth_progress() -> void:
+	## Auxiliary: Restores growth progress from saved state or randomizes initial range.
+	if state.has(STATE_KEY_GROWTH):
+		growth_progress = float(state[STATE_KEY_GROWTH])
+	else:
+		var flora_def := _get_flora_def()
+		if flora_def != null:
+			var min_g := flora_def.initial_growth_min
+			var max_g := flora_def.initial_growth_max
+			growth_progress = _rng.randf_range(min_g, max_g)
+		else:
+			growth_progress = 1.0
+		state[STATE_KEY_GROWTH] = growth_progress
+
+
+func _apply_movement_collision_policy() -> void:
+	## Auxiliary: Configures Layer 1 physical collision based on blocks_movement.
+	var flora_def := _get_flora_def()
+	var should_block: bool = flora_def.blocks_movement if flora_def != null else true
+	
+	var mesh_node := find_child("Mesh", true, false)
+	if mesh_node != null:
+		for child in mesh_node.get_children():
+			if child is StaticBody3D:
+				(child as StaticBody3D).set_collision_layer_value(1, should_block)
+
+
+func _sync_to_current_stage(is_first_sync: bool) -> void:
+	## Auxiliary: Updates visual instance, HealthComponent max HP, and collision extents.
+	var flora_def := _get_flora_def()
+	if flora_def == null:
+		return
+	
+	_active_stage_index = flora_def.get_stage_index_for_progress(growth_progress)
+	var stage := flora_def.get_stage_for_progress(growth_progress)
+	if stage == null:
+		return
+	
+	# 1. HP Synchronization: Reconfigure HealthComponent with stage max HP.
+	if health_component != null:
+		if is_first_sync:
+			health_component.setup(stage.max_hp)
+		else:
+			var prev_max := health_component.max_hp
+			var ratio: float = float(health_component.current_hp) / float(maxi(1, prev_max))
+			health_component.max_hp = stage.max_hp
+			health_component.current_hp = maxi(1, int(round(float(stage.max_hp) * ratio)))
+	
+	# 2. Visual Instance Update: Instantiate stage scene or scale fallback.
+	_update_stage_visuals(stage, flora_def)
+	
+	# 3. Collision Scaling: Scale BuildCollider based on stage visual scale.
+	_scale_interaction_collider(stage.visual_scale)
+
+
+func _update_stage_visuals(stage: WildFloraStage, flora_def: WildFloraDef) -> void:
+	## Auxiliary: Swaps or scales child scene instance for active growth stage.
+	var scene_to_use: PackedScene = stage.scene if stage.scene != null else flora_def.default_scene
+	if scene_to_use == null and flora_def.scene != null:
+		scene_to_use = flora_def.scene
+	
+	var mesh_placeholder := find_child("Mesh", true, false) as MeshInstance3D
+	if mesh_placeholder != null:
+		mesh_placeholder.visible = (scene_to_use == null)
+	
+	if scene_to_use != null:
+		if _stage_visual_instance != null and is_instance_valid(_stage_visual_instance):
+			_stage_visual_instance.queue_free()
+			_stage_visual_instance = null
+		
+		var inst := scene_to_use.instantiate() as Node3D
+		if inst != null:
+			_stage_visual_instance = inst
+			add_child(_stage_visual_instance)
+			_stage_visual_instance.scale = stage.visual_scale
+	elif _stage_visual_instance != null and is_instance_valid(_stage_visual_instance):
+		_stage_visual_instance.scale = stage.visual_scale
+
+
+func _scale_interaction_collider(v_scale: Vector3) -> void:
+	## Auxiliary: Scales BuildCollider and collision shapes with stage growth.
+	var build_shape := get_node_or_null("BuildBody/BuildCollider") as CollisionShape3D
+	if build_shape != null:
+		build_shape.scale = v_scale
+
+
+func _calculate_hours_delta(delta: float) -> float:
+	## Auxiliary: Converts frame delta into in-game hours via TimeSystem day length.
+	var day_seconds: float = 1800.0
+	if TimeSystem != null and TimeSystem.get("_loop_length_seconds") != null:
+		day_seconds = float(TimeSystem.get("_loop_length_seconds"))
+	return (delta / maxf(1.0, day_seconds)) * 24.0
+
+
+func _calculate_effective_damage(raw_amount: int, source: Node) -> int:
+	## Auxiliary: Evaluates tool and weapon tags to modulate damage on wood/flora.
+	var flora_def := _get_flora_def()
+	if flora_def == null or source == null:
+		return raw_amount
+	
+	var is_tree := has_tag("tree") or has_tag("timber") or has_tag("wood")
+	if not is_tree:
+		return raw_amount
+	
+	var weapon: ItemDef = _resolve_source_weapon(source)
+	if weapon == null:
+		# Bare hands / unarmed strikes deal 20% damage to solid timber
+		return maxi(1, int(float(raw_amount) * 0.2))
+	
+	if weapon.has_tag("axe") or weapon.has_tag("tool_axe"):
+		return raw_amount
+	elif weapon.has_tag("sword") or weapon.has_tag("dagger") or weapon.has_tag("blade"):
+		return maxi(1, int(float(raw_amount) * 0.25))
+	elif weapon.has_tag("pickaxe") or weapon.has_tag("pick"):
+		return maxi(1, int(float(raw_amount) * 0.15))
+	
+	return raw_amount
+
+
+func _resolve_source_weapon(source: Node) -> ItemDef:
+	## Auxiliary: Retrieves the active main-hand weapon from player or actor.
+	if source is Player:
+		var player := source as Player
+		if player.equipment != null:
+			return player.equipment.get_item(Equipment.SLOT_MAIN_HAND)
+	return null
+
+
+func _on_health_damaged(amount: int, source: Node) -> void:
+	## Auxiliary: Handles hit feedback particles and audio upon taking damage.
+	var flora_def := _get_flora_def()
+	var p_color := flora_def.hit_particles_color if flora_def != null else Color(0.65, 0.45, 0.25)
+	var impact_pos := global_position + Vector3(0.0, 1.0, 0.0)
+	
+	# 1. Visual Feedback: Spawn splinter/leaf particles at hit location.
+	_spawn_splinter_particles(impact_pos, p_color)
+
+
+func _on_health_entity_died(_entity: Node) -> void:
+	## Auxiliary: Triggers felling and drops when HealthComponent reaches 0 HP.
+	_on_felled()
+
+
+func _on_felled() -> void:
+	## Auxiliary: Spawns active stage fell yields + ripe fruit yields and destroys plant.
+	var stage := get_current_stage()
+	var drop_origin := global_position + Vector3(0.0, 0.5, 0.0)
+	
+	if stage != null:
+		# 1. Fell Yields: Spawn wood logs, branches, or fiber.
+		_spawn_item_amounts(stage.fell_yields, drop_origin)
+		
+		# 2. Fruit Yields: If ripe, also drop fruits that were on the tree/bush.
+		if stage.can_harvest_fruit:
+			_spawn_item_amounts(stage.harvest_yields, drop_origin)
+	
+	if GameLog != null:
+		GameLog.info("Felled %s" % label)
+	
+	_destroy_flora()
+
+
+func _spawn_item_amounts(amounts: Array[ItemAmount], origin: Vector3) -> void:
+	## Auxiliary: Instantiates WorldItem drops for an array of ItemAmount entries.
+	var tree := get_tree()
+	if tree == null:
+		return
+	
+	for entry in amounts:
+		if entry != null and entry.item_def != null and entry.count > 0:
+			WorldItem.spawn_at(tree, entry.item_def.id, entry.count, origin)
+
+
+func _destroy_flora() -> void:
+	## Auxiliary: Cleans up and removes the node from FurnitureLayer.
+	var anchor: Vector3i = get_footprint_cells()[0] if not get_footprint_cells().is_empty() else Vector3i(global_position)
+	var fl := _find_furniture_layer()
+	if fl != null:
+		fl.remove_at(anchor)
+	else:
+		queue_free()
+		EventBus.furniture_removed.emit(def_id, anchor)
+
+
+func _spawn_splinter_particles(pos: Vector3, color: Color) -> void:
+	## Auxiliary: Spawns quick directional wood/leaf particle burst.
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return
+	
+	var particles := GPUParticles3D.new()
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3.UP
+	mat.spread = 45.0
+	mat.initial_velocity_min = 1.5
+	mat.initial_velocity_max = 3.5
+	mat.gravity = Vector3(0, -9.8, 0)
+	mat.scale_min = 0.04
+	mat.scale_max = 0.09
+	mat.color = color
+	
+	var draw_mesh := BoxMesh.new()
+	draw_mesh.size = Vector3(0.05, 0.05, 0.05)
+	var draw_mat := StandardMaterial3D.new()
+	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	draw_mat.albedo_color = color
+	draw_mesh.material = draw_mat
+	
+	particles.process_material = mat
+	particles.draw_pass_1 = draw_mesh
+	particles.amount = 8
+	particles.lifetime = 0.25
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	
+	tree.current_scene.add_child(particles)
+	particles.global_position = pos
+	particles.emitting = true
+	
+	var timer := tree.create_timer(0.35)
+	timer.timeout.connect(particles.queue_free)
+
+
+func _get_flora_def() -> WildFloraDef:
+	## Auxiliary: Casts BuildableDef back-reference to WildFloraDef.
+	return def as WildFloraDef
+
+
+func _find_furniture_layer() -> FurnitureLayer:
+	## Auxiliary: Resolves BuildController's FurnitureLayer reference.
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var root := tree.current_scene
+	if root != null:
+		var ctrl := root.find_child("BuildController", true, false) as BuildController
+		if ctrl != null and ctrl.furniture_layer != null:
+			return ctrl.furniture_layer
+	return null

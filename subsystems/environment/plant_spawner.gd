@@ -154,7 +154,7 @@ func _try_spawn_at_random_location() -> bool:
 		return false
 	
 	# 6. Def Selection: Pick random flora definition from the configured palette.
-	var chosen_def: FurnitureDef = _pick_random_flora_def()
+	var chosen_def: BuildableDef = _pick_random_flora_def()
 	if chosen_def == null:
 		return false
 	
@@ -290,8 +290,8 @@ func _is_slope_acceptable(normal: Vector3, max_slope_deg: float) -> bool:
 	return slope_deg <= max_slope_deg
 
 
-func _pick_random_flora_def() -> FurnitureDef:
-	## Auxiliary: Selects a FurnitureDef from the configured flora palette.
+func _pick_random_flora_def() -> BuildableDef:
+	## Auxiliary: Selects a BuildableDef from the configured flora palette.
 	if _map_def == null or _map_def.flora_palette.is_empty():
 		return null
 	var idx := _rng.randi_range(0, _map_def.flora_palette.size() - 1)

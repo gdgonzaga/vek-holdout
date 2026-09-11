@@ -77,32 +77,38 @@ func test_storage_registry_find_storage_for_priority_and_distance_tiebreak() -> 
 	add_child(container)
 	registry.on_map_wired(container)
 
+	var any_item := _make_test_item("any_item", 1.0, [])
+	ItemDB._defs_by_id["any_item"] = any_item
+
 	# Crate 1: Close (dist 5m), priority 2
 	var crate1 := auto_free(Furniture.new()) as Furniture
-	crate1.global_position = Vector3(5, 0, 0)
 	var inv1 := auto_free(StorageInventory.new()) as StorageInventory
+	inv1.name = "StorageInventory"
 	inv1.capacity = 100.0
 	inv1.priority = 2
 	crate1.add_child(inv1)
 	container.add_child(crate1)
+	crate1.global_position = Vector3(5, 0, 0)
 
 	# Crate 2: Far (dist 20m), priority 5 (Highest)
 	var crate2 := auto_free(Furniture.new()) as Furniture
-	crate2.global_position = Vector3(20, 0, 0)
 	var inv2 := auto_free(StorageInventory.new()) as StorageInventory
+	inv2.name = "StorageInventory"
 	inv2.capacity = 100.0
 	inv2.priority = 5
 	crate2.add_child(inv2)
 	container.add_child(crate2)
+	crate2.global_position = Vector3(20, 0, 0)
 
 	# Crate 3: Farther (dist 30m), priority 5
 	var crate3 := auto_free(Furniture.new()) as Furniture
-	crate3.global_position = Vector3(30, 0, 0)
 	var inv3 := auto_free(StorageInventory.new()) as StorageInventory
+	inv3.name = "StorageInventory"
 	inv3.capacity = 100.0
 	inv3.priority = 5
 	crate3.add_child(inv3)
 	container.add_child(crate3)
+	crate3.global_position = Vector3(30, 0, 0)
 
 	# Origin at (0, 0, 0)
 	# 1. Higher priority wins over close low priority (Crate 2 over Crate 1)
@@ -177,6 +183,7 @@ func test_storage_filter_action_execution() -> void:
 
 	var furniture := auto_free(Furniture.new()) as Furniture
 	var storage := auto_free(StorageInventory.new()) as StorageInventory
+	storage.name = "StorageInventory"
 	furniture.add_child(storage)
 	add_child(furniture)
 
@@ -221,7 +228,7 @@ func test_interaction_ui_displays_all_options() -> void:
 	var btn2 := list.get_child(1) as Button
 
 	assert_str(btn1.text).is_equal("Open Storage")
-	assert_str(btn2.text).is_equal("Configure Filter")
+	assert_str(btn2.text).is_equal("Storage Options")
 
 
 func _make_test_item(p_id: String, p_weight: float, p_tags: Array[String]) -> ItemDef:

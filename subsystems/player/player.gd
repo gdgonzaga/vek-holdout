@@ -669,6 +669,12 @@ func _on_primary_action() -> void:
 	if _current_interactable != null:
 		var target := _current_interactable.get_parent()
 		if target != null:
+			var flora := target as WildFlora
+			if flora != null and flora.can_forage():
+				_trigger_animation_action(&"Interact")
+				var forage_action := ForageAction.new()
+				forage_action.execute(self, target)
+				return
 			var growable := target.get_node_or_null("Growable") as Growable
 			if growable != null:
 				# 1. Action Animation Trigger: Trigger farming interaction animation.

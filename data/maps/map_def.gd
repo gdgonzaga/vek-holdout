@@ -41,7 +41,7 @@ enum MapType { BASE, POI, BUILDING, TOWN }
 # Flora & Vegetation Regeneration Parameters
 # ==========================================
 ## Flora definitions available to spawn dynamically on this map.
-@export var flora_palette: Array[FurnitureDef] = []
+@export var flora_palette: Array[BuildableDef] = []
 
 ## Total number of plants/trees to attempt spawning across an in-game day (0 = disabled).
 @export var flora_spawns_per_day: int = 0

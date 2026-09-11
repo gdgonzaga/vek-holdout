@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="WildFloraDef" format=3 uid="uid://bd48k62buoacv"]
+
+[ext_resource type="PackedScene" uid="uid://v0nvu6etfjyt" path="res://assets/animpic-mega-survival-construction/tree2.tscn" id="1_a5dai"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="1_ndi3y"]
+[ext_resource type="Script" uid="uid://bixq35rllmek5" path="res://data/furniture/wild_flora_def.gd" id="2_a5dai"]
+[ext_resource type="Script" uid="uid://da6860d16q6up" path="res://data/capability_params/wild_flora_stage.gd" id="3_4i2re"]
+[ext_resource type="Resource" uid="uid://8jbu2jea8m8n" path="res://data/items/log.tres" id="5_ppqfb"]
+[ext_resource type="Resource" uid="uid://brxslew51hukd" path="res://data/items/fiber.tres" id="6_yfx5d"]
+[ext_resource type="Resource" uid="uid://ixrlb60mm7ce" path="res://data/items/berry.tres" id="7_yfx5d"]
+
+[sub_resource type="Resource" id="Resource_u6rff"]
+script = ExtResource("1_ndi3y")
+item_def = ExtResource("5_ppqfb")
+count = 5
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[sub_resource type="Resource" id="Resource_4i2re"]
+script = ExtResource("1_ndi3y")
+item_def = ExtResource("6_yfx5d")
+count = 5
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[sub_resource type="Resource" id="Resource_ppqfb"]
+script = ExtResource("3_4i2re")
+visual_scale = Vector3(0.2, 0.2, 0.2)
+fell_yields = Array[ExtResource("1_ndi3y")]([SubResource("Resource_u6rff"), SubResource("Resource_4i2re")])
+metadata/_custom_type_script = "uid://da6860d16q6up"
+
+[sub_resource type="Resource" id="Resource_yfx5d"]
+script = ExtResource("3_4i2re")
+min_progress = 0.5
+max_hp = 100
+visual_scale = Vector3(0.6, 0.6, 0.6)
+fell_yields = Array[ExtResource("1_ndi3y")]([SubResource("Resource_u6rff"), SubResource("Resource_4i2re")])
+metadata/_custom_type_script = "uid://da6860d16q6up"
+
+[sub_resource type="Resource" id="Resource_fmtk7"]
+script = ExtResource("3_4i2re")
+min_progress = 0.9
+max_hp = 150
+fell_yields = Array[ExtResource("1_ndi3y")]([SubResource("Resource_u6rff"), SubResource("Resource_4i2re")])
+metadata/_custom_type_script = "uid://da6860d16q6up"
+
+[sub_resource type="Resource" id="Resource_jjxxg"]
+script = ExtResource("1_ndi3y")
+item_def = ExtResource("7_yfx5d")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[sub_resource type="Resource" id="Resource_kevgp"]
+script = ExtResource("3_4i2re")
+min_progress = 1.0
+max_hp = 150
+fell_yields = Array[ExtResource("1_ndi3y")]([SubResource("Resource_u6rff"), SubResource("Resource_4i2re")])
+can_harvest_fruit = true
+harvest_yields = Array[ExtResource("1_ndi3y")]([SubResource("Resource_jjxxg")])
+metadata/_custom_type_script = "uid://da6860d16q6up"
+
+[resource]
+script = ExtResource("2_a5dai")
+default_scene = ExtResource("1_a5dai")
+regrowth_stage_index = 2
+stages = Array[ExtResource("3_4i2re")]([SubResource("Resource_ppqfb"), SubResource("Resource_yfx5d"), SubResource("Resource_fmtk7"), SubResource("Resource_kevgp")])
+id = "apple_tree"
+display_name = "apple tree"
+hp = 150
+metadata/_custom_type_script = "uid://bixq35rllmek5"

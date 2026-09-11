@@ -112,7 +112,7 @@ Loadable map and environment metadata definition scanned by `MapLibrary`. Links 
 | `terrain_gen` | `TerrainGenDef` | Natural smooth terrain parameters (`null` for blocky-only maps). |
 | `water_enabled` | `bool` | Authoring flag indicating whether water flooding was enabled in the editor. |
 | `water_level` | `float` | Baseline water level elevation in meters. |
-| `flora_palette` | `Array[FurnitureDef]` | Flora/tree definitions available for dynamic growth and regeneration on this map. |
+| `flora_palette` | `Array[BuildableDef]` | Flora/tree definitions available for dynamic growth and regeneration on this map. |
 | `flora_spawns_per_day` | `int` | Number of flora spawn attempts distributed across one in-game day (0 = disabled). |
 | `flora_spawn_cap` | `int` | Maximum simultaneous live flora entities permitted on the map. |
 | `flora_max_spawn_attempts` | `int` | Maximum random placement attempts per flora before skipping to avoid infinite loops. |
@@ -120,9 +120,9 @@ Loadable map and environment metadata definition scanned by `MapLibrary`. Links 
 
 ---
 
-## `data/furniture/<id>.tres` / `data/blocks/<id>.tres` (Resource: `buildable_def.gd`, `furniture_def.gd`) — `BuildableDef` & `FurnitureDef`
+## `data/furniture/<id>.tres` / `data/blocks/<id>.tres` (Resource: `buildable_def.gd`, `furniture_def.gd`, `wild_flora_def.gd`) — `BuildableDef`, `FurnitureDef`, & `WildFloraDef`
 
-Data-driven definition for buildable blocks and free-standing furniture entities.
+Data-driven definition for buildable blocks, free-standing furniture entities, and natural wild flora (trees, berry bushes, shrubs).
 
 ### Base Schema: `BuildableDef`
 
@@ -143,6 +143,34 @@ Data-driven definition for buildable blocks and free-standing furniture entities
 
 ### Subclass: `FurnitureDef`
 Extends `BuildableDef`. Adds `dimensions` (`Vector3i`, default `1x1x1`) representing the bounding cell-box occupied on the voxel grid, with rotation swapping X and Z extents.
+
+### Subclass: `WildFloraDef` (Resource: `wild_flora_def.gd`)
+Extends `BuildableDef`. Represents natural, dynamic wild vegetation (trees, bushes, herbs) with stage-based visual progression, weapon damage felling, and optional fruit foraging.
+
+| Field | Type | Description |
+|---|---|---|
+| `dimensions` | `Vector3i` | Cell footprint on the voxel grid (default `1x1x1`). |
+| `default_scene` | `PackedScene` | Default visual 3D scene fallback if stage scene is not specified. |
+| `blocks_movement` | `bool` | When `true`, enables Layer 1 physics collider to block movement. When `false`, entities can walk through (e.g. berry bushes, shrubs). |
+| `growth_time_hours` | `float` | In-game hours required to grow through all stages to 100% maturity (0 = static / fully grown). |
+| `destroy_on_fruit_harvest` | `bool` | If `true`, harvesting fruit removes the plant entirely. |
+| `regrowth_stage_index` | `int` | Stage index to revert to after harvesting fruit (`-1` = stay at current stage, `0` = revert to seedling, `1` = revert to mature plant without fruit). |
+| `impact_audio_event` | `String` | Optional audio bus / sound event on physical weapon hit. |
+| `hit_particles_color` | `Color` | Color of particle splatter on weapon impact. |
+| `stages` | `Array[WildFloraStage]` | Ordered growth milestones and per-stage properties. |
+
+### Sub-Resource: `WildFloraStage` (Resource: `wild_flora_stage.gd`)
+Defines the state of a plant at a specific growth threshold.
+
+| Field | Type | Description |
+|---|---|---|
+| `min_progress` | `float` | Normalized growth milestone (0.0 to 1.0) when this stage activates. |
+| `max_hp` | `int` | Maximum health at this stage (scaled into `HealthComponent`). |
+| `scene` | `PackedScene` | 3D visual scene instantiated when this stage is active. |
+| `visual_scale` | `Vector3` | Scale factor applied to the visual stage instance. |
+| `fell_yields` | `Array[ItemAmount]` | Items dropped when plant is chopped down / killed with weapons. |
+| `can_harvest_fruit` | `bool` | Whether player can interact (E) to forage / pick fruit at this stage. |
+| `harvest_yields` | `Array[ItemAmount]` | Items dropped or picked when fruit is harvested. |
 
 ---
 

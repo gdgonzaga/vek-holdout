@@ -4,6 +4,7 @@ extends RefCounted
 const TOGGLE_HARVEST_OPTION: ActionOption = preload("res://data/action_options/toggle_harvest_action_option.tres")
 const INSPECT_CROP_OPTION: ActionOption = preload("res://data/action_options/inspect_crop_action_option.tres")
 const SELECT_CROP_OPTION: ActionOption = preload("res://data/action_options/select_crop_action_option.tres")
+const FORAGE_OPTION: ActionOption = preload("res://data/action_options/forage_action_option.tres")
 ## Free-standing furniture placement layer (ARCH "Build" subsystem).
 ##
 ## The sibling of VoxelGridAdapter for non-block buildables. Where the adapter
@@ -33,6 +34,26 @@ var _anchor_by_cell: Dictionary = {}
 var _is_restoring: bool = false
 
 const _new_furniture_template: PackedScene = preload("res://subsystems/build/new_furniture_template.tscn")
+const _new_wild_flora_template: PackedScene = preload("res://subsystems/environment/new_wild_flora_template.tscn")
+
+
+func _init() -> void:
+	if EventBus != null and not EventBus.furniture_removed.is_connected(_on_furniture_removed):
+		EventBus.furniture_removed.connect(_on_furniture_removed)
+
+
+func _on_furniture_removed(_def_id: String, anchor: Vector3i) -> void:
+	if _node_by_anchor.has(anchor):
+		var node: Furniture = _node_by_anchor[anchor]
+		if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
+			node.queue_free()
+		var cells_to_clear: Array = []
+		for c in _anchor_by_cell.keys():
+			if _anchor_by_cell[c] == anchor:
+				cells_to_clear.append(c)
+		for c in cells_to_clear:
+			_anchor_by_cell.erase(c)
+		_node_by_anchor.erase(anchor)
 
 
 func set_container(container: Node3D) -> void:
@@ -66,6 +87,8 @@ static func footprint_cells(dimensions: Vector3i, yaw_quarters: int) -> Array[Ve
 static func dimensions_of(def: BuildableDef) -> Vector3i:
 	if def is FurnitureDef:
 		return (def as FurnitureDef).dimensions
+	if def is WildFloraDef:
+		return (def as WildFloraDef).dimensions
 	return Vector3i.ONE
 
 
@@ -96,7 +119,7 @@ func spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D:
 	for off in footprint_cells(dims, yaw_quarters):
 		if _anchor_by_cell.has(anchor + off):
 			return null   # overlaps an existing item
-	if def.get_mesh() == null and def.scene == null:
+	if not (def is WildFloraDef) and def.get_mesh() == null and def.scene == null:
 		push_error("FurnitureLayer: def '%s' has no mesh or scene" % def.id)
 		return null
 	var node := _create_furniture_node(def, dims, yaw_quarters)
@@ -111,6 +134,43 @@ func spawn(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Node3D:
 	return node
 
 func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int) -> Furniture:
+	# 1. WildFlora Def Branch: Create WildFlora instance when def is WildFloraDef.
+	if def is WildFloraDef:
+		var w_def := def as WildFloraDef
+		var flora_root: WildFlora = _new_wild_flora_template.instantiate() as WildFlora
+		flora_root.def_id = def.id
+		flora_root.def = def
+		
+		var build_shape := flora_root.get_node("BuildBody/BuildCollider") as CollisionShape3D
+		if build_shape != null:
+			var box := BoxShape3D.new()
+			box.size = Vector3(dims.x, dims.y, dims.z)
+			build_shape.shape = box
+			build_shape.position = Vector3(0, float(dims.y) * 0.5, 0)
+			var build_body = flora_root.get_node("BuildBody") as StaticBody3D
+			build_body.set_collision_layer_value(5, true)
+		
+		if yaw_quarters != 0:
+			flora_root.rotate_y(float(yaw_quarters) * PI * 0.5)
+		
+		var has_forageable_fruit := false
+		for stage in w_def.get_effective_stages():
+			if stage != null and stage.can_harvest_fruit:
+				has_forageable_fruit = true
+				break
+		
+		if has_forageable_fruit:
+			var interaction := InteractionComponent.new()
+			interaction.name = "InteractionComponent"
+			interaction.display_name = def.display_name
+			interaction.action_options = [FORAGE_OPTION]
+			flora_root.add_child(interaction)
+		
+		var harvestable := Harvestable.new()
+		harvestable.name = "Harvestable"
+		flora_root.add_child(harvestable)
+		return flora_root
+
 	# Create a parent Node3D to hold mesh and collision.
 	var root: Furniture = _new_furniture_template.instantiate()
 	root.def_id = def.id
@@ -157,7 +217,7 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		box.size = Vector3(dims.x, dims.y, dims.z)
 		build_shape.shape = box
 		# Center the box in its footprint cells (root Y is the footprint bottom).
-		build_shape.position = Vector3(0, dims.y * 0.5, 0)
+		build_shape.position = Vector3(0, float(dims.y) * 0.5, 0)
 		var build_body = root.get_node("BuildBody") as StaticBody3D
 		# Build interaction bodies live on layer 5 (Build) — bodies and terrain
 		# rays reach them, character capsules never collide with them.
@@ -279,6 +339,35 @@ func get_furniture_at(cell: Vector3i) -> Furniture:
 	if anchor == null:
 		return null
 	return _node_by_anchor.get(anchor)
+
+
+## Returns all placed Furniture instances whose anchor or footprint intersects the bounding box [min_cell, max_cell].
+func get_furniture_in_box(min_cell: Vector3i, max_cell: Vector3i) -> Array[Furniture]:
+	var results: Array[Furniture] = []
+	var min_b := Vector3i(mini(min_cell.x, max_cell.x), mini(min_cell.y, max_cell.y), mini(min_cell.z, max_cell.z))
+	var max_b := Vector3i(maxi(min_cell.x, max_cell.x), maxi(min_cell.y, max_cell.y), maxi(min_cell.z, max_cell.z))
+	
+	for node in _node_by_anchor.values():
+		var furniture := node as Furniture
+		if furniture != null and is_instance_valid(furniture) and not furniture.is_queued_for_deletion():
+			for cell in furniture.get_footprint_cells():
+				if cell.x >= min_b.x and cell.x <= max_b.x and cell.y >= min_b.y and cell.y <= max_b.y and cell.z >= min_b.z and cell.z <= max_b.z:
+					if not results.has(furniture):
+						results.append(furniture)
+					break
+	return results
+
+
+## Returns all placed WildFlora instances in the bounding box [min_cell, max_cell], optionally filtered by tag.
+func get_wild_flora_in_box(min_cell: Vector3i, max_cell: Vector3i, filter_tag: String = "") -> Array[WildFlora]:
+	var all_in_box := get_furniture_in_box(min_cell, max_cell)
+	var flora_results: Array[WildFlora] = []
+	for f in all_in_box:
+		var flora := f as WildFlora
+		if flora != null:
+			if filter_tag == "" or flora.has_tag(filter_tag):
+				flora_results.append(flora)
+	return flora_results
 
 
 # --- SaveSystem contract -----------------------------------------------------

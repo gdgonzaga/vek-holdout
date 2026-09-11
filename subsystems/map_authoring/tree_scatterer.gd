@@ -40,7 +40,7 @@ static func scatter_trees(
 		push_error("TreeScatterer.scatter_trees: map or furniture_auth is null")
 		return 0
 
-	# 1. Resolve and cache FurnitureDef resources with cumulative weights.
+	# 1. Resolve and cache BuildableDef resources with cumulative weights.
 	var def_entries: Array[Dictionary] = []
 	var total_weight: float = 0.0
 	for entry in tree_types:
@@ -53,9 +53,9 @@ static func scatter_trees(
 		if not ResourceLoader.exists(path):
 			push_warning("TreeScatterer: furniture def not found at '%s'" % path)
 			continue
-		var def: FurnitureDef = load(path) as FurnitureDef
+		var def: BuildableDef = load(path) as BuildableDef
 		if def == null:
-			push_warning("TreeScatterer: failed to load FurnitureDef from '%s'" % path)
+			push_warning("TreeScatterer: failed to load BuildableDef from '%s'" % path)
 			continue
 		total_weight += weight
 		def_entries.append({
@@ -172,7 +172,7 @@ static func scatter_trees(
 
 		# Weighted pick from def_entries.
 		var roll := rng.randf() * total_weight
-		var chosen_def: FurnitureDef = def_entries[0]["def"]
+		var chosen_def: BuildableDef = def_entries[0]["def"]
 		for item in def_entries:
 			if roll <= item["cumulative_weight"]:
 				chosen_def = item["def"]

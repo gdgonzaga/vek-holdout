@@ -10,8 +10,6 @@ extends GdUnitTestSuite
 ## - Cleanup on furniture removal
 
 const HARVEST_DEF: JobDef = preload("res://data/jobs/harvest.tres")
-const TREE_DEF: FurnitureDef = preload("res://data/furniture/tree1.tres")
-
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
 var _sandbox: ColonySandbox
@@ -29,31 +27,57 @@ func after_test() -> void:
 	_sandbox.restore()
 
 
-func test_tree_def_has_harvest_params() -> void:
-	assert_object(TREE_DEF).is_not_null()
-	assert_object(TREE_DEF.harvest_params).is_not_null()
-	assert_float(TREE_DEF.harvest_params.work_time).is_greater(0.0)
-	assert_bool(TREE_DEF.harvest_params.yields.is_empty()).is_false()
+func _make_harvestable_def(p_id: String = "test_harvestable") -> FurnitureDef:
+	var def := FurnitureDef.new()
+	def.id = p_id
+	def.display_name = "Harvestable Node"
+	def.hp = 100
+	def.mesh = BoxMesh.new()
+	
+	var item_amount := ItemAmount.new()
+	var item_def := ItemDef.new()
+	item_def.id = "test_resource"
+	item_def.weight = 1.0
+	ItemDB._defs_by_id["test_resource"] = item_def
+	item_amount.item_def = item_def
+	item_amount.count = 3
+	
+	var hparams := HarvestParams.new()
+	hparams.work_time = 3.0
+	hparams.yields = [item_amount]
+	
+	def.harvest_params = hparams
+	return def
+
+
+func test_harvestable_def_has_harvest_params() -> void:
+	var def := _make_harvestable_def()
+	assert_object(def).is_not_null()
+	assert_object(def.harvest_params).is_not_null()
+	assert_float(def.harvest_params.work_time).is_greater(0.0)
+	assert_bool(def.harvest_params.yields.is_empty()).is_false()
 
 
 func test_furniture_layer_attaches_harvestable_and_action() -> void:
+	var def := _make_harvestable_def("test_attach")
 	var anchor := Vector3i(2, 0, 2)
-	var tree_node: Furniture = _furniture_layer.spawn(TREE_DEF, anchor, 0)
-	assert_object(tree_node).is_not_null()
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	assert_object(node).is_not_null()
 
-	var harvestable := tree_node.get_node_or_null("Harvestable") as Harvestable
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
 	assert_object(harvestable).is_not_null()
 
-	var interaction := tree_node.get_node_or_null("InteractionComponent") as InteractionComponent
+	var interaction := node.get_node_or_null("InteractionComponent") as InteractionComponent
 	assert_object(interaction).is_not_null()
 	assert_int(interaction.action_options.size()).is_greater_equal(1)
 	assert_object(interaction.action_options[0].action).is_not_null()
 
 
 func test_toggle_mark_and_colony_job_sync() -> void:
+	var def := _make_harvestable_def("test_sync")
 	var anchor := Vector3i(4, 0, 4)
-	var tree_node: Furniture = _furniture_layer.spawn(TREE_DEF, anchor, 0)
-	var harvestable := tree_node.get_node_or_null("Harvestable") as Harvestable
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
 
 	# Initially unmarked -> no job
 	assert_bool(harvestable.is_marked_for_harvest()).is_false()
@@ -66,7 +90,7 @@ func test_toggle_mark_and_colony_job_sync() -> void:
 	assert_int(jobs.size()).is_equal(1)
 	var job: Job = jobs[0]
 	assert_str(job.labor_id).is_equal("harvesting")
-	assert_object(job.target_node).is_same(tree_node)
+	assert_object(job.target_node).is_same(node)
 
 	# Unmark -> Colony removes job
 	harvestable.set_marked(false)
@@ -74,24 +98,26 @@ func test_toggle_mark_and_colony_job_sync() -> void:
 	assert_int(Colony.job_board.get_jobs().size()).is_equal(0)
 
 
-
 func test_partial_progress_reduces_begin_duration() -> void:
+	var def := _make_harvestable_def("test_duration")
 	var anchor := Vector3i(7, 0, 7)
-	var tree_node: Furniture = _furniture_layer.spawn(TREE_DEF, anchor, 0)
-	var harvestable := tree_node.get_node_or_null("Harvestable") as Harvestable
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
 	harvestable.set_marked(true)
 	harvestable.set_work_done(1.5)
 
 	var remaining := harvestable.effective_work_time() - harvestable.work_done()
-	assert_float(remaining).is_equal_approx(TREE_DEF.harvest_params.work_time - 1.5, 0.01)
+	assert_float(remaining).is_equal_approx(def.harvest_params.work_time - 1.5, 0.01)
+
 
 func test_player_harvest_action_completes() -> void:
+	var def := _make_harvestable_def("test_player_action")
 	var anchor := Vector3i(8, 0, 8)
-	var tree_node: Furniture = _furniture_layer.spawn(TREE_DEF, anchor, 0)
-	var harvestable := tree_node.get_node_or_null("Harvestable") as Harvestable
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
 
 	var player := _sandbox.make_player()
-	var yield_def := TREE_DEF.harvest_params.yields[0]
+	var yield_def := def.harvest_params.yields[0]
 	assert_bool(player.inventory.has_item(yield_def.item_def.id, 1)).is_false()
 
 	var action := HarvestAction.new()
@@ -112,9 +138,10 @@ func test_player_harvest_action_completes() -> void:
 
 
 func test_furniture_removal_cleans_up_job() -> void:
+	var def := _make_harvestable_def("test_cleanup")
 	var anchor := Vector3i(10, 0, 10)
-	var tree_node: Furniture = _furniture_layer.spawn(TREE_DEF, anchor, 0)
-	var harvestable := tree_node.get_node_or_null("Harvestable") as Harvestable
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
 	harvestable.set_marked(true)
 	assert_int(Colony.job_board.get_jobs().size()).is_equal(1)
 

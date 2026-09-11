@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://ixrlb60mm7ce"]
+
+[ext_resource type="Script" uid="uid://bk28i6pmhlcms" path="res://data/capability_params/food_params.gd" id="1_food"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="2_def"]
+
+[sub_resource type="Resource" id="Resource_food_berry"]
+script = ExtResource("1_food")
+nutrition_value = 0.2
+
+[resource]
+resource_name = "Wild Berries"
+script = ExtResource("2_def")
+id = "berry"
+weight = 0.1
+tags = Array[String](["food", "berry", "fruit", "raw_food"])
+food = SubResource("Resource_food_berry")

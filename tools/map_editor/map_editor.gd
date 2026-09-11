@@ -945,7 +945,7 @@ func _create_map_def(payload: Dictionary, folder_path: String, tscn_path: String
 	def.flora_spawns_per_day = int(payload.get("flora_spawns_per_day", 0))
 	def.flora_spawn_cap = int(payload.get("flora_spawn_cap", 60))
 	def.flora_max_spawn_attempts = int(payload.get("flora_max_spawn_attempts", 15))
-	var tree1_def := load("res://data/furniture/tree1.tres") as FurnitureDef
+	var tree1_def := load("res://data/furniture/tree1.tres") as BuildableDef
 	if tree1_def != null:
 		def.flora_palette = [tree1_def]
 	if payload.has("world_bounds") and payload["world_bounds"] is AABB:

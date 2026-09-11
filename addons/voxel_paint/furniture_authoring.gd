@@ -48,8 +48,8 @@ func bind(map_root: Node) -> bool:
             var def_id: String = child.get_meta("def_id", "")
             var def_res = load("res://data/furniture/%s.tres" % def_id)
             var dims := Vector3i.ONE
-            if def_res is FurnitureDef:
-                dims = (def_res as FurnitureDef).dimensions
+            if def_res is BuildableDef:
+                dims = FurnitureLayer.dimensions_of(def_res as BuildableDef)
             for off in FurnitureLayer.footprint_cells(dims, yaw):
                 _index_by_cell[anchor + off] = child
 
@@ -144,8 +144,8 @@ func rotate_selected(marker: Marker3D) -> bool:
     var def_id: String = marker.get_meta("def_id", "")
     var dims := Vector3i.ONE
     var def_res = load("res://data/furniture/%s.tres" % def_id)
-    if def_res is FurnitureDef:
-        dims = (def_res as FurnitureDef).dimensions
+    if def_res is BuildableDef:
+        dims = FurnitureLayer.dimensions_of(def_res as BuildableDef)
 
     var anchor: Vector3i = marker.get_meta("anchor", Vector3i())
 

@@ -151,7 +151,7 @@ func test_tree_scatterer_clear_trees_removes_all_markers() -> void:
 	assert_int(remaining).is_equal(0)
 
 
-func test_editor_launcher_payload_includes_tree_scatter_options() -> void:
+func test_editor_launcher_payload_includes_flora_options() -> void:
 	var launcher: EditorLauncher = auto_free(EditorLauncherClass.new())
 	add_child(launcher)
 
@@ -162,12 +162,12 @@ func test_editor_launcher_payload_includes_tree_scatter_options() -> void:
 
 	launcher._new_name_input.text = "test_tree_map"
 	launcher._terrain_mode_select.selected = EditorLauncherClass.TerrainMode.NOISE
-	launcher._scatter_trees_check.button_pressed = true
-	launcher._tree_density_select.selected = 2
+	launcher._flora_spawns_spin.value = 25
+	launcher._flora_cap_spin.value = 50
 
 	launcher._on_create_pressed()
 
 	assert_int(received.size()).is_equal(1)
 	var payload: Dictionary = received[0]
-	assert_bool(payload.get("scatter_trees", false)).is_true()
-	assert_int(payload.get("tree_density", 0)).is_equal(2)
+	assert_int(payload.get("flora_spawns_per_day", 0)).is_equal(25)
+	assert_int(payload.get("flora_spawn_cap", 0)).is_equal(50)

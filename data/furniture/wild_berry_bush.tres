@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="WildFloraDef" format=3 uid="uid://dyrkm368ejt5w"]
+
+[ext_resource type="Script" uid="uid://bixq35rllmek5" path="res://data/furniture/wild_flora_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://da6860d16q6up" path="res://data/capability_params/wild_flora_stage.gd" id="2_stage"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_amount"]
+[ext_resource type="Resource" uid="uid://ixrlb60mm7ce" path="res://data/items/berry.tres" id="4_berry"]
+[ext_resource type="Resource" uid="uid://brxslew51hukd" path="res://data/items/fiber.tres" id="5_fiber"]
+[ext_resource type="PackedScene" path="res://data/furniture/bush_visual.tscn" id="6_scene"]
+
+[sub_resource type="Resource" id="Resource_yield_bush_sprout"]
+script = ExtResource("3_amount")
+item_def = ExtResource("5_fiber")
+
+[sub_resource type="Resource" id="Resource_stage_sprout"]
+script = ExtResource("2_stage")
+max_hp = 15
+visual_scale = Vector3(0.4, 0.4, 0.4)
+fell_yields = Array[ExtResource("3_amount")]([SubResource("Resource_yield_bush_sprout")])
+
+[sub_resource type="Resource" id="Resource_yield_bush_bare"]
+script = ExtResource("3_amount")
+item_def = ExtResource("5_fiber")
+
+[sub_resource type="Resource" id="Resource_stage_bare"]
+script = ExtResource("2_stage")
+min_progress = 0.4
+max_hp = 25
+visual_scale = Vector3(0.75, 0.75, 0.75)
+fell_yields = Array[ExtResource("3_amount")]([SubResource("Resource_yield_bush_bare")])
+
+[sub_resource type="Resource" id="Resource_yield_bush_fell"]
+script = ExtResource("3_amount")
+item_def = ExtResource("5_fiber")
+count = 2
+
+[sub_resource type="Resource" id="Resource_yield_bush_berries"]
+script = ExtResource("3_amount")
+item_def = ExtResource("4_berry")
+count = 5
+
+[sub_resource type="Resource" id="Resource_stage_ripe"]
+script = ExtResource("2_stage")
+min_progress = 1.0
+max_hp = 30
+fell_yields = Array[ExtResource("3_amount")]([SubResource("Resource_yield_bush_fell")])
+can_harvest_fruit = true
+harvest_yields = Array[ExtResource("3_amount")]([SubResource("Resource_yield_bush_berries")])
+
+[resource]
+resource_name = "Wild Berry Bush"
+script = ExtResource("1_def")
+default_scene = ExtResource("6_scene")
+blocks_movement = false
+growth_time_hours = 18.0
+regrowth_stage_index = 1
+initial_growth_min = 0.4
+impact_audio_event = "foliage_rustle"
+hit_particles_color = Color(0.3, 0.6, 0.3, 1)
+stages = Array[ExtResource("2_stage")]([SubResource("Resource_stage_sprout"), SubResource("Resource_stage_bare"), SubResource("Resource_stage_ripe")])
+id = "wild_berry_bush"
+display_name = "Wild Berry Bush"
+hp = 30
+tags = Array[String](["live_flora", "bush", "fruit_bearing", "foliage"])

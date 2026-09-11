@@ -67,6 +67,10 @@ func system(message: String) -> void:
 	self.log(message, LogEntry.Category.SYSTEM)
 
 
+func warning(message: String) -> void:
+	self.log(message, LogEntry.Category.SYSTEM)
+
+
 func craft(message: String) -> void:
 	self.log(message, LogEntry.Category.CRAFT)
 

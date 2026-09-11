@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="ArrayMesh" uid="uid://dgupn3yvmgwje" path="res://assets/animpic-mega-survival-construction/tree1/SM_Tree_01.SM_Tree_01.mesh" id="1_mesh"]
+
+[node name="Tree1Visual" type="Node3D"]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_mesh")

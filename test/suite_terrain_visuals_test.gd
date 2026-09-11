@@ -181,6 +181,8 @@ func test_smooth_grid_volume_wiring_pushes_shader_uniforms() -> void:
 
 	var mat := ShaderMaterial.new()
 	mat.shader = SmoothGrid.TERRAIN_SHADER
+	grid.ore_blend_radius = 1.2
+	grid.ore_warp_strength = 0.9
 	grid._push_band_uniforms(mat)
 
 	assert_bool(mat.get_shader_parameter("volume_enabled")).is_true()
