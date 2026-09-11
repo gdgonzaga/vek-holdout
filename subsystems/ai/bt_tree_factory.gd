@@ -10,6 +10,9 @@ const BTActionUseSmartObjectScript = preload("res://subsystems/ai/tasks/actions/
 const BTActionHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd")
 const BTActionWanderScript = preload("res://subsystems/ai/tasks/actions/bt_action_wander.gd")
 const BTActionEquipToolScript = preload("res://subsystems/ai/tasks/actions/bt_action_equip_tool.gd")
+const BTActionFindFoodScript = preload("res://subsystems/ai/tasks/actions/bt_action_find_food.gd")
+const BTActionFetchFoodScript = preload("res://subsystems/ai/tasks/actions/bt_action_fetch_food.gd")
+const BTActionEatFoodScript = preload("res://subsystems/ai/tasks/actions/bt_action_eat_food.gd")
 
 const BTConditionHasToolScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd")
 const BTConditionInGroupScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_in_group.gd")
@@ -100,7 +103,27 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	
 	var root := BTDynamicSelector.new()
 	
-	# 1. Dynamic Need Satisfier (Sequence)
+	# 1. Autonomous Eating Loop (Sequence)
+	var eat_seq := BTSequence.new()
+	var find_food = BTActionFindFoodScript.new()
+	find_food.goal_var = &"current_goal"
+	find_food.expected_goal = &"eat"
+	find_food.target_smart_object_var = &"target_smart_object"
+	eat_seq.add_child(find_food)
+	
+	var nav_food = BTActionNavigateToScript.new()
+	nav_food.target_var = &"target_smart_object"
+	nav_food.arrival_distance = 1.5
+	eat_seq.add_child(nav_food)
+	
+	var fetch_food = BTActionFetchFoodScript.new()
+	eat_seq.add_child(fetch_food)
+	
+	var eat_food = BTActionEatFoodScript.new()
+	eat_seq.add_child(eat_food)
+	root.add_child(eat_seq)
+
+	# 2. Dynamic Need Satisfier (Sequence for generic smart objects: sleep, rest)
 	var need_seq := BTSequence.new()
 	var nav_smart = BTActionNavigateToScript.new()
 	nav_smart.target_var = &"target_smart_object"
@@ -111,14 +134,14 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	need_seq.add_child(use_smart)
 	root.add_child(need_seq)
 	
-	# 2. Work Goal Runner
+	# 3. Work Goal Runner
 	if work_tree == null:
 		work_tree = create_generic_work_tree()
 	var work_subtree := BTSubtree.new()
 	work_subtree.subtree = work_tree
 	root.add_child(work_subtree)
 	
-	# 3. Idle Wander (Fallback)
+	# 4. Idle Wander (Fallback)
 	var wander_task = BTActionWanderScript.new()
 	wander_task.radius = 4
 	root.add_child(wander_task)

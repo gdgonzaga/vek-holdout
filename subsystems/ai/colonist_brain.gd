@@ -15,6 +15,9 @@ var _needs: ColonistNeeds
 var _poll_timer: float = EVAL_INTERVAL
 
 
+var _unreachable_food_blacklist: Dictionary = {}
+
+
 func _ready() -> void:
 	var colonist := get_parent()
 	if colonist:
@@ -25,6 +28,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# 1. Blacklist Maintenance: Advance cooldown timers on temporarily unreachable food sources.
+	_tick_unreachable_food_blacklist(delta)
+
 	_poll_timer += delta
 	if _poll_timer >= EVAL_INTERVAL:
 		_poll_timer = 0.0
@@ -60,19 +66,26 @@ func evaluate_goals() -> void:
 
 			var dist_penalty: float = 1.0
 			var nearest_target: Node3D = null
-			if is_inside_tree() and colonist and colonist is Node3D and def.target_group != &"":
-				var objects := get_tree().get_nodes_in_group(def.target_group)
-				if not objects.is_empty():
-					var min_dist := INF
-					var parent_pos: Vector3 = colonist.global_position
-					for obj in objects:
-						if is_instance_valid(obj) and not obj.is_queued_for_deletion() and obj is Node3D:
-							var d := parent_pos.distance_to(obj.global_position)
-							if d < min_dist:
-								min_dist = d
-								nearest_target = obj as Node3D
-					if min_dist != INF:
-						dist_penalty = clampf(1.0 - (min_dist / 100.0), 0.2, 1.0)
+
+			if def.goal_name == &"eat" or need_id == &"hunger":
+				# 1. Food Target Resolution: Checks inventory first, then unblacklisted colony food sources.
+				nearest_target = _resolve_best_food_target(colonist)
+				if nearest_target == null and is_inside_tree() and colonist is Node3D and def.target_group != &"":
+					# 2. Smart Object Group Fallback: Inspect group nodes if storage search yielded nothing.
+					nearest_target = _resolve_nearest_group_target(colonist, def.target_group)
+
+				if nearest_target != null and colonist is Node3D:
+					if nearest_target == colonist:
+						dist_penalty = 1.0
+					else:
+						var d: float = (colonist as Node3D).global_position.distance_to(nearest_target.global_position)
+						dist_penalty = clampf(1.0 - (d / 100.0), 0.2, 1.0)
+			elif is_inside_tree() and colonist and colonist is Node3D and def.target_group != &"":
+				# 1. Group Target Resolution: Finds nearest smart object in the need's target group.
+				nearest_target = _resolve_nearest_group_target(colonist, def.target_group)
+				if nearest_target != null:
+					var d := (colonist as Node3D).global_position.distance_to(nearest_target.global_position)
+					dist_penalty = clampf(1.0 - (d / 100.0), 0.2, 1.0)
 
 			var final_score: float = base_score * dist_penalty
 			if nearest_target == null:
@@ -148,3 +161,98 @@ func _get_work_score(actor: Node) -> float:
 	var labor_priority: int = int(colonist.labor_priorities.get(best_job.labor_id, 0))
 	var base_priority: float = def_obj.base_priority if def_obj != null and "base_priority" in def_obj else 0.5
 	return (float(labor_priority) / 5.0) * base_priority
+
+
+## Blacklists a food source from being selected by this colonist for a given duration.
+func blacklist_food_source(source: Node, duration: float = 10.0) -> void:
+	if source != null and is_instance_valid(source):
+		_unreachable_food_blacklist[source] = duration
+
+
+## Returns an array of currently blacklisted food source nodes.
+func get_blacklisted_food_sources() -> Array:
+	return _unreachable_food_blacklist.keys()
+
+
+func _tick_unreachable_food_blacklist(delta: float) -> void:
+	## Auxiliary: Ticks down blacklist timers and removes expired entries.
+	if _unreachable_food_blacklist.is_empty():
+		return
+
+	var expired: Array = []
+	for src in _unreachable_food_blacklist.keys():
+		if not is_instance_valid(src):
+			expired.append(src)
+			continue
+		var rem: float = _unreachable_food_blacklist[src] - delta
+		if rem <= 0.0:
+			expired.append(src)
+		else:
+			_unreachable_food_blacklist[src] = rem
+
+	for exp_src in expired:
+		_unreachable_food_blacklist.erase(exp_src)
+
+
+func _resolve_best_food_target(actor: Node) -> Node3D:
+	## Auxiliary: Resolves nearest food target, checking pockets first then storage.
+	if not is_instance_valid(actor):
+		return null
+
+	# 1. Pocket Food Check: If colonist carries food, actor itself is the target (0-dist).
+	if _actor_has_food_in_pockets(actor) and actor is Node3D:
+		return actor as Node3D
+
+	# 2. Colony Storage Search: Query StorageRegistry for closest valid food container.
+	var colony: Node = get_node_or_null("/root/Colony")
+	if colony != null and "storage_registry" in colony and colony.storage_registry != null:
+		var registry: StorageRegistry = colony.storage_registry
+		var pos: Vector3 = (actor as Node3D).global_position if actor is Node3D else Vector3.ZERO
+		var best_data: Dictionary = registry.find_best_food_source(pos, get_blacklisted_food_sources())
+		if not best_data.is_empty() and best_data.has("source_node"):
+			var src: Node = best_data["source_node"]
+			if src is Node3D and is_instance_valid(src):
+				return src as Node3D
+
+	return null
+	
+
+func _resolve_nearest_group_target(colonist: Node3D, target_group: StringName) -> Node3D:
+	## Auxiliary: Resolves nearest valid Node3D belonging to target_group.
+	if not is_inside_tree() or colonist == null:
+		return null
+	var objects := get_tree().get_nodes_in_group(target_group)
+	if objects.is_empty():
+		return null
+
+	var min_dist := INF
+	var nearest: Node3D = null
+	var parent_pos: Vector3 = colonist.global_position
+	for obj in objects:
+		if is_instance_valid(obj) and not obj.is_queued_for_deletion() and obj is Node3D:
+			var d := parent_pos.distance_to(obj.global_position)
+			if d < min_dist:
+				min_dist = d
+				nearest = obj as Node3D
+	return nearest
+
+
+func _actor_has_food_in_pockets(actor: Node) -> bool:
+	## Auxiliary: Returns true if actor has any edible food in carry inventory.
+	var inv: CharacterInventory = null
+	if "inventory" in actor and actor.inventory is CharacterInventory:
+		inv = actor.inventory
+	elif actor.has_node("Inventory"):
+		inv = actor.get_node("Inventory") as CharacterInventory
+
+	if inv == null or inv.items == null or not (inv.items is Dictionary):
+		return false
+
+	for key in inv.items.keys():
+		var item_id := str(key)
+		if inv.get_item_count(item_id) > 0:
+			if ItemDB != null:
+				var def: ItemDef = ItemDB.get_def(item_id)
+				if def != null and (def.is_food() or def.has_tag("food")):
+					return true
+	return false

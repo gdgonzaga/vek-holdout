@@ -226,3 +226,152 @@ func _item_def_matches_tags(cid: String, tags: Array[StringName]) -> bool:
 		if tag != &"" and def.has_tag(String(tag)):
 			return true
 	return false
+
+
+## Finds the nearest available food source (crate or world item) not in blacklisted_sources.
+## Returns { "source_node": Node, "source_type": String, "item_id": String } or {} if none found.
+func find_best_food_source(near: Vector3, blacklisted_sources: Array = []) -> Dictionary:
+	var best_result: Dictionary = {}
+	var best_dist_sq: float = INF
+
+	# 1. Crate Inspection: Search all non-blacklisted crates for valid food items.
+	var crate_candidate: Dictionary = _find_nearest_food_in_crates(near, blacklisted_sources)
+	if not crate_candidate.is_empty():
+		best_dist_sq = float(crate_candidate.get("dist_sq", INF))
+		best_result = crate_candidate
+
+	# 2. Ground Item Inspection: Search unforbidden world items on the ground.
+	var ground_candidate: Dictionary = _find_nearest_food_on_ground(near, blacklisted_sources)
+	if not ground_candidate.is_empty():
+		var ground_dist_sq: float = float(ground_candidate.get("dist_sq", INF))
+		if ground_dist_sq < best_dist_sq:
+			best_result = ground_candidate
+
+	return best_result
+
+
+## Total colony-wide count of edible food items across crates, world items, and pockets.
+func colony_food_count() -> int:
+	var total := 0
+
+	# 1. Storage crates
+	for crate: Furniture in _crates():
+		var inv: StorageInventory = inventory_of(crate)
+		if inv != null and inv.items is Dictionary:
+			for item_id_var in inv.items.keys():
+				var iid := str(item_id_var)
+				# 1. Food Evaluation: Validate whether item definition is edible.
+				if _is_edible_item(iid):
+					total += inv.get_item_count(iid)
+
+	var tree := _get_tree_context()
+	if tree == null:
+		return total
+
+	# 2. WorldItems (unforbidden and unreserved)
+	for node in tree.get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item == null or not is_instance_valid(item) or not item.is_inside_tree():
+			continue
+		if item.is_forbidden() or item.is_reserved():
+			continue
+		# 2. Ground Item Validation: Check if item is edible.
+		if _is_edible_item(item.item_id):
+			total += item.count
+
+	# 3. Colonist carried inventories
+	for node in tree.get_nodes_in_group("colonists"):
+		var colonist := node as Colonist
+		if colonist != null and is_instance_valid(colonist) and colonist.inventory != null:
+			if colonist.inventory.items is Dictionary:
+				for iid_var in colonist.inventory.items.keys():
+					var iid := str(iid_var)
+					# 3. Colonist Pockets: Check if carried item is edible.
+					if _is_edible_item(iid):
+						total += colonist.inventory.get_item_count(iid)
+
+	# 4. Player carried inventory
+	for node in tree.get_nodes_in_group("player"):
+		var player := node as Player
+		if player != null and is_instance_valid(player) and player.inventory != null:
+			if player.inventory.items is Dictionary:
+				for iid_var in player.inventory.items.keys():
+					var iid := str(iid_var)
+					# 4. Player Pockets: Check if carried item is edible.
+					if _is_edible_item(iid):
+						total += player.inventory.get_item_count(iid)
+
+	return total
+
+
+func _find_nearest_food_in_crates(near: Vector3, blacklisted_sources: Array) -> Dictionary:
+	## Auxiliary: Finds the nearest non-blacklisted crate that contains food.
+	var best_candidate: Dictionary = {}
+	var best_dist_sq: float = INF
+
+	for crate: Furniture in _crates():
+		if blacklisted_sources.has(crate):
+			continue
+		var inv: StorageInventory = inventory_of(crate)
+		if inv == null or not (inv.items is Dictionary):
+			continue
+
+		for key in inv.items.keys():
+			var item_id := str(key)
+			if inv.get_item_count(item_id) <= 0:
+				continue
+			# 1. Edible Check: Verify item qualifies as food.
+			if _is_edible_item(item_id):
+				var d_sq := crate.global_position.distance_squared_to(near)
+				if d_sq < best_dist_sq:
+					best_dist_sq = d_sq
+					best_candidate = {
+						"source_node": crate,
+						"source_type": "crate",
+						"item_id": item_id,
+						"dist_sq": d_sq
+					}
+				break
+
+	return best_candidate
+
+
+func _find_nearest_food_on_ground(near: Vector3, blacklisted_sources: Array) -> Dictionary:
+	## Auxiliary: Finds the nearest unforbidden, unreserved ground item that is edible.
+	var best_candidate: Dictionary = {}
+	var best_dist_sq: float = INF
+	var tree := _get_tree_context()
+	if tree == null:
+		return best_candidate
+
+	for node in tree.get_nodes_in_group("world_items"):
+		if blacklisted_sources.has(node):
+			continue
+		var item := node as WorldItem
+		if item == null or not is_instance_valid(item) or not item.is_inside_tree():
+			continue
+		if item.is_forbidden() or item.is_reserved():
+			continue
+		# 1. Ground Item Edible Check: Validate item id.
+		if _is_edible_item(item.item_id):
+			var d_sq := item.global_position.distance_squared_to(near)
+			if d_sq < best_dist_sq:
+				best_dist_sq = d_sq
+				best_candidate = {
+					"source_node": item,
+					"source_type": "ground",
+					"item_id": item.item_id,
+					"dist_sq": d_sq
+				}
+
+	return best_candidate
+
+
+func _is_edible_item(item_id: String) -> bool:
+	## Auxiliary: Returns true if the ItemDef has FoodParams or has the "food" tag.
+	if ItemDB == null or item_id == "":
+		return false
+	var def: ItemDef = ItemDB.get_def(item_id)
+	if def == null:
+		return false
+	return def.is_food() or def.has_tag("food")

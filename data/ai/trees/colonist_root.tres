@@ -1,25 +1,47 @@
-[gd_resource type="BehaviorTree" format=3]
+[gd_resource type="BehaviorTree" format=3 uid="uid://dbad0ub18l86n"]
 
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="1_11mb1"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd" id="2_5jm7j"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="3_mf76j"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="4_gfj54"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_equip_tool.gd" id="5_5jm7j"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="5_6uv41"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_wander.gd" id="6_oxad6"]
+[ext_resource type="Script" uid="uid://bugwrw5o14eul" path="res://subsystems/ai/tasks/actions/bt_action_find_food.gd" id="1_6uv41"]
+[ext_resource type="Script" uid="uid://bpmh16yj4fdaq" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="1_11mb1"]
+[ext_resource type="Script" uid="uid://hl8784o1jltx" path="res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd" id="2_5jm7j"]
+[ext_resource type="Script" uid="uid://b4hd2b683awcc" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="3_mf76j"]
+[ext_resource type="Script" uid="uid://b56bh77dwerbu" path="res://subsystems/ai/tasks/actions/bt_action_fetch_food.gd" id="3_oxad6"]
+[ext_resource type="Script" uid="uid://big6jnf5r8yvf" path="res://subsystems/ai/tasks/actions/bt_action_eat_food.gd" id="4_ftx7d"]
+[ext_resource type="Script" uid="uid://d0fs8rc8oghd6" path="res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd" id="4_gfj54"]
+[ext_resource type="Script" uid="uid://cspw4f6ws0v1j" path="res://subsystems/ai/tasks/actions/bt_action_equip_tool.gd" id="5_5jm7j"]
+[ext_resource type="Script" uid="uid://2yf65w8cogef" path="res://subsystems/ai/tasks/actions/bt_action_perform_work.gd" id="5_6uv41"]
+[ext_resource type="Script" uid="uid://db1p81mcvv8lj" path="res://subsystems/ai/tasks/actions/bt_action_wander.gd" id="6_oxad6"]
 
-[sub_resource type="BTAction" id="BTAction_5jm7j"]
+[sub_resource type="BlackboardPlan" id="BlackboardPlan_6uv41"]
+
+[sub_resource type="BTAction" id="BTAction_lkiyf"]
+script = ExtResource("1_6uv41")
+
+[sub_resource type="BTAction" id="BTAction_gqtk8"]
 script = ExtResource("1_11mb1")
 target_var = &"target_smart_object"
 arrival_distance = 1.5
 
-[sub_resource type="BTAction" id="BTAction_mf76j"]
+[sub_resource type="BTAction" id="BTAction_e02yw"]
+script = ExtResource("3_oxad6")
+
+[sub_resource type="BTAction" id="BTAction_q8ysw"]
+script = ExtResource("4_ftx7d")
+
+[sub_resource type="BTSequence" id="BTSequence_ekcvg"]
+children = [SubResource("BTAction_lkiyf"), SubResource("BTAction_gqtk8"), SubResource("BTAction_e02yw"), SubResource("BTAction_q8ysw")]
+
+[sub_resource type="BTAction" id="BTAction_2xrlx"]
+script = ExtResource("1_11mb1")
+target_var = &"target_smart_object"
+arrival_distance = 1.5
+
+[sub_resource type="BTAction" id="BTAction_uia37"]
 script = ExtResource("2_5jm7j")
 
-[sub_resource type="BTSequence" id="BTSequence_gfj54"]
-children = [SubResource("BTAction_5jm7j"), SubResource("BTAction_mf76j")]
+[sub_resource type="BTSequence" id="BTSequence_tc6q8"]
+children = [SubResource("BTAction_2xrlx"), SubResource("BTAction_uia37")]
 
-[sub_resource type="BlackboardPlan" id="BlackboardPlan_6uv41"]
+[sub_resource type="BlackboardPlan" id="BlackboardPlan_t88ud"]
 
 [sub_resource type="BTAction" id="BTAction_lq23x"]
 script = ExtResource("3_mf76j")
@@ -42,20 +64,21 @@ script = ExtResource("5_6uv41")
 [sub_resource type="BTSequence" id="BTSequence_0bgy2"]
 children = [SubResource("BTAction_lq23x"), SubResource("BTSelector_nlvq2"), SubResource("BTAction_mgwiw"), SubResource("BTAction_sdr4p"), SubResource("BTAction_o4ki8")]
 
-[sub_resource type="BehaviorTree" id="BehaviorTree_oxad6"]
+[sub_resource type="BehaviorTree" id="BehaviorTree_vo5ph"]
 description = "Universal work sequence executing claims and work units"
 root_task = SubResource("BTSequence_0bgy2")
 
-[sub_resource type="BTSubtree" id="BTSubtree_ftx7d"]
-subtree = SubResource("BehaviorTree_oxad6")
-blackboard_plan = SubResource("BlackboardPlan_6uv41")
+[sub_resource type="BTSubtree" id="BTSubtree_8b4im"]
+subtree = SubResource("BehaviorTree_vo5ph")
+blackboard_plan = SubResource("BlackboardPlan_t88ud")
 
-[sub_resource type="BTAction" id="BTAction_lkiyf"]
+[sub_resource type="BTAction" id="BTAction_t4atd"]
 script = ExtResource("6_oxad6")
 
-[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_gqtk8"]
-children = [SubResource("BTSequence_gfj54"), SubResource("BTSubtree_ftx7d"), SubResource("BTAction_lkiyf")]
+[sub_resource type="BTDynamicSelector" id="BTDynamicSelector_j35in"]
+children = [SubResource("BTSequence_ekcvg"), SubResource("BTSequence_tc6q8"), SubResource("BTSubtree_8b4im"), SubResource("BTAction_t4atd")]
 
 [resource]
 description = "Colonist master behavior tree with dynamic needs, work delegation, and idle wander"
-root_task = SubResource("BTDynamicSelector_gqtk8")
+blackboard_plan = SubResource("BlackboardPlan_6uv41")
+root_task = SubResource("BTDynamicSelector_j35in")

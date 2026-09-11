@@ -93,6 +93,7 @@ res://
 | Inventory | `subsystems/inventory/` | Weight-based inventory, items, carrying capacity. |
 | Crafting | `subsystems/crafting/` | Workbench/Forge station recipes and craft jobs. |
 | Farming | `subsystems/farming/` | Farm plot growables, hydration, crop lifecycle. |
+| Hunger | `subsystems/colonists/` | Physiological satiety tracking, FoodParams, starvation, and LimboAI feeding. |
 | Mining | `subsystems/mining/` | Dig box designation, strata materials, designation markers. |
 | UI | `ui/` | persistent HUD, full-screen screens, dialogs. |
 | Game Log | `subsystems/core/` | On-screen event feed and history log. |

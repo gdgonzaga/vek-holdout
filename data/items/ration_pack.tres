@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/capability_params/food_params.gd" id="1_food"]
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="2_def"]
+
+[sub_resource type="Resource" id="Resource_food_ration"]
+script = ExtResource("1_food")
+nutrition_value = 0.6
+health_restore = 5
+eat_duration = 2.5
+eating_animation = &"eat"
+mood_modifier = &""
+spoilage_hours = 0.0
+
+[resource]
+resource_name = "Ration Pack"
+script = ExtResource("2_def")
+id = "ration_pack"
+weight = 0.4
+tags = Array[String](["food", "ration"])
+food = SubResource("Resource_food_ration")

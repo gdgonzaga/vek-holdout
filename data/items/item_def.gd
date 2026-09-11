@@ -24,9 +24,16 @@ extends Resource
 ## players or colonists.
 @export var equippable: EquippableParams = null
 
+## Nullable food capability. If set, this item can be consumed to restore hunger.
+@export var food: FoodParams = null
+
 
 func is_equippable() -> bool:
 	return equippable != null
+
+
+func is_food() -> bool:
+	return food != null
 
 
 ## Returns true if this item carries the given tag. Used by Equipment to

@@ -43,6 +43,7 @@ nav:
     - Inventory: architecture/inventory.md
     - Crafting: architecture/crafting.md
     - Farming: architecture/farming.md
+    - Hunger: architecture/hunger.md
     - UI: architecture/ui.md
     - "Game Log": architecture/game-log.md
   - Reference:

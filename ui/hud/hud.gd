@@ -212,6 +212,17 @@ func _refresh_inventory() -> void:
 				)
 			row.add_child(equip_btn)
 
+		# Eat button for edible food items
+		if def.is_food():
+			var eat_btn := Button.new()
+			eat_btn.text = "Eat"
+			eat_btn.pressed.connect(func() -> void:
+				if _player != null:
+					_player.consume_food_item(item_id)
+				_refresh_inventory()
+			)
+			row.add_child(eat_btn)
+
 		# Drop button to drop 1 item into the world
 		var drop_btn := Button.new()
 		drop_btn.text = "Drop"

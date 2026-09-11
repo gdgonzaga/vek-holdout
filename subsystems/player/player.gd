@@ -52,6 +52,11 @@ signal interactable_changed(component: InteractionComponent)
 var equipment: Equipment
 var _equipped_action_cooldown: float = 0.0
 
+## Hunger and survival state
+var hunger_component: HungerComponent
+var current_hp: int = 100
+var max_hp: int = 100
+
 ## Player skill progression (the same SkillSet colonists use — GDD §6.3).
 ## Code-created (the Colonist's code-created-inventory precedent; script-only,
 ## no scene edit) and unseeded: every skill reads L1 until trained by use
@@ -122,6 +127,43 @@ func can_carry(item_id: String, count: int) -> bool:
 	return inventory.can_add(item_id, count)
 
 
+## Consumes 1 unit of food from player inventory, restoring hunger and HP.
+func consume_food_item(item_id: String) -> bool:
+	if inventory == null or inventory.get_item_count(item_id) <= 0:
+		return false
+	if ItemDB == null:
+		return false
+	var def: ItemDef = ItemDB.get_def(item_id)
+	if def == null or def.food == null:
+		return false
+
+	inventory.remove(item_id, 1)
+	if hunger_component != null:
+		hunger_component.restore_hunger(def.food.nutrition_value)
+	if def.food.health_restore > 0:
+		heal(def.food.health_restore)
+	return true
+
+
+func take_damage(amount: int, source: Node = null) -> void:
+	var health_comp := get_node_or_null("HealthComponent") as HealthComponent
+	if health_comp != null:
+		health_comp.take_damage(amount, source)
+		return
+	current_hp = maxi(0, current_hp - amount)
+	if current_hp <= 0:
+		state = State.DEAD
+		EventBus.player_died.emit()
+
+
+func heal(amount: int) -> void:
+	var health_comp := get_node_or_null("HealthComponent") as HealthComponent
+	if health_comp != null:
+		health_comp.heal(amount)
+		return
+	current_hp = mini(max_hp, current_hp + amount)
+
+
 # --- SaveSystem contract -----------------------------------------------------
 # Transform + camera orientation + carried inventory. Movement mode/state and
 # the transient interactable target are NOT persisted. Assumes the player (and
@@ -135,6 +177,9 @@ func serialize() -> Dictionary:
 		"cam_pitch": _rig.get_pitch(),
 		"inventory": inventory.serialize(),
 		"equipment": equipment.serialize() if equipment != null else {},
+		"hunger": hunger_component.serialize() if hunger_component != null else {},
+		"hp": current_hp,
+		"max_hp": max_hp,
 	}
 
 
@@ -152,6 +197,10 @@ func deserialize(data: Dictionary) -> void:
 		inventory.deserialize(data["inventory"])
 	if data.has("equipment") and equipment != null:
 		equipment.deserialize(data["equipment"])
+	if data.has("hunger") and hunger_component != null:
+		hunger_component.deserialize(data["hunger"])
+	current_hp = int(data.get("hp", current_hp))
+	max_hp = int(data.get("max_hp", max_hp))
 	var guard := get_node_or_null("GroundSafetyGuard") as GroundSafetyGuard
 	if guard != null:
 		guard.rearm()
@@ -167,6 +216,14 @@ func _ready() -> void:
 	GameState.set_local_player(self)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	floor_max_angle = deg_to_rad(60.0)
+
+	# HungerComponent child for hunger decay and starvation penalties
+	hunger_component = get_node_or_null("HungerComponent") as HungerComponent
+	if not hunger_component:
+		hunger_component = HungerComponent.new()
+		hunger_component.name = "HungerComponent"
+		add_child(hunger_component)
+
 	# SkillSet child (skill catalog loads in its own _ready; unseeded = all L1).
 	var skills := SkillSet.new()
 	skills.name = "SkillSet"
@@ -452,6 +509,8 @@ func _handle_move_keys(delta: float) -> void:
 	var speed: float
 	if is_on_floor():
 		speed = sprint_speed if _input.wants_sprint() else walk_speed
+		if hunger_component != null:
+			speed *= hunger_component.get_speed_multiplier()
 		# 1. Drag Evaluation: Dampens ground movement speed by 0.6x when wading through fluid voxels.
 		if is_in_water():
 			speed *= 0.6

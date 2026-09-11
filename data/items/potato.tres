@@ -1,10 +1,16 @@
-[gd_resource type="Resource" script_class="ItemDef" format=3]
+[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://d1rt11j3l5iof"]
 
-[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" uid="uid://bk28i6pmhlcms" path="res://data/capability_params/food_params.gd" id="1_food"]
+[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="2_def"]
+
+[sub_resource type="Resource" id="Resource_food_potato"]
+script = ExtResource("1_food")
+nutrition_value = 0.35
 
 [resource]
 resource_name = "Potato"
-script = ExtResource("1_def")
+script = ExtResource("2_def")
 id = "potato"
 weight = 0.25
 tags = Array[String](["food", "crop"])
+food = SubResource("Resource_food_potato")

@@ -43,6 +43,9 @@ static func reload() -> void:
 	_ensure_need_defs_loaded()
 
 
+var _hunger_comp: HungerComponent = null
+
+
 func _ready() -> void:
 	var defs := get_need_defs()
 	for need_id in defs:
@@ -52,7 +55,14 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var defs := get_need_defs()
+	var hunger_comp := _resolve_hunger_component()
+
 	for need_id in defs:
+		if need_id == &"hunger" and hunger_comp != null:
+			# 1. Hunger Synchronization: Pull updated ratio from HungerComponent to prevent duplicate decay.
+			needs[&"hunger"] = hunger_comp.get_hunger_ratio()
+			continue
+
 		var def: Resource = defs[need_id]
 		var decay: float = def.decay_per_second
 		var current: float = float(needs.get(need_id, 1.0))
@@ -61,16 +71,27 @@ func _process(delta: float) -> void:
 
 ## Returns the deficit (0.0 = satisfied, 1.0 = completely depleted)
 func get_deficit(need_id: StringName) -> float:
-	var current: float = float(needs.get(need_id, 1.0))
+	var current: float = get_need(need_id)
 	return clampf(1.0 - current, 0.0, 1.0)
 
 
 func get_need(need_id: StringName) -> float:
+	if need_id == &"hunger":
+		# 1. Component Resolution: Query live hunger ratio if HungerComponent is attached.
+		var hunger_comp := _resolve_hunger_component()
+		if hunger_comp != null:
+			return hunger_comp.get_hunger_ratio()
 	return float(needs.get(need_id, 1.0))
 
 
 func set_need(need_id: StringName, value: float) -> void:
-	needs[need_id] = clampf(value, 0.0, 1.0)
+	var clamped := clampf(value, 0.0, 1.0)
+	needs[need_id] = clamped
+	if need_id == &"hunger":
+		# 1. Component Assignment: Propagate value change directly into HungerComponent.
+		var hunger_comp := _resolve_hunger_component()
+		if hunger_comp != null:
+			hunger_comp.current_hunger = clamped
 
 
 # --- SaveSystem contract -----------------------------------------------------
@@ -78,10 +99,26 @@ func set_need(need_id: StringName, value: float) -> void:
 func serialize() -> Dictionary:
 	var out: Dictionary = {}
 	for k in needs.keys():
-		out[String(k)] = needs[k]
+		out[String(k)] = get_need(k)
 	return out
 
 
 func deserialize(data: Dictionary) -> void:
 	for k in data.keys():
-		needs[StringName(k)] = float(data[k])
+		var need_key := StringName(k)
+		var val := float(data[k])
+		set_need(need_key, val)
+
+
+# ===================
+# Auxiliary Functions
+# ===================
+
+func _resolve_hunger_component() -> HungerComponent:
+	## Auxiliary: Resolves cached HungerComponent from parent node if valid.
+	if _hunger_comp != null and is_instance_valid(_hunger_comp):
+		return _hunger_comp
+	var parent_node := get_parent()
+	if parent_node != null:
+		_hunger_comp = parent_node.get_node_or_null("HungerComponent") as HungerComponent
+	return _hunger_comp

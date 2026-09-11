@@ -322,7 +322,11 @@ func _handle_navigation_failure() -> void:
 								WorldItem.spawn_at(colonist, str(item_id), count, colonist.global_position + Vector3(0, 0.5, 0))
 		blackboard.erase_var(&"active_job")
 
+	var failed_target_node: Node = null
 	if blackboard.has_var(target_var):
+		var val = blackboard.get_var(target_var)
+		if val is Node and is_instance_valid(val):
+			failed_target_node = val as Node
 		blackboard.erase_var(target_var)
 
 	if agent is Colonist:
@@ -334,11 +338,13 @@ func _handle_navigation_failure() -> void:
 		if colony != null and "job_board" in colony and colony.job_board != null:
 			colony.job_board.blacklist_job_for(job_id, colonist_id, 10.0)
 
-	# 4. Trigger immediate goal re-evaluation
+	# 4. Trigger immediate goal re-evaluation and blacklist unreachable target on brain
 	var brain: ColonistBrain = null
 	if agent is Node:
 		brain = (agent as Node).get_node_or_null("ColonistBrain") as ColonistBrain
 		if not brain and "brain" in agent:
 			brain = agent.brain
 	if brain != null:
+		if failed_target_node != null:
+			brain.blacklist_food_source(failed_target_node, 10.0)
 		brain.evaluate_goals()

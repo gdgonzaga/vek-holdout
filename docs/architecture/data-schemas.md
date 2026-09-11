@@ -178,4 +178,17 @@ Configures animation and combat actions for equippable items. Slot routing is ta
 | `primary_action` | `EquipActionParams` | Action triggered on primary input / weapon swing. |
 | `secondary_action` | `EquipActionParams` | Action triggered on secondary input / block / aim. |
 
+### `FoodParams` (Resource: `food_params.gd`)
+Configures physiological nutrition, healing, and consumption properties for edible items attached via `ItemDef.food`.
+
+| Field | Type | Description |
+|---|---|---|
+| `nutrition_value` | `float` | Satiety restored to `HungerComponent` upon consumption (default `0.4`). |
+| `health_restore` | `int` | Immediate hit points healed upon ingestion (default `0`). |
+| `eat_duration` | `float` | Time in seconds required for eating cycle (default `2.0`). |
+| `eating_animation` | `StringName` | Animation override key played during consumption (default `&"eat"`). |
+| `mood_modifier` | `String` | Optional moodlet applied to colonist after eating. |
+| `spoilage_hours` | `float` | Reserved shelf-life hours for future perishability system. |
+
+
 
