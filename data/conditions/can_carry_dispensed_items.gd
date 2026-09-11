@@ -7,7 +7,7 @@ func is_met(actor: Node, target: Node) -> bool:
 	if furniture == null:
 		return true
 
-	var params := furniture.def.item_dispenser_params as ItemDispenserParams
+	var params := Furniture.get_capability(furniture, ItemDispenserParams) as ItemDispenserParams
 
 	if params == null:
 		return true # no dispenser params → nothing to check

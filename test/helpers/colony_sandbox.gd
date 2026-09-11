@@ -48,6 +48,7 @@ func _init(suite: GdUnitTestSuite) -> void:
 func restore() -> void:
 	Colony.storage_registry = _real_registry
 	Colony.job_board = _real_board
+	Colony.set_world_bounds(AABB())
 
 
 func make_colonist() -> Colonist:

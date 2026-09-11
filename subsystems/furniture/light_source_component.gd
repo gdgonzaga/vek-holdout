@@ -31,9 +31,7 @@ func _resolve_light_params() -> void:
 	var furniture := get_parent() as Furniture
 	if furniture == null or furniture.def == null:
 		return
-	if furniture.def is FurnitureDef:
-		var fdef := furniture.def as FurnitureDef
-		params = fdef.light_params
+	params = Furniture.get_capability(furniture, LightParams) as LightParams
 
 
 func _create_light_node() -> void:

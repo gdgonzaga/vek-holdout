@@ -1,5 +1,5 @@
 class_name HarvestParams
-extends Resource
+extends FurnitureCapability
 ## Capability parameters for harvestable furniture (GDD §6.10, ARCH "Harvesting").
 ## A nullable sub-resource on FurnitureDef, following the composition pattern
 ## documented in docs/architecture/data-schemas.md "FurnitureDef capability parameters"
@@ -11,3 +11,9 @@ extends Resource
 @export var work_time: float = 4.0
 @export var respawn_time: float = 0.0
 @export var required_tool_tag: String = ""
+
+
+## Contributes the toggle-harvest ActionOption to the furniture's InteractionComponent.
+func collect_action_options() -> Array[ActionOption]:
+	return [preload("res://data/action_options/toggle_harvest_action_option.tres")]
+

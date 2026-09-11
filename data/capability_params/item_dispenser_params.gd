@@ -1,4 +1,4 @@
 class_name ItemDispenserParams
-extends Resource
+extends FurnitureCapability
 
 @export var items: Array[ItemAmount] = []

@@ -68,6 +68,9 @@ var _stand_cell_hint: Callable = Callable()
 ## Cached cost function from the active map.
 var _cell_cost_fn: Callable = Callable()
 
+## Cached world bounds from the active map.
+var _world_bounds: AABB = AABB()
+
 ## Cached combined ground query from the active map, `(x, z) -> float` (NAN
 ## when no terrain reaches the column). Marker spawns snap onto the highest
 ## surface (hill or plate) instead of trusting authored Y.
@@ -167,6 +170,16 @@ func get_ground_height_at(x: float, z: float) -> float:
 
 func set_ground_query(query: Callable) -> void:
 	_ground_query = query
+
+
+## Store the active map's world bounds.
+func set_world_bounds(bounds: AABB) -> void:
+	_world_bounds = bounds
+
+
+## Returns the active map's world bounds.
+func get_world_bounds() -> AABB:
+	return _world_bounds
 
 
 ## Store the active map's terrain presence predicate (VoxelGridAdapter.is_terrain_at).
@@ -723,6 +736,8 @@ func register_world_item(item: WorldItem) -> void:
 		return
 	if item.is_forbidden() or item.count <= 0:
 		return
+	if _world_bounds.has_volume() and item.global_position.y < _world_bounds.position.y:
+		return
 	_spawn_world_item_haul_job(item)
 	if not item.forbidden_changed.is_connected(_on_world_item_forbidden_changed):
 		item.forbidden_changed.connect(_on_world_item_forbidden_changed.bind(item))
@@ -749,11 +764,13 @@ func _on_world_item_urgent_haul_changed(_is_urgent: bool, item: WorldItem) -> vo
 		return
 	_remove_jobs_for_target(item, HAULING_DEF)
 	if not item.is_forbidden() and item.count > 0:
-		_spawn_world_item_haul_job(item)
+		register_world_item(item)
 
 
 func _spawn_world_item_haul_job(item: WorldItem) -> void:
 	if item == null or not is_instance_valid(item) or item.is_forbidden() or item.count <= 0:
+		return
+	if _world_bounds.has_volume() and item.global_position.y < _world_bounds.position.y:
 		return
 	var anchor := Vector3i(item.global_position.floor())
 	var def := ItemDB.get_def(item.item_id) if ItemDB != null else null

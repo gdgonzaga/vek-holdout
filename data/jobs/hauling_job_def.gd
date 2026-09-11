@@ -104,6 +104,8 @@ func complete(actor: Node, job: Variant) -> void:
 				sink.needed_item_ids(), (actor as Node3D).global_position if actor is Node3D else Vector3.ZERO)
 		var crate_inv := Colony.storage_registry.inventory_of(crate) if crate != null else null
 		if crate_inv == null:
+			if job.has_method("unassign") and actor is Colonist:
+				job.unassign(actor)
 			return
 		var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
 		if pocket == null:
@@ -134,7 +136,6 @@ func complete(actor: Node, job: Variant) -> void:
 			if is_instance_valid(target_item):
 				if target_item.count <= 0:
 					target_item.hide_item()
-					_unregister_item_from_colony(target_item)
 			return
 
 		# 2. If delivering to crate
@@ -142,35 +143,68 @@ func complete(actor: Node, job: Variant) -> void:
 			var crate := Colony.storage_registry.find_storage_for(world_item.item_id, actor_pos)
 			if crate == null:
 				crate = Colony.storage_registry.nearest_crate(actor_pos)
-			var crate_inv := Colony.storage_registry.inventory_of(crate) if crate != null else null
-			var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
-			if pocket != null:
-				var count := pocket.get_item_count(world_item.item_id)
-				if count > 0:
-					if crate_inv != null and crate_inv.can_add(world_item.item_id, 1):
-						pocket.transfer_to(crate_inv, world_item.item_id, count)
-					elif actor.is_inside_tree():
-						pocket.remove(world_item.item_id, count)
-						WorldItem.spawn_at(actor, world_item.item_id, count, actor_pos + Vector3(0, 0.5, 0))
-				if crate_inv != null:
-					for other_id in pocket.items.keys().duplicate():
-						var other_count: int = pocket.get_item_count(str(other_id))
-						if other_count > 0 and crate_inv.can_add(str(other_id), 1):
-							pocket.transfer_to(crate_inv, str(other_id), other_count)
-			_free_collected_hidden_items(actor, world_item.item_id)
-			if is_instance_valid(world_item):
-				if world_item.count <= 0:
-					world_item.queue_free()
-				else:
-					world_item.unreserve(actor)
+			if crate != null and actor_pos.distance_to(crate.global_position) > 2.2:
+				return
+			# 1. Crate Deposit: Move carried items into available storage crate.
+			_deposit_carried_item_to_storage(actor, world_item.item_id, actor_pos)
+			# 2. Delivery Finalization: Unreserve/free world items and finish job.
+			_finalize_world_item_delivery(actor, job, world_item)
 			return
 		else:
+			# Not near ground item and not carrying target item; leg is spent
 			_free_collected_hidden_items(actor, world_item.item_id)
 			if is_instance_valid(world_item):
 				world_item.unreserve(actor)
 				if world_item.count <= 0 and not world_item.visible:
 					world_item.queue_free()
+			_finish(actor, job)
 			return
+
+
+func _deposit_carried_item_to_storage(actor: Node, item_id: String, actor_pos: Vector3) -> bool:
+	## Auxiliary: Transfers carried items to a crate with capacity, trying alternate crates if needed.
+	var pocket: Inventory = actor.inventory if "inventory" in actor and actor.inventory != null else null
+	if pocket == null:
+		return false
+	var count := pocket.get_item_count(item_id)
+	if count <= 0:
+		return true
+
+	var crate := Colony.storage_registry.find_storage_for(item_id, actor_pos, 1)
+	if crate == null:
+		crate = Colony.storage_registry.nearest_crate(actor_pos)
+	var crate_inv := Colony.storage_registry.inventory_of(crate) if crate != null else null
+
+	if crate_inv != null and crate_inv.can_add(item_id, 1):
+		pocket.transfer_to(crate_inv, item_id, count)
+	else:
+		# 1. Alternative Crate Lookup: Query colony storage registry for any available crate with space.
+		var alt_crate := Colony.storage_registry.find_storage_for(item_id, actor_pos, 1)
+		var alt_inv := Colony.storage_registry.inventory_of(alt_crate) if alt_crate != null else null
+		if alt_inv != null and alt_inv.can_add(item_id, 1):
+			pocket.transfer_to(alt_inv, item_id, count)
+
+	# Deposit any other carried non-tool surplus items if the crate can accept them
+	if crate_inv != null:
+		for other_id in pocket.items.keys().duplicate():
+			var other_count: int = pocket.get_item_count(str(other_id))
+			if other_count > 0 and crate_inv.can_add(str(other_id), 1):
+				pocket.transfer_to(crate_inv, str(other_id), other_count)
+	return true
+
+
+func _finalize_world_item_delivery(actor: Node, job: Variant, world_item: WorldItem) -> void:
+	## Auxiliary: Cleans up world item reservations, frees depleted items, and finishes job.
+	_free_collected_hidden_items(actor, world_item.item_id)
+	if is_instance_valid(world_item):
+		world_item.unreserve(actor)
+		if world_item.count <= 0:
+			world_item.queue_free()
+		else:
+			var colony: Node = actor.get_node_or_null("/root/Colony")
+			if colony != null and colony.has_method("register_world_item"):
+				colony.call("register_world_item", world_item)
+	_finish(actor, job)
 
 
 func meets_requirements_any(actor: Node, job: Variant) -> bool:
@@ -184,6 +218,15 @@ func meets_requirements_any(actor: Node, job: Variant) -> bool:
 			return false
 		if not _actor_has_remaining_capacity(actor) and not _carries_item(actor, world_item.item_id):
 			return false
+
+	var sink := _sink_of(job)
+	if sink != null:
+		if sink.has_complete_materials():
+			return false
+		if not _carries_needed_material(actor, sink):
+			if Colony == null or Colony.storage_registry == null or not Colony.storage_registry.has_source_for(sink.needed_item_ids()):
+				return false
+
 	return super.meets_requirements_any(actor, job)
 
 
@@ -223,6 +266,11 @@ func is_available_for(job: Variant, actor: Node = null) -> bool:
 
 
 func should_close(job: Variant) -> bool:
+	if "is_completed" in job and bool(job.is_completed):
+		return true
+	if "is_cancelled" in job and bool(job.is_cancelled):
+		return true
+
 	if _storage_crate_of(job) != null:
 		# Close once the target_node crate is freed/invalid (job was used as
 		# a one-shot deposit and the def.complete() already called _finish).
@@ -245,13 +293,12 @@ func should_close(job: Variant) -> bool:
 
 
 func job_complete(job: Variant) -> bool:
+	if "is_completed" in job and bool(job.is_completed):
+		return true
+
 	var sink := _sink_of(job)
 	if sink != null:
 		return sink.has_complete_materials()
-
-	var world_item := _world_item_of(job)
-	if world_item != null:
-		return world_item.count <= 0 and not world_item.visible and not world_item.is_reserved()
 
 	return false
 

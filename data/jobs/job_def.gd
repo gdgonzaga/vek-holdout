@@ -165,7 +165,12 @@ func _finish(actor: Node, job: Variant) -> void:
 	if actor != null and "skill_set" in actor and actor.skill_set != null \
 			and labor_id != "" and "record_use_for_labor" in actor.skill_set:
 		actor.skill_set.record_use_for_labor(labor_id)
-	if job != null and "id" in job and str(job.id) != "" and actor is Node:
-		var colony := (actor as Node).get_node_or_null("/root/Colony")
-		if colony != null and "job_board" in colony and colony.job_board != null:
-			colony.job_board.remove_job(str(job.id))
+	if job != null:
+		if "is_completed" in job:
+			job.is_completed = true
+		if actor != null and job.has_method("unassign"):
+			job.unassign(actor)
+		if "id" in job and str(job.id) != "" and actor is Node:
+			var colony := (actor as Node).get_node_or_null("/root/Colony")
+			if colony != null and "job_board" in colony and colony.job_board != null:
+				colony.job_board.remove_job(str(job.id))

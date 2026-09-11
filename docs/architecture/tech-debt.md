@@ -24,3 +24,14 @@ Tracking page for known architectural debt, incomplete features, missing schemas
 3. **Energy Subsystem** (`subsystems/energy/`) — Daily stamina pool and breath resource management.
 4. **Raids Subsystem** (`subsystems/raids/`) — Raid scheduler, threat direction, wave spawning.
 5. **Permadeath & Memorial Subsystem** (`subsystems/permadeath/`) — Memorial registry and colony loss handling.
+
+---
+
+## Furniture Capabilities & Pluggable Architecture
+
+**Status: Complete.**
+- `FurnitureDef` capability composition migrated from an ad-hoc if-ladder in `FurnitureLayer` to a static capability factory registry with property introspection.
+- `FurnitureCapability` base resource established with virtual `collect_action_options()` hook.
+- `ICapabilityComponent` protocol established for automatic per-component state serialization/deserialization.
+- `TestParams` removed. `BedParams` added, introducing `BedComponent` and `colonist_bed.tres`.
+- Farm plot capability expanded with `FarmPlotParams` (`crop_slots`, `growth_rate_multiplier`, `hydration_mode`).

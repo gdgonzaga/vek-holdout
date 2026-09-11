@@ -1,5 +1,5 @@
 class_name LightParams
-extends Resource
+extends FurnitureCapability
 ## Capability parameters for furniture that emits light (GDD §7.2, ARCH data-schemas.md).
 ## A nullable sub-resource on FurnitureDef, following the composition pattern.
 ## Placed furniture with non-null light_params receives a LightSourceComponent child

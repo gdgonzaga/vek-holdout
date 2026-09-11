@@ -113,7 +113,7 @@ func _apply_crafting_params() -> void:
 	var furniture := get_parent() as Furniture
 	if furniture == null or furniture.def == null:
 		return
-	var params := furniture.def.crafting_params as CraftingParams
+	var params := Furniture.get_capability(furniture, CraftingParams) as CraftingParams
 	if params != null:
 		recipes = params.recipes
 

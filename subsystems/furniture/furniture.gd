@@ -96,27 +96,45 @@ func get_footprint_cells() -> Array[Vector3i]:
 	return cells
 
 
+## Returns the first capability of the given type from the furniture's def,
+## or null if absent. Uses is_instance_of for inheritance-correct matching.
+static func get_capability(furniture: Furniture, type: Script) -> FurnitureCapability:
+	if furniture == null or not (furniture.def is FurnitureDef):
+		return null
+	var fdef := furniture.def as FurnitureDef
+	for prop in fdef.get_property_list():
+		if prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE == 0:
+			continue
+		var val: Variant = fdef.get(prop.name)
+		if val is FurnitureCapability and is_instance_of(val, type):
+			return val as FurnitureCapability
+	return null
+
+
 # --- SaveSystem contract -----------------------------------------------------
 # FurnitureLayer aggregates one record per item (def_id + anchor + yaw, see
 # FurnitureLayer.serialize). `storage` captures the per-instance contents of a
 # storage-capable piece (crate/shelf) via its StorageInventory child.
+# `cap_state` captures generalized per-component state implementing ICapabilityComponent.
 
 ## Snapshot the canonical def id, the capability state bag, plus, when present,
-## the StorageInventory child's item stacks. Non-storage furniture returns
-## storage = null.
+## the StorageInventory child's item stacks and child capability component states.
 func serialize() -> Dictionary:
 	var storage = get_node_or_null("StorageInventory") as StorageInventory
+	var cap_state: Dictionary = {}
+	for child in get_children():
+		if child.has_method("serialize_state"):
+			cap_state[child.name] = child.serialize_state()
 	return {
 		"def_id": def_id,
 		"storage": storage.serialize() if storage != null else null,
 		"state": state.duplicate(true),
+		"cap_state": cap_state,
 	}
 
 
-## Restore def_id, the capability state bag, and, when a StorageInventory child
-## exists and the data carries a storage block, its contents. Safe to call
-## right after FurnitureLayer.spawn (which creates the StorageInventory child)
-## as well as standalone.
+## Restore def_id, the capability state bag, and any component state.
+## Restores storage contents with backward-compatibility for legacy "storage" key.
 func deserialize(data: Dictionary) -> void:
 	var old_def_id := def_id
 	def_id = data.get("def_id", def_id)
@@ -127,9 +145,14 @@ func deserialize(data: Dictionary) -> void:
 			add_to_group(StringName(def_id))
 	var saved_state: Dictionary = data.get("state", {})
 	state = saved_state.duplicate(true)
-	var storage_data: Variant = data.get("storage", null)
-	if storage_data == null:
-		return
-	var storage = get_node_or_null("StorageInventory") as StorageInventory
-	if storage != null:
-		storage.deserialize(storage_data)
+
+	var cap_state: Dictionary = data.get("cap_state", {})
+	# 1. Compatibility Fallback: Resolve legacy storage key if StorageInventory is not in cap_state.
+	if not cap_state.has("StorageInventory") and data.get("storage") != null:
+		cap_state["StorageInventory"] = data.get("storage")
+
+	for child in get_children():
+		if child.has_method("deserialize_state") and cap_state.has(child.name):
+			child.deserialize_state(cap_state[child.name])
+		elif child is StorageInventory and cap_state.has(child.name):
+			(child as StorageInventory).deserialize(cap_state[child.name])

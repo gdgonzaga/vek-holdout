@@ -21,10 +21,7 @@ func _apply_turret_params() -> void:
 	var furniture := get_parent() as Furniture
 	if furniture == null or furniture.def == null:
 		return
-	if furniture.def is FurnitureDef:
-		var fdef := furniture.def as FurnitureDef
-		if fdef.turret_params != null:
-			params = fdef.turret_params
+	params = Furniture.get_capability(furniture, TurretParams) as TurretParams
 
 
 func _physics_process(delta: float) -> void:

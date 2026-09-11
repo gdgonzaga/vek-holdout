@@ -1,5 +1,5 @@
 class_name TurretParams
-extends Resource
+extends FurnitureCapability
 ## Capability parameters for automated turret defenses (GDD §7.10, ARCH combat.md).
 ## A nullable sub-resource on FurnitureDef, following the composition pattern.
 ## Placed furniture with non-null turret_params receives a TurretComponent child

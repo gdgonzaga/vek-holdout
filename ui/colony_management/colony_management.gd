@@ -358,7 +358,7 @@ func _resolve_job_target_info(colonist: Colonist) -> String:
 		var bt: BTPlayer = colonist.get_node_or_null("BTPlayer") as BTPlayer
 		if bt != null and bt.blackboard != null and bt.blackboard.has_var(&"target_smart_object"):
 			var obj = bt.blackboard.get_var(&"target_smart_object")
-			if obj is Node3D and is_instance_valid(obj):
+			if is_instance_valid(obj) and obj is Node3D:
 				target_str = "Smart Object -> %s" % obj.name
 				target_pos = obj.global_position
 				has_target_pos = true

@@ -186,3 +186,97 @@ func test_furniture_layer_attaches_light_source_component_when_light_params_pres
 	assert_vector(light.position).is_equal(Vector3(0.0, 2.0, 0.0))
 
 
+func test_furniture_layer_attaches_bed_component_when_bed_params_present() -> void:
+	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
+	var container: Node3D = auto_free(Node3D.new())
+	add_child(container)
+	layer.set_container(container)
+
+	var bparams: BedParams = auto_free(BedParams.new())
+	bparams.sleep_offset = Vector3(0.1, 0.2, 0.3)
+	bparams.rest_rate_per_second = 0.25
+
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	def.id = "test_bed"
+	def.mesh = BoxMesh.new()
+	def.dimensions = Vector3i(1, 1, 2)
+	def.tags = ["bed"]
+	def.bed_params = bparams
+
+	var node: Furniture = layer.spawn(def, Vector3i(0, 0, 0), 0)
+	assert_object(node).is_not_null()
+
+	var bed_comp := node.get_node_or_null("BedComponent") as BedComponent
+	assert_object(bed_comp).is_not_null()
+	assert_bool(bed_comp.is_available()).is_true()
+	assert_object(bed_comp.params()).is_equal(bparams)
+	assert_float(bed_comp.params().rest_rate_per_second).is_equal_approx(0.25, 0.01)
+
+
+func test_furniture_get_capability_and_iter_capabilities() -> void:
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	var bparams: BedParams = auto_free(BedParams.new())
+	var lparams: LightParams = auto_free(LightParams.new())
+	def.bed_params = bparams
+	def.light_params = lparams
+
+	var node: Furniture = auto_free(Furniture.new())
+	node.def = def
+
+	var found_bed := Furniture.get_capability(node, BedParams)
+	assert_object(found_bed).is_equal(bparams)
+
+	var found_light := Furniture.get_capability(node, LightParams)
+	assert_object(found_light).is_equal(lparams)
+
+	var not_found := Furniture.get_capability(node, StorageParams)
+	assert_object(not_found).is_null()
+
+	var caps := FurnitureLayer._iter_capabilities(def)
+	assert_int(caps.size()).is_equal(2)
+
+
+func test_furniture_serialize_deserialize_backward_compat_and_cap_state() -> void:
+	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
+	var container: Node3D = auto_free(Node3D.new())
+	add_child(container)
+	layer.set_container(container)
+
+	var sparams: StorageParams = auto_free(StorageParams.new())
+	sparams.capacity = 50.0
+
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	def.id = "test_crate"
+	def.mesh = BoxMesh.new()
+	def.storage_params = sparams
+
+	var node: Furniture = layer.spawn(def, Vector3i(0, 0, 0), 0)
+	assert_object(node).is_not_null()
+
+	var storage := node.get_node_or_null("StorageInventory") as StorageInventory
+	assert_object(storage).is_not_null()
+
+	# 1. Serialize test: verify both cap_state and legacy storage key exist
+	var snapshot := node.serialize()
+	assert_bool(snapshot.has("cap_state")).is_true()
+	assert_bool(snapshot.has("storage")).is_true()
+	assert_bool((snapshot["cap_state"] as Dictionary).has("StorageInventory")).is_true()
+
+	# 2. Deserialize test: restore from legacy dictionary format without cap_state
+	var legacy_data := {
+		"def_id": "test_crate",
+		"state": {},
+		"storage": {
+			"capacity": 50.0,
+			"priority": 4,
+			"items": {},
+			"allowed_item_ids": ["scrap_ammo"],
+			"allowed_tags": []
+		}
+	}
+	node.deserialize(legacy_data)
+	assert_int(storage.priority).is_equal(4)
+	assert_bool(storage.allowed_item_ids.has("scrap_ammo")).is_true()
+
+
+

@@ -1,5 +1,5 @@
 class_name StorageParams
-extends Resource
+extends FurnitureCapability
 ## Capability parameters for storage furniture (GDD §7.11). A nullable
 ## sub-resource on FurnitureDef, following the composition pattern documented
 ## in docs/architecture/data-schemas.md "FurnitureDef capability parameters"

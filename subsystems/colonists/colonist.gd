@@ -4,6 +4,11 @@ class_name Colonist
 
 @export var colonist_def: ColonistDef = preload("res://data/colonists/default_colonist.tres")
 @export var gravity: float = 9.8
+@export var debug_billboard_visible: bool = true:
+	set(value):
+		debug_billboard_visible = value
+		# 1. Debug Billboard Sync: Update child visualizer visibility when exported property changes.
+		_update_debug_billboard_visibility()
 var colonist_id: String
 var display_name: String
 var labor_priorities: Dictionary
@@ -110,6 +115,9 @@ func _ready() -> void:
 		interaction.name = "InteractionComponent"
 		add_child(interaction)
 	refresh_interaction_options()
+
+	# 1. Debug Billboard Sync: Ensure debug visualizer matches exported debug billboard visibility.
+	_update_debug_billboard_visibility()
 
 
 func _physics_process(delta: float) -> void:
@@ -288,6 +296,31 @@ func set_labor_priority(labor_id: String, priority: int) -> void:
 func set_raid_stance(stance: int) -> void:
 	# TODO: Add a guard vs configured min/max values
 	raid_stance = stance
+
+
+func set_debug_billboard_visible(visible: bool) -> void:
+	debug_billboard_visible = visible
+	# 1. Debug Billboard Sync: Forward visibility state to the debug visualizer child.
+	_update_debug_billboard_visibility()
+
+
+func is_debug_billboard_visible() -> bool:
+	return debug_billboard_visible
+
+
+func set_debug_visualization_visible(visible: bool) -> void:
+	set_debug_billboard_visible(visible)
+
+
+func is_debug_visualization_visible() -> bool:
+	return is_debug_billboard_visible()
+
+
+func _update_debug_billboard_visibility() -> void:
+	## Auxiliary: Updates visibility of the attached ColonistDebugVisualizer node's billboard label and path wireframe.
+	var vis := get_node_or_null("ColonistDebugVisualizer") as ColonistDebugVisualizer
+	if vis != null:
+		vis.set_billboard_visible(debug_billboard_visible)
 
 
 # --- Stat & Moodlet queries --------------------------------------------------

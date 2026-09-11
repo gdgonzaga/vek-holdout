@@ -1,5 +1,5 @@
 class_name CraftingParams
-extends Resource
+extends FurnitureCapability
 ## Capability parameters for crafting furniture (GDD §7.9): the recipe list
 ## offered at this station. A nullable sub-resource on FurnitureDef, following
 ## the composition pattern documented in docs/architecture/data-schemas.md

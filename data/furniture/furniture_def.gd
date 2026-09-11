@@ -51,13 +51,10 @@ class_name FurnitureDef
 ## Node3D instances.
 @export var action_options: Array[ActionOption] = []
 
-## Composition-pattern placeholder for capability-specific parameters (crafting
-## speed, tier, etc.). Null means no capability data. Real capabilities
-## (CraftingParams, ItemDispenserParams, StorageParams, ...) are sibling
-## nullable sub-resources of the same shape; see
-## docs/architecture/data-schemas.md "FurnitureDef capability parameters" for
-## why composition was chosen over subclassing.
-@export var test_params: TestParams
+## Composition-pattern sub-resources for capability-specific parameters (crafting,
+## storage, farming, beds, etc.). Null means no capability data. Real capabilities
+## extend FurnitureCapability; see docs/architecture/data-schemas.md.
+@export var bed_params: BedParams
 @export var item_dispenser_params: ItemDispenserParams
 @export var storage_params: StorageParams
 

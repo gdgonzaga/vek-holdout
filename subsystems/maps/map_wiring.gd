@@ -179,6 +179,9 @@ static func wire_colonists(map: Map) -> Node3D:
 	var cell_cost := _compose_cell_cost(map)
 	Colony.set_cell_cost_fn(cell_cost)
 
+	# 2. Bounds Wiring: Injects discrete playable volume bounds into Colony for world item validation.
+	Colony.set_world_bounds(map.get_world_bounds())
+
 	# Spawn/reparent colonists AFTER ground query and predicates are wired so
 	# initial spawn height queries resolve correctly.
 	Colony.on_map_wired(container, spawns.get("colonists", []))

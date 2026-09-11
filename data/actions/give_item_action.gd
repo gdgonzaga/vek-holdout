@@ -5,7 +5,7 @@ func execute(actor: Node, target: Node) -> void:
 	var furniture := target as Furniture
 	if furniture == null:
 		return
-	var params := furniture.def.item_dispenser_params as ItemDispenserParams
+	var params := Furniture.get_capability(furniture, ItemDispenserParams) as ItemDispenserParams
 	if params == null:
 		return
 	for entry in params.items:

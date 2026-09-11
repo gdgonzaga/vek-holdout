@@ -45,10 +45,7 @@ func _exit_tree() -> void:
 
 ## Back-ref to definition's FarmPlotParams.
 func params() -> FarmPlotParams:
-	if _furniture == null or _furniture.def == null:
-		return null
-	var fdef := _furniture.def as FurnitureDef
-	return fdef.farm_plot_params if fdef != null else null
+	return Furniture.get_capability(_furniture, FarmPlotParams) as FarmPlotParams
 
 
 func anchor_cell() -> Vector3i:
@@ -383,11 +380,13 @@ func _process(delta: float) -> void:
 				EventBus.plot_needs_tending.emit(self, anchor_cell(), false)
 
 		# 3. Growth rate & advance
-		var growth_mult := 1.0
+		var plot_params := params()
+		var plot_mult := plot_params.growth_rate_multiplier if plot_params != null else 1.0
+		var growth_mult := plot_mult
 		if new_w <= 0.0:
 			growth_mult = 0.0 # frozen when dried out
 		elif not tended:
-			growth_mult = def.untended_growth_mult
+			growth_mult = def.untended_growth_mult * plot_mult
 
 		if def.growth_time_hours > 0.0 and growth_mult > 0.0:
 			prog = minf(1.0, prog + (hours_delta / def.growth_time_hours) * growth_mult)

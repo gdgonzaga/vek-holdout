@@ -5,6 +5,7 @@ extends Node3D
 ## Automatically strips itself if not in debug mode (OS.is_debug_build() == false).
 
 @export var enabled: bool = true
+@export var billboard_visible: bool = true
 @export var label_height_offset: float = 2.2
 @export var path_color: Color = Color(0.0, 0.8, 1.0, 1.0)      ## Cyan
 @export var target_color: Color = Color(1.0, 0.6, 0.0, 1.0)    ## Orange
@@ -67,8 +68,27 @@ func _ready() -> void:
 	_setup_path_mesh()
 
 
+func set_billboard_visible(visible: bool) -> void:
+	billboard_visible = visible
+	if _label != null:
+		_label.visible = visible
+	if not visible and _immediate_mesh != null and _immediate_mesh.get_surface_count() > 0:
+		_immediate_mesh.clear_surfaces()
+
+
+func is_billboard_visible() -> bool:
+	return billboard_visible
+
+
 func _process(_delta: float) -> void:
-	if not OS.is_debug_build() or _parent_body == null:
+	if not OS.is_debug_build() or _parent_body == null or not enabled:
+		return
+
+	if not billboard_visible:
+		if _label != null and _label.visible:
+			_label.visible = false
+		if _immediate_mesh != null and _immediate_mesh.get_surface_count() > 0:
+			_immediate_mesh.clear_surfaces()
 		return
 
 	_update_label()
@@ -91,6 +111,7 @@ func _setup_billboard_label() -> void:
 	_label.outline_size = 4
 	_label.modulate = Color.YELLOW
 	_label.position = Vector3(0, label_height_offset, 0)
+	_label.visible = billboard_visible
 	add_child(_label)
 
 
@@ -236,7 +257,7 @@ func _resolve_colonist_job() -> String:
 		elif "def" in job_obj and job_obj.def != null and "display_name" in job_obj.def:
 			title = str(job_obj.def.display_name)
 		else:
-			title = job_obj.get_class() if job_obj is Object else "Job"
+			title = job_obj.get_class() if is_instance_valid(job_obj) and job_obj is Object else "Job"
 
 		var id_str: String = ""
 		if "id" in job_obj and not str(job_obj.id).is_empty():
@@ -250,7 +271,7 @@ func _resolve_colonist_job() -> String:
 			lines.append("Target Pos: (%.1f, %.1f, %.1f)" % [job_obj.world_position.x, job_obj.world_position.y, job_obj.world_position.z])
 		elif "location" in job_obj and job_obj.location != Vector3.ZERO:
 			lines.append("Target Pos: (%.1f, %.1f, %.1f)" % [job_obj.location.x, job_obj.location.y, job_obj.location.z])
-		elif "target_node" in job_obj and job_obj.target_node != null and is_instance_valid(job_obj.target_node):
+		elif "target_node" in job_obj and is_instance_valid(job_obj.target_node):
 			lines.append("Target: %s" % job_obj.target_node.name)
 
 	return "\n".join(lines)
@@ -307,7 +328,7 @@ func _draw_navigation_path() -> void:
 				target_pos = tp
 		if target_pos == Vector3.ZERO and _bt_player.blackboard.has_var(&"target_smart_object"):
 			var obj = _bt_player.blackboard.get_var(&"target_smart_object")
-			if obj is Node3D and is_instance_valid(obj):
+			if is_instance_valid(obj) and obj is Node3D:
 				target_pos = obj.global_position
 
 	if target_pos == Vector3.ZERO and _pathfinder != null and _telemetry_is_fresh() and _pathfinder.last_query_target != Vector3i.MAX:

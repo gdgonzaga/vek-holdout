@@ -6,4 +6,3 @@
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=2020887096]
 mesh = ExtResource("1_7a23x")
-

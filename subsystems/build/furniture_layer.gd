@@ -1,10 +1,7 @@
 class_name FurnitureLayer
 extends RefCounted
 
-const TOGGLE_HARVEST_OPTION: ActionOption = preload("res://data/action_options/toggle_harvest_action_option.tres")
-const INSPECT_CROP_OPTION: ActionOption = preload("res://data/action_options/inspect_crop_action_option.tres")
-const SELECT_CROP_OPTION: ActionOption = preload("res://data/action_options/select_crop_action_option.tres")
-const FORAGE_OPTION: ActionOption = preload("res://data/action_options/forage_action_option.tres")
+const FORAGE_OPTION = preload("res://data/action_options/forage_action_option.tres")
 ## Free-standing furniture placement layer (ARCH "Build" subsystem).
 ##
 ## The sibling of VoxelGridAdapter for non-block buildables. Where the adapter
@@ -35,6 +32,8 @@ var _is_restoring: bool = false
 
 const _new_furniture_template: PackedScene = preload("res://subsystems/build/new_furniture_template.tscn")
 const _new_wild_flora_template: PackedScene = preload("res://subsystems/environment/new_wild_flora_template.tscn")
+
+static var _capability_registry: Dictionary = {}
 
 
 func _init() -> void:
@@ -227,67 +226,110 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 	if yaw_quarters != 0:
 		root.rotate_y(float(yaw_quarters) * PI * 0.5)
 
-	# Attach interaction when the def offers actions, harvest params, or farm plot params.
-	# Player._find_interaction_component expects a direct child named exactly
-	# "InteractionComponent"; component.display_name is the UI fallback.
 	var fdef := def as FurnitureDef
 	if fdef != null:
-		var options: Array[ActionOption] = fdef.action_options.duplicate()
-		if fdef.harvest_params != null and not options.has(TOGGLE_HARVEST_OPTION):
-			options.append(TOGGLE_HARVEST_OPTION)
-		if fdef.farm_plot_params != null:
-			if not options.has(INSPECT_CROP_OPTION):
-				options.append(INSPECT_CROP_OPTION)
-			if not options.has(SELECT_CROP_OPTION):
-				options.append(SELECT_CROP_OPTION)
-			if not options.has(TOGGLE_HARVEST_OPTION):
-				options.append(TOGGLE_HARVEST_OPTION)
-		if not options.is_empty():
-			var interaction := InteractionComponent.new()
-			interaction.name = "InteractionComponent"
-			root.add_child(interaction)
-			interaction.action_options = options
+		# 1. Interaction Setup: Collects authored and capability-contributed options to initialize the InteractionComponent.
+		_setup_furniture_interactions(fdef, root)
 
-	# Attach a harvestable component when the def declares harvest params or farm plot params.
-	if fdef != null and (fdef.harvest_params != null or fdef.farm_plot_params != null):
-		var harvestable := Harvestable.new()
-		harvestable.name = "Harvestable"
-		root.add_child(harvestable)
-
-	# Attach a growable component when the def declares farm plot params.
-	if fdef != null and fdef.farm_plot_params != null:
-		var growable := Growable.new()
-		growable.name = "Growable"
-		root.add_child(growable)
-
-	# Attach storage contents only when the def declares storage params.
-	# StorageInventory reads def.storage_params.capacity in its _ready, so it
-	# must be added after root.def is set (above) and enter the tree.
-	if def is FurnitureDef and (def as FurnitureDef).storage_params != null:
-		var storage := StorageInventory.new()
-		storage.name = "StorageInventory"
-		root.add_child(storage)
-
-	# Attach a crafting station when the def declares crafting params. Same
-	# ordering constraint as StorageInventory: CraftingStation._ready reads
-	# def.crafting_params.recipes, so root.def must already be set.
-	if def is FurnitureDef and (def as FurnitureDef).crafting_params != null:
-		var station := CraftingStation.new()
-		station.name = "CraftingStation"
-		root.add_child(station)
-
-	# Attach a turret component when the def declares turret params.
-	if def is FurnitureDef and (def as FurnitureDef).turret_params != null:
-		var turret := TurretComponent.new()
-		turret.name = "TurretComponent"
-		root.add_child(turret)
-
-	# Attach a light source component when the def declares light params.
-	if def is FurnitureDef and (def as FurnitureDef).light_params != null:
-		var light_source := LightSourceComponent.new()
-		light_source.name = "LightSourceComponent"
-		root.add_child(light_source)
+		# 2. Capability Dispatch: Evaluates configured capabilities and instantiates their runtime components via the registry.
+		_attach_capability_components(fdef, root)
 	return root
+
+
+func _setup_furniture_interactions(fdef: FurnitureDef, root: Furniture) -> void:
+	## Auxiliary: Merges def.action_options and capability-contributed options into an InteractionComponent child.
+	# 1. Option Aggregation: Merges explicit def options and active capability options.
+	var merged := _collect_merged_options(fdef)
+	if not merged.is_empty():
+		var interaction := InteractionComponent.new()
+		interaction.name = "InteractionComponent"
+		interaction.action_options = merged
+		root.add_child(interaction)
+
+
+func _attach_capability_components(fdef: FurnitureDef, root: Furniture) -> void:
+	## Auxiliary: Iterates active capabilities on the definition and invokes registered factory callables.
+	# 1. Registry Validation: Ensure capability factory mappings are populated before dispatch.
+	_ensure_capability_registry()
+	
+	# 2. Capability Discovery: Introspects def to extract non-null FurnitureCapability sub-resources.
+	var capabilities := _iter_capabilities(fdef)
+	for cap: FurnitureCapability in capabilities:
+		var script_type: Script = cap.get_script() as Script
+		if script_type != null and _capability_registry.has(script_type):
+			var factory: Callable = _capability_registry[script_type]
+			if factory.is_valid():
+				factory.call(cap, root)
+
+
+static func _collect_merged_options(fdef: FurnitureDef) -> Array[ActionOption]:
+	## Auxiliary: Collects ActionOptions from def.action_options and all capability collect_action_options().
+	var out: Array[ActionOption] = fdef.action_options.duplicate()
+	# 1. Capability Discovery: Iterates capabilities to retrieve dynamic interaction options.
+	var capabilities := _iter_capabilities(fdef)
+	for cap: FurnitureCapability in capabilities:
+		for opt: ActionOption in cap.collect_action_options():
+			if not out.has(opt):
+				out.append(opt)
+	return out
+
+
+static func _iter_capabilities(fdef: FurnitureDef) -> Array[FurnitureCapability]:
+	## Auxiliary: Introspects fdef properties to return all non-null FurnitureCapability sub-resources.
+	var out: Array[FurnitureCapability] = []
+	for prop: Dictionary in fdef.get_property_list():
+		if int(prop.get("usage", 0)) & PROPERTY_USAGE_SCRIPT_VARIABLE == 0:
+			continue
+		var prop_name: String = str(prop.get("name", ""))
+		var val: Variant = fdef.get(prop_name)
+		if val is FurnitureCapability:
+			out.append(val as FurnitureCapability)
+	return out
+
+
+static func _ensure_capability_registry() -> void:
+	## Auxiliary: Lazily populates the static capability component factory registry if uninitialized.
+	if not _capability_registry.is_empty():
+		return
+	
+	# 1. Factory Registrations: Register factory callables for each supported FurnitureCapability type.
+	_register_capability_factory(StorageParams, func(_params: StorageParams, furniture: Furniture) -> void:
+		var s := StorageInventory.new()
+		s.name = "StorageInventory"
+		furniture.add_child(s))
+	_register_capability_factory(CraftingParams, func(_params: CraftingParams, furniture: Furniture) -> void:
+		var s := CraftingStation.new()
+		s.name = "CraftingStation"
+		furniture.add_child(s))
+	_register_capability_factory(TurretParams, func(_params: TurretParams, furniture: Furniture) -> void:
+		var s := TurretComponent.new()
+		s.name = "TurretComponent"
+		furniture.add_child(s))
+	_register_capability_factory(LightParams, func(_params: LightParams, furniture: Furniture) -> void:
+		var s := LightSourceComponent.new()
+		s.name = "LightSourceComponent"
+		furniture.add_child(s))
+	_register_capability_factory(HarvestParams, func(_params: HarvestParams, furniture: Furniture) -> void:
+		var s := Harvestable.new()
+		s.name = "Harvestable"
+		furniture.add_child(s))
+	_register_capability_factory(FarmPlotParams, func(_params: FarmPlotParams, furniture: Furniture) -> void:
+		var g := Growable.new()
+		g.name = "Growable"
+		furniture.add_child(g)
+		var h := Harvestable.new()
+		h.name = "Harvestable"
+		furniture.add_child(h))
+	_register_capability_factory(BedParams, func(_params: BedParams, furniture: Furniture) -> void:
+		var b := BedComponent.new()
+		b.name = "BedComponent"
+		furniture.add_child(b))
+
+
+static func _register_capability_factory(cap_type: Script, factory: Callable) -> void:
+	## Auxiliary: Maps a capability script to a component creation callable.
+	_capability_registry[cap_type] = factory
+
 
 
 ## Remove the item covering `cell` (any covered cell resolves to its anchor).

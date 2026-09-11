@@ -112,3 +112,14 @@ func deserialize(data: Dictionary) -> void:
 	for tag in saved_tags:
 		allowed_tags.append(str(tag))
 
+
+## ICapabilityComponent: snapshot per-instance storage state.
+func serialize_state() -> Dictionary:
+	return serialize()
+
+
+## ICapabilityComponent: restore per-instance storage state.
+func deserialize_state(data: Dictionary) -> void:
+	deserialize(data)
+
+

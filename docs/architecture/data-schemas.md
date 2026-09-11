@@ -176,7 +176,21 @@ Defines the state of a plant at a specific growth threshold.
 
 ## FurnitureDef capability parameters
 
-Nullable sub-resources attached to `FurnitureDef` following the composition pattern.
+Nullable sub-resources attached to `FurnitureDef` following the composition pattern. All capability resources inherit from `FurnitureCapability` (`data/capability_params/furniture_capability.gd`).
+
+### Base Resource: `FurnitureCapability` (`furniture_capability.gd`)
+Base class for all pluggable furniture capabilities. Pure data definitions; runtime component instantiation logic is isolated in `FurnitureLayer`'s static capability registry. Exposes virtual `collect_action_options() -> Array[ActionOption]` allowing capabilities to dynamically inject context options into the furniture's `InteractionComponent`.
+
+Capability querying is unified via `Furniture.get_capability(furniture, CapabilityType) -> FurnitureCapability`.
+Capability components carrying state implement the duck-typed contract `ICapabilityComponent` (`serialize_state() -> Dictionary`, `deserialize_state(data: Dictionary) -> void`), discovered automatically by `Furniture.serialize` and `Furniture.deserialize`.
+
+### `BedParams` (Resource: `bed_params.gd`)
+Configures colonist rest capability (GDD §6.8). When non-null, `FurnitureLayer` attaches a `BedComponent` node that manages colonist reservations and occupancy.
+
+| Field | Type | Description |
+|---|---|---|
+| `sleep_offset` | `Vector3` | Local position offset relative to furniture origin where colonist sleeps (default `Vector3.ZERO`). |
+| `rest_rate_per_second` | `float` | Rate at which the rest need is restored per second on a 0.0 to 1.0 scale (default `0.15`). |
 
 ### `LightParams` (Resource: `light_params.gd`)
 Configures light emission properties for furniture (torches, lamps, campfires). When non-null, `FurnitureLayer` attaches a `LightSourceComponent` node holding an `OmniLight3D`.
@@ -189,6 +203,54 @@ Configures light emission properties for furniture (torches, lamps, campfires). 
 | `attenuation` | `float` | Light attenuation falloff curve factor (default `1.0`). |
 | `shadows_enabled` | `bool` | Whether light casts dynamic shadows (default `false`). |
 | `local_offset` | `Vector3` | Position offset relative to furniture root origin (default `Vector3(0.0, 1.5, 0.0)`). |
+
+### `FarmPlotParams` (Resource: `farm_plot_params.gd`)
+Configures domestic crop cultivation on furniture (e.g. growing troughs). When non-null, `FurnitureLayer` attaches `Growable` and `Harvestable` components, and contributes farming `ActionOption`s (`inspect_crop`, `select_crop`, `toggle_harvest`).
+
+| Field | Type | Description |
+|---|---|---|
+| `allowed_crops` | `Array[String]` | Allowed `CropDef` IDs for this plot. Empty means any crop is accepted. |
+| `crop_slots` | `int` | Number of crop slots on the plot (default `1`). |
+| `growth_rate_multiplier` | `float` | Multiplier applied on top of crop growth speed (default `1.0`). |
+| `hydration_mode` | `String` | Hydration source mode: `"manual"` (default) or `"irrigated"`. |
+
+### `StorageParams` (Resource: `storage_params.gd`)
+Configures storage container properties. When non-null, `FurnitureLayer` attaches a `StorageInventory` node.
+
+| Field | Type | Description |
+|---|---|---|
+| `capacity` | `float` | Weight capacity in kg (default `100.0`). |
+| `allowed_item_ids` | `Array[String]` | Item ID whitelist for accepted items. |
+| `allowed_tags` | `Array[String]` | Item tag whitelist for accepted items. |
+| `priority` | `int` | Hauling priority from 1 to 5 (default `3`). |
+
+### `CraftingParams` (Resource: `crafting_params.gd`)
+Configures crafting station recipes. When non-null, `FurnitureLayer` attaches a `CraftingStation` node.
+
+| Field | Type | Description |
+|---|---|---|
+| `recipes` | `Array[RecipeDef]` | Ordered list of recipes craftable at this station. |
+
+### `TurretParams` (Resource: `turret_params.gd`)
+Configures automated turret defenses. When non-null, `FurnitureLayer` attaches a `TurretComponent` node.
+
+| Field | Type | Description |
+|---|---|---|
+| `range` | `float` | Maximum targeting range in meters. |
+| `fire_rate` | `float` | Fire rate in shots per second. |
+| `damage` | `int` | Direct damage per hit. |
+| `ammo_type` | `ItemDef` | Required ammunition item, or null for infinite/free firing. |
+| `muzzle_offset` | `Vector3` | Local position where projectiles spawn if no "Muzzle" node is found. |
+
+### `HarvestParams` (Resource: `harvest_params.gd`)
+Configures direct resource harvesting. When non-null, `FurnitureLayer` attaches a `Harvestable` node and contributes `toggle_harvest` `ActionOption`. Must not be used on farm plots (which resolve yields dynamically via `CropDef`).
+
+| Field | Type | Description |
+|---|---|---|
+| `yields` | `Array[ItemAmount]` | Items granted upon completing harvest. |
+| `work_time` | `float` | Work seconds demanded to harvest. |
+| `respawn_time` | `float` | Respawn delay in seconds (0.0 = destroyed on harvest). |
+| `required_tool_tag` | `String` | Required tool tag to harvest (e.g. "axe", "pickaxe"). |
 
 ---
 

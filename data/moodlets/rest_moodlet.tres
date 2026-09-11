@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="StatThresholdMoodletDef" format=3 uid="uid://crx1cepk43gdq"]
+
+[ext_resource type="Texture2D" uid="uid://eljl7y6odops" path="res://assets/custom/rest_moodlet/rest-100.png" id="1_shht2"]
+[ext_resource type="Texture2D" uid="uid://dlfevepamen7f" path="res://assets/custom/rest_moodlet/rest-90.png" id="2_2llo8"]
+[ext_resource type="Texture2D" uid="uid://b7ymxix1qa104" path="res://assets/custom/rest_moodlet/rest-75.png" id="3_0txn4"]
+[ext_resource type="Texture2D" uid="uid://dvpv3d6w8dt46" path="res://assets/custom/rest_moodlet/rest-50.png" id="4_jyrss"]
+[ext_resource type="Texture2D" uid="uid://biid3l5lnt4eb" path="res://assets/custom/rest_moodlet/rest-25.png" id="5_nk7vd"]
+[ext_resource type="Texture2D" uid="uid://bcxvp57sjycqu" path="res://assets/custom/rest_moodlet/rest-10.png" id="6_6hi10"]
+[ext_resource type="Texture2D" uid="uid://d0uaytdtcjtjo" path="res://assets/custom/rest_moodlet/rest-0.png" id="7_nxjly"]
+[ext_resource type="Script" uid="uid://cjjndnu01sf2i" path="res://data/moodlets/stat_threshold_moodlet_def.gd" id="8_m7756"]
+
+[resource]
+script = ExtResource("8_m7756")
+stat_id = &"rest"
+thresholds = Array[float]([1.0, 0.9, 0.75, 0.5, 0.25, 0.1, 0.0])
+icons = Array[Texture2D]([ExtResource("1_shht2"), ExtResource("2_2llo8"), ExtResource("3_0txn4"), ExtResource("4_jyrss"), ExtResource("5_nk7vd"), ExtResource("6_6hi10"), ExtResource("7_nxjly")])
+icon_hframes = Array[int]([1, 1, 1, 1, 2, 2, 2])
+frame_fps = 3.0
+line_number = 5
+metadata/_custom_type_script = "uid://cjjndnu01sf2i"

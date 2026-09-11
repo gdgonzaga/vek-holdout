@@ -118,3 +118,42 @@ func test_stale_telemetry_draws_nothing() -> void:
 
 	_visualizer._update_label()
 	assert_bool(_visualizer._label.text.contains("A*:")).is_false()
+
+
+func test_debug_billboard_visibility_toggle() -> void:
+	_colonist.set_debug_billboard_visible(true)
+	assert_bool(_colonist.is_debug_billboard_visible()).is_true()
+	assert_bool(_visualizer.is_billboard_visible()).is_true()
+	assert_bool(_visualizer._label.visible).is_true()
+
+	_colonist.set_path([Vector3(5, 0, 0), Vector3(10, 0, 0)])
+	_visualizer._draw_navigation_path()
+	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_greater(0)
+
+	_colonist.set_debug_billboard_visible(false)
+	assert_bool(_colonist.is_debug_billboard_visible()).is_false()
+	assert_bool(_visualizer.is_billboard_visible()).is_false()
+	assert_bool(_visualizer._label.visible).is_false()
+	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_equal(0)
+
+	_visualizer._process(0.016)
+	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_equal(0)
+
+	_colonist.set_debug_billboard_visible(true)
+	assert_bool(_colonist.is_debug_billboard_visible()).is_true()
+	assert_bool(_visualizer.is_billboard_visible()).is_true()
+	assert_bool(_visualizer._label.visible).is_true()
+
+
+func test_freed_smart_object_does_not_crash_visualizer() -> void:
+	var temp_node := Node3D.new()
+	add_child(temp_node)
+	_colonist.bt_player.blackboard.set_var(&"target_smart_object", temp_node)
+
+	# Free the target node while the blackboard still references it
+	temp_node.free()
+
+	# Must not raise "Left operand of 'is' is a previously freed instance"
+	_visualizer._draw_navigation_path()
+	_visualizer._process(0.016)
+	assert_object(_visualizer).is_not_null()

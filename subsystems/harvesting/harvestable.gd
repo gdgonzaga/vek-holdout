@@ -16,10 +16,7 @@ var _furniture: Furniture:
 
 ## Back-ref to the definition's HarvestParams.
 func params() -> HarvestParams:
-	if _furniture == null or _furniture.def == null:
-		return null
-	var fdef := _furniture.def as FurnitureDef
-	return fdef.harvest_params if fdef != null else null
+	return Furniture.get_capability(_furniture, HarvestParams) as HarvestParams
 
 
 ## This furniture's anchor cell (the footprint corner; Colony's job dedupe key).

@@ -31,3 +31,9 @@ class_name GameConfig
 @export var day_sky_horizon_color: Color = Color(0.65, 0.65, 0.67)
 @export var night_sky_top_color: Color = Color(0.01, 0.02, 0.05)
 @export var night_sky_horizon_color: Color = Color(0.04, 0.06, 0.12)
+
+@export_group("Debug Logging")
+@export var log_to_file: bool = true
+@export var log_to_console: bool = false
+@export var log_file_path: String = "user://logs/debug.log"
+@export var colonist_debug_logging: bool = true
