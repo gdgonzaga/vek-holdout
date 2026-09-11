@@ -33,22 +33,28 @@ func _tick(_delta: float) -> Status:
 	if source_type == &"inventory":
 		return SUCCESS
 
-	var source_node: Node = null
-	if blackboard.has_var(food_source_var):
-		source_node = blackboard.get_var(food_source_var)
+	# 2. Source Extraction: Fetch food source variant safely without prematurely casting freed instances.
+	var raw_source: Variant = _read_blackboard_source()
 
 	var item_id: String = ""
 	if blackboard.has_var(food_item_var):
-		item_id = blackboard.get_var(food_item_var)
+		item_id = str(blackboard.get_var(food_item_var))
 
-	if source_node == null or not is_instance_valid(source_node) or item_id == "":
+	# 3. Defensive Validation: Reject null, deleted, or invalid instances before type-casting to Node.
+	if not is_instance_valid(raw_source) or not (raw_source is Node) or (raw_source as Node).is_queued_for_deletion() or item_id == "":
+		# 4. Blackboard Cleanup: Clear dangling references to freed target items to prevent soft-locks.
+		_clear_invalid_food_source()
 		return FAILURE
 
-	# 2. Source Withdrawal: Transfer 1 food unit from source crate or ground item into pockets.
+	var source_node := raw_source as Node
+
+	# 5. Source Withdrawal: Transfer 1 food unit from source crate or ground item into pockets.
 	var transfer_success: bool = _withdraw_food_from_source(source_node, item_id, source_type)
 	if transfer_success:
 		return SUCCESS
 
+	# 6. Withdrawal Failure Cleanup: Clear stale blackboard entries if item was consumed or vanished.
+	_clear_invalid_food_source()
 	return FAILURE
 
 
@@ -56,8 +62,32 @@ func _tick(_delta: float) -> Status:
 # Auxiliary Functions
 # ===================
 
+func _read_blackboard_source() -> Variant:
+	## Auxiliary: Retrieves raw food source variant from blackboard without typed assignment.
+	if blackboard != null and blackboard.has_var(food_source_var):
+		return blackboard.get_var(food_source_var)
+	return null
+
+
+func _clear_invalid_food_source() -> void:
+	## Auxiliary: Cleans up invalid, deleted, or emptied food target references from blackboard.
+	if blackboard == null:
+		return
+	if blackboard.has_var(food_source_var):
+		blackboard.erase_var(food_source_var)
+	if blackboard.has_var(food_type_var):
+		blackboard.erase_var(food_type_var)
+	if blackboard.has_var(food_item_var):
+		blackboard.erase_var(food_item_var)
+	if blackboard.has_var(&"target_smart_object"):
+		blackboard.set_var(&"target_smart_object", null)
+
+
 func _withdraw_food_from_source(source: Node, item_id: String, source_type: StringName) -> bool:
 	## Auxiliary: Resolves source container or ground item and moves 1 unit to agent inventory.
+	if not is_instance_valid(source) or source.is_queued_for_deletion():
+		return false
+
 	var agent_inv: CharacterInventory = null
 	if "inventory" in agent and agent.inventory is CharacterInventory:
 		agent_inv = agent.inventory
@@ -90,8 +120,10 @@ func _withdraw_from_crate(crate: Node, item_id: String, dest_inv: CharacterInven
 
 func _withdraw_from_ground(ground_item: Node, item_id: String, dest_inv: CharacterInventory) -> bool:
 	## Auxiliary: Consumes or reduces 1 count from ground WorldItem.
+	if not is_instance_valid(ground_item) or ground_item.is_queued_for_deletion():
+		return false
 	var world_item := ground_item as WorldItem
-	if world_item == null or not is_instance_valid(world_item) or world_item.is_queued_for_deletion():
+	if world_item == null:
 		return false
 	if world_item.item_id != item_id or world_item.count <= 0:
 		return false
