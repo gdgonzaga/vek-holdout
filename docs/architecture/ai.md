@@ -126,3 +126,9 @@ Agents communicate state between `ColonistBrain`, `BTPlayer`, and `BTTask` leave
 - `ColonistBrain` saves and restores active blackboard variables (`current_goal`, active targets).
 - `ColonistNeeds` serializes dictionary of need values (`hunger`, `rest`, `recreation`).
 - `JobBoard` preserves temporary colonist job blacklists across save states.
+
+---
+
+## Detailed Guides & Gotchas
+
+For a deep dive into the Utility AI decision pipeline, the 60 Hz LimboAI dynamic selector execution flow, and hard-learned edge cases (such as job capacity gates, self-occupancy, and state desync), see [AI Brain & Decision Making](ai-brain.md).

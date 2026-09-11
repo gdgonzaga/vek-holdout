@@ -35,6 +35,7 @@ nav:
     - Colonists: architecture/colonists.md
     - Jobs: architecture/jobs.md
     - "AI & Behavior Trees": architecture/ai.md
+    - "AI Brain & Decision Making": architecture/ai-brain.md
     - "Pathfinding & Navigation": architecture/pathfinding.md
     - Skills: architecture/skills.md
     - Maps: architecture/maps.md
