@@ -33,7 +33,7 @@ Data-driven definition for colonist needs (`hunger`, `rest`, `recreation`). The 
 | Field | Type | Description |
 |---|---|---|
 | `id` | `StringName` | Unique need identifier (e.g. `&"hunger"`, `&"rest"`, `&"recreation"`). |
-| `decay_per_second` | `float` | Need decay rate per second (from `1.0` satisfied toward `0.0` depleted). |
+| `decay_per_game_hour` | `float` | Need decay rate per second (from `1.0` satisfied toward `0.0` depleted). |
 | `response_curve` | `Curve` | Optional Curve mapping deficit (`0.0`..`1.0`) to Utility AI urgency score (`0.0`..`1.0`). |
 | `emergency_threshold` | `float` | Critical threshold (`0.10`) forcing immediate need satisfaction. |
 | `goal_name` | `StringName` | High-level goal written to Blackboard on winning arbitration (e.g. `&"eat"`, `&"rest"`). |
@@ -192,16 +192,16 @@ Configures colonist rest capability (GDD §6.8). When non-null, `FurnitureLayer`
 | Field | Type | Description |
 |---|---|---|
 | `sleep_offset` | `Vector3` | Local position offset relative to furniture origin where colonist sleeps (default `Vector3.ZERO`). |
-| `rest_rate_per_second` | `float` | Rate at which the rest need is restored per second on a 0.0 to 1.0 scale (default `0.15`). |
+| `rest_per_game_hour` | `float` | Rate at which the rest need is restored per second on a 0.0 to 1.0 scale (default `0.15`). |
 
 ### `RecreationParams` (Resource: `recreation_params.gd`)
 Configures colonist recreation capability (see [Recreation](recreation.md)). When non-null, `FurnitureLayer` attaches a `RecreationComponent` node that rations simultaneous users and resolves stand positions. The owning `FurnitureDef` must also declare `tags = ["recreation_object"]` so it joins the group `need_recreation.tres` targets.
 
 | Field | Type | Description |
 |---|---|---|
-| `recreation_per_second` | `float` | Rate at which the recreation need is restored per second while in use, on a 0.0 to 1.0 scale (default `0.08`). |
-| `min_session_seconds` | `float` | Minimum seconds a colonist commits to once a session starts, even if the need fills earlier (default `4.0`). |
-| `max_session_seconds` | `float` | Ceiling on one session; the colonist leaves and re-arbitrates even if the need is unfilled (default `20.0`). |
+| `recreation_per_game_hour` | `float` | Rate at which the recreation need is restored per second while in use, on a 0.0 to 1.0 scale (default `0.08`). |
+| `min_session_game_hours` | `float` | Minimum seconds a colonist commits to once a session starts, even if the need fills earlier (default `4.0`). |
+| `max_session_game_hours` | `float` | Ceiling on one session; the colonist leaves and re-arbitrates even if the need is unfilled (default `20.0`). |
 | `capacity` | `int` | Simultaneous users. `1` is exclusive, `N` allows N at once, `-1` is unlimited (default `1`). |
 | `use_radius` | `float` | Maximum distance in meters at which a colonist still accrues. `1.5` requires adjacency (default `1.5`). |
 | `use_offsets` | `Array[Vector3]` | Optional standing spots local to the furniture origin, rotated by the furniture transform at runtime. When non-empty they are the exact positions colonists are sent to and they cap the effective capacity (default empty). |

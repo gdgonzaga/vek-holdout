@@ -43,7 +43,7 @@ The subsystem operates through a layered decision and execution hierarchy:
 Manages individual colonist need levels (hunger, rest, recreation) on a normalized `0.0` (fully depleted) to `1.0` (fully satisfied) scale.
 
 - **Data-Driven Definitions**: Need properties are defined by `NeedDef` resources (`data/needs/*.tres`).
-- **Decay Loop**: Evaluates `decay_per_second` during `_process(delta)` to decay active need values.
+- **Decay Loop**: Evaluates `decay_per_game_hour` during `_process(delta)` to decay active need values.
 - **Persistence**: Implements `serialize() -> Dictionary` and `deserialize(data: Dictionary)` for SaveSystem compatibility.
 
 ### 2. `ColonistBrain` (`subsystems/ai/colonist_brain.gd`)

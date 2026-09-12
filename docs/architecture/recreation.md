@@ -6,7 +6,7 @@ Colonists carry a `recreation` need alongside hunger and rest. Recreation furnit
 
 **Design notes:**
 
-- **Rate, not flat restore.** `recreation_per_second` plus a min/max session window is what lets one capability express both a fast exclusive object and a slow shared one. Object quality is purely data — no code branches per furniture type.
+- **Rate, not flat restore.** `recreation_per_game_hour` plus a min/max session window is what lets one capability express both a fast exclusive object and a slow shared one. Object quality is purely data — no code branches per furniture type.
 - **Capacity is the whole concurrency model.** `capacity = 1` is exclusive, `N` is N at once, `-1` is unlimited. Authored `use_offsets` refine exact standing spots and cap the effective capacity, because there is nowhere sensible to put a user past the last authored spot.
 - **`use_radius` decouples benefit from adjacency.** `1.5` means the colonist must stand next to the object. A television would author roughly `6.0` and be watched from across a room. There is no line-of-sight check.
 - **Occupancy is transient.** `serialize_state()` returns `{}`. Claims are runtime-only; colonists re-arbitrate from scratch on load rather than restoring a phantom reservation.
@@ -40,7 +40,7 @@ Colonists carry a `recreation` need alongside hunger and rest. Recreation furnit
 4. `_resolve_stand_pos()` writes `target_stand_pos` — the authored `use_offsets` slot transformed into world space, or the furniture origin when no offsets exist.
 5. `BTConditionGoalIs(&"recreation")` admits the branch; `BTActionNavigateTo` paths to `target_stand_pos`.
 6. `BTActionUseRecreation._enter()` promotes the reservation via `begin_use()` and plays `use_animation`.
-7. Each tick accrues `recreation_per_second * delta` and enforces `use_radius`. The session ends once `min_session_seconds` has elapsed **and** either the need is full or `max_session_seconds` is reached.
+7. Each tick accrues `recreation_per_game_hour * delta` and enforces `use_radius`. The session ends once `min_session_game_hours` has elapsed **and** either the need is full or `max_session_game_hours` is reached.
 8. `_exit()` calls `end_use()`, freeing the slot. The goal is cleared to `&"none"` so the brain re-arbitrates.
 
 **End state:** the need is restored (fully, or partially if the ceiling hit first), the slot is free, and the colonist is back in open arbitration.
@@ -61,7 +61,7 @@ Colonists carry a `recreation` need alongside hunger and rest. Recreation furnit
 | Function | Description |
 |---|---|
 | `effective_capacity() -> int` | Authored capacity, clamped down by `use_offsets.size()` when offsets exist. `-1` means unlimited. |
-| `session_ceiling_seconds() -> float` | `max_session_seconds` floored at `min_session_seconds`, so a misauthored window can't make the minimum unsatisfiable. |
+| `session_ceiling_game_hours() -> float` | `max_session_game_hours` floored at `min_session_game_hours`, so a misauthored window can't make the minimum unsatisfiable. |
 
 ### Class: RecreationComponent
 

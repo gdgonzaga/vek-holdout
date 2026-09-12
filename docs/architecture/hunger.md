@@ -73,7 +73,7 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 |---|---|---|
 | `max_hunger` | `float` | Maximum hunger capacity (default `1.0`). |
 | `current_hunger` | `float` | Current hunger points (default `1.0`). Setter clamps to `[0.0, max_hunger]` and emits `hunger_changed` on change. |
-| `decay_rate` | `float` | Satiety drained per real second during simulation (default `0.05`). |
+| `decay_per_game_hour` | `float` | Satiety drained per real second during simulation (default `0.05`). |
 | `starvation_damage_interval` | `float` | Time in seconds between starvation damage applications (default `5.0`). |
 | `starvation_damage` | `int` | Damage points inflicted per starvation tick (default `2`). |
 | `starvation_speed_mult` | `float` | Movement speed multiplier applied while starving (default `0.80`). |

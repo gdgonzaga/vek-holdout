@@ -132,15 +132,15 @@ Recreation objects satisfy the colonist `recreation` need. See ARCH `recreation.
    **Exclusive, adjacent, fast** (`game_table.tres` — one colonist at a time, like an arcade cabinet):
    - `capacity`: `1`
    - `use_radius`: `1.5` (must stand next to it)
-   - `recreation_per_second`: `0.12`
-   - `min_session_seconds` / `max_session_seconds`: `5.0` / `20.0`
+   - `recreation_per_game_hour`: `0.12`
+   - `min_session_game_hours` / `max_session_game_hours`: `5.0` / `20.0`
    - `use_offsets`: `[Vector3(0, 0, 0.9)]` — one authored standing spot in front of the table
 
    **Shared, at range, slow** (`stone_statue.tres` — any number of onlookers, like a mural or a television):
    - `capacity`: `-1` (unlimited)
    - `use_radius`: `4.0` (admired from a distance; a TV would use ~`6.0`)
-   - `recreation_per_second`: `0.04`
-   - `min_session_seconds` / `max_session_seconds`: `4.0` / `12.0`
+   - `recreation_per_game_hour`: `0.04`
+   - `min_session_game_hours` / `max_session_game_hours`: `4.0` / `12.0`
    - `use_offsets`: omitted — colonists path to any walkable cell near the object
 
 4. Note that `use_offsets` **caps** the effective capacity: authoring two offsets on a `capacity = 4` object yields two slots, because there is nowhere sensible to put the third user. Leave it empty when capacity should be the only limit.

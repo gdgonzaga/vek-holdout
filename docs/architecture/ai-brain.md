@@ -14,7 +14,7 @@ Decision-making and execution are decoupled into distinct tiers operating on dif
                                          v
 [ Tier 2: Goal Arbitration ]      ColonistBrain (Utility AI polled every 1.5s)
                                          |
-                                         | Writes: current_goal, target_smart_object
+                                         | Writes: current_goal, target_stand_pos
                                          v
 [ Tier 3: Shared Memory ]         LimboAI Blackboard (runtime key-value state)
                                          |
@@ -46,7 +46,7 @@ arbitrated this cycle, so one branch can never satisfy another branch's goal.
 
 3. **`LimboAI Blackboard`**:
    - The shared memory bus connecting `ColonistBrain` and behavior tree tasks.
-   - Keys include `current_goal`, `target_smart_object`, `active_job`, `active_claim`, `target_pos`, `required_equipped`, and `required_equipped_tags`.
+   - Keys include `current_goal`, `target_stand_pos`, `active_job`, `active_claim`, `target_pos`, `required_equipped`, and `required_equipped_tags`.
 
 4. **`BTPlayer` / Behavior Tree (`data/ai/trees/colonist_root.tres`)**:
    - Reactive behavior tree running under a `BTDynamicSelector`.
@@ -94,7 +94,7 @@ To prevent "thrashing" (rapidly oscillating between eating, resting, and working
 
 ### Step 5: Winning Goal Selection & Blackboard Write
 - The highest-scoring goal is selected (`winning_goal`). If all scores are `<= 0.0`, it defaults to `&"work"`.
-- The brain writes `current_goal` and `target_smart_object` into the blackboard.
+- The brain writes `current_goal` and `target_stand_pos` into the blackboard.
 - **Claim handover:** `_sync_reservation()` releases any claim held on a previous target and calls
   `reserve()` on the winner. Claiming happens only after the winner is known — reserving during
   scoring would starve rival colonists of objects this colonist ultimately walks away from. The claim
@@ -119,10 +119,10 @@ The root task of the colonist behavior tree is a **`BTDynamicSelector`**. Unlike
 2. **Smart Object Sequence (`BTSequence_vo5ph` - Beds / Sleep)**:
    - `BTConditionGoalIs(&"sleep")`: Gates the branch. **Load-bearing** — without it, an `&"eat"` goal
      whose food vanished between the brain's 1.5s poll and the tick falls through from branch 1 into
-     this sequence, walks to the *food crate*, and `BTActionUseSmartObject` matches
+     this sequence, walks to the *food crate*, and `BTActionUseBed` matches
      `def.goal_name == &"eat"` and refills hunger with nothing consumed.
-   - `BTActionNavigateTo`: Walks to `target_smart_object`.
-   - `BTActionUseSmartObject`: Interacts with furniture (e.g. bed sleep cycle) until need is replenished.
+   - `BTActionNavigateTo`: Walks to `target_stand_pos`.
+   - `BTActionUseBed`: Interacts with furniture (e.g. bed sleep cycle) until need is replenished.
 
 3. **Recreation Sequence (`BTSequence_recreation`)**:
    - `BTConditionGoalIs(&"recreation")`: Gates the branch.

@@ -15,7 +15,7 @@ Colonist needs (e.g., Hunger, Rest, Recreation) are defined as text-based `.tres
 | Property Name | Type | Default | Description |
 |---|---|---|---|
 | `id` | `StringName` | `&"hunger"` | Unique identifier for the need (e.g. `&"hunger"`, `&"rest"`, `&"recreation"`). |
-| `decay_per_second` | `float` | `0.05` | Rate at which the need level decays from `1.0` (satisfied) toward `0.0` per second. |
+| `decay_per_game_hour` | `float` | `0.05` | Rate at which the need level decays from `1.0` (satisfied) toward `0.0` per second. |
 | `response_curve` | `Curve` | `null` | Optional Godot inspector `Curve` mapping deficit (`0.0`..`1.0`) to Utility AI urgency score (`0.0`..`1.0`). If `null`, linear evaluation is used. |
 | `emergency_threshold` | `float` | `0.10` | Critical need level threshold at which action commitment inertia is bypassed, forcing immediate need satisfaction. |
 | `goal_name` | `StringName` | `&"eat"` | High-level goal identifier written to the agent's Blackboard when this need wins Utility arbitration (e.g. `&"eat"`, `&"rest"`, `&"recreation"`). |
@@ -39,7 +39,7 @@ All need definitions MUST be saved inside `res://data/needs/` with filenames mat
 [resource]
 script = ExtResource("1_needdef")
 id = &"hunger"
-decay_per_second = 0.005
+decay_per_game_hour = 0.005
 emergency_threshold = 0.15
 goal_name = &"eat"
 target_group = &"storage_crate"
