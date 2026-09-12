@@ -65,6 +65,12 @@ Programmatic generator for core behavior tree resources. Provides factory method
 
 ---
 
+## AIUtils
+
+`subsystems/ai/ai_utils.gd` is a static-only helper class (`class_name AIUtils`) shared by ColonistBrain and the BT tasks below to avoid re-implementing the same scans/lookups per task: `find_nearest_in_group()` (nearest valid Node3D in a scene group), `resolve_job_def()` (unwraps a legacy `Job`, fractional `JobInstance`, or `WorkerClaim` to its `JobDef`), `extract_tool_requirements()` / `resolve_character_inventory()` / `is_edible_item()` / `drop_unneeded_items()`, and `resolve_anim_controller()`.
+
+---
+
 ## Custom LimboAI Tasks
 
 Custom tasks extend `BTAction` or `BTCondition` and reside in `subsystems/ai/tasks/`.
@@ -78,7 +84,6 @@ Custom tasks extend `BTAction` or `BTCondition` and reside in `subsystems/ai/tas
 | `BTActionNavigateTo` | `bt_action_navigate_to.gd` | Navigates the agent to `target_var` (Vector3 or Node3D) using VoxelPathfinder, checking arrival distance and applying blacklists on stuck/unreachable paths. The task's own variable is authoritative when it exists (a null value means "no target" and never falls through to the generic fallback vars), and only the task instance that last set the agent's path (the `bt_nav_path_owner` agent meta, shared with `BTActionWander`) may clear it on exit — sibling branches under the root `BTDynamicSelector` re-tick every frame and must not wipe each other's path. |
 | `BTActionPerformWork` | `bt_action_perform_work.gd` | Executes one work cycle: plays `work_animation`, runs for the def-derived duration (`work_duration`, or dynamic `JobDef.begin` when that is 0.0, divided by the actor's skill multiplier), then fires the terminal effect — `apply_work_units()` on `JobInstance`/`WorkerClaim`, or `JobDef.complete(actor, job)` on legacy `Job`s (the def contract in ARCH Jobs). Releases `active_job`/`active_claim` (and the legacy assignee slot) once the cycle finishes so the next tick claims fresh work; a preempted cycle fires `JobDef.on_abort` to persist partial progress / release claims. |
 | `BTActionHaulBatch` | `bt_action_haul_batch.gd` | Executes item pickup (mode 0) and deposit (mode 1) between inventory and storage targets. |
-| `BTActionCalcHaulBatch` | `bt_action_calc_haul_batch.gd` | Calculates optimal haul item count based on worker capacity and unclaimed job units. |
 | `BTActionUseSmartObject` | `bt_action_use_smart_object.gd` | Interacts with smart objects (beds, dining tables, chairs) to satisfy colonist needs and play interaction animations. |
 | `BTActionWander` | `bt_action_wander.gd` | Picks a random walkable point within a specified radius for idle movement. |
 | `BTActionScanThreats` | `bt_action_scan_threats.gd` | Scans surrounding area for hostile targets (colonists or colony structures). |
@@ -90,7 +95,6 @@ Custom tasks extend `BTAction` or `BTCondition` and reside in `subsystems/ai/tas
 | Task Class | Script | Description |
 |---|---|---|
 | `BTConditionHasTool` | `bt_condition_has_tool.gd` | Returns `SUCCESS` if the colonist has the required tool equipped for `active_job`. |
-| `BTConditionJobStillNeeded` | `bt_condition_job_still_needed.gd` | Returns `SUCCESS` if `active_job` remains valid, incomplete, and non-cancelled. |
 | `BTConditionInGroup` | `bt_condition_in_group.gd` | Returns `SUCCESS` if the target node belongs to a specified group. |
 | `BTConditionPathBlocked` | `bt_condition_path_blocked.gd` | Returns `SUCCESS` if pathfinding returned an impassable or blocked path. |
 

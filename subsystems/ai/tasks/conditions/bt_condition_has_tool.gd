@@ -60,16 +60,10 @@ func _tick(_delta: float) -> Status:
 				job = blackboard.get_var(&"active_job")
 			elif blackboard.has_var(&"active_claim"):
 				job = blackboard.get_var(&"active_claim")
-			if job != null and is_instance_valid(job):
-				var def_obj: Resource = job.def if "def" in job and job.def != null else (job.job_def if "job_def" in job else null)
-				if def_obj != null:
-					if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
-						req_id = str(def_obj.required_equipped)
-					if def_obj.has_method("get_effective_required_tags"):
-						req_tags = def_obj.get_effective_required_tags()
-					elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
-						for t: Variant in def_obj.required_equipped_tags:
-							req_tags.append(StringName(str(t)))
+			# 1. Def Requirement Extraction: Reads item id/tags off the job's def, if any.
+			var reqs: Dictionary = AIUtils.extract_tool_requirements(AIUtils.resolve_job_def(job))
+			req_id = str(reqs.get("item_id", ""))
+			req_tags = reqs.get("tags", [] as Array[StringName])
 
 	# If no requirement exists, condition passes vacuously
 	if req_tags.is_empty() and req_id == "":
@@ -103,10 +97,3 @@ func _tick(_delta: float) -> Status:
 					
 	ColonistLogger.log_msg(agent as Node, &"TOOL", "ConditionHasTool FAILURE. req_id: %s, req_tags: %s" % [req_id, str(req_tags)])
 	return FAILURE
-
-
-func _item_has_tag(item_id: String, tag: String) -> bool:
-	var def = ItemDB.get_def(item_id)
-	if def != null and "tags" in def and def.tags is Array:
-		return def.tags.has(tag)
-	return false

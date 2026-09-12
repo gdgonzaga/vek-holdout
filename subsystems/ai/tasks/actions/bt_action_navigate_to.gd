@@ -78,7 +78,7 @@ func _enter() -> void:
 
 	_requires_adjacent = true
 	var job_candidate: Variant = null
-	if target is Job or (target is Object and is_instance_valid(target) and ("job_instance" in target or "def" in target)):
+	if target is Job or target is JobInstance or target is WorkerClaim:
 		job_candidate = target
 	elif blackboard:
 		if blackboard.has_var(&"active_job"):
@@ -87,18 +87,10 @@ func _enter() -> void:
 			job_candidate = blackboard.get_var(&"active_claim")
 
 	if job_candidate != null:
-		if job_candidate is Job and job_candidate.def != null and "requires_adjacent" in job_candidate.def:
-			_requires_adjacent = job_candidate.def.requires_adjacent
-		elif job_candidate is Object and is_instance_valid(job_candidate):
-			if "job_instance" in job_candidate and job_candidate.job_instance != null:
-				var def = job_candidate.job_instance.get("def")
-				if def != null and "requires_adjacent" in def:
-					_requires_adjacent = def.requires_adjacent
-			elif "def" in job_candidate and job_candidate.def != null and "requires_adjacent" in job_candidate.def:
-				_requires_adjacent = job_candidate.def.requires_adjacent
-			elif job_candidate is DeployJobDef or ("def" in job_candidate and job_candidate.def is DeployJobDef):
-				_requires_adjacent = false
-		
+		# 1. Adjacency Resolution: Reads requires_adjacent off the job's def, whether
+		# job_candidate is a legacy Job, a fractional JobInstance, or a WorkerClaim.
+		_requires_adjacent = _resolve_requires_adjacent(job_candidate)
+
 	# 1. Path Calculation: Initial path computation towards target location.
 	var path: Array[Vector3] = _resolve_path_to_target(target)
 	
@@ -122,6 +114,13 @@ func _enter() -> void:
 		if agent is Node:
 			(agent as Node).set_meta(_PATH_OWNER_META, get_instance_id())
 
+
+func _resolve_requires_adjacent(job_candidate: Variant) -> bool:
+	## Auxiliary: True unless job_candidate's def explicitly sets requires_adjacent = false.
+	var def_obj: Resource = AIUtils.resolve_job_def(job_candidate)
+	if def_obj != null and "requires_adjacent" in def_obj:
+		return def_obj.requires_adjacent
+	return true
 
 
 func _tick(delta: float) -> Status:
@@ -208,15 +207,8 @@ func _resolve_path_to_target(target: Variant) -> Array[Vector3]:
 	if target is StringName or target is String:
 		var group_name := StringName(str(target))
 		if agent.get_tree():
-			var nodes := agent.get_tree().get_nodes_in_group(group_name)
-			var closest: Node3D = null
-			var min_d_sq := INF
-			for n in nodes:
-				if is_instance_valid(n) and not n.is_queued_for_deletion() and n is Node3D:
-					var d_sq := agent_pos.distance_squared_to((n as Node3D).global_position)
-					if d_sq < min_d_sq:
-						min_d_sq = d_sq
-						closest = n as Node3D
+			# 1. Group Target Resolution: Finds the nearest live Node3D in the named group.
+			var closest: Node3D = AIUtils.find_nearest_in_group(agent.get_tree(), group_name, agent_pos)
 			if closest != null:
 				target = closest
 	
@@ -292,8 +284,8 @@ func _handle_navigation_failure() -> void:
 	if blackboard.has_var(&"active_claim"):
 		var claim: Variant = blackboard.get_var(&"active_claim")
 		if claim != null and is_instance_valid(claim):
-			if "job_instance" in claim and claim.job_instance != null and is_instance_valid(claim.job_instance):
-				job_id = str(claim.job_instance.id)
+			if "job" in claim and claim.job != null and is_instance_valid(claim.job):
+				job_id = str(claim.job.id)
 			if claim.has_method("abandon"):
 				claim.abandon()
 		blackboard.erase_var(&"active_claim")
@@ -311,15 +303,7 @@ func _handle_navigation_failure() -> void:
 			if "title" in job and job.title == "Store Carried Items" and agent is Colonist:
 				var colonist := agent as Colonist
 				if colonist.inventory != null and colonist.hands_full():
-					for item_id in colonist.inventory.items.keys().duplicate():
-						var item_def := ItemDB.get_def(str(item_id)) if ItemDB != null else null
-						if item_def != null and item_def.tags.has("tool"):
-							continue
-						var count: int = colonist.inventory.get_item_count(str(item_id))
-						if count > 0:
-							colonist.inventory.remove(str(item_id), count)
-							if colonist.is_inside_tree():
-								WorldItem.spawn_at(colonist, str(item_id), count, colonist.global_position + Vector3(0, 0.5, 0))
+					AIUtils.drop_unneeded_items(colonist)
 		blackboard.erase_var(&"active_job")
 
 	var failed_target_node: Node = null

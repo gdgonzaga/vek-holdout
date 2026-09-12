@@ -42,6 +42,8 @@ func _tick(_delta: float) -> Status:
 					(agent as Colonist).current_job = null
 			else:
 				var active_job_inst: Variant = blackboard.get_var(job_var) if blackboard.has_var(job_var) else null
+				# 1. Target Synchronization: Updates target_pos if multi-leg job changes site.
+				_update_active_job_target_pos(colonist, active_job_inst)
 				_cleanup_incompatible_held_items(colonist, active_job_inst)
 				return SUCCESS
 
@@ -174,11 +176,7 @@ func _cleanup_incompatible_held_items(colonist: Colonist, job: Variant = null) -
 		return
 
 	var needed_ids: Array[String] = []
-	var def: Resource = null
-	if "def" in job:
-		def = job.def
-	elif "job_def" in job:
-		def = job.job_def
+	var def: Resource = AIUtils.resolve_job_def(job)
 
 	if def is HaulingJobDef:
 		if def._storage_crate_of(job) != null:
@@ -191,17 +189,7 @@ func _cleanup_incompatible_held_items(colonist: Colonist, job: Variant = null) -
 		if wi != null:
 			needed_ids.append(str(wi.item_id))
 
-	for item_id in colonist.inventory.items.keys().duplicate():
-		var id_str := str(item_id)
-		var item_def := ItemDB.get_def(id_str) if ItemDB != null else null
-		if item_def != null and item_def.tags.has("tool"):
-			continue
-		if not needed_ids.has(id_str):
-			var count: int = colonist.inventory.get_item_count(id_str)
-			if count > 0:
-				colonist.inventory.remove(id_str, count)
-				if colonist.is_inside_tree():
-					WorldItem.spawn_at(colonist, id_str, count, colonist.global_position + Vector3(0, 0.5, 0))
+	AIUtils.drop_unneeded_items(colonist, needed_ids)
 
 
 ## True when a held claim can no longer be worked: its units are finished, or
@@ -230,16 +218,10 @@ func _sync_tool_requirements_to_blackboard(def_obj: Resource) -> void:
 	## Auxiliary: Populates blackboard with tool ID and tag requirements from job def.
 	if blackboard == null:
 		return
-	var req_id: String = ""
-	var req_tags: Array[StringName] = []
-	if def_obj != null:
-		if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
-			req_id = str(def_obj.required_equipped)
-		if def_obj.has_method("get_effective_required_tags"):
-			req_tags = def_obj.get_effective_required_tags()
-		elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
-			for t: Variant in def_obj.required_equipped_tags:
-				req_tags.append(StringName(str(t)))
+	# 1. Def Requirement Extraction: Reads item id/tags off the job's def, if any.
+	var reqs: Dictionary = AIUtils.extract_tool_requirements(def_obj)
+	var req_id: String = str(reqs.get("item_id", ""))
+	var req_tags: Array[StringName] = reqs.get("tags", [] as Array[StringName])
 
 	if req_id != "":
 		blackboard.set_var(&"required_equipped", req_id)
@@ -258,8 +240,9 @@ func _update_active_job_target_pos(colonist: Colonist, job: Variant) -> void:
 	## Auxiliary: Dynamically updates target_pos on blackboard for continuing multi-leg jobs.
 	if blackboard == null or colonist == null or job == null:
 		return
-	if "def" in job and job.def != null and job.def.has_method("work_site"):
-		var site: Variant = job.def.work_site(colonist, job)
+	var job_def_obj: Resource = AIUtils.resolve_job_def(job)
+	if job_def_obj != null and job_def_obj.has_method("work_site"):
+		var site: Variant = job_def_obj.work_site(colonist, job)
 		if site is Vector3:
 			blackboard.set_var(target_pos_var, site)
 			return

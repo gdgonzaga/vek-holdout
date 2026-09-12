@@ -226,23 +226,14 @@ func _exit() -> void:
 	# let the def persist partial progress / release held claims (JobDef
 	# on_abort). A finished cycle already resolved everything.
 	if not _cycle_finished and agent != null and _job_ref != null and is_instance_valid(_job_ref):
-		var def: Variant = null
-		if "def" in _job_ref and _job_ref.def != null:
-			def = _job_ref.def
-		elif "job_def" in _job_ref and _job_ref.job_def != null:
-			def = _job_ref.job_def
+		var def: Resource = AIUtils.resolve_job_def(_job_ref)
 		if def != null and def.has_method("on_abort"):
 			def.on_abort(agent, _job_ref, _elapsed)
 	_job_ref = null
 
 
 func _resolve_anim_controller() -> void:
-	if _anim_controller and is_instance_valid(_anim_controller):
-		return
-	if agent:
-		_anim_controller = agent.get_node_or_null("ColonistAnimationController")
-		if not _anim_controller:
-			_anim_controller = agent.find_child("ColonistAnimationController", true, false)
+	_anim_controller = AIUtils.resolve_anim_controller(_anim_controller, agent)
 
 
 func _is_required_tool_equipped() -> bool:
@@ -251,7 +242,7 @@ func _is_required_tool_equipped() -> bool:
 	if def_obj == null:
 		return true
 
-	var reqs: Dictionary = _extract_job_equipment_requirements(def_obj)
+	var reqs: Dictionary = AIUtils.extract_tool_requirements(def_obj)
 	var req_id: String = str(reqs.get("item_id", ""))
 	var req_tags: Array[StringName] = reqs.get("tags", [] as Array[StringName])
 	if req_id == "" and req_tags.is_empty():
@@ -273,25 +264,4 @@ func _resolve_active_job_def() -> Resource:
 			job = blackboard.get_var(job_var)
 		elif blackboard.has_var(&"active_claim"):
 			job = blackboard.get_var(&"active_claim")
-	if job == null or not is_instance_valid(job):
-		return null
-	if "def" in job and job.def != null:
-		return job.def as Resource
-	if "job_def" in job and job.job_def != null:
-		return job.job_def as Resource
-	return null
-
-
-func _extract_job_equipment_requirements(def_obj: Resource) -> Dictionary:
-	## Auxiliary: Extracts required item ID and tag array from a job definition.
-	var req_id: String = ""
-	var req_tags: Array[StringName] = []
-	if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
-		req_id = str(def_obj.required_equipped)
-	if def_obj.has_method("get_effective_required_tags"):
-		req_tags = def_obj.get_effective_required_tags()
-	elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
-		for t: Variant in def_obj.required_equipped_tags:
-			if t is StringName or t is String:
-				req_tags.append(StringName(str(t)))
-	return {"item_id": req_id, "tags": req_tags}
+	return AIUtils.resolve_job_def(job)

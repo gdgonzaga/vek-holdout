@@ -51,10 +51,10 @@ func evaluate_goals() -> void:
 	var scores: Dictionary = {}
 	var best_targets: Dictionary = {}
 	var deficits: Dictionary = {}
+	var defs := ColonistNeeds.get_need_defs()
 
 	# 1. Evaluate need-based goals
 	if _needs != null:
-		var defs := ColonistNeeds.get_need_defs()
 		for need_id in defs:
 			var def: Resource = defs[need_id]
 			var deficit: float = _needs.get_deficit(need_id)
@@ -111,7 +111,6 @@ func evaluate_goals() -> void:
 
 	var has_critical_need := false
 	if _needs != null:
-		var defs := ColonistNeeds.get_need_defs()
 		for need_id in defs:
 			var def: Resource = defs[need_id]
 			var val: float = _needs.get_need(need_id)
@@ -224,38 +223,17 @@ func _resolve_nearest_group_target(colonist: Node3D, target_group: StringName) -
 	## Auxiliary: Resolves nearest valid Node3D belonging to target_group.
 	if not is_inside_tree() or colonist == null:
 		return null
-	var objects := get_tree().get_nodes_in_group(target_group)
-	if objects.is_empty():
-		return null
-
-	var min_dist := INF
-	var nearest: Node3D = null
-	var parent_pos: Vector3 = colonist.global_position
-	for obj in objects:
-		if is_instance_valid(obj) and not obj.is_queued_for_deletion() and obj is Node3D:
-			var d := parent_pos.distance_to(obj.global_position)
-			if d < min_dist:
-				min_dist = d
-				nearest = obj as Node3D
-	return nearest
+	return AIUtils.find_nearest_in_group(get_tree(), target_group, colonist.global_position)
 
 
 func _actor_has_food_in_pockets(actor: Node) -> bool:
 	## Auxiliary: Returns true if actor has any edible food in carry inventory.
-	var inv: CharacterInventory = null
-	if "inventory" in actor and actor.inventory is CharacterInventory:
-		inv = actor.inventory
-	elif actor.has_node("Inventory"):
-		inv = actor.get_node("Inventory") as CharacterInventory
-
+	var inv: CharacterInventory = AIUtils.resolve_character_inventory(actor)
 	if inv == null or inv.items == null or not (inv.items is Dictionary):
 		return false
 
 	for key in inv.items.keys():
 		var item_id := str(key)
-		if inv.get_item_count(item_id) > 0:
-			if ItemDB != null:
-				var def: ItemDef = ItemDB.get_def(item_id)
-				if def != null and (def.is_food() or def.has_tag("food")):
-					return true
+		if inv.get_item_count(item_id) > 0 and AIUtils.is_edible_item(item_id):
+			return true
 	return false

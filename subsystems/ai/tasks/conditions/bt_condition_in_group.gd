@@ -25,29 +25,15 @@ func _generate_name() -> String:
 func _tick(_delta: float) -> Status:
 	if not agent or not agent.get_tree():
 		return FAILURE
-		
-	var nodes: Array[Node] = agent.get_tree().get_nodes_in_group(group)
-	if nodes.is_empty():
-		return FAILURE
-		
-	var closest_node: Node3D = null
-	var closest_dist_sq: float = radius * radius
+
 	var agent_pos: Vector3 = agent.global_position if agent is Node3D else Vector3.ZERO
-	
-	for node in nodes:
-		if node == agent or not is_instance_valid(node) or node.is_queued_for_deletion():
-			continue
-		var node3d := node as Node3D
-		if node3d == null:
-			continue
-		var dist_sq: float = agent_pos.distance_squared_to(node3d.global_position)
-		if dist_sq <= closest_dist_sq:
-			closest_dist_sq = dist_sq
-			closest_node = node3d
-			
-	if closest_node != null:
-		if blackboard and result_var != &"":
-			blackboard.set_var(result_var, closest_node)
-		return SUCCESS
-		
-	return FAILURE
+	# 1. Proximity Scan: Finds the closest live, non-agent node in `group` within radius.
+	var closest_node: Node3D = AIUtils.find_nearest_in_group(
+		agent.get_tree(), group, agent_pos, agent, radius * radius
+	)
+	if closest_node == null:
+		return FAILURE
+
+	if blackboard and result_var != &"":
+		blackboard.set_var(result_var, closest_node)
+	return SUCCESS

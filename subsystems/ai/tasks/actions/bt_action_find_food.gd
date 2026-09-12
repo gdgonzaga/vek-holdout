@@ -72,12 +72,7 @@ func _tick(_delta: float) -> Status:
 
 func _find_edible_in_inventory() -> String:
 	## Auxiliary: Searches agent carry pockets for any item matching FoodParams or the food tag.
-	var inv: CharacterInventory = null
-	if "inventory" in agent and agent.inventory is CharacterInventory:
-		inv = agent.inventory
-	elif agent.has_node("Inventory"):
-		inv = agent.get_node("Inventory") as CharacterInventory
-
+	var inv: CharacterInventory = AIUtils.resolve_character_inventory(agent)
 	if inv == null or inv.items == null or not (inv.items is Dictionary):
 		return ""
 
@@ -100,8 +95,8 @@ func _find_colony_food_source() -> Dictionary:
 	var registry: StorageRegistry = colony.storage_registry
 	var blacklisted: Array = []
 	var brain: ColonistBrain = agent.get_node_or_null("ColonistBrain") as ColonistBrain
-	if brain != null and "_unreachable_food_blacklist" in brain:
-		blacklisted = brain._unreachable_food_blacklist.keys()
+	if brain != null:
+		blacklisted = brain.get_blacklisted_food_sources()
 
 	var agent_pos: Vector3 = (agent as Node3D).global_position
 	return registry.find_best_food_source(agent_pos, blacklisted)
@@ -109,9 +104,4 @@ func _find_colony_food_source() -> Dictionary:
 
 func _is_edible(item_id: String) -> bool:
 	## Auxiliary: Checks if item definition carries FoodParams or "food" tag.
-	if ItemDB == null:
-		return false
-	var def: ItemDef = ItemDB.get_def(item_id)
-	if def == null:
-		return false
-	return def.is_food() or def.has_tag("food")
+	return AIUtils.is_edible_item(item_id)

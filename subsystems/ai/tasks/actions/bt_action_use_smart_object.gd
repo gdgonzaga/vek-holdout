@@ -78,9 +78,4 @@ func _exit() -> void:
 
 
 func _resolve_anim_controller() -> void:
-	if _anim_controller and is_instance_valid(_anim_controller):
-		return
-	if agent:
-		_anim_controller = agent.get_node_or_null("ColonistAnimationController")
-		if not _anim_controller:
-			_anim_controller = agent.find_child("ColonistAnimationController", true, false)
+	_anim_controller = AIUtils.resolve_anim_controller(_anim_controller, agent)

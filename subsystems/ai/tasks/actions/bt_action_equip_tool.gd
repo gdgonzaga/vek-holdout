@@ -67,7 +67,7 @@ func _resolve_equipment_requirements() -> Dictionary:
 			if raw_tag != null and str(raw_tag) != "":
 				req_tags.append(StringName(str(raw_tag)))
 
-	# Fallback: inspect the active job/claim for its def fields.
+	# Fallback: inspect the active job/claim's def when the blackboard had no requirement.
 	if req_id == "" and req_tags.is_empty():
 		var job: Variant = null
 		if blackboard != null:
@@ -75,16 +75,10 @@ func _resolve_equipment_requirements() -> Dictionary:
 				job = blackboard.get_var(&"active_job")
 			elif blackboard.has_var(&"active_claim"):
 				job = blackboard.get_var(&"active_claim")
-		if job != null and is_instance_valid(job):
-			var def_obj: Resource = job.def if "def" in job and job.def != null else (job.job_def if "job_def" in job else null)
-			if def_obj != null:
-				if "required_equipped" in def_obj and str(def_obj.required_equipped) != "":
-					req_id = str(def_obj.required_equipped)
-				if def_obj.has_method("get_effective_required_tags"):
-					req_tags = def_obj.get_effective_required_tags()
-				elif "required_equipped_tags" in def_obj and def_obj.required_equipped_tags is Array:
-					for t: Variant in def_obj.required_equipped_tags:
-						req_tags.append(StringName(str(t)))
+		# 1. Def Requirement Extraction: Reads item id/tags off the job's def, if any.
+		var reqs: Dictionary = AIUtils.extract_tool_requirements(AIUtils.resolve_job_def(job))
+		req_id = str(reqs.get("item_id", ""))
+		req_tags = reqs.get("tags", [] as Array[StringName])
 
 	return {"item_id": req_id, "tags": req_tags}
 

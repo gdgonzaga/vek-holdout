@@ -44,24 +44,15 @@ func _find_closest_threat(agent_node: Node3D, max_dist_sq: float) -> Node3D:
 	var agent_pos: Vector3 = agent_node.global_position
 	var closest_node: Node3D = null
 	var closest_dist_sq: float = max_dist_sq
-	
+
 	for group_name in threat_groups:
-		var nodes: Array[Node] = agent_node.get_tree().get_nodes_in_group(group_name)
-		for node in nodes:
-			if node == agent_node or not is_instance_valid(node) or node.is_queued_for_deletion():
-				continue
-			var node3d := node as Node3D
-			if node3d == null:
-				continue
-			if "is_dead" in node3d and bool(node3d.is_dead):
-				continue
-			if "_is_dead" in node3d and bool(node3d._is_dead):
-				continue
-				
-			var dist_sq: float = agent_pos.distance_squared_to(node3d.global_position)
-			if dist_sq <= closest_dist_sq:
-				closest_dist_sq = dist_sq
-				closest_node = node3d
-				
+		# 1. Group Scan: Finds this group's nearest live, non-agent, non-dead node within range.
+		var candidate: Node3D = AIUtils.find_nearest_in_group(
+			agent_node.get_tree(), group_name, agent_pos, agent_node, closest_dist_sq, true
+		)
+		if candidate != null:
+			closest_node = candidate
+			closest_dist_sq = agent_pos.distance_squared_to(candidate.global_position)
+
 	return closest_node
 

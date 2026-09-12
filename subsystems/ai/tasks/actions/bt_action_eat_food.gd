@@ -162,26 +162,14 @@ func _clear_blackboard_goal() -> void:
 
 func _get_agent_inventory() -> CharacterInventory:
 	## Auxiliary: Extracts CharacterInventory from agent.
-	if agent == null:
-		return null
-	if "inventory" in agent and agent.inventory is CharacterInventory:
-		return agent.inventory
-	return agent.get_node_or_null("Inventory") as CharacterInventory
+	return AIUtils.resolve_character_inventory(agent)
 
 
 func _resolve_anim_controller() -> void:
 	## Auxiliary: Locates ColonistAnimationController on agent.
-	if _anim_controller != null and is_instance_valid(_anim_controller):
-		return
-	if agent != null:
-		_anim_controller = agent.get_node_or_null("ColonistAnimationController")
-		if _anim_controller == null:
-			_anim_controller = agent.find_child("ColonistAnimationController", true, false)
+	_anim_controller = AIUtils.resolve_anim_controller(_anim_controller, agent)
 
 
 func _is_edible(item_id: String) -> bool:
 	## Auxiliary: Returns true if item has FoodParams or food tag.
-	if ItemDB == null:
-		return false
-	var def: ItemDef = ItemDB.get_def(item_id)
-	return def != null and (def.is_food() or def.has_tag("food"))
+	return AIUtils.is_edible_item(item_id)

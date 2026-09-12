@@ -54,7 +54,7 @@ func _tick(delta: float) -> Status:
 	_elapsed += delta
 	if not _damage_applied and _elapsed >= windup_duration:
 		_damage_applied = true
-		print("Attack")
+		ColonistLogger.log_msg(agent as Node, &"COMBAT", "Melee attack connects on %s" % target.name)
 		if damage > 0 and target.has_method("take_damage"):
 			target.take_damage(damage, agent)
 			

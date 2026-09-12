@@ -6,7 +6,6 @@ const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
 const BTActionNavigateToScript = preload("res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd")
 const BTActionPerformWorkScript = preload("res://subsystems/ai/tasks/actions/bt_action_perform_work.gd")
-const BTActionCalcHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_action_calc_haul_batch.gd")
 const BTActionWanderScript = preload("res://subsystems/ai/tasks/actions/bt_action_wander.gd")
 const BTActionClaimJobScript = preload("res://subsystems/ai/tasks/actions/bt_action_claim_job.gd")
 const BTActionUseSmartObjectScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd")
@@ -14,7 +13,6 @@ const BTActionHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_ac
 
 const BTConditionHasToolScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd")
 const BTConditionInGroupScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_in_group.gd")
-const BTConditionJobStillNeededScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_job_still_needed.gd")
 
 const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd")
 const BTActionMeleeAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd")
@@ -380,6 +378,40 @@ func test_claim_job_retains_surplus_when_claim_is_spent() -> void:
 	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(0)
 
 
+## Regression: continuing a fractional (JobInstance/WorkerClaim) hauling claim
+## must retarget target_pos crate -> sink once the colonist starts carrying
+## material, same as the legacy Job path already does (d275d97).
+func test_claim_job_retargets_target_pos_for_continuing_fractional_claim() -> void:
+	var colonist: Colonist = _sandbox.make_colonist()
+	var crate: Furniture = _sandbox.make_crate("plank", 5)
+	crate.global_position = Vector3(10.0, 0.0, 10.0)
+	var sink := FakeMaterialSink.new()
+	auto_free(sink)
+	_sandbox.container.add_child(sink)
+
+	var job_inst := JobInstance.create_haul(
+		HAULING_DEF,
+		&"plank",
+		3,
+		Vector3(10.0, 0.0, 10.0),
+		Vector3(4.0, 0.0, 4.0),
+		sink
+	)
+	var claim := job_inst.try_claim_units(colonist, 3)
+	_blackboard.set_var(&"active_claim", claim)
+	_blackboard.set_var(&"active_job", job_inst)
+
+	var task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
+	task.initialize(colonist, _blackboard, colonist)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_vector(_blackboard.get_var(&"target_pos") as Vector3).is_equal(Vector3(10.0, 0.0, 10.0))
+
+	colonist.inventory.add("plank", 2)
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_vector(_blackboard.get_var(&"target_pos") as Vector3).is_equal(Vector3(4.0, 0.0, 4.0))
+
+
 ## Claiming an unrelated job drops unneeded non-tool items on the floor to free capacity.
 func test_cleanup_incompatible_held_items_drops_unneeded_items_on_new_job() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
@@ -432,34 +464,6 @@ func test_perform_work_unassigns_legacy_job_after_cycle() -> void:
 
 	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
 	assert_bool(job.is_assigned(colonist.colonist_id)).is_false()
-
-
-# ── BTActionCalcHaulBatch ───────────────────────────────────────────────────
-
-func test_calc_haul_batch_clamps_to_capacity_and_need() -> void:
-	var task: BTAction = auto_free(BTActionCalcHaulBatchScript.new()) as BTAction
-	var colonist: Colonist = _sandbox.make_colonist()
-	
-	var mock_job := { "remaining_amount": 100 }
-	_blackboard.set_var(&"active_job", mock_job)
-	task.initialize(colonist, _blackboard, colonist)
-	
-	var status: int = task.execute(0.1)
-	assert_int(status).is_equal(BTAction.SUCCESS)
-	
-	var batch_amount: int = int(_blackboard.get_var(&"haul_batch_amount"))
-	assert_int(batch_amount).is_equal(int(colonist.remaining_capacity()))
-
-
-func test_calc_haul_batch_fails_when_no_remaining_need() -> void:
-	var task: BTAction = auto_free(BTActionCalcHaulBatchScript.new()) as BTAction
-	var colonist: Colonist = _sandbox.make_colonist()
-	
-	var mock_job := { "remaining_amount": 0 }
-	_blackboard.set_var(&"active_job", mock_job)
-	task.initialize(colonist, _blackboard, colonist)
-	
-	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
 
 
 # ── BTActionWander ──────────────────────────────────────────────────────────
@@ -524,22 +528,6 @@ func test_in_group_detects_nearby_target() -> void:
 	
 	assert_int(condition.execute(0.1)).is_equal(BTCondition.SUCCESS)
 	assert_object(_blackboard.get_var(&"threat_target")).is_equal(enemy)
-
-
-# ── BTConditionJobStillNeeded ────────────────────────────────────────────────
-
-func test_job_still_needed_validates_target_node() -> void:
-	var condition: BTCondition = auto_free(BTConditionJobStillNeededScript.new()) as BTCondition
-	condition.initialize(_actor, _blackboard, _actor)
-	
-	var target_node: Node3D = auto_free(Node3D.new()) as Node3D
-	add_child(target_node)
-	
-	_blackboard.set_var(&"active_job", { "target_node": target_node })
-	assert_int(condition.execute(0.1)).is_equal(BTCondition.SUCCESS)
-	
-	target_node.free()
-	assert_int(condition.execute(0.1)).is_equal(BTCondition.FAILURE)
 
 
 # ── ColonistNeeds & ColonistBrain ────────────────────────────────────────────

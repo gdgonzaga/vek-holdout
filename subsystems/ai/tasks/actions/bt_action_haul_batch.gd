@@ -37,10 +37,7 @@ func _tick(_delta: float) -> Status:
 	if not agent:
 		return FAILURE
 		
-	var inv: CharacterInventory = null
-	if "inventory" in agent and agent.inventory is CharacterInventory:
-		inv = agent.inventory
-		
+	var inv: CharacterInventory = AIUtils.resolve_character_inventory(agent, false)
 	if inv == null:
 		return FAILURE
 		

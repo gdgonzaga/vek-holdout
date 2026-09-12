@@ -88,12 +88,7 @@ func _withdraw_food_from_source(source: Node, item_id: String, source_type: Stri
 	if not is_instance_valid(source) or source.is_queued_for_deletion():
 		return false
 
-	var agent_inv: CharacterInventory = null
-	if "inventory" in agent and agent.inventory is CharacterInventory:
-		agent_inv = agent.inventory
-	elif agent.has_node("Inventory"):
-		agent_inv = agent.get_node("Inventory") as CharacterInventory
-
+	var agent_inv: CharacterInventory = AIUtils.resolve_character_inventory(agent)
 	if agent_inv == null:
 		return false
 
