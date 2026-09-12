@@ -1,13 +1,14 @@
 extends GdUnitTestSuite
 
-## Unit tests for Turret defenses, TurretParams, and TurretProjectile (ARCH combat.md, GDD §7.10).
+## Unit tests for Turret defenses, TurretParams, and Projectile (ARCH combat.md, GDD §7.10).
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 const Doubles = preload("res://test/helpers/doubles.gd")
 
 const TurretParamsScript = preload("res://data/capability_params/turret_params.gd")
 const TurretComponentScript = preload("res://subsystems/combat/components/turret_component.gd")
-const TurretProjectileScript = preload("res://subsystems/combat/components/turret_projectile.gd")
+const ProjectileScript = preload("res://subsystems/combat/components/projectile.gd")
+const ProjectileSpecScript = preload("res://subsystems/combat/components/projectile_spec.gd")
 const HealthCompScript = preload("res://subsystems/combat/components/health_component.gd")
 const FurnitureDefScript = preload("res://data/furniture/furniture_def.gd")
 const FurnitureScript = preload("res://subsystems/furniture/furniture.gd")
@@ -264,7 +265,7 @@ func test_turret_respects_cooldown() -> void:
 
 
 func test_turret_projectile_regular_direct_damage() -> void:
-	var proj := TurretProjectileScript.new() as TurretProjectile
+	var proj := ProjectileScript.new() as Projectile
 	auto_free(proj)
 	_sandbox.container.add_child(proj)
 
@@ -272,7 +273,7 @@ func test_turret_projectile_regular_direct_damage() -> void:
 	auto_free(tparams)
 	tparams.damage = 18
 	tparams.projectile_type = TurretParams.ProjectileType.REGULAR
-	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, tparams)
+	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, ProjectileSpecScript.from_turret_params(tparams))
 
 	var enemy := _make_mock_enemy(Vector3(0, 0, 2))
 	proj._handle_impact(enemy)
@@ -281,7 +282,7 @@ func test_turret_projectile_regular_direct_damage() -> void:
 
 
 func test_turret_projectile_explosive_splash_damage() -> void:
-	var proj := TurretProjectileScript.new() as TurretProjectile
+	var proj := ProjectileScript.new() as Projectile
 	auto_free(proj)
 	_sandbox.container.add_child(proj)
 	proj.global_position = Vector3(0, 0, 0)
@@ -291,7 +292,7 @@ func test_turret_projectile_explosive_splash_damage() -> void:
 	tparams.damage = 30
 	tparams.projectile_type = TurretParams.ProjectileType.EXPLOSIVE
 	tparams.explosion_radius = 5.0
-	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, tparams)
+	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, ProjectileSpecScript.from_turret_params(tparams))
 
 	var enemy_in_blast1 := _make_mock_enemy(Vector3(2, 0, 0))
 	var enemy_in_blast2 := _make_mock_enemy(Vector3(0, 0, 4))
@@ -363,7 +364,7 @@ func test_turret_muzzle_node_overrides_offset() -> void:
 
 
 func test_turret_projectile_falls_back_to_ammo_mesh() -> void:
-	var proj := TurretProjectileScript.new() as TurretProjectile
+	var proj := ProjectileScript.new() as Projectile
 	auto_free(proj)
 	_sandbox.container.add_child(proj)
 
@@ -376,7 +377,7 @@ func test_turret_projectile_falls_back_to_ammo_mesh() -> void:
 	ammo_item.mesh = mock_mesh
 	tparams.ammo_type = ammo_item
 
-	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, tparams)
+	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, ProjectileSpecScript.from_turret_params(tparams))
 
 	var mesh_inst: MeshInstance3D = null
 	for child in proj.get_children():
@@ -389,7 +390,7 @@ func test_turret_projectile_falls_back_to_ammo_mesh() -> void:
 
 
 func test_turret_projectile_falls_back_to_ammo_scene() -> void:
-	var proj := TurretProjectileScript.new() as TurretProjectile
+	var proj := ProjectileScript.new() as Projectile
 	auto_free(proj)
 	_sandbox.container.add_child(proj)
 
@@ -408,7 +409,7 @@ func test_turret_projectile_falls_back_to_ammo_scene() -> void:
 	ammo_item.scene = packed_scene
 	tparams.ammo_type = ammo_item
 
-	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, tparams)
+	proj.setup(Transform3D.IDENTITY, Vector3.FORWARD, ProjectileSpecScript.from_turret_params(tparams))
 
 	var scene_child: Node = null
 	for child in proj.get_children():
@@ -571,7 +572,7 @@ func test_turret_aims_at_character_fallback_height() -> void:
 
 
 func test_turret_projectile_collision_mask_includes_enemies_and_terrain() -> void:
-	var proj := TurretProjectileScript.new() as TurretProjectile
+	var proj := ProjectileScript.new() as Projectile
 	auto_free(proj)
 	_sandbox.container.add_child(proj)
 
@@ -613,7 +614,7 @@ func test_turret_muzzle_flash_spawns_particle_emitter() -> void:
 
 
 func test_turret_explosive_projectile_attaches_trail_and_spawns_explosion_particles() -> void:
-	var proj := TurretProjectileScript.new() as TurretProjectile
+	var proj := ProjectileScript.new() as Projectile
 	auto_free(proj)
 	_sandbox.container.add_child(proj)
 
@@ -624,7 +625,7 @@ func test_turret_explosive_projectile_attaches_trail_and_spawns_explosion_partic
 	tparams.enable_explosion_particles = true
 	tparams.explosion_radius = 5.0
 
-	proj.setup(Transform3D(), Vector3.FORWARD, tparams, null)
+	proj.setup(Transform3D(), Vector3.FORWARD, ProjectileSpecScript.from_turret_params(tparams), null)
 
 	var has_trail := false
 	for child in proj.get_children():

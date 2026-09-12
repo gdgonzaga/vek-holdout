@@ -5,7 +5,7 @@ extends Node3D
 ## Scans for hostile targets within range, consumes ammunition from local or
 ## colony storage, and fires physical projectiles at the closest hostile.
 
-signal projectile_fired(projectile: TurretProjectile, target: Node3D)
+signal projectile_fired(projectile: Projectile, target: Node3D)
 
 ## Back-reference to the capability definition. Set from parent Furniture def at _ready.
 var params: TurretParams = null
@@ -190,8 +190,8 @@ func _find_muzzle_node() -> Node3D:
 	return find_child("Muzzle", true, false) as Node3D
 
 
-func _fire_at(target: Node3D) -> TurretProjectile:
-	var projectile := TurretProjectile.new()
+func _fire_at(target: Node3D) -> Projectile:
+	var projectile := Projectile.new()
 	var spawn_parent: Node = null
 	if get_tree() != null and get_tree().current_scene != null:
 		spawn_parent = get_tree().current_scene
@@ -210,7 +210,8 @@ func _fire_at(target: Node3D) -> TurretProjectile:
 		dir = -global_transform.basis.z
 
 	var source_node: Node = get_parent() if get_parent() != null else self
-	projectile.setup(origin_xform, dir, params, source_node)
+	var spec := ProjectileSpec.from_turret_params(params)
+	projectile.setup(origin_xform, dir, spec, source_node)
 
 	# 1. Muzzle Flash Visuals: Spawning burst particles at muzzle exit location if configured.
 	if params != null and params.enable_muzzle_flash:

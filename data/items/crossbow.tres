@@ -4,6 +4,10 @@
 [ext_resource type="Script" uid="uid://dyh6tnhsxf1ie" path="res://data/capability_params/equippable_params.gd" id="2_equip"]
 [ext_resource type="Script" path="res://data/capability_params/ranged_action_params.gd" id="3_ranged"]
 
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_bolt"]
+radius = 0.02
+height = 0.4
+
 [sub_resource type="Resource" id="Resource_combat_action"]
 script = ExtResource("3_ranged")
 id = "crossbow_fire"
@@ -11,10 +15,12 @@ cooldown_seconds = 0.75
 audio_event = "bow_release"
 damage = 45.0
 range_meters = 60.0
-is_hitscan = true
+is_hitscan = false
 spread_angle_degrees = 0.8
 ammo_item_id = ""
 show_tracer = true
+projectile_mesh = SubResource("CapsuleMesh_bolt")
+projectile_speed = 40.0
 
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip")

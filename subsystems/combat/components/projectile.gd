@@ -1,49 +1,43 @@
-class_name TurretProjectile
+class_name Projectile
 extends Area3D
-## Physical projectile fired by turrets (ARCH combat.md).
-## Moves forward along its velocity vector each physics frame. Deals direct
-## damage on contact (REGULAR) or area-of-effect splash damage (EXPLOSIVE).
+## Physical projectile shared by turrets and hand-fired ranged weapons (ARCH
+## combat.md). Moves forward along its velocity vector each physics frame.
+## Deals direct damage on contact (REGULAR) or area-of-effect splash damage
+## (EXPLOSIVE). Configured via ProjectileSpec so this class never depends on
+## TurretParams or RangedActionParams directly.
 
 @export var speed: float = 25.0
 @export var damage: int = 10
-@export var projectile_type: TurretParams.ProjectileType = TurretParams.ProjectileType.REGULAR
+@export var projectile_type: int = ProjectileSpec.Kind.REGULAR
 @export var explosion_radius: float = 3.0
 @export var max_lifetime: float = 10.0
 
 var _velocity: Vector3 = Vector3.ZERO
 var _lifetime: float = 0.0
-var _source_turret: Node = null
+var _source: Node = null
 var _exploded: bool = false
-var _params: TurretParams = null
+var _spec: ProjectileSpec = null
 var _trail_particles: GPUParticles3D = null
 
 
 func setup(
 	origin_transform: Transform3D,
 	direction: Vector3,
-	params: TurretParams,
+	spec: ProjectileSpec,
 	source: Node = null
 ) -> void:
 	global_transform = origin_transform
-	_source_turret = source
-	_params = params
-	if params != null:
-		speed = params.projectile_speed
-		damage = params.damage
-		projectile_type = params.projectile_type
-		explosion_radius = params.explosion_radius
-		var scene_to_use: PackedScene = params.projectile_scene
-		var mesh_to_use: Mesh = params.projectile_mesh
-		var mat_to_use: Material = params.projectile_material
-		if scene_to_use == null and mesh_to_use == null and params.ammo_type != null:
-			scene_to_use = params.ammo_type.scene
-			mesh_to_use = params.ammo_type.mesh
-			if mat_to_use == null:
-				mat_to_use = params.ammo_type.material
-		_apply_visual(mesh_to_use, mat_to_use, scene_to_use)
+	_source = source
+	_spec = spec
+	if spec != null:
+		speed = spec.speed
+		damage = spec.damage
+		projectile_type = spec.kind
+		explosion_radius = spec.explosion_radius
+		_apply_visual(spec.visual_mesh, spec.visual_material, spec.visual_scene)
 
 		# 1. Projectile Flight Visuals: Attaching continuous particle trail if enabled.
-		if params.enable_projectile_trail or params.projectile_type == TurretParams.ProjectileType.EXPLOSIVE:
+		if spec.enable_trail or spec.kind == ProjectileSpec.Kind.EXPLOSIVE:
 			_attach_trail_particles()
 
 	var dir_norm := direction.normalized()
@@ -90,7 +84,7 @@ func _handle_impact(hit_node: Node) -> void:
 	# 1. Particle Trail Detachment: Unparenting flight trail so existing smoke/sparks dissolve naturally.
 	_detach_trail_particles()
 
-	if projectile_type == TurretParams.ProjectileType.EXPLOSIVE:
+	if projectile_type == ProjectileSpec.Kind.EXPLOSIVE:
 		_explode()
 	else:
 		_apply_direct_damage(hit_node)
@@ -102,18 +96,18 @@ func _apply_direct_damage(hit_node: Node) -> void:
 	var target: Node = hit_node
 	while target != null:
 		if target.has_method("take_damage"):
-			target.take_damage(damage, _source_turret)
+			target.take_damage(damage, _source)
 			break
 		var health := target.get_node_or_null("HealthComponent") as HealthComponent
 		if health != null:
-			health.take_damage(damage, _source_turret)
+			health.take_damage(damage, _source)
 			break
 		target = target.get_parent()
 
 
 func _explode() -> void:
 	# 1. Explosion Particle Visuals: Spawning explosion burst particles at impact origin.
-	if _params == null or _params.enable_explosion_particles:
+	if _spec == null or _spec.enable_explosion_particles:
 		_spawn_explosion_particles(global_position)
 
 	var damaged_targets: Array[Node] = []
@@ -155,11 +149,11 @@ func _explode() -> void:
 
 func _damage_target(target: Node) -> void:
 	if target.has_method("take_damage"):
-		target.take_damage(damage, _source_turret)
+		target.take_damage(damage, _source)
 	else:
 		var health := target.get_node_or_null("HealthComponent") as HealthComponent
 		if health != null:
-			health.take_damage(damage, _source_turret)
+			health.take_damage(damage, _source)
 
 
 func _find_damageable(node: Node) -> Node:
@@ -237,11 +231,11 @@ func _apply_mat_recursive(node: Node, mat: Material) -> void:
 
 
 func _is_source_or_descendant(node: Node) -> bool:
-	if node == null or _source_turret == null:
+	if node == null or _source == null:
 		return false
-	if node == _source_turret or _source_turret.is_ancestor_of(node):
+	if node == _source or _source.is_ancestor_of(node):
 		return true
-	var source_parent := _source_turret.get_parent()
+	var source_parent := _source.get_parent()
 	if source_parent != null and (node == source_parent or source_parent.is_ancestor_of(node)):
 		return true
 	return false
@@ -307,8 +301,8 @@ func _spawn_explosion_particles(pos: Vector3) -> void:
 	if parent_target == null:
 		return
 
-	if _params != null and _params.explosion_particle_scene != null:
-		var custom_inst := _params.explosion_particle_scene.instantiate() as Node3D
+	if _spec != null and _spec.explosion_particle_scene != null:
+		var custom_inst := _spec.explosion_particle_scene.instantiate() as Node3D
 		if custom_inst != null:
 			parent_target.add_child(custom_inst)
 			custom_inst.global_position = pos

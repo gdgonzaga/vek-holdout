@@ -277,3 +277,27 @@ func test_equippable_params_use_animation() -> void:
 	equip.use_animation = &"swing"
 	assert_str(String(equip.use_animation)).is_equal("swing")
 
+
+func test_equip_action_params_lockout_duration_defaults_to_cooldown() -> void:
+	var action: EquipActionParams = auto_free(EquipActionParams.new())
+	action.cooldown_seconds = 0.5
+	assert_float(action.get_lockout_duration()).is_equal_approx(0.5, 0.001)
+
+
+func test_melee_action_params_lockout_duration_includes_windup_and_active() -> void:
+	# Regression: a weapon whose cooldown_seconds is shorter than its own
+	# windup+active window (e.g. baton.tres: windup 0.5, active 0.1, cooldown
+	# 0.4) let callers re-trigger execute() before the swing in progress even
+	# finished, spamming overlapping windups instead of respecting the timing.
+	var action: MeleeActionParams = auto_free(MeleeActionParams.new())
+	action.windup_seconds = 0.5
+	action.active_seconds = 0.1
+	action.cooldown_seconds = 0.4
+	assert_float(action.get_lockout_duration()).is_equal_approx(1.0, 0.001)
+
+
+func test_ranged_action_params_lockout_duration_defaults_to_cooldown() -> void:
+	var action: RangedActionParams = auto_free(RangedActionParams.new())
+	action.cooldown_seconds = 0.3
+	assert_float(action.get_lockout_duration()).is_equal_approx(0.3, 0.001)
+

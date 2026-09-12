@@ -7,10 +7,21 @@ extends CombatActionParams
 @export var ammo_item_id: String = ""
 @export var ammo_cost: int = 1
 @export var is_hitscan: bool = true
-@export var projectile_scene: PackedScene = null
-@export var projectile_speed: float = 40.0
 @export var spread_angle_degrees: float = 0.0
 @export var show_tracer: bool = true
+
+## Physical projectile fields, used when is_hitscan is false (ProjectileSpec.from_ranged_action).
+## Mirrors the TurretParams "Projectile" group so hand-fired and turret-fired
+## weapons share the same underlying Projectile mechanics.
+@export_group("Projectile")
+@export var projectile_scene: PackedScene = null
+@export var projectile_mesh: Mesh = null
+@export var projectile_material: Material = null
+@export var projectile_speed: float = 40.0
+@export var projectile_type: ProjectileSpec.Kind = ProjectileSpec.Kind.REGULAR
+@export var explosion_radius: float = 0.0
+@export var enable_projectile_trail: bool = true
+@export var enable_explosion_particles: bool = true
 
 
 func execute(actor: Node) -> void:
@@ -84,6 +95,15 @@ func execute(actor: Node) -> void:
 						health.take_damage(int(damage), actor)
 						break
 					target = target.get_parent()
+	else:
+		# 3. Physical Projectile: Spawns a shared Projectile (also used by
+		# TurretComponent) for weapons modeled as slow, visible flying
+		# ammunition (crossbows, bomb launchers) rather than instant bullets.
+		var projectile := Projectile.new()
+		var spawn_parent: Node = actor.get_tree().current_scene if (actor.is_inside_tree() and actor.get_tree().current_scene != null) else actor.get_parent()
+		spawn_parent.add_child(projectile)
+		var spec := ProjectileSpec.from_ranged_action(self)
+		projectile.setup(Transform3D(Basis(), tracer_origin), dir, spec, actor)
 
 
 func _consume_ammo(actor: Node) -> bool:

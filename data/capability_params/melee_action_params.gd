@@ -8,6 +8,13 @@ extends CombatActionParams
 @export var hit_audio_event: String = ""
 
 
+## Melee's own windup+active window must elapse before the swing is done,
+## so the lockout has to cover it too -- cooldown_seconds alone is only the
+## recovery time tacked on afterward.
+func get_lockout_duration() -> float:
+	return windup_seconds + active_seconds + cooldown_seconds
+
+
 func execute(actor: Node) -> void:
 	if actor == null or not actor.is_inside_tree():
 		return

@@ -56,15 +56,11 @@ func take_damage(amount: int, source: Node = null) -> void:
 	# 1. Damage Visuals: Spawning big red particle burst on damage impact.
 	_spawn_big_red_hit_effect(false)
 
-	var remaining_damage := amount
+	# 1. Durability Resolution: Deplete durability before HP per GDD §6.11.
+	var remaining_damage := DamageResolver.resolve_overflow(amount, current_durability)
 
 	if current_durability > 0:
-		if current_durability >= remaining_damage:
-			current_durability -= remaining_damage
-			remaining_damage = 0
-		else:
-			remaining_damage -= current_durability
-			current_durability = 0
+		current_durability = DamageResolver.resolve_durability(amount, current_durability)
 		durability_changed.emit(current_durability, max_durability)
 
 	if remaining_damage > 0:

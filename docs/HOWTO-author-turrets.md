@@ -12,7 +12,7 @@
 Defensive turrets in *Xeno Frontier: Colony Defense* use a 2-axis aiming system (`TurretComponent`) to track hostile targets:
 - **Yaw (Horizontal Tracking)**: Rotates 360° left and right around the vertical axis.
 - **Pitch (Vertical Elevation)**: Tilts up and down around the horizontal elevation axle.
-- **Muzzle Socket**: Visual launch point where `TurretProjectile` instances spawn.
+- **Muzzle Socket**: Visual launch point where `Projectile` instances spawn.
 
 ### A. Critical Facing Direction (`+Y` Forward in Blender)
 

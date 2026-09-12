@@ -9,6 +9,13 @@ extends CharacterBody3D
 
 @onready var health_component: HealthComponent = $HealthComponent
 
+## True once health_component has reached 0 HP (ARCH combat.md — mirrors the
+## same flag on Player/Colonist so threat-scanning tasks can skip dead
+## targets uniformly across actor types).
+var is_dead: bool:
+	get:
+		return health_component.is_dead if health_component != null else false
+
 var pathfinder: VoxelPathfinder
 var bt_player: BTPlayer
 
