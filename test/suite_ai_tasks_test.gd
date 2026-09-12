@@ -30,9 +30,13 @@ const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
 var _sandbox: ColonySandbox
 var _blackboard: Blackboard
 var _actor: CharacterBody3D
+var _original_loop_length: float
 
 
 func before_test() -> void:
+	_original_loop_length = TimeSystem._loop_length_seconds
+	TimeSystem._loop_length_seconds = TimeSystem.HOURS_PER_DAY
+	
 	_sandbox = ColonySandbox.new(self)
 	_blackboard = Blackboard.new()
 	_actor = auto_free(CharacterBody3D.new()) as CharacterBody3D
@@ -643,7 +647,7 @@ func test_colonist_needs_decay() -> void:
 	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
 	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
 	mock_def.id = &"hunger"
-	mock_def.decay_per_second = 0.1
+	mock_def.decay_per_game_hour = 0.1
 	ColonistNeeds._cached_need_defs[&"hunger"] = mock_def
 		
 	needs._ready()
@@ -666,7 +670,7 @@ func test_colonist_brain_ignores_unfulfillable_need_without_smart_object() -> vo
 	
 	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
 	mock_def.id = &"rest"
-	mock_def.decay_per_second = 0.05
+	mock_def.decay_per_game_hour = 0.05
 	mock_def.goal_name = &"sleep"
 	mock_def.target_group = &"non_existent_bed_group"
 	var curve: Curve = Curve.new()
@@ -706,7 +710,7 @@ func test_colonist_brain_utility_scoring() -> void:
 	
 	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
 	mock_def.id = &"hunger"
-	mock_def.decay_per_second = 0.05
+	mock_def.decay_per_game_hour = 0.05
 	mock_def.goal_name = &"eat"
 	mock_def.target_group = &"test_food"
 	var curve: Curve = Curve.new()
@@ -748,7 +752,7 @@ func test_colonist_brain_commitment_bonus() -> void:
 	
 	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
 	mock_def.id = &"hunger"
-	mock_def.decay_per_second = 0.05
+	mock_def.decay_per_game_hour = 0.05
 	mock_def.target_group = &"test_food"
 	mock_def.goal_name = &"eat"
 	mock_def.emergency_threshold = 0.10

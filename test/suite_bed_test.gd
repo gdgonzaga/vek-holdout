@@ -1,24 +1,24 @@
 extends GdUnitTestSuite
 
-## Unit tests for the recreation subsystem (ARCH recreation.md): RecreationParams
-## capacity math, RecreationComponent slot rationing, the availability-filtered
+## Unit tests for the bed subsystem (ARCH bed.md): BedParams
+## capacity math, BedComponent slot rationing, the availability-filtered
 ## smart-object search, ColonistBrain reservation handover, and the
-## BTActionUseRecreation session lifecycle.
+## BTActionUseBed session lifecycle.
 ##
-## Content-agnostic per AGENTS.md: every FurnitureDef, RecreationParams and NeedDef
+## Content-agnostic per AGENTS.md: every FurnitureDef, BedParams and NeedDef
 ## used here is built in memory. Nothing asserts against data/furniture/*.tres or
 ## data/needs/*.tres, whose balance values are expected to move.
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
-const BTActionUseRecreationScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_recreation.gd")
+const BTActionUseBedScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_bed.gd")
 const BTConditionGoalIsScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_goal_is.gd")
 const BTTreeFactoryScript = preload("res://subsystems/ai/bt_tree_factory.gd")
 const ColonistNeedsScript = preload("res://subsystems/ai/colonist_needs.gd")
 const ColonistBrainScript = preload("res://subsystems/ai/colonist_brain.gd")
 const NeedDefScript = preload("res://data/schemas/need_def.gd")
 
-const TEST_NEED: StringName = &"recreation"
+const TEST_NEED: StringName = &"bed"
 
 var _sandbox: ColonySandbox
 var _blackboard: Blackboard
@@ -42,7 +42,7 @@ func after_test() -> void:
 	ColonistNeeds._cached_need_defs.clear()
 
 
-# ── RecreationParams ─────────────────────────────────────────────────────────
+# ── BedParams ─────────────────────────────────────────────────────────
 
 func test_effective_capacity_without_offsets_is_the_authored_capacity() -> void:
 	var params := _make_params(1)
@@ -73,7 +73,7 @@ func test_session_ceiling_never_falls_below_the_floor() -> void:
 
 # ── FurnitureLayer capability wiring ─────────────────────────────────────────
 
-func test_furniture_layer_attaches_recreation_component_when_params_present() -> void:
+func test_furniture_layer_attaches_bed_component_when_params_present() -> void:
 	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
 	layer.set_container(_sandbox.container)
 
@@ -81,16 +81,16 @@ func test_furniture_layer_attaches_recreation_component_when_params_present() ->
 	var def := _make_def(params)
 	var node: Furniture = layer.spawn(def, Vector3i(0, 0, 0), 0)
 
-	var comp := node.get_node_or_null("RecreationComponent") as RecreationComponent
+	var comp := node.get_node_or_null("BedComponent") as BedComponent
 	assert_object(comp).is_not_null()
 	assert_object(comp.params()).is_equal(params)
 	assert_int(comp.capacity()).is_equal(2)
 
 
-# ── RecreationComponent occupancy ────────────────────────────────────────────
+# ── BedComponent occupancy ────────────────────────────────────────────
 
 func test_exclusive_object_admits_one_colonist_and_rejects_the_next() -> void:
-	var comp := _make_recreation_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params(1))
 	var first := _make_user()
 	var second := _make_user()
 
@@ -103,7 +103,7 @@ func test_holder_still_sees_the_object_as_usable() -> void:
 	# Load-bearing: ColonistBrain re-scores its own current target every cycle. A
 	# component that reported "full" to its own occupant would zero that goal's
 	# score and make the colonist thrash between goals.
-	var comp := _make_recreation_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params(1))
 	var user := _make_user()
 
 	assert_bool(comp.reserve(user)).is_true()
@@ -112,13 +112,13 @@ func test_holder_still_sees_the_object_as_usable() -> void:
 
 
 func test_unlimited_capacity_never_rejects() -> void:
-	var comp := _make_recreation_furniture(_make_params(-1))
+	var comp := _make_bed_furniture(_make_params(-1))
 	for i in range(5):
 		assert_bool(comp.reserve(_make_user())).is_true()
 
 
 func test_release_frees_a_slot_for_another_colonist() -> void:
-	var comp := _make_recreation_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params(1))
 	var first := _make_user()
 	var second := _make_user()
 
@@ -130,7 +130,7 @@ func test_release_frees_a_slot_for_another_colonist() -> void:
 
 
 func test_begin_use_promotes_a_reservation_and_end_use_frees_it() -> void:
-	var comp := _make_recreation_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params(1))
 	var user := _make_user()
 
 	comp.reserve(user)
@@ -142,7 +142,7 @@ func test_begin_use_promotes_a_reservation_and_end_use_frees_it() -> void:
 
 
 func test_arrival_cannot_overfill_an_object_whose_slots_were_taken() -> void:
-	var comp := _make_recreation_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params(1))
 	var walker := _make_user()
 	var squatter := _make_user()
 
@@ -153,7 +153,7 @@ func test_arrival_cannot_overfill_an_object_whose_slots_were_taken() -> void:
 
 
 func test_use_position_defaults_to_the_furniture_origin() -> void:
-	var comp := _make_recreation_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params(1))
 	var furniture := comp.get_parent() as Node3D
 	furniture.global_position = Vector3(3.0, 1.0, 4.0)
 
@@ -163,7 +163,7 @@ func test_use_position_defaults_to_the_furniture_origin() -> void:
 func test_authored_offset_is_rotated_by_the_furniture_transform() -> void:
 	var params := _make_params(1)
 	params.use_offsets = [Vector3(0, 0, 1)]
-	var comp := _make_recreation_furniture(params)
+	var comp := _make_bed_furniture(params)
 	var furniture := comp.get_parent() as Node3D
 	furniture.global_position = Vector3(2.0, 0.0, 2.0)
 	furniture.rotation_degrees = Vector3(0.0, 90.0, 0.0)
@@ -179,9 +179,9 @@ func test_group_search_skips_objects_that_refuse_the_colonist() -> void:
 	var user := _make_user()
 
 	# A capacity-0 object refuses everyone; the far one is the only valid answer.
-	var near := _make_recreation_furniture(_make_params(0), group)
+	var near := _make_bed_furniture(_make_params(0), group)
 	(near.get_parent() as Node3D).global_position = Vector3(1.0, 0.0, 0.0)
-	var far := _make_recreation_furniture(_make_params(1), group)
+	var far := _make_bed_furniture(_make_params(1), group)
 	(far.get_parent() as Node3D).global_position = Vector3(20.0, 0.0, 0.0)
 
 	var found: Node3D = AIUtils.find_nearest_in_group_where(
@@ -204,9 +204,9 @@ func test_group_search_still_returns_plain_nodes_without_occupancy() -> void:
 
 # ── ColonistBrain reservation handover ───────────────────────────────────────
 
-func test_brain_skips_a_fully_occupied_recreation_object() -> void:
-	var group := RecreationComponent.REQUIRED_GROUP
-	var occupied := _make_recreation_furniture(_make_params(1), group)
+func test_brain_skips_a_fully_occupied_bed_object() -> void:
+	var group := BedComponent.REQUIRED_GROUP
+	var occupied := _make_bed_furniture(_make_params(1), group)
 	(occupied.get_parent() as Node3D).global_position = Vector3(2.0, 0.0, 0.0)
 	occupied.reserve(_make_user())
 
@@ -220,8 +220,8 @@ func test_brain_skips_a_fully_occupied_recreation_object() -> void:
 
 
 func test_brain_reserves_the_winning_target_and_publishes_a_stand_position() -> void:
-	var group := RecreationComponent.REQUIRED_GROUP
-	var comp := _make_recreation_furniture(_make_params(1), group)
+	var group := BedComponent.REQUIRED_GROUP
+	var comp := _make_bed_furniture(_make_params(1), group)
 	var furniture := comp.get_parent() as Node3D
 	furniture.global_position = Vector3(2.0, 0.0, 0.0)
 
@@ -238,8 +238,8 @@ func test_brain_reserves_the_winning_target_and_publishes_a_stand_position() -> 
 
 
 func test_brain_releases_its_claim_when_it_leaves_the_tree() -> void:
-	var group := RecreationComponent.REQUIRED_GROUP
-	var comp := _make_recreation_furniture(_make_params(1), group)
+	var group := BedComponent.REQUIRED_GROUP
+	var comp := _make_bed_furniture(_make_params(1), group)
 	(comp.get_parent() as Node3D).global_position = Vector3(2.0, 0.0, 0.0)
 
 	var brain := _install_brain_with_need(group)
@@ -267,11 +267,11 @@ func test_goal_condition_succeeds_on_match_and_fails_otherwise() -> void:
 	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
 
 
-# ── BTActionUseRecreation ────────────────────────────────────────────────────
+# ── BTActionUseBed ────────────────────────────────────────────────────
 
 func test_session_accrues_the_need_at_the_authored_rate() -> void:
 	var params := _make_params(1)
-	params.recreation_per_game_hour = 0.1
+	params.bed_per_game_hour = 0.1
 	params.min_session_game_hours = 10.0
 	var ctx := _make_session(params, 0.0)
 
@@ -284,7 +284,7 @@ func test_session_accrues_the_need_at_the_authored_rate() -> void:
 
 func test_session_holds_the_colonist_for_the_authored_minimum() -> void:
 	var params := _make_params(1)
-	params.recreation_per_game_hour = 1.0
+	params.bed_per_game_hour = 1.0
 	params.min_session_game_hours = 3.0
 	var ctx := _make_session(params, 0.9)
 
@@ -298,7 +298,7 @@ func test_session_holds_the_colonist_for_the_authored_minimum() -> void:
 
 func test_session_hard_stops_at_the_ceiling_with_the_need_unfilled() -> void:
 	var params := _make_params(1)
-	params.recreation_per_game_hour = 0.01
+	params.bed_per_game_hour = 0.01
 	params.min_session_game_hours = 1.0
 	params.max_session_game_hours = 3.0
 	var ctx := _make_session(params, 0.0)
@@ -310,7 +310,7 @@ func test_session_hard_stops_at_the_ceiling_with_the_need_unfilled() -> void:
 
 func test_successful_session_clears_the_goal_for_re_arbitration() -> void:
 	var params := _make_params(1)
-	params.recreation_per_game_hour = 1.0
+	params.bed_per_game_hour = 1.0
 	params.min_session_game_hours = 0.5
 	var ctx := _make_session(params, 0.0)
 
@@ -333,7 +333,7 @@ func test_interrupted_session_releases_the_slot() -> void:
 	# A leaked slot would permanently shrink the colony's usable furniture, so
 	# _exit must free it on the failure path too, not just on success.
 	var params := _make_params(1)
-	params.recreation_per_game_hour = 0.01
+	params.bed_per_game_hour = 0.01
 	params.min_session_game_hours = 60.0
 	var ctx := _make_session(params, 0.0)
 
@@ -347,7 +347,7 @@ func test_interrupted_session_releases_the_slot() -> void:
 
 # ── Tree wiring parity ───────────────────────────────────────────────────────
 
-func test_tree_factory_emits_goal_gated_sleep_and_recreation_branches() -> void:
+func test_tree_factory_emits_goal_gated_sleep_and_bed_branches() -> void:
 	# Guards the landmine in suite_ai_tasks_test: that suite re-saves
 	# colonist_root.tres from this factory, so a branch missing here is silently
 	# deleted from the shipped tree on the next test run.
@@ -358,10 +358,10 @@ func test_tree_factory_emits_goal_gated_sleep_and_recreation_branches() -> void:
 	assert_object(_find_goal_gated_branch(root, &"sleep")).is_not_null()
 	var rec_branch := _find_goal_gated_branch(root, TEST_NEED)
 	assert_object(rec_branch).is_not_null()
-	assert_bool(rec_branch.children[2] is BTActionUseRecreation).is_true()
+	assert_bool(rec_branch.children[2] is BTActionUseBed).is_true()
 
 
-func test_shipped_colonist_tree_carries_the_recreation_branch() -> void:
+func test_shipped_colonist_tree_carries_the_bed_branch() -> void:
 	var tree: BehaviorTree = load("res://data/ai/trees/colonist_root.tres") as BehaviorTree
 	var root: BTDynamicSelector = tree.root_task as BTDynamicSelector
 	assert_object(root).is_not_null()
@@ -373,45 +373,45 @@ func test_shipped_colonist_tree_carries_the_recreation_branch() -> void:
 # Auxiliary Functions
 # ===================
 
-func _make_params(capacity: int) -> RecreationParams:
+func _make_params(capacity: int) -> BedParams:
 	## Auxiliary: In-memory capability params with predictable timings.
-	var params: RecreationParams = auto_free(RecreationParams.new())
+	var params: BedParams = auto_free(BedParams.new())
 	params.capacity = capacity
-	params.recreation_per_game_hour = 0.1
+	params.bed_per_game_hour = 0.1
 	params.min_session_game_hours = 1.0
 	params.max_session_game_hours = 5.0
 	params.use_radius = 1.5
 	return params
 
 
-func _make_def(params: RecreationParams, group: StringName = RecreationComponent.REQUIRED_GROUP) -> FurnitureDef:
+func _make_def(params: BedParams, group: StringName = BedComponent.REQUIRED_GROUP) -> FurnitureDef:
 	## Auxiliary: Throwaway FurnitureDef carrying the capability and its tag.
 	var def: FurnitureDef = auto_free(FurnitureDef.new())
-	def.id = "test_recreation_object"
+	def.id = "test_bed_object"
 	def.dimensions = Vector3i.ONE
 	def.mesh = BoxMesh.new()
 	# Always carries the required tag so the component's authoring warning stays
 	# quiet; suites that search an isolated group get that one appended.
-	def.tags = [String(RecreationComponent.REQUIRED_GROUP)]
-	if group != RecreationComponent.REQUIRED_GROUP:
+	def.tags = [String(BedComponent.REQUIRED_GROUP)]
+	if group != BedComponent.REQUIRED_GROUP:
 		def.tags.append(String(group))
-	def.recreation_params = params
+	def.bed_params = params
 	return def
 
 
-func _make_recreation_furniture(
-		params: RecreationParams,
-		group: StringName = RecreationComponent.REQUIRED_GROUP
-) -> RecreationComponent:
-	## Auxiliary: Builds a Furniture + RecreationComponent pair and returns the
+func _make_bed_furniture(
+		params: BedParams,
+		group: StringName = BedComponent.REQUIRED_GROUP
+) -> BedComponent:
+	## Auxiliary: Builds a Furniture + BedComponent pair and returns the
 	## component. def/def_id are assigned before add_child so Furniture._ready
 	## registers the tag group.
 	var def := _make_def(params, group)
 	var node: Furniture = auto_free(Furniture.new())
 	node.def = def
 	node.def_id = def.id
-	var comp := RecreationComponent.new()
-	comp.name = "RecreationComponent"
+	var comp := BedComponent.new()
+	comp.name = "BedComponent"
 	node.add_child(comp)
 	add_child(node)
 	return comp
@@ -469,11 +469,11 @@ func _install_brain_with_need(target_group: StringName) -> ColonistBrain:
 	return brain
 
 
-func _make_session(params: RecreationParams, starting_need: float) -> Dictionary:
-	## Auxiliary: Places a real colonist adjacent to a recreation object, reserves
-	## a slot, and enters BTActionUseRecreation — the state every session test
+func _make_session(params: BedParams, starting_need: float) -> Dictionary:
+	## Auxiliary: Places a real colonist adjacent to a bed object, reserves
+	## a slot, and enters BTActionUseBed — the state every session test
 	## starts from.
-	var comp := _make_recreation_furniture(params)
+	var comp := _make_bed_furniture(params)
 	var furniture := comp.get_parent() as Node3D
 	furniture.global_position = Vector3.ZERO
 
@@ -482,7 +482,7 @@ func _make_session(params: RecreationParams, starting_need: float) -> Dictionary
 	colonist.needs.set_need(TEST_NEED, starting_need)
 	comp.reserve(colonist)
 
-	var task: BTAction = auto_free(BTActionUseRecreationScript.new()) as BTAction
+	var task: BTAction = auto_free(BTActionUseBedScript.new()) as BTAction
 	task.need_id = TEST_NEED
 	_blackboard.set_var(&"current_goal", TEST_NEED)
 	_blackboard.set_var(&"target_smart_object", furniture)
