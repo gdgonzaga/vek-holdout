@@ -28,6 +28,9 @@ Decision-making and execution are decoupled into distinct tiers operating on dif
                                                   |-- 4. Idle Wander (Fallback movement)
 ```
 
+Every need branch below branch 1 is gated by `BTConditionGoalIs` on the goal the brain
+arbitrated this cycle, so one branch can never satisfy another branch's goal.
+
 ### Separation of Responsibilities
 
 1. **`ColonistNeeds` (`subsystems/ai/colonist_needs.gd`)**:
@@ -68,6 +71,11 @@ For each registered `NeedDef` in `ColonistNeeds`:
 ### Step 2: Distance Attenuation
 Desire alone is insufficient; a colonist cannot eat if there is no food, or rest if there are no beds.
 - The brain searches for reachable target objects (e.g. food in inventory/crates, beds in colony furniture).
+- **Availability filter:** group searches go through `AIUtils.find_nearest_in_group_where()` with a
+  predicate that consults the target's `IOccupiable` component (`BedComponent`, `RecreationComponent`)
+  when it has one. A bed already claimed or a single-user recreation object already occupied is skipped
+  entirely, rather than drawing every colonist to the same piece of furniture. Nodes with no occupancy
+  component (food crates, plain furniture) are always considered usable.
 - Distance penalty is applied:
   `final_score = base_score * clampf(1.0 - (distance / 100.0), 0.2, 1.0)`
 - If no valid unblacklisted target exists on the map, `final_score` drops to `0.0`.
@@ -87,6 +95,14 @@ To prevent "thrashing" (rapidly oscillating between eating, resting, and working
 ### Step 5: Winning Goal Selection & Blackboard Write
 - The highest-scoring goal is selected (`winning_goal`). If all scores are `<= 0.0`, it defaults to `&"work"`.
 - The brain writes `current_goal` and `target_smart_object` into the blackboard.
+- **Claim handover:** `_sync_reservation()` releases any claim held on a previous target and calls
+  `reserve()` on the winner. Claiming happens only after the winner is known — reserving during
+  scoring would starve rival colonists of objects this colonist ultimately walks away from. The claim
+  is also released in `_exit_tree()`, so a colonist that dies mid-approach cannot hold a slot forever.
+- **Stand position:** `target_stand_pos` is written every cycle (`null` included) from the target's
+  `use_position_for(colonist)` — the authored `use_offsets` slot in world space, or the furniture
+  origin. Writing it unconditionally is what stops a branch from navigating to a stale position left
+  over from a previous target.
 
 ---
 
@@ -100,18 +116,30 @@ The root task of the colonist behavior tree is a **`BTDynamicSelector`**. Unlike
    - `BTActionFetchFood`: Extracts food item into colonist hands.
    - `BTActionEatFood`: Consumes food and restores hunger need.
 
-2. **Smart Object Sequence (`BTSequence_ekcvg` - Beds / Recreation)**:
+2. **Smart Object Sequence (`BTSequence_vo5ph` - Beds / Sleep)**:
+   - `BTConditionGoalIs(&"sleep")`: Gates the branch. **Load-bearing** — without it, an `&"eat"` goal
+     whose food vanished between the brain's 1.5s poll and the tick falls through from branch 1 into
+     this sequence, walks to the *food crate*, and `BTActionUseSmartObject` matches
+     `def.goal_name == &"eat"` and refills hunger with nothing consumed.
    - `BTActionNavigateTo`: Walks to `target_smart_object`.
    - `BTActionUseSmartObject`: Interacts with furniture (e.g. bed sleep cycle) until need is replenished.
 
-3. **Universal Work Sequence (`BTSequence_0bgy2` - Colony Labor)**:
+3. **Recreation Sequence (`BTSequence_recreation`)**:
+   - `BTConditionGoalIs(&"recreation")`: Gates the branch.
+   - `BTActionNavigateTo`: Walks to `target_stand_pos` (the occupancy slot the brain resolved).
+   - `BTActionUseRecreation`: Occupies a slot and accrues the need at the furniture's authored
+     per-second rate until the session window closes. Kept separate from branch 2 because recreation
+     models capacity, a use radius, and a session window that the flat-restore generic action does not.
+     See [Recreation](recreation.md).
+
+4. **Universal Work Sequence (`BTSequence_0bgy2` - Colony Labor)**:
    - `BTActionClaimJob`: Evaluates `JobBoard.get_best_job_for()`. Claims a job, syncs tool requirements and target coordinates.
    - `BTSelector` (`BTConditionHasTool`): Verifies the required tool is in inventory or equipped.
    - `BTActionEquipTool`: Swaps tool into `main_hand` from `holster` or carry inventory.
    - `BTActionNavigateTo`: Navigates to job site (`target_pos` / anchor cell / target node).
    - `BTActionPerformWork`: Plays work animation, steps work duration with skill scaling, and materializes progress or finishes job.
 
-4. **Idle Wander (Fallback, bare leaf under the root selector)**:
+5. **Idle Wander (Fallback, bare leaf under the root selector)**:
    - `BTActionWander`: Picks a random walkable cell within radius and walks there, then holds position for `wait_duration` before wandering again.
 
 ---

@@ -46,6 +46,7 @@ nav:
     - Farming: architecture/farming.md
     - "Wild Flora": architecture/wild-flora.md
     - Hunger: architecture/hunger.md
+    - Recreation: architecture/recreation.md
     - UI: architecture/ui.md
     - "Game Log": architecture/game-log.md
   - Reference:

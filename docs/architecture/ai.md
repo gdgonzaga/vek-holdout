@@ -107,8 +107,9 @@ Agents communicate state between `ColonistBrain`, `BTPlayer`, and `BTTask` leave
 
 | Blackboard Key | Type | Description |
 |---|---|---|
-| `current_goal` | `StringName` | Active high-level goal (`&"work"`, `&"eat"`, `&"rest"`, `&"recreation"`, `&"none"`). |
+| `current_goal` | `StringName` | Active high-level goal (`&"work"`, `&"eat"`, `&"sleep"`, `&"recreation"`, `&"none"`) — the `NeedDef.goal_name` of the winning need, not its `id`. |
 | `target_smart_object` | `Node3D` / `StringName` | Target node or target group for need satisfaction. |
+| `target_stand_pos` | `Vector3` / `null` | Exact world position the colonist should occupy to use `target_smart_object`, resolved from the target's `IOccupiable.use_position_for()`. `null` when the target has no occupancy component. Written every evaluation so it can never go stale. See [Recreation](recreation.md). |
 | `active_job` | `JobInstance` | Currently claimed job instance. |
 | `target_pos` | `Vector3` | Target destination for navigation or work execution. |
 | `source_node` | `Node3D` / `Vector3` | Pickup source location for hauling jobs. |

@@ -35,6 +35,7 @@ Last updated: 2026-09-12 (multi-leg job completion for hauling/construction, AI 
 | [Farming](farming.md) | Farm plots, hydration, tending, crop growth & yields | §6 |
 | [Wild Flora](wild-flora.md) | Trees, bushes, wild plants, foraging, real-time felling & stage progression | §6, §7.4 |
 | [Hunger](hunger.md) | HungerComponent, FoodParams, starvation, pocket feeding, player food | §6.12 |
+| [Recreation](recreation.md) | RecreationParams capability, occupancy slots, recreation need satisfaction | §6 |
 | [Mining](mining.md) | Voxel digging, strata materials, dig box designation, markers | §7.5 |
 | [Combat](combat.md) | Durability-before-HP, weapons, enemy archetypes, turrets | §6.11 |
 | [Equipment & Loadouts](equipment.md) | 8-slot gear, auto-equip/unequip, EquipmentAudit | §17 |

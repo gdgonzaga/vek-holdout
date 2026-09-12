@@ -101,6 +101,7 @@ has no dedicated folder either; its planned state is meant to live on the `Colon
 | Farming | `subsystems/farming/` | Farm plot growables, hydration, crop lifecycle. |
 | Wild Flora | `subsystems/environment/` | Wild flora lifecycle, perennial foraging, real-time felling, and tree scattering. |
 | Hunger | `subsystems/colonists/` | Physiological satiety tracking, FoodParams, starvation, and LimboAI feeding. |
+| Recreation | `subsystems/furniture/` | RecreationParams capability, occupancy slot rationing, recreation need satisfaction. |
 | Mining | `subsystems/mining/` | Dig box designation, strata materials, designation markers. |
 | Combat | `subsystems/combat/` | HealthComponent, EnemyBase, turret defenses, hostile behavior trees. |
 | Equipment | `subsystems/equipment/` | 8-slot gear component, EquipmentVisualizer, EquipmentAudit fulfillment. |

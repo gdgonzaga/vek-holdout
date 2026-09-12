@@ -194,6 +194,19 @@ Configures colonist rest capability (GDD §6.8). When non-null, `FurnitureLayer`
 | `sleep_offset` | `Vector3` | Local position offset relative to furniture origin where colonist sleeps (default `Vector3.ZERO`). |
 | `rest_rate_per_second` | `float` | Rate at which the rest need is restored per second on a 0.0 to 1.0 scale (default `0.15`). |
 
+### `RecreationParams` (Resource: `recreation_params.gd`)
+Configures colonist recreation capability (see [Recreation](recreation.md)). When non-null, `FurnitureLayer` attaches a `RecreationComponent` node that rations simultaneous users and resolves stand positions. The owning `FurnitureDef` must also declare `tags = ["recreation_object"]` so it joins the group `need_recreation.tres` targets.
+
+| Field | Type | Description |
+|---|---|---|
+| `recreation_per_second` | `float` | Rate at which the recreation need is restored per second while in use, on a 0.0 to 1.0 scale (default `0.08`). |
+| `min_session_seconds` | `float` | Minimum seconds a colonist commits to once a session starts, even if the need fills earlier (default `4.0`). |
+| `max_session_seconds` | `float` | Ceiling on one session; the colonist leaves and re-arbitrates even if the need is unfilled (default `20.0`). |
+| `capacity` | `int` | Simultaneous users. `1` is exclusive, `N` allows N at once, `-1` is unlimited (default `1`). |
+| `use_radius` | `float` | Maximum distance in meters at which a colonist still accrues. `1.5` requires adjacency (default `1.5`). |
+| `use_offsets` | `Array[Vector3]` | Optional standing spots local to the furniture origin, rotated by the furniture transform at runtime. When non-empty they are the exact positions colonists are sent to and they cap the effective capacity (default empty). |
+| `use_animation` | `StringName` | Animation override played for the session duration (default `&"Interact"`). |
+
 ### `LightParams` (Resource: `light_params.gd`)
 Configures light emission properties for furniture (torches, lamps, campfires). When non-null, `FurnitureLayer` attaches a `LightSourceComponent` node holding an `OmniLight3D`.
 

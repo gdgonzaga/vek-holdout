@@ -19,7 +19,7 @@ Colonist needs (e.g., Hunger, Rest, Recreation) are defined as text-based `.tres
 | `response_curve` | `Curve` | `null` | Optional Godot inspector `Curve` mapping deficit (`0.0`..`1.0`) to Utility AI urgency score (`0.0`..`1.0`). If `null`, linear evaluation is used. |
 | `emergency_threshold` | `float` | `0.10` | Critical need level threshold at which action commitment inertia is bypassed, forcing immediate need satisfaction. |
 | `goal_name` | `StringName` | `&"eat"` | High-level goal identifier written to the agent's Blackboard when this need wins Utility arbitration (e.g. `&"eat"`, `&"rest"`, `&"recreation"`). |
-| `target_group` | `StringName` | `&"storage_crate"` | Godot node group name for spatial proximity lookups of smart objects (e.g. `&"dining_table"`, `&"bed"`, `&"recreation"`). |
+| `target_group` | `StringName` | `&"storage_crate"` | Godot node group name for spatial proximity lookups of smart objects. The shipped needs use `&"storage_crate"` (hunger), `&"bed"` (rest) and `&"recreation_object"` (recreation) — the group name must match the furniture's `tags` entry exactly, or the need scores `0.0` forever. |
 
 ---
 

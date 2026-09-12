@@ -45,6 +45,7 @@ When `FurnitureLayer.spawn(def, anchor, yaw_quarters)` creates a furniture insta
 | **`LightParams`** | `LightSourceComponent` | Emits dynamic light with configurable color, range, energy, and shadows. |
 | **`FarmPlotParams`** | `Growable` + `Harvestable` | Crop growing plot supporting hydration, tending, visual stages, and dynamic harvesting. |
 | **`HarvestParams`** | `Harvestable` | Static resource node felled by player/colonists (e.g. resource pillars). |
+| **`RecreationParams`** | `RecreationComponent` | Recreation destination for colonists (ARCH `recreation.md`). Per-second restore rate, session window, simultaneous-user capacity, use radius and optional standing spots. |
 | **`ItemDispenserParams`** | Direct data query | Gives predefined items upon interaction (via `GiveItemAction`). |
 
 ---
@@ -117,6 +118,32 @@ build_time = 6.0
    - `growth_rate_multiplier`: `1.0` (set higher, e.g. `1.2`, for heated/fertilized troughs)
    - `hydration_mode`: `"manual"`
 3. **Do not** add `HarvestParams` or `action_options` manually — `FarmPlotParams.collect_action_options()` automatically supplies `inspect_crop`, `select_crop`, and `toggle_harvest` options, while `Growable` handles yields dynamically via `CropDef`.
+
+---
+
+### Example D: Authoring a Recreation Object (`game_table.tres`, `stone_statue.tres`)
+
+Recreation objects satisfy the colonist `recreation` need. See ARCH `recreation.md` for the runtime flow.
+
+1. Create `res://data/furniture/<id>.tres`.
+2. **Set `tags = ["recreation_object"]`.** This is not optional — group membership comes from `def.tags`, and `data/needs/need_recreation.tres` targets the `recreation_object` group. Without the tag the object is invisible to colonists and the capability is inert. `RecreationComponent` pushes a warning at spawn when the tag is missing.
+3. Attach `RecreationParams`. The two shipped examples cover the extremes:
+
+   **Exclusive, adjacent, fast** (`game_table.tres` — one colonist at a time, like an arcade cabinet):
+   - `capacity`: `1`
+   - `use_radius`: `1.5` (must stand next to it)
+   - `recreation_per_second`: `0.12`
+   - `min_session_seconds` / `max_session_seconds`: `5.0` / `20.0`
+   - `use_offsets`: `[Vector3(0, 0, 0.9)]` — one authored standing spot in front of the table
+
+   **Shared, at range, slow** (`stone_statue.tres` — any number of onlookers, like a mural or a television):
+   - `capacity`: `-1` (unlimited)
+   - `use_radius`: `4.0` (admired from a distance; a TV would use ~`6.0`)
+   - `recreation_per_second`: `0.04`
+   - `min_session_seconds` / `max_session_seconds`: `4.0` / `12.0`
+   - `use_offsets`: omitted — colonists path to any walkable cell near the object
+
+4. Note that `use_offsets` **caps** the effective capacity: authoring two offsets on a `capacity = 4` object yields two slots, because there is nowhere sensible to put the third user. Leave it empty when capacity should be the only limit.
 
 ---
 
