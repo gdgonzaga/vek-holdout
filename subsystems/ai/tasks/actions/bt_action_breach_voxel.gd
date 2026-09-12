@@ -42,10 +42,20 @@ func _tick(delta: float) -> Status:
 			var forward: Vector3 = -(agent as Node3D).global_transform.basis.z.normalized()
 			cell = Vector3i(((agent as Node3D).global_position + forward).floor())
 			
-	var grid = agent.get_node_or_null("/root/VoxelGrid") if agent else null
-	if grid != null and grid.has_method("damage_voxel"):
-		grid.damage_voxel(cell, voxel_damage)
-	elif grid != null and grid.has_method("set_voxel"):
-		grid.set_voxel(cell, 0)
-		
+	# 1. Grid Resolution: Locates the current map's BlockyGrid via SceneManager,
+	# the same accessor player.gd uses for direct terrain mining.
+	var grid: BlockyGrid = _resolve_blocky_grid()
+	if grid != null:
+		grid.apply_damage(cell, voxel_damage)
+
 	return SUCCESS
+
+
+func _resolve_blocky_grid() -> BlockyGrid:
+	## Auxiliary: Resolves the current map's BlockyGrid, or null if none is loaded.
+	if SceneManager == null:
+		return null
+	var current_map: Node = SceneManager.get_current_map()
+	if current_map != null and current_map.has_method("get_blocky_grid"):
+		return current_map.get_blocky_grid()
+	return null

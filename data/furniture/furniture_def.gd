@@ -24,7 +24,7 @@ class_name FurnitureDef
 ##   on `TurretParams` (default: Vector3(0, 2.0, 0)).
 ## - Projectile Alignment: Projectile meshes modeled in Blender should face -Y so they
 ##   fly point-first along Godot's -Z trajectory. Projectiles modeled upright (+Y)
-##   are automatically pitched -90 degrees around X by TurretProjectile.
+##   are automatically pitched -90 degrees around X by Projectile.
 ## - Apply Transforms: Before exporting from Blender, select all parts in Object Mode
 ##   and press Ctrl+A -> Apply All Transforms (or Rotation & Scale).
 ## - Export: Export as glTF 2.0 (.glb) with "+Y Up" enabled (Blender default).

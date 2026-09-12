@@ -5,9 +5,10 @@ extends Node3D
 ## per-instance state lands here as subsystems are built. Placement bookkeeping
 ## (anchor → node maps, cell ownership) stays in FurnitureLayer.
 ##
-## Capabilities deferred: HP/damage (§7.7), Functional Rooms counting (§7.8),
-## storage/door/bed component slots (§7.10–§7.11). Crafting (§7.9) ships as the
-## CraftingStation child component (see subsystems/crafting/).
+## Capabilities deferred: Functional Rooms counting (§7.8), storage/door/bed
+## component slots (§7.10–§7.11). Crafting (§7.9) ships as the CraftingStation
+## child component (see subsystems/crafting/). Combat HP (§7.7) ships as
+## health_component, attached in _setup_health_component() when def.hp > 0.
 
 ## Canonical def id (e.g. "workbench"). Replaces the old node.name parsing in
 ## FurnitureLayer.remove_at; also the save/load key once persistence lands.
@@ -30,6 +31,10 @@ var state: Dictionary = {}
 	get:
 		return def.display_name if def != null else ""
 
+## Combat HP (ARCH combat.md, GDD §7.2/§7.7) — null for buildables whose def.hp
+## is 0 (purely decorative furniture carries no combat HP).
+var health_component: HealthComponent = null
+
 
 func _ready() -> void:
 	if def_id != "":
@@ -37,6 +42,10 @@ func _ready() -> void:
 	add_to_group(&"furniture")
 	# 1. Tag Groups Registration: Registers node into groups based on definition tags.
 	_register_tag_groups()
+	# 2. HealthComponent Setup: Attaches combat HP sized from def.hp so weapons
+	# can damage/destroy this buildable through the same take_damage() contract
+	# player/colonist/enemy combat already uses.
+	_setup_health_component()
 
 
 ## Returns whether this furniture instance carries the specified classification tag.
@@ -61,6 +70,57 @@ func _register_tag_groups() -> void:
 		if tag != "":
 			add_to_group(StringName(tag))
 			add_to_group(StringName("tag_%s" % tag))
+
+
+func _setup_health_component() -> void:
+	## Auxiliary: Attaches a HealthComponent sized from def.hp, skipped for
+	## buildables with no combat HP (def.hp <= 0).
+	if def == null or def.hp <= 0:
+		return
+	health_component = HealthComponent.new()
+	health_component.name = "HealthComponent"
+	add_child(health_component)
+	health_component.setup(def.hp)
+	health_component.entity_died.connect(_on_health_component_died)
+
+
+func _on_health_component_died(_entity: Node) -> void:
+	destroy()
+
+
+## Forwards damage to health_component (a no-op for buildables with no combat HP).
+func take_damage(amount: int, source: Node = null) -> void:
+	if health_component != null:
+		health_component.take_damage(amount, source)
+
+
+## Removes this instance via its owning FurnitureLayer (queue_free + registry
+## cleanup through the existing EventBus.furniture_removed consumers), or falls
+## back to a direct queue_free + emit when no FurnitureLayer is reachable (e.g.
+## bare unit-test construction). Mirrors WildFlora._destroy_flora().
+func destroy() -> void:
+	var cells := get_footprint_cells()
+	var anchor: Vector3i = cells[0] if not cells.is_empty() else Vector3i(
+		int(round(global_position.x)), int(round(global_position.y)), int(round(global_position.z)))
+	var fl := _find_furniture_layer()
+	if fl != null:
+		fl.remove_at(anchor)
+	else:
+		queue_free()
+		EventBus.furniture_removed.emit(def_id, anchor)
+
+
+func _find_furniture_layer() -> FurnitureLayer:
+	## Auxiliary: Resolves BuildController's FurnitureLayer reference.
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var root := tree.current_scene
+	if root != null:
+		var ctrl := root.find_child("BuildController", true, false) as BuildController
+		if ctrl != null and ctrl.furniture_layer != null:
+			return ctrl.furniture_layer
+	return null
 
 
 ## All voxel cells this furniture occupies. Derived from global_position and

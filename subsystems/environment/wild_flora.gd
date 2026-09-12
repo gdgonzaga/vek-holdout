@@ -8,7 +8,6 @@ const STATE_KEY_GROWTH := "growth_progress"
 
 @export var growth_progress: float = 0.0: set = set_growth_progress
 
-var health_component: HealthComponent
 var harvestable: Harvestable
 
 var _active_stage_index: int = -1
@@ -17,19 +16,18 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	# HealthComponent Setup: super._ready() (Furniture) calls _setup_health_component(),
+	# which virtual-dispatches to this class's own override below.
 	super._ready()
 	_rng.randomize()
-	
-	# 1. HealthComponent Setup: Ensure health component exists and connects to entity lifecycle.
-	_setup_health_component()
-	
-	# 2. Initial Progress Resolution: Restore from state or randomize initial growth.
+
+	# 1. Initial Progress Resolution: Restore from state or randomize initial growth.
 	_initialize_growth_progress()
-	
-	# 3. Collision Layer Configuration: Set blocking or pass-through character collision.
+
+	# 2. Collision Layer Configuration: Set blocking or pass-through character collision.
 	_apply_movement_collision_policy()
-	
-	# 4. Stage State Synchronization: Instantiate visual representation and configure HP.
+
+	# 3. Stage State Synchronization: Instantiate visual representation and configure HP.
 	_sync_to_current_stage(true)
 
 
@@ -368,13 +366,7 @@ func _spawn_item_amounts(amounts: Array[ItemAmount], origin: Vector3) -> void:
 
 func _destroy_flora() -> void:
 	## Auxiliary: Cleans up and removes the node from FurnitureLayer.
-	var anchor: Vector3i = get_footprint_cells()[0] if not get_footprint_cells().is_empty() else Vector3i(global_position)
-	var fl := _find_furniture_layer()
-	if fl != null:
-		fl.remove_at(anchor)
-	else:
-		queue_free()
-		EventBus.furniture_removed.emit(def_id, anchor)
+	destroy()
 
 
 func _spawn_splinter_particles(pos: Vector3, color: Color) -> void:
@@ -419,16 +411,3 @@ func _spawn_splinter_particles(pos: Vector3, color: Color) -> void:
 func _get_flora_def() -> WildFloraDef:
 	## Auxiliary: Casts BuildableDef back-reference to WildFloraDef.
 	return def as WildFloraDef
-
-
-func _find_furniture_layer() -> FurnitureLayer:
-	## Auxiliary: Resolves BuildController's FurnitureLayer reference.
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var root := tree.current_scene
-	if root != null:
-		var ctrl := root.find_child("BuildController", true, false) as BuildController
-		if ctrl != null and ctrl.furniture_layer != null:
-			return ctrl.furniture_layer
-	return null
