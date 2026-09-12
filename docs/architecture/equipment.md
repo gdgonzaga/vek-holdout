@@ -36,7 +36,7 @@ In the Colony Management UI, `holster` is labeled as **"Sidearm"** via `Equipmen
 | `fetch_equipment_job_def.gd` | Script (`class_name FetchEquipmentJobDef`, extends JobDef) | Work logic for equipment fetching: path to storage, direct equip in `complete()`, desire invalidation. |
 | `data/jobs/fetch_equipment.tres` | Resource (`FetchEquipmentJobDef`) | Singleton job def resource for equipment retrieval. |
 
-Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `Colonist._ready` and `Player._ready`. `Equipment` must be added before `EquipmentVisualizer` so the sibling exists when the visualizer wires `slot_changed` in its own `_ready`.
+Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `Colonist._ready` and `Player._ready`, via the shared `Equipment.ensure_on(actor, current)` static factory — it creates `Equipment` if `current` is null, then creates and wires `EquipmentVisualizer` so the sibling exists and listens to `slot_changed`. `equip_item()`'s main-hand-first-with-fallback policy is likewise shared via `Equipment.equip_preferring_main_hand(item_def)`.
 
 ---
 
@@ -144,8 +144,10 @@ When colonists fall idle and perform storage hygiene, `JobBoard._find_best_crate
 
 | Function | Returns | Description |
 |---|---|---|
+| `ensure_on(actor, current)` | `Equipment` | Static. Creates/wires Equipment + EquipmentVisualizer on actor if not already present. Shared by Player/Colonist `_ready`. |
 | `can_equip_to(slot_id, item_def)` | `bool` | True if item carries at least one accepted tag for the slot. |
 | `equip(slot_id, item_def)` | `bool` | Places item; emits `slot_changed`. False if tags invalid. |
+| `equip_preferring_main_hand(item_def)` | `bool` | Equips into main_hand, falling back to `get_slot_for_item`. Shared `equip_item()` policy for Player/Colonist. |
 | `unequip(slot_id)` | `ItemDef` | Removes and returns item; emits `slot_changed`. Null if empty. |
 | `get_item(slot_id)` | `ItemDef` | Current item in slot, or null. |
 | `is_empty(slot_id)` | `bool` | True if slot holds no item. |

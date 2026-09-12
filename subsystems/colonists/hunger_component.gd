@@ -89,6 +89,18 @@ func get_stamina_recovery_multiplier() -> float:
 	return 1.0
 
 
+## Returns actor's existing HungerComponent child, or creates and adds one.
+## Shared by Player and Colonist _ready.
+static func ensure_on(actor: Node) -> HungerComponent:
+	var existing := actor.get_node_or_null("HungerComponent") as HungerComponent
+	if existing != null:
+		return existing
+	var created := HungerComponent.new()
+	created.name = "HungerComponent"
+	actor.add_child(created)
+	return created
+
+
 # --- SaveSystem contract -----------------------------------------------------
 
 func serialize() -> Dictionary:
@@ -156,6 +168,4 @@ func _apply_direct_damage_to_parent(amount: int) -> void:
 		return
 
 	if parent_node.has_method("take_damage"):
-		parent_node.take_damage(amount, self)
-	elif parent_node is Colonist:
 		parent_node.take_damage(amount, self)

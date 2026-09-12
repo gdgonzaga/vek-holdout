@@ -68,6 +68,23 @@ var _desired_slots: Dictionary = {
 }
 
 
+## Ensures actor has an Equipment component and its paired EquipmentVisualizer,
+## wired via slot_changed. `current` is the actor's already-resolved Equipment
+## (if any) — pass the actor's own field so a pre-existing component is kept
+## instead of replaced. Returns the resolved Equipment. Shared by Player and
+## Colonist _ready (ARCH equipment.md).
+static func ensure_on(actor: Node, current: Equipment = null) -> Equipment:
+	var eq := current
+	if eq == null:
+		eq = Equipment.new()
+		eq.name = "Equipment"
+		actor.add_child(eq)
+
+	# 1. Visualizer Wiring: Creates the sibling EquipmentVisualizer (if missing) and connects slot_changed.
+	_ensure_visualizer(eq, actor)
+	return eq
+
+
 ## Returns true if item_def carries at least one tag accepted by slot_id.
 func can_equip_to(slot_id: String, item_def: ItemDef) -> bool:
 	# Validate slot existence and item presence before tag check.
@@ -143,6 +160,18 @@ func get_slot_for_item(item_def: ItemDef) -> String:
 		if is_empty(slot_id) and can_equip_to(slot_id, item_def):
 			return slot_id
 	return ""
+
+
+## Equips item_def into main_hand, falling back to the first other valid slot
+## (via get_slot_for_item) if main_hand can't accept it. Returns false if no
+## slot is eligible. Shared main-hand-first equip policy for Player/Colonist.
+func equip_preferring_main_hand(item_def: ItemDef) -> bool:
+	var slot: String = SLOT_MAIN_HAND
+	if not can_equip_to(slot, item_def):
+		slot = get_slot_for_item(item_def)
+	if slot.is_empty():
+		return false
+	return equip(slot, item_def)
 
 
 ## Returns true if any equipped slot holds an item carrying the given tag.
@@ -272,6 +301,17 @@ func deserialize(data: Dictionary) -> void:
 # ====================
 # Auxiliary Functions
 # ====================
+
+static func _ensure_visualizer(equipment: Equipment, actor: Node) -> void:
+	## Auxiliary: Creates actor's EquipmentVisualizer child if missing and connects it to slot_changed once.
+	var vis := actor.get_node_or_null("EquipmentVisualizer") as EquipmentVisualizer
+	if vis == null:
+		vis = EquipmentVisualizer.new()
+		vis.name = "EquipmentVisualizer"
+		actor.add_child(vis)
+	if not equipment.slot_changed.is_connected(vis.on_slot_changed):
+		equipment.slot_changed.connect(vis.on_slot_changed)
+
 
 func _is_valid_slot_and_item(slot_id: String, item_def: ItemDef) -> bool:
 	## Auxiliary: Guards the tag check — slot must exist and item must be non-null.

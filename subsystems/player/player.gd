@@ -218,11 +218,7 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(60.0)
 
 	# HungerComponent child for hunger decay and starvation penalties
-	hunger_component = get_node_or_null("HungerComponent") as HungerComponent
-	if not hunger_component:
-		hunger_component = HungerComponent.new()
-		hunger_component.name = "HungerComponent"
-		add_child(hunger_component)
+	hunger_component = HungerComponent.ensure_on(self)
 
 	# SkillSet child (skill catalog loads in its own _ready; unseeded = all L1).
 	var skills := SkillSet.new()
@@ -640,13 +636,7 @@ func _resolve_air_axis(neg_held: bool, pos_held: bool, momentum: float) -> float
 ## EquipmentVisualizer via Equipment.slot_changed.
 func equip_item(item: ItemDef) -> bool:
 	_ensure_equipment()
-	# Attempt main_hand first; fall back to the first valid slot.
-	var slot: String = Equipment.SLOT_MAIN_HAND
-	if not equipment.can_equip_to(slot, item):
-		slot = equipment.get_slot_for_item(item)
-	if slot.is_empty():
-		return false
-	return equipment.equip(slot, item)
+	return equipment.equip_preferring_main_hand(item)
 
 
 ## Unequips whatever is in main_hand. Returns the removed ItemDef or null.
@@ -664,18 +654,7 @@ func get_equipped_item() -> ItemDef:
 
 func _ensure_equipment() -> void:
 	## Auxiliary: Ensures Equipment and EquipmentVisualizer children exist and are wired.
-	if equipment == null:
-		var eq := Equipment.new()
-		eq.name = "Equipment"
-		add_child(eq)
-		equipment = eq
-	var vis := get_node_or_null("EquipmentVisualizer") as EquipmentVisualizer
-	if vis == null:
-		vis = EquipmentVisualizer.new()
-		vis.name = "EquipmentVisualizer"
-		add_child(vis)
-	if not equipment.slot_changed.is_connected(vis.on_slot_changed):
-		equipment.slot_changed.connect(vis.on_slot_changed)
+	equipment = Equipment.ensure_on(self, equipment)
 
 
 ## Execute the equipped item's primary action.

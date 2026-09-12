@@ -82,6 +82,7 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 
 | Function | Description |
 |---|---|
+| `ensure_on(actor: Node) -> HungerComponent` | Static. Returns actor's existing HungerComponent child, or creates and adds one. Shared by Player/Colonist `_ready`. |
 | `restore_hunger(amount: float) -> void` | Restores hunger points clamped to max_hunger and clears starvation if hunger > 0. |
 | `is_starving() -> bool` | Returns true if hunger is at or below 0.0. |
 | `get_hunger_ratio() -> float` | Returns current hunger normalized between 0.0 and 1.0. |
