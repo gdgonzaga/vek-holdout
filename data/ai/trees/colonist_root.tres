@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bugwrw5o14eul" path="res://subsystems/ai/tasks/actions/bt_action_find_food.gd" id="1_6uv41"]
 [ext_resource type="Script" uid="uid://bpmh16yj4fdaq" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="1_11mb1"]
-[ext_resource type="Script" uid="uid://hl8784o1jltx" path="res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd" id="2_5jm7j"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd" id="2_5jm7j"]
 [ext_resource type="Script" uid="uid://b4hd2b683awcc" path="res://subsystems/ai/tasks/actions/bt_action_claim_job.gd" id="3_mf76j"]
 [ext_resource type="Script" uid="uid://b56bh77dwerbu" path="res://subsystems/ai/tasks/actions/bt_action_fetch_food.gd" id="3_oxad6"]
 [ext_resource type="Script" uid="uid://big6jnf5r8yvf" path="res://subsystems/ai/tasks/actions/bt_action_eat_food.gd" id="4_ftx7d"]
@@ -52,7 +52,7 @@ expected_goal = &"sleep"
 
 [sub_resource type="BTAction" id="BTAction_tc6q8"]
 script = ExtResource("1_11mb1")
-target_var = &"target_smart_object"
+target_var = &"target_stand_pos"
 arrival_distance = 1.5
 
 [sub_resource type="BTAction" id="BTAction_t88ud"]

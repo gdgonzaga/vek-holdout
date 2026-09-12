@@ -11,9 +11,9 @@ size = Vector3(2, 1, 1)
 
 [sub_resource type="Resource" id="RecreationParams_game_table"]
 script = ExtResource("2_rparams")
-recreation_per_second = 0.12
-min_session_seconds = 5.0
-max_session_seconds = 20.0
+recreation_per_game_hour = 9.0
+min_session_game_hours = 0.0667
+max_session_game_hours = 0.2667
 capacity = 1
 use_radius = 1.5
 use_offsets = Array[Vector3]([Vector3(0, 0, 0.9)])

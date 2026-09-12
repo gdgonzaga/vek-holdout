@@ -10,9 +10,9 @@ size = Vector3(1, 2, 1)
 
 [sub_resource type="Resource" id="RecreationParams_stone_statue"]
 script = ExtResource("2_rparams")
-recreation_per_second = 0.04
-min_session_seconds = 4.0
-max_session_seconds = 12.0
+recreation_per_game_hour = 3.0
+min_session_game_hours = 0.0533
+max_session_game_hours = 0.16
 capacity = -1
 use_radius = 4.0
 use_animation = &"Interact"

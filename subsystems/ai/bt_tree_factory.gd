@@ -6,7 +6,7 @@ extends RefCounted
 const BTActionNavigateToScript = preload("res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd")
 const BTActionPerformWorkScript = preload("res://subsystems/ai/tasks/actions/bt_action_perform_work.gd")
 const BTActionClaimJobScript = preload("res://subsystems/ai/tasks/actions/bt_action_claim_job.gd")
-const BTActionUseSmartObjectScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd")
+const BTActionUseBedScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_bed.gd")
 const BTActionHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd")
 const BTActionWanderScript = preload("res://subsystems/ai/tasks/actions/bt_action_wander.gd")
 const BTActionEquipToolScript = preload("res://subsystems/ai/tasks/actions/bt_action_equip_tool.gd")
@@ -144,8 +144,8 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 
 	# 3. Sleep / Generic Smart Object Satisfier. The goal guard is load-bearing:
 	# without it, an eat goal whose food vanished mid-cycle falls through from
-	# branch 2 into this sequence, walks to the food crate, and BTActionUseSmartObject
-	# matches goal_name == "eat" and refills hunger without consuming anything.
+	# branch 2 into this sequence, walks to the food crate, and matches
+	# goal_name == "eat" and refills hunger without consuming anything.
 	var need_seq := BTSequence.new()
 	var sleep_goal_guard = BTConditionGoalIsScript.new()
 	sleep_goal_guard.goal_var = &"current_goal"
@@ -153,12 +153,12 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	need_seq.add_child(sleep_goal_guard)
 
 	var nav_smart = BTActionNavigateToScript.new()
-	nav_smart.target_var = &"target_smart_object"
+	nav_smart.target_var = &"target_stand_pos"
 	nav_smart.arrival_distance = 1.5
 	need_seq.add_child(nav_smart)
 
-	var use_smart = BTActionUseSmartObjectScript.new()
-	need_seq.add_child(use_smart)
+	var use_bed = BTActionUseBedScript.new()
+	need_seq.add_child(use_bed)
 	root.add_child(need_seq)
 
 	# 4. Recreation Satisfier. Kept separate from branch 3 because recreation

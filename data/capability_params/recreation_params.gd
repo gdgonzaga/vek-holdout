@@ -12,17 +12,17 @@ extends FurnitureCapability
 
 ## Recreation need restored per second while a colonist is actively using this
 ## object (0.0 to 1.0 scale). 0.08 fills an empty need in roughly 12 seconds.
-@export var recreation_per_second: float = 0.08
+@export var recreation_per_game_hour: float = 6.0
 
 ## Seconds a colonist commits to once a session starts, even if the need fills
 ## early. Without a floor, a high-rate object tops the need up in a fraction of a
 ## second and the colonist bounces straight back to work — visibly twitchy.
-@export var min_session_seconds: float = 4.0
+@export var min_session_game_hours: float = 0.0533
 
 ## Hard ceiling on a single session. The colonist leaves and ColonistBrain
 ## re-arbitrates even if the need is not yet full, so no single object can
 ## monopolise a colonist indefinitely.
-@export var max_session_seconds: float = 20.0
+@export var max_session_game_hours: float = 0.2667
 
 ## Simultaneous users. 1 = exclusive (arcade cabinet); N = N at once (a couch);
 ## -1 = unlimited (statue, mural — any number of onlookers benefit at once).
@@ -62,5 +62,5 @@ func effective_capacity() -> int:
 ## Session ceiling clamped to never fall below the floor. Guards against an
 ## authoring slip (max < min) locking BTActionUseRecreation into a state where
 ## the minimum commitment can never be satisfied.
-func session_ceiling_seconds() -> float:
-	return maxf(min_session_seconds, max_session_seconds)
+func session_ceiling_game_hours() -> float:
+	return maxf(min_session_game_hours, max_session_game_hours)

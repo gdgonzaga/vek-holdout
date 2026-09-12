@@ -1,7 +1,7 @@
 ## Subsystem: AI Tasks
 ## Occupies a recreation object and accrues the recreation need over time.
 @tool
-class_name BTActionUseRecreation
+class_name BTActionUseBed
 extends BTAction
 
 ## Blackboard variable storing the target recreation furniture.
@@ -15,7 +15,7 @@ extends BTAction
 @export var stand_pos_var: StringName = &"target_stand_pos"
 
 ## Need this action replenishes. Matches NeedDef.id, not NeedDef.goal_name.
-@export var need_id: StringName = &"recreation"
+@export var need_id: StringName = &"rest"
 
 ## Animation used when the furniture authors none.
 @export var fallback_animation: StringName = &"Interact"
@@ -23,7 +23,7 @@ extends BTAction
 var _elapsed: float = 0.0
 var _need_at_entry: float = 0.0
 var _component: Node = null
-var _params: RecreationParams = null
+var _params: BedParams = null
 var _furniture: Node3D = null
 var _anim_controller: Node = null
 var _min_session_seconds: float = 0.0
@@ -31,7 +31,7 @@ var _ceiling_seconds: float = 0.0
 
 
 func _generate_name() -> String:
-	return "Use Recreation  target: %s, need: %s" % [
+	return "Use Bed  target: %s, need: %s" % [
 		LimboUtility.decorate_var(smart_object_var),
 		need_id
 	]
@@ -53,10 +53,10 @@ func _enter() -> void:
 	_furniture = _resolve_target_furniture()
 	if _furniture == null:
 		return
-	_component = _resolve_recreation_component(_furniture)
+	_component = _resolve_bed_component(_furniture)
 	if _component == null:
 		return
-	_params = _component.call(&"params") as RecreationParams
+	_params = _component.call(&"params") as BedParams
 	
 	_min_session_seconds = TimeSystem.game_hours_to_seconds(_params.min_session_game_hours)
 	_ceiling_seconds = TimeSystem.game_hours_to_seconds(_params.session_ceiling_game_hours())
@@ -75,23 +75,18 @@ func _tick(delta: float) -> Status:
 	if _component == null or _params == null or not is_instance_valid(_furniture):
 		return FAILURE
 
-	# 1. Range Enforcement: The authored use_radius is what lets a statue be
-	# admired from across a room while an arcade cabinet demands adjacency.
-	if not _is_agent_in_range():
-		return FAILURE
-
 	_elapsed += delta
 
-	# 2. Need Accrual: Restore at the furniture's authored rate rather than a flat
+	# 1. Need Accrual: Restore at the furniture's authored rate rather than a flat
 	# amount, so object quality is expressed purely as data.
 	var current := _read_need()
-	var recreation_per_sec := TimeSystem.rate_per_game_hour_to_per_second(_params.recreation_per_game_hour)
-	_write_need(clampf(current + recreation_per_sec * delta, 0.0, 1.0))
+	var rest_per_sec := TimeSystem.rate_per_game_hour_to_per_second(_params.rest_per_game_hour)
+	_write_need(clampf(current + rest_per_sec * delta, 0.0, 1.0))
 
 	if not _is_session_complete():
 		return RUNNING
 
-	# 3. Goal Handover: Clear the goal before reporting success so ColonistBrain
+	# 2. Goal Handover: Clear the goal before reporting success so ColonistBrain
 	# re-arbitrates on its next poll instead of re-entering this branch.
 	_clear_blackboard_goal()
 	_log_session_result()
@@ -122,20 +117,12 @@ func _resolve_target_furniture() -> Node3D:
 	return null
 
 
-func _resolve_recreation_component(furniture: Node) -> Node:
-	## Auxiliary: Finds the furniture's RecreationComponent child.
+func _resolve_bed_component(furniture: Node) -> Node:
+	## Auxiliary: Finds the furniture's BedComponent child.
 	for child in furniture.get_children():
-		if child is RecreationComponent:
+		if child is BedComponent:
 			return child
 	return null
-
-
-func _is_agent_in_range() -> bool:
-	## Auxiliary: Compares agent-to-furniture distance against the authored radius.
-	if not (agent is Node3D):
-		return true
-	var dist: float = (agent as Node3D).global_position.distance_to(_furniture.global_position)
-	return dist <= _params.use_radius
 
 
 func _is_session_complete() -> bool:
@@ -200,5 +187,5 @@ func _log_session_result() -> void:
 		need_id,
 		_need_at_entry,
 		_read_need(),
-		"recreation session %.1fs" % _elapsed
+		"sleep session %.1fs" % _elapsed
 	)
