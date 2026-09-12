@@ -6,6 +6,7 @@
 [ext_resource type="Resource" uid="uid://dxgk7b3dp6hed" path="res://data/moodlets/activity_moodlet.tres" id="3_act"]
 [ext_resource type="Resource" uid="uid://mmltmlexqq6a" path="res://data/moodlets/heart_hp_gauge.tres" id="4_hoi11"]
 [ext_resource type="Resource" uid="uid://crx1cepk43gdq" path="res://data/moodlets/rest_moodlet.tres" id="4_xl6pl"]
+[ext_resource type="Resource" uid="uid://c3ajfg7aj7nyy" path="res://data/moodlets/recreation_moodlet.tres" id="5_e1mhw"]
 
 [resource]
 script = ExtResource("1_34um5")
@@ -16,5 +17,5 @@ default_labor_priorities = {
 "hauling": 1,
 "mining": 1
 }
-moodlet_defs = Array[ExtResource("1_30inm")]([ExtResource("4_hoi11"), ExtResource("2_8574y"), ExtResource("4_xl6pl"), ExtResource("3_act")])
+moodlet_defs = Array[ExtResource("1_30inm")]([ExtResource("4_hoi11"), ExtResource("2_8574y"), ExtResource("4_xl6pl"), ExtResource("5_e1mhw"), ExtResource("3_act")])
 metadata/_custom_type_script = "uid://bh0hou41lremh"

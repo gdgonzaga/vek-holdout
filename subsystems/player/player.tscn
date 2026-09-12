@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://dkc21ixx51cg2" path="res://subsystems/player/input_component.gd" id="3_input"]
 [ext_resource type="Script" uid="uid://dpyvcpfh0aifs" path="res://subsystems/inventory/character_inventory.gd" id="4_inv"]
 [ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="5_step"]
-[ext_resource type="PackedScene" uid="uid://bjj8w1frm3ht" path="res://assets/custom/man_a/man_a.glb" id="6_2sd7t"]
+[ext_resource type="PackedScene" uid="uid://b475cytwcyxt8" path="res://assets/custom/man_a/man_a.glb" id="6_2sd7t"]
 [ext_resource type="AnimationLibrary" uid="uid://dbhlqkv2jsfqd" path="res://assets/mixamo/animations.res" id="7_efqes"]
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="8_ip60t"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
@@ -198,6 +198,5 @@ script = ExtResource("8_ip60t")
 [node name="CommandController" type="Node3D" parent="." unique_id=198273699]
 script = ExtResource("15_cmdctrl")
 
-[node name="HealthComponent" type="Node" parent="."]
+[node name="HealthComponent" type="Node" parent="." unique_id=1123412595]
 script = ExtResource("16_health")
-max_hp = 100
