@@ -16,6 +16,21 @@ var _elapsed_in_day: float = 0.0 # real seconds accumulated in the current day
 var _realtime_play_time: float = 0.0 # total unpaused real-time play seconds accumulated
 
 
+## Real seconds in one in-game hour, given the current day length
+## (data/game_config.tres::loop_length_minutes).
+func real_seconds_per_game_hour() -> float:
+	return _loop_length_seconds / HOURS_PER_DAY
+
+## Converts a per-game-hour rate (need decay, furniture restore) into the
+## per-real-second rate _process deltas actually consume.
+func rate_per_game_hour_to_per_second(rate_per_game_hour: float) -> float:
+	return rate_per_game_hour / real_seconds_per_game_hour()
+
+## Converts a duration authored in game-hours into real seconds.
+func game_hours_to_seconds(hours: float) -> float:
+	return hours * real_seconds_per_game_hour()
+
+
 func _ready() -> void:
 	var config: GameConfig = load(_CONFIG_PATH)
 	if config != null:

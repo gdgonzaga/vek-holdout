@@ -64,9 +64,10 @@ func _process(delta: float) -> void:
 			continue
 
 		var def: Resource = defs[need_id]
-		var decay: float = def.decay_per_second
+		var decay_per_hour: float = def.decay_per_game_hour
+		var decay_per_sec: float = TimeSystem.rate_per_game_hour_to_per_second(decay_per_hour)
 		var current: float = float(needs.get(need_id, 1.0))
-		needs[need_id] = clampf(current - decay * delta, 0.0, 1.0)
+		needs[need_id] = clampf(current - decay_per_sec * delta, 0.0, 1.0)
 
 
 ## Returns the deficit (0.0 = satisfied, 1.0 = completely depleted)

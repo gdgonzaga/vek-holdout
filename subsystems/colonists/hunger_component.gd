@@ -17,8 +17,8 @@ signal starvation_tick_damage(amount: int)
 			current_hunger = clamped_val
 			hunger_changed.emit(current_hunger, max_hunger)
 
-## Satiety drained per real second during simulation.
-@export var decay_rate: float = 0.05
+## Satiety drained per in-game hour during simulation.
+@export var decay_per_game_hour: float = 3.75
 
 ## Seconds between periodic starvation damage ticks when current_hunger is 0.0.
 @export var starvation_damage_interval: float = 5.0
@@ -109,7 +109,7 @@ func serialize() -> Dictionary:
 		"max_hunger": max_hunger,
 		"starvation_timer": _starvation_timer,
 		"is_starving": _is_starving,
-		"decay_rate": decay_rate
+		"decay_per_game_hour": decay_per_game_hour
 	}
 
 
@@ -118,7 +118,7 @@ func deserialize(data: Dictionary) -> void:
 	current_hunger = float(data.get("current_hunger", max_hunger))
 	_starvation_timer = float(data.get("starvation_timer", 0.0))
 	_is_starving = bool(data.get("is_starving", false))
-	decay_rate = float(data.get("decay_rate", decay_rate))
+	decay_per_game_hour = float(data.get("decay_per_game_hour", decay_per_game_hour))
 	hunger_changed.emit(current_hunger, max_hunger)
 
 
@@ -128,9 +128,10 @@ func deserialize(data: Dictionary) -> void:
 
 func _advance_hunger_decay(delta: float) -> void:
 	## Auxiliary: Applies frame-scaled decay to current hunger level.
-	if decay_rate <= 0.0:
+	if decay_per_game_hour <= 0.0:
 		return
-	current_hunger -= decay_rate * delta
+	var decay_per_sec = TimeSystem.rate_per_game_hour_to_per_second(decay_per_game_hour)
+	current_hunger -= decay_per_sec * delta
 
 
 func _process_starvation_state(delta: float) -> void:
