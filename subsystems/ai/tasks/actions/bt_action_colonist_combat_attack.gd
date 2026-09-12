@@ -14,7 +14,7 @@ func _generate_name() -> String:
 	return "Colonist Combat Attack  target: %s" % LimboUtility.decorate_var(target_var)
 
 
-func _tick(_delta: float) -> Status:
+func _tick(delta: float) -> Status:
 	if not agent or not blackboard:
 		return FAILURE
 
@@ -40,7 +40,19 @@ func _tick(_delta: float) -> Status:
 	if agent.has_method("set_path"):
 		agent.set_path([])
 
+	# 2. Target Facing: Continuously orient the colonist visual mesh towards the combat target.
+	_face_target(target, delta)
+
 	if not combat.is_on_cooldown():
-		# 2. Weapon Dispatch: Fires/swings the equipped weapon's primary action.
+		# 3. Weapon Dispatch: Fires/swings the equipped weapon's primary action.
 		combat.attack(target)
 	return RUNNING
+
+
+func _face_target(target: Node3D, delta: float) -> void:
+	## Auxiliary: Commands the colonist animation controller to face the threat target.
+	if not (agent is Node):
+		return
+	var anim_ctrl: ColonistAnimationController = (agent as Node).get_node_or_null("ColonistAnimationController") as ColonistAnimationController
+	if anim_ctrl != null:
+		anim_ctrl.face_target(target.global_position, delta)

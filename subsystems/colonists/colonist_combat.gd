@@ -32,11 +32,20 @@ func get_combat_action() -> CombatActionParams:
 	return item.equippable.primary_action as CombatActionParams
 
 
-func is_target_in_range(target: Node3D) -> bool:
+## Returns the attack range in meters for the equipped weapon, or 0.0 if unarmed.
+func get_attack_range() -> float:
 	var action := get_combat_action()
-	if action == null or target == null or not is_instance_valid(target) or _colonist == null:
+	if action == null:
+		return 0.0
+	return action.range_meters if action.range_meters > 0.0 else 2.0
+
+
+func is_target_in_range(target: Node3D) -> bool:
+	if target == null or not is_instance_valid(target) or _colonist == null:
 		return false
-	var range_dist: float = action.range_meters if action.range_meters > 0.0 else 2.0
+	var range_dist: float = get_attack_range()
+	if range_dist <= 0.0:
+		return false
 	return _colonist.global_position.distance_to(target.global_position) <= range_dist
 
 
@@ -50,7 +59,11 @@ func attack(target: Node3D) -> bool:
 	if action == null or is_on_cooldown() or _colonist == null:
 		return false
 	_current_target = target
-	# 1. Attack Animation Trigger: Plays the equipped weapon's one-shot swing
+
+	# 1. Target Facing: Instantly orient visual mesh towards target before initiating swing.
+	_face_target(target)
+
+	# 2. Attack Animation Trigger: Plays the equipped weapon's one-shot swing
 	# animation, mirroring Player._execute_equipped_primary_action(). Only
 	# reached on the successful-execution path (already gated by the cooldown
 	# check above), so it fires once per attack instead of retriggering mid-swing.
@@ -68,6 +81,15 @@ func get_aim_direction() -> Vector3:
 	return _colonist.get_aim_origin().direction_to(_current_target.global_position + Vector3(0, 1.0, 0))
 
 
+func _face_target(target: Node3D) -> void:
+	## Auxiliary: Commands the animation controller to immediately orient towards the combat target.
+	if target == null or not is_instance_valid(target):
+		return
+	_anim_controller = AIUtils.resolve_anim_controller(_anim_controller, _colonist)
+	if _anim_controller != null and _anim_controller.has_method("face_target"):
+		_anim_controller.face_target(target.global_position)
+
+
 func _trigger_attack_animation() -> void:
 	## Auxiliary: Plays the equipped weapon's one-shot use_animation via
 	## ColonistAnimationController.trigger_action(), the same "AttackOverhead"
@@ -81,3 +103,4 @@ func _trigger_attack_animation() -> void:
 	var equip_params: EquippableParams = item.equippable
 	var anim: StringName = equip_params.use_animation if equip_params.use_animation != &"" else &"Interact"
 	_anim_controller.trigger_action(anim)
+

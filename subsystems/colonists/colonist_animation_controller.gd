@@ -82,6 +82,9 @@ func _process(delta: float) -> void:
 func trigger_action(action_name: StringName) -> void:
 	if not anim_tree:
 		return
+	if action_name == &"Idle" or action_name == &"idle" or action_name.is_empty():
+		cancel_action()
+		return
 
 	# 1. Action Resolution: Resolve generic action or weapon animation names to valid transition keys.
 	var resolved_action: StringName = _resolve_action_animation_name(action_name)
@@ -99,21 +102,12 @@ func cancel_action() -> void:
 		anim_tree.set("parameters/ActionOneshot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
 
 
-## Auxiliary: Maps incoming generic action or weapon animation names to valid ActionSelect transition names
-func _resolve_action_animation_name(action_name: StringName) -> StringName:
-	var name_str := String(action_name).to_lower()
-	if name_str in ["attackoverhead", "swing", "attack", "strike", "melee"]:
-		return &"AttackOverhead"
-	if name_str in ["interact", "fire", "shoot", "use"]:
-		return &"Interact"
-	if name_str in ["digging", "dig"]:
-		return &"Digging"
-	return action_name
-
-
 ## Sets a forced animation override (e.g. from BT tasks during work/interaction)
 func play_animation_override(anim_name: StringName) -> void:
 	_forced_anim = anim_name
+	if anim_name == &"Idle" or anim_name == &"idle" or anim_name.is_empty():
+		cancel_action()
+		return
 	if anim_tree:
 		trigger_action(anim_name)
 	elif anim_player:
@@ -125,6 +119,36 @@ func clear_override() -> void:
 	_forced_anim = &""
 	if anim_tree:
 		cancel_action()
+
+
+## Rotates the visual container towards target_pos (snapped if delta <= 0.0, lerped if delta > 0.0).
+func face_target(target_pos: Vector3, delta: float = -1.0) -> void:
+	if not visuals or not _colonist:
+		return
+	var diff := target_pos - _colonist.global_position
+	var horiz := Vector3(diff.x, 0.0, diff.z)
+	if horiz.length_squared() < 0.001:
+		return
+	var dir := horiz.normalized()
+	# For models (+Z forward), atan2(dir.x, dir.z) faces the target direction
+	var target_angle := atan2(dir.x, dir.z)
+	if delta > 0.0:
+		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, rotation_speed * delta)
+	else:
+		visuals.rotation.y = target_angle
+
+
+## Auxiliary: Maps incoming generic action or weapon animation names to valid ActionSelect transition names
+func _resolve_action_animation_name(action_name: StringName) -> StringName:
+	var name_str := String(action_name).to_lower()
+	if name_str in ["attackoverhead", "swing", "attack", "strike", "melee"]:
+		return &"AttackOverhead"
+	if name_str in ["interact", "fire", "shoot", "use"]:
+		return &"Interact"
+	if name_str in ["digging", "dig"]:
+		return &"Digging"
+	return &"Interact"
+
 
 
 # =============================================================================

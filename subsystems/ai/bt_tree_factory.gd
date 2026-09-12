@@ -111,6 +111,7 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	var scan_threats = BTActionScanThreatsScript.new()
 	var combat_threat_groups: Array[StringName] = [&"enemies"]
 	scan_threats.threat_groups = combat_threat_groups
+	scan_threats.use_weapon_range = true
 	scan_threats.radius = 60.0
 	scan_threats.result_var = &"threat_target"
 	combat_seq.add_child(scan_threats)

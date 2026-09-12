@@ -7,6 +7,9 @@ extends BTAction
 ## Sensory detection radius in meters
 @export var radius: float = 16.0
 
+## When true, dynamically resolves the scan radius from the agent's ColonistCombat attack range.
+@export var use_weapon_range: bool = false
+
 ## Blackboard variable where the selected threat node is stored
 @export var result_var: StringName = &"threat_target"
 
@@ -16,6 +19,8 @@ extends BTAction
 
 
 func _generate_name() -> String:
+	if use_weapon_range:
+		return "Scan Threats  weapon_range -> %s" % LimboUtility.decorate_var(result_var)
 	return "Scan Threats  radius: %.1fm -> %s" % [
 		radius,
 		LimboUtility.decorate_var(result_var)
@@ -27,9 +32,17 @@ func _tick(_delta: float) -> Status:
 		return FAILURE
 		
 	var agent_node := agent as Node3D
-	var max_dist_sq: float = radius * radius
+	var effective_radius: float = radius
+	if use_weapon_range:
+		# 1. Weapon Range Query: Resolves attack reach from agent's ColonistCombat component.
+		var weapon_range: float = _resolve_weapon_range(agent_node)
+		if weapon_range <= 0.0:
+			return FAILURE
+		effective_radius = weapon_range
+
+	var max_dist_sq: float = effective_radius * effective_radius
 	
-	# 1. Threat Acquisition: Finding the closest target across all threat groups within sensory radius.
+	# 2. Threat Acquisition: Finding the closest target across all threat groups within sensory radius.
 	var closest_target: Node3D = _find_closest_threat(agent_node, max_dist_sq)
 	if closest_target == null:
 		return FAILURE
@@ -37,6 +50,15 @@ func _tick(_delta: float) -> Status:
 	if blackboard and result_var != &"":
 		blackboard.set_var(result_var, closest_target)
 	return SUCCESS
+
+
+func _resolve_weapon_range(agent_node: Node3D) -> float:
+	## Auxiliary: Queries the attack range from the agent's ColonistCombat component.
+	var combat: ColonistCombat = agent_node.get_node_or_null("ColonistCombat") as ColonistCombat
+	if combat != null:
+		return combat.get_attack_range()
+	return 0.0
+
 
 
 func _find_closest_threat(agent_node: Node3D, max_dist_sq: float) -> Node3D:

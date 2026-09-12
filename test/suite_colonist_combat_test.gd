@@ -7,6 +7,7 @@ extends GdUnitTestSuite
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 const BTActionColonistCombatAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_colonist_combat_attack.gd")
+const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd")
 
 var _sandbox: ColonySandbox
 var _blackboard: Blackboard
@@ -188,3 +189,124 @@ func test_bt_attack_fails_gracefully_when_target_is_freed() -> void:
 	task.initialize(colonist, _blackboard, colonist)
 
 	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+
+
+# ── Weapon Range & Facing Tests ──────────────────────────────────────────────
+
+func test_get_attack_range_reflects_weapon() -> void:
+	var colonist := _sandbox.make_colonist()
+	assert_float(colonist.combat.get_attack_range()).is_equal(0.0)
+
+	colonist.equip_item(_make_weapon(_make_melee_action(1.0)))
+	assert_float(colonist.combat.get_attack_range()).is_equal(1.0)
+
+	colonist.equip_item(_make_weapon(_make_melee_action(3.5)))
+	assert_float(colonist.combat.get_attack_range()).is_equal(3.5)
+
+
+func test_attack_faces_target() -> void:
+	var colonist := _sandbox.make_colonist()
+	colonist.equip_item(_make_weapon(_make_melee_action(2.0)))
+	colonist.global_position = Vector3.ZERO
+	# Target positioned along +X axis (angle PI/2)
+	var target := _make_target(Vector3(1.5, 0, 0))
+
+	assert_bool(colonist.combat.attack(target)).is_true()
+	var anim_ctrl: ColonistAnimationController = colonist.get_node_or_null("ColonistAnimationController") as ColonistAnimationController
+	assert_that(anim_ctrl).is_not_null()
+	if anim_ctrl and anim_ctrl.visuals:
+		# atan2(1.5, 0) == PI / 2.0 (~1.57)
+		assert_float(anim_ctrl.visuals.rotation.y).is_between(1.5, 1.6)
+
+
+func test_face_target_method_rotates_visuals() -> void:
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3.ZERO
+	var anim_ctrl: ColonistAnimationController = colonist.get_node_or_null("ColonistAnimationController") as ColonistAnimationController
+	assert_that(anim_ctrl).is_not_null()
+	if anim_ctrl and anim_ctrl.visuals:
+		anim_ctrl.face_target(Vector3(0, 0, 2.0))
+		# Target directly in front along +Z: atan2(0, 2.0) == 0.0
+		assert_float(anim_ctrl.visuals.rotation.y).is_between(-0.01, 0.01)
+
+		anim_ctrl.face_target(Vector3(-2.0, 0, 0))
+		# Target along -X: atan2(-2.0, 0) == -PI/2 (~ -1.57)
+		assert_float(anim_ctrl.visuals.rotation.y).is_between(-1.6, -1.5)
+
+
+func test_play_animation_override_idle_does_not_fire_attack_oneshot() -> void:
+	var colonist := _sandbox.make_colonist()
+	var anim_ctrl: ColonistAnimationController = colonist.get_node_or_null("ColonistAnimationController") as ColonistAnimationController
+	var anim_tree: AnimationTree = colonist.get_node_or_null("AnimationTree") as AnimationTree
+	assert_that(anim_ctrl).is_not_null()
+	assert_that(anim_tree).is_not_null()
+
+	# Prime action overlay with AttackOverhead
+	anim_ctrl.trigger_action(&"AttackOverhead")
+	assert_int(anim_tree.get("parameters/ActionOneshot/request")).is_equal(AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+	# Overriding with Idle must abort the one-shot rather than re-firing AttackOverhead
+	anim_ctrl.play_animation_override(&"Idle")
+	assert_int(anim_tree.get("parameters/ActionOneshot/request")).is_equal(AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
+
+
+func test_scan_threats_use_weapon_range_unarmed_fails() -> void:
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3.ZERO
+	var enemy := _make_target(Vector3(1.0, 0, 0))
+	enemy.add_to_group(&"enemies")
+
+	var task: BTAction = auto_free(BTActionScanThreatsScript.new()) as BTAction
+	task.use_weapon_range = true
+	var groups: Array[StringName] = [&"enemies"]
+	task.threat_groups = groups
+	task.initialize(colonist, _blackboard, colonist)
+
+	# Unarmed colonist must fail threat scan even when an enemy is 1.0m away
+	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+	assert_bool(_blackboard.has_var(&"threat_target")).is_false()
+
+
+func test_scan_threats_use_weapon_range_armed_filters_distant_threat() -> void:
+	var colonist := _sandbox.make_colonist()
+	colonist.equip_item(_make_weapon(_make_melee_action(1.0)))
+	colonist.global_position = Vector3.ZERO
+
+	var enemy := _make_target(Vector3(5.0, 0, 0))
+	enemy.add_to_group(&"enemies")
+
+	var task: BTAction = auto_free(BTActionScanThreatsScript.new()) as BTAction
+	task.use_weapon_range = true
+	var groups: Array[StringName] = [&"enemies"]
+	task.threat_groups = groups
+	task.initialize(colonist, _blackboard, colonist)
+
+	# Enemy at 5.0m is outside 1.0m weapon reach -> scan fails, no threat target set
+	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+	assert_bool(_blackboard.has_var(&"threat_target")).is_false()
+
+
+	# Move enemy into 0.8m reach -> scan succeeds
+	enemy.global_position = Vector3(0.8, 0, 0)
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_object(_blackboard.get_var(&"threat_target")).is_equal(enemy)
+
+
+
+func test_bt_attack_faces_target_during_tick() -> void:
+	var colonist := _sandbox.make_colonist()
+	colonist.equip_item(_make_weapon(_make_melee_action(2.0)))
+	colonist.global_position = Vector3.ZERO
+	var target := _make_target(Vector3(1.0, 0, 0))
+	_blackboard.set_var(&"threat_target", target)
+
+	var task: BTAction = auto_free(BTActionColonistCombatAttackScript.new()) as BTAction
+	task.initialize(colonist, _blackboard, colonist)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+	var anim_ctrl: ColonistAnimationController = colonist.get_node_or_null("ColonistAnimationController") as ColonistAnimationController
+	assert_that(anim_ctrl).is_not_null()
+	if anim_ctrl and anim_ctrl.visuals:
+		# Should have started rotating towards +X (angle ~1.57)
+		assert_float(anim_ctrl.visuals.rotation.y).is_greater(0.5)
+
