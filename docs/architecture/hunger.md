@@ -30,7 +30,7 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 | `hunger_changed(current: float, max_val: float)` | `hunger_component.gd` | UI panels, telemetry | No | Satiety updates |
 | `starvation_started()` | `hunger_component.gd` | Colonist, Player, GameLog | No | Starvation state enter |
 | `starvation_ended()` | `hunger_component.gd` | Colonist, Player, GameLog | No | Starvation state exit |
-| `starvation_damage_tick(damage: int)` | `hunger_component.gd` | Parent entity `take_damage` | No | Periodic starvation damage |
+| `starvation_tick_damage(amount: int)` | `hunger_component.gd` | Parent entity `take_damage` | No | Periodic starvation damage |
 
 ## Flow Trace: Colonist Autonomous Feeding
 
@@ -72,11 +72,12 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 | Property | Type | Description |
 |---|---|---|
 | `max_hunger` | `float` | Maximum hunger capacity (default `1.0`). |
-| `current_hunger` | `float` | Current hunger points (default `1.0`). |
-| `decay_rate_per_second` | `float` | Full day depletion rate in points per second (default `0.002`). |
+| `current_hunger` | `float` | Current hunger points (default `1.0`). Setter clamps to `[0.0, max_hunger]` and emits `hunger_changed` on change. |
+| `decay_rate` | `float` | Satiety drained per real second during simulation (default `0.05`). |
 | `starvation_damage_interval` | `float` | Time in seconds between starvation damage applications (default `5.0`). |
-| `starvation_damage_per_tick` | `int` | Damage points inflicted per starvation tick (default `2`). |
-| `starvation_speed_multiplier` | `float` | Speed multiplier applied to parent when starving (default `0.80`). |
+| `starvation_damage` | `int` | Damage points inflicted per starvation tick (default `2`). |
+| `starvation_speed_mult` | `float` | Movement speed multiplier applied while starving (default `0.80`). |
+| `starvation_stamina_mult` | `float` | Stamina recovery multiplier applied while starving (default `0.50`). |
 
 **Functions:**
 
@@ -86,7 +87,8 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 | `restore_hunger(amount: float) -> void` | Restores hunger points clamped to max_hunger and clears starvation if hunger > 0. |
 | `is_starving() -> bool` | Returns true if hunger is at or below 0.0. |
 | `get_hunger_ratio() -> float` | Returns current hunger normalized between 0.0 and 1.0. |
-| `get_speed_multiplier() -> float` | Returns starvation_speed_multiplier if starving, else 1.0. |
+| `get_speed_multiplier() -> float` | Returns `starvation_speed_mult` if starving, else 1.0. |
+| `get_stamina_recovery_multiplier() -> float` | Returns `starvation_stamina_mult` if starving, else 1.0. |
 | `serialize() -> Dictionary` | Serializes hunger state and starvation timers for save games. |
 | `deserialize(data: Dictionary) -> void` | Restores hunger state and starvation timers from save data. |
 

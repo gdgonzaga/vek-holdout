@@ -1,6 +1,6 @@
 # How To: Author Defensive Turrets
 
-> End-to-end guide for modeling, rigging, scaling, exporting, and configuring 3D automated defensive turrets for `FurnitureDef` and `TurretParams` resources in *Vek: Holdout*.
+> End-to-end guide for modeling, rigging, scaling, exporting, and configuring 3D automated defensive turrets for `FurnitureDef` and `TurretParams` resources in *Xeno Frontier: Colony Defense*.
 > Covers Blender node hierarchy, `+Y` forward facing direction, pivot/origin placement, transform application rules (**never apply location**), glTF `.glb` export settings, and Godot scene extraction.
 >
 > **Prerequisites:** Basic knowledge of 3D modeling in Blender, Godot `.tres` Resource editing, and `docs/architecture/combat.md`.
@@ -9,7 +9,7 @@
 
 ## 1. Blender Modeling Guidelines & Hierarchy Rules
 
-Defensive turrets in *Vek: Holdout* use a 2-axis aiming system (`TurretComponent`) to track hostile targets:
+Defensive turrets in *Xeno Frontier: Colony Defense* use a 2-axis aiming system (`TurretComponent`) to track hostile targets:
 - **Yaw (Horizontal Tracking)**: Rotates 360° left and right around the vertical axis.
 - **Pitch (Vertical Elevation)**: Tilts up and down around the horizontal elevation axle.
 - **Muzzle Socket**: Visual launch point where `TurretProjectile` instances spawn.

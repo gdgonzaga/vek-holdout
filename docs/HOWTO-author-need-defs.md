@@ -1,6 +1,6 @@
 # HOWTO: Authoring Need Definitions (`NeedDef`)
 
-This guide explains how to author data-driven colonist need definitions (`NeedDef` resources) for the AI Subsystem in Vek: Holdout.
+This guide explains how to author data-driven colonist need definitions (`NeedDef` resources) for the AI Subsystem in Xeno Frontier: Colony Defense.
 
 ---
 

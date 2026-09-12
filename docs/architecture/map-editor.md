@@ -1,12 +1,12 @@
 # Map Editor Architecture
 
-The **Map Editor** (`tools/map_editor/map_editor.tscn` + `map_editor.gd`) is a standalone in-engine authoring environment for creating and editing dual-voxel maps in *Vek: Holdout*.
+The **Map Editor** (`tools/map_editor/map_editor.tscn` + `map_editor.gd`) is a standalone in-engine authoring environment for creating and editing dual-voxel maps in *Xeno Frontier: Colony Defense*.
 
 ---
 
 ## 1. Motivation: Why a Standalone Scene?
 
-In *Vek: Holdout*, environments consist of two complementary voxel systems:
+In *Xeno Frontier: Colony Defense*, environments consist of two complementary voxel systems:
 1. **Blocky Voxels (`BlockyGrid`)**: Discrete cubic blocks for building, structural walls, floors, and furniture anchors.
 2. **Smooth Terrain (`SmoothGrid`)**: Continuous Transvoxel signed-distance field (SDF) natural terrain (hills, valleys, cliffs).
 

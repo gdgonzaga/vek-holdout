@@ -84,9 +84,10 @@ Content rule: durations/animations/units are authored in the `.tres` (`work_dura
 - **CraftingJobDef** — works a station's ready order, produces via `CraftingStation.produce`, resolves via `complete_order` (maintain orders requeue). Claims the station for the craft (arbitration vs. the player's CraftAction); claim races no-op and retry.
 - **HarvestJobDef** — resolves yields via `Harvestable.complete`; `begin` = crop-driven `effective_work_time()` minus persisted partial work.
 - **FarmingJobDef + Sow/Water/Tend** — one cycle against the plot's `Growable` (`_needs` predicate + `_apply` effect); availability tracks what the plot currently needs.
-- **CollectItemJobDef** (`data/jobs/collect_item_job_def.gd`) — Atomic, single-destination job to pick up a specific `WorldItem`. Performs `PickupAction`, transfers item into colonist pockets, and unregisters the `WorldItem`. Gated by `StorageRegistry.find_storage_for` (storage guard) and `WorldItem.is_on_purge_cooldown()`.
-- **DepositItemJobDef** (`data/jobs/deposit_item_job_def.gd`) — Atomic, single-destination job to deposit carried loose items into a single target `Furniture` container (crate/shelf). Completes via `Inventory.transfer_to` and awards hauling XP.
-- **HaulingJobDef** — Multi-leg or sequence material hauling for construction blueprints and crafting stations: `work_site` picks crate-vs-sink by carry state, `complete` performs transfers, and the loop ends by satisfaction (`should_close`). Drought-persistent: unclaimable while no crate stocks a needed material, registered until the sink is satisfied. Surplus after satisfied delivery returns to storage crates.
+- **HaulingJobDef** (`data/jobs/hauling_job_def.gd`) — Single def covering all material/item transport, branching on what `job.target_node` resolves to:
+  - **Storage crate target** (a `Furniture` with a `StorageInventory`): one-shot deposit of everything in the colonist's pockets into that crate, then `_finish`.
+  - **`MaterialSink` target** (a blueprint or crafting station): repeated cycles — `work_site` walks to a source crate while empty-handed and to the sink while carrying a needed material; `complete` either deposits via `sink.deposit_from(actor)` or pulls the remaining need from a crate into pockets. Drought-persistent: unclaimable (`is_available`) while no crate stocks a needed material, stays registered (`should_close` false) until `sink.has_complete_materials()`.
+  - **`WorldItem` target** (a dropped item on the ground): walks to the item, picks it up via `PickupAction`, opportunistically gathers same-`item_id` neighbours within `GATHER_SEARCH_RADIUS` (12m) while carry capacity allows, then delivers to the nearest crate with space (falling back to `nearest_crate`); non-tool surplus of other carried items is deposited alongside. Forbidden (`WorldItem.is_forbidden()`) or already-reserved-by-another items are unavailable.
 
 ---
 
@@ -135,9 +136,9 @@ Data-driven factory templates for instantiating sequences:
 
 ---
 
-## Atomic Hauling Pipeline (`CollectItemJob` & `DepositItemJob`)
+## Ground-Item Hauling (`HaulingJobDef` targeting a `WorldItem`)
 
-General item hauling from the ground to colony storage is decoupled into **atomic, single-leg jobs** coordinated by [`ColonistItemManager`](colonists.md#class-colonistitemmanager):
+Loose items dropped on the ground (from harvesting, combat, dismantling, etc.) are collected back into colony storage by the `WorldItem`-target branch of `HaulingJobDef` — a single looping job, not a pipeline of separate collect/deposit jobs:
 
 ```
                    +----------------------------------+
@@ -146,29 +147,23 @@ General item hauling from the ground to colony storage is decoupled into **atomi
                                     |
                                     v
                    +----------------------------------+
-                   |         CollectItemJob           |  (Pickup to Colonist Pockets)
+                   |   HaulingJobDef.complete()        |  (PickupAction into pockets)
                    +----------------+-----------------+
                                     |
-          +-------------------------+-------------------------+
-          | (Opportunistic Batching within 12m radius)       |
-          v                                                   v
-+----------------------------------+         +----------------------------------+
-|      DepositItemJob (Crate A)    |         |     DepositItemJob (Crate B)     |
-|      (Transfers matching items)  |  ---->  |     (Remaining items if needed)  |
-+----------------------------------+         +----------------------------------+
+                    (gather same-item_id neighbours within
+                     GATHER_SEARCH_RADIUS while capacity allows)
+                                    |
+                                    v
+                   +----------------------------------+
+                   |   Deposit into nearest crate      |
+                   |   with space (surplus items too)  |
+                   +----------------------------------+
 ```
 
-1. **`CollectItemJobDef`**:
-   - Picks up a target `WorldItem` and places it in colonist inventory via `PickupAction`.
-   - **Storage Guard**: Evaluates `StorageRegistry.find_storage_for(item_id, pos, 1) != null` to ensure ground items are never collected if the colony has no crate space to store them.
-   - **Purge Cooldown**: Ignores ground items where `world_item.is_on_purge_cooldown() == true`.
+1. **Pickup**: `work_site` walks the colonist to the target `WorldItem` (or, if already carrying it, to the next reachable same-`item_id` neighbour within `GATHER_SEARCH_RADIUS` (12m), then to a crate). `complete` performs the `PickupAction` once adjacent.
+2. **Opportunistic gathering**: `_find_next_reachable_ground_item` keeps redirecting the colonist to nearby matching ground items while `_actor_has_remaining_capacity` is true, so one job claim can sweep several drops in one trip.
+3. **Delivery**: once no more items are reachable or capacity is full, `_deposit_carried_item_to_storage` delivers the carried stack to a crate found via `StorageRegistry.find_storage_for` (falling back to `nearest_crate`), and also off-loads any other non-target items already in pockets if the same crate has room.
+4. **Availability gating**: a `WorldItem` job is unclaimable while `is_forbidden()` (post-delivery grace flag) or reserved by another colonist, and closes (`should_close`) once the item is gone or forbidden.
 
-2. **`DepositItemJobDef`**:
-   - Directs colonist to a single target `Furniture` crate that can accept at least one carried item.
-   - Deposits items via `Inventory.transfer_to` and awards hauling skill XP.
-
-3. **Looping & Fallback via `ColonistItemManager`**:
-   - **Opportunistic Gathering**: After picking up an item, the manager batches nearby `WorldItem` candidates (within 12m radius) if remaining carry capacity and storage space permit.
-   - **Tier 1 Hygiene (Sequential Crate Deposit)**: If loose items remain after depositing at Crate A, `ColonistItemManager` assigns a new `DepositItemJob` targeting Crate B until pockets are cleared.
-   - **Tier 2 Hygiene (Purge Drop Fallback)**: If all colony storage is full while loose items remain, items are dropped on the ground with a 20-second purge cooldown, ending the loop and freeing the colonist for other duties.
+Non-tool carry cleanup that happens *incidentally* during unrelated jobs (not ground-item hauling) is a separate mechanism — see [Colonists: Carry Inventory Hygiene & Equipment Fulfillment](colonists.md#carry-inventory-hygiene-equipment-fulfillment) for `AIUtils.drop_unneeded_items` / `EquipmentAudit`, invoked from `BTActionClaimJob`.
 

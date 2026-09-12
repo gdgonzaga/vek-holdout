@@ -1,6 +1,6 @@
 # How To: Author a Voxel Block
 
-> End-to-end guide for modeling, texturing, configuring, and registering new voxel block types in *Vek: Holdout*.
+> End-to-end guide for modeling, texturing, configuring, and registering new voxel block types in *Xeno Frontier: Colony Defense*.
 > Covers Blender mesh sizing, origin placement, export settings, texture variation shaders, 3-axis rotation configuration, and registering blocks into the Map Editor and Voxel Engine.
 >
 > **Prerequisites:** Basic knowledge of Blender 3D modeling and Godot `.tres` Resource creation.
@@ -10,7 +10,7 @@
 
 ## 1. Blender Modeling Guidelines & Requirements
 
-Voxel blocks in *Vek: Holdout* are discrete 1-meter cubic units rendered by Zylann's blocky voxel mesher (`VoxelMesherBlocky`). To ensure clean face-stitching and alignment across chunk boundaries, every authored 3D mesh MUST adhere strictly to the following rules:
+Voxel blocks in *Xeno Frontier: Colony Defense* are discrete 1-meter cubic units rendered by Zylann's blocky voxel mesher (`VoxelMesherBlocky`). To ensure clean face-stitching and alignment across chunk boundaries, every authored 3D mesh MUST adhere strictly to the following rules:
 
 ### A. Block Sizing & Bounding Box
 - **Dimensions**: Exactly **1.0 m × 1.0 m × 1.0 m**.
@@ -145,15 +145,18 @@ In Zylann's voxel mesher (`VoxelMesherBlocky`), adjacent opaque cubes cull touch
 
 ## 2. Textures & Shaders
 
-Block textures are stored in `assets/blocks/` (or `assets/art/`).
+There is no dedicated `assets/blocks/` folder — custom-authored block meshes live in
+`assets/custom_meshes/`, their textures in `assets/custom_images/`, and any purchased/
+sourced texture packs under their own top-level folder (e.g. `assets/ambientcg/`),
+per `docs/art.md`.
 
 ### A. Adding Textures
-1. Import your texture file (e.g., `wood_wedge_albedo.png`) into `assets/blocks/`.
+1. Import your texture file (e.g., `wood_wedge_albedo.png`) into `assets/custom_images/`.
 2. Ensure Import Settings use **Lossless** or **VRAM Uncompressed** for crisp voxel textures.
 
 ### B. Texture Variations Shader (`texture_variation`)
 To prevent large blocky surfaces (walls, ground) from looking like repeating grid tiles, `BlockDef` provides a `texture_variation` toggle:
-- When `texture_variation = true`, `BlockLibrary` assigns `res://assets/blocks/block_shader.gdshader` instead of a plain `StandardMaterial3D`.
+- When `texture_variation = true`, `BlockLibrary` assigns `res://assets/shaders/block_shader.gdshader` instead of a plain `StandardMaterial3D`.
 - The shader applies subtle per-voxel UV flipping and brightness offsets derived from world position, making seamless blocky surfaces look natural and organic.
 
 ---
@@ -162,7 +165,7 @@ To prevent large blocky surfaces (walls, ground) from looking like repeating gri
 
 You **DO NOT** need to author 24 separate mesh files in Blender for rotatable shapes!
 
-*Vek: Holdout* features an automated 3-axis rotation pipeline:
+*Xeno Frontier: Colony Defense* features an automated 3-axis rotation pipeline:
 1. You export **1 base mesh** from Blender.
 2. In the block's `BlockDef` resource, you set `rotation_mode`:
    - `NONE` (1 variant): Standard symmetric cubic blocks.
@@ -182,7 +185,7 @@ You **DO NOT** need to author 24 separate mesh files in Blender for rotatable sh
 ## 4. Step-by-Step Block Creation in Godot Editor
 
 ### Step 1: Place Mesh & Texture Assets
-Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` or `assets/blocks/<block_id>.glb`.
+Save your exported `.glb` or `.obj` mesh file to `assets/custom_meshes/<block_id>.obj` or `assets/custom_meshes/<block_id>.glb`.
 
 ### Step 2: Create `BlockDef` Resource
 1. In Godot's FileSystem dock, navigate to `res://data/blocks/`.
@@ -194,13 +197,17 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
 | `id` | `"wedge_wood"` | Unique string key (matches filename). |
 | `display_name` | `"Wooden Wedge"` | UI label in Map Editor & Build Menu. |
 | `rotation_mode` | `FULL_3D` (`24`) | `NONE` (1), `YAW_ONLY` (4), or `FULL_3D` (24). Triggers automatic variant baking. |
-| `scene` | `res://assets/blocks/wedge_wood.glb` | *(Recommended)* Direct `.glb` scene — `BlockLibrary` extracts the base mesh automatically. |
-| `mesh` | `res://assets/blocks/wedge_wood.obj` | *(Alternative)* Unrotated base source mesh in `[0, 1]³` bounding box (variants are baked from this). |
-| `texture` | `res://assets/blocks/wood_albedo.png` | Albedo texture map. |
+| `scene` | `res://assets/custom_meshes/wedge_wood.glb` | *(Recommended)* Direct `.glb` scene — `BlockLibrary` extracts the base mesh automatically. |
+| `mesh` | `res://assets/custom_meshes/wedge_wood.obj` | *(Alternative)* Unrotated base source mesh in `[0, 1]³` bounding box (variants are baked from this). |
+| `texture` | `res://assets/custom_images/wood_albedo.png` | Albedo texture map. |
 | `texture_variation` | `true` | Enables UV/brightness shader variation. |
 | `hp` | `100` | Block durability. |
 | `material_cost` | `[10 x wood_block]` | Crafting/building cost (Array of `ItemAmount`). |
-| `type_id` / `base_library_id` | *(leave defaults)* | Informational fields — library indices are assigned automatically by `BlockLibrary` at startup; you never allocate them. |
+| `is_fluid` | `false` | Marks non-solid fluids like water or lava. |
+| `collision_enabled` | `true` | Set `false` for non-solid blocks (water, tall grass). |
+| `transparency_index` | `0` | `0` = opaque, `>0` = transparent (for `VoxelMesherBlocky` face culling). |
+| `culls_neighbors_of_same_type` | `false` | When `true`, touching blocks of the same model cull their shared internal faces. |
+| `fixed_index` | `-1` | Explicit base library index override (`> 0`) for guaranteed save-compatible index assignment across updates; leave `-1` for the default auto-assigned sequential index — there is no `type_id`/`base_library_id` field, `BlockLibrary` owns that mapping. |
 
 ### Step 3: Bake Voxel Library (`voxel_library.tres`)
 1. In Godot's Script Editor, open `tools/bake_voxel_library.gd`.
@@ -236,7 +243,7 @@ Save your exported `.glb` or `.obj` mesh file to `assets/blocks/<block_id>.obj` 
 Maps store **raw voxel values = library model indices** (`map.sqlite`), so old
 maps keep loading correctly only as long as the library's index layout stays
 compatible with what was saved. `BlockLibrary` builds the layout as:
-**base table** (0 = air, then all blocks alphabetically — there is no terrain
+**base table** (0 = air, then all blocks in registry order — there is no terrain
 block; natural ground is the smooth grid's `TerrainMaterialDef` vocabulary)
 followed by a **variant appendix** (rotation variants of rotatable blocks, in
 base-table order). The rules below follow from that layout.
@@ -247,6 +254,15 @@ base-table order). The rules below follow from that layout.
 > cells as scrap, etc. — re-author affected maps or clear `user://maps`. No
 > migration: pre-release, ~130 affected cells.
 
+**Registry order is not raw alphabetical id sort.** `BlockLibrary._sort_block_defs_stably`
+ranks every `BlockDef` by (in priority order): an explicit `fixed_index` (if `> 0`, wins
+outright and pins that exact index); else its position in the hardcoded
+`LEGACY_BLOCK_ORDER` list (the 13 blocks shipped as of the dual-voxel rewrite —
+currently alphabetical by coincidence, not by rule); else a shared fallback rank, tie-broken
+by `.tres` file path — so **any block not in `LEGACY_BLOCK_ORDER` and without a
+`fixed_index` always sorts after every locked/fixed block**, regardless of how
+its `id` compares alphabetically to them.
+
 ### Safe: adding rotation to a previously single-variant block
 
 Old maps only contain **base** indices for that block (it couldn't rotate when
@@ -255,16 +271,17 @@ base model *is* the rotation-0 variant — so every stored value resolves to the
 same block, same orientation, same mesh. Existing maps load unchanged. Go
 ahead and add `rotation_mode` to any existing block.
 
-### Hazard: making an *earlier-sorting* block rotatable later
+### Hazard: making an *earlier-ranked* block rotatable later
 
-Variant indices in the appendix depend on **which** blocks are rotatable. If
-map A was saved with rotated `wood` voxels (variant index 7, say) and you then
-make `metal` rotatable too, `metal` sorts before `wood` — metal's variants now
-occupy 7–9 and wood's shift to 10–12. Map A's stored `7` silently renders as
-rotated **metal**. The voxels still render and collide (every in-range value is
-a real model), but they are the wrong block. Rule: once maps with rotated
-voxels of a block are in circulation, don't make any *alphabetically earlier*
-block rotatable (and re-save those maps only in the same content configuration
+Variant indices in the appendix depend on **which** blocks are rotatable, appended
+in base-index (i.e. registry-rank) order. If map A was saved with rotated `wood`
+voxels (variant index 7, say) and you then make `metal` rotatable too — and `metal`
+outranks `wood` (lower `LEGACY_BLOCK_ORDER` position, or a smaller `fixed_index`) —
+metal's variants now occupy 7–9 and wood's shift to 10–12. Map A's stored `7`
+silently renders as rotated **metal**. The voxels still render and collide (every
+in-range value is a real model), but they are the wrong block. Rule: once maps with
+rotated voxels of a block are in circulation, don't make any block that outranks
+it rotatable too (and re-save those maps only in the same content configuration
 they were painted in).
 
 ### Dangerous: *removing* rotation from a block
@@ -277,24 +294,27 @@ voxels that still persist across saves (the same failure class as the
 Rule: never un-mark `rotation_mode` on a block whose rotated voxels may exist
 in saved maps.
 
-### Conditional: adding a new block type
+### Safe by design: adding a brand-new block type
 
-The base table is alphabetical (after air). A new `BlockDef` whose
-id sorts **after every existing one** (currently: after `wood_stairs` — e.g.
-`zinc`) is appended and is fully safe. One that sorts **before** an existing
-block (`brick` < `metal`) shifts that block's base index — every saved voxel
-of it in old maps then misidentifies (wrong block, still renders). Rule: **new
-block ids must sort alphabetically after all existing ids**.
+A new `BlockDef` is never in `LEGACY_BLOCK_ORDER` and (unless you set `fixed_index`)
+always falls back to the shared rank — which sorts after every locked/fixed block
+regardless of the new block's `id`. This means, unlike the pre-hardening scheme,
+**adding a new block never shifts any existing block's base index**, no matter
+what its id is (e.g. adding `id = "aardvark"` today still lands after `wood_stairs`,
+not before `full_block_wood`). The one thing that *is* still filename-order-dependent:
+two or more new (non-legacy, no `fixed_index`) blocks added together are ordered
+relative to **each other** by `.tres` file path — set an explicit `fixed_index` on
+each if you need a guaranteed relative order regardless of filename.
 
 ### Quick reference
 
 | Change | Old maps… |
 |---|---|
 | Add `rotation_mode` to an existing block | load unchanged — safe |
-| Make an earlier-sorting block rotatable (after rotated saves exist) | re-interpret its variant indices as the wrong block |
+| Make a lower-ranked (earlier) block rotatable after another block's rotated voxels are saved | re-interpret its variant indices as the wrong block |
 | Remove `rotation_mode` from a block | may contain out-of-range values → invisible voxels |
-| Add a block id sorting after `wood` | load unchanged — safe |
-| Add a block id sorting before an existing block | shift that block's indices → wrong block |
+| Add any new block (no `fixed_index`, not in `LEGACY_BLOCK_ORDER`) | load unchanged — safe, regardless of `id` |
+| Add two+ new blocks together without `fixed_index` | their relative order follows `.tres` file path, not `id` |
 
 If these rules ever become real friction, the durable fix is a per-map library
 manifest (record the index layout a map was saved against and remap on load) —

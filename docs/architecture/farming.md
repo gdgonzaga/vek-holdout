@@ -240,10 +240,10 @@ sequenceDiagram
 1. **Context-Sensitive LMB (`FarmManualAction`):**
    - Raycast detects `Growable` via `InteractionComponent`.
    - Single continuous LMB hold evaluates state in priority order:
-     - `EMPTY` $	o$ Plants `selected_crop_id`.
-     - `Needs Tending` $	o$ Performs tending action.
-     - `Thirsty / Dry` $	o$ Waters plot to 100%.
-     - `MATURE / Harvestable` $	o$ Completes harvest work.
+     - `EMPTY` -> Plants `selected_crop_id`.
+     - `Needs Tending` -> Performs tending action.
+     - `Thirsty / Dry` -> Waters plot to 100%.
+     - `MATURE / Harvestable` -> Completes harvest work.
 2. **Context Menu (E Key):**
    - **Inspect Crop (`InspectCropAction`):** Opens `ui/crop_inspect/crop_inspect.tscn`, displaying current growth %, water level %, tending countdown, neglect time, and projected harvest yields.
    - **Select Crop (`SelectCropAction`):** Opens `ui/crop_picker/crop_picker.tscn` displaying a grid of available crops from `CropLibrary` (filtered by `FarmPlotParams.allowed_crops`).

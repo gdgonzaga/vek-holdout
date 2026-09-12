@@ -57,7 +57,7 @@ For choke-point control and predictive bombardment with area-of-effect turrets (
 | `data/capability_params/turret_params.gd` | Script (Resource) | Capability sub-resource on `FurnitureDef`: range, fire rate, damage, ammo type, projectile mesh/speed/type. |
 | `damage_resolver.gd` | Script | (Planned) Static/class: applies damage per §6.11. AP-equivalent (Durability) depletes first, overflow to HP. |
 | `breath_component.gd` | Script | (Planned) Reusable component (Node): Breath pool (burst energy). |
-| `stamina_component.gd` | Script | Reusable component (Node): Stamina pool (daily energy). |
+| `subsystems/colonists/stamina_component.gd` | Script | Reusable component (Node): Stamina pool (daily energy). Lives in `subsystems/colonists/` (ambiguous ownership); attached to Colonist today. |
 
 ---
 
@@ -68,6 +68,8 @@ For choke-point control and predictive bombardment with area-of-effect turrets (
 | `entity_died(entity)` | `health_component.gd` | owner script | No |
 | `health_changed(current_hp, max_hp)` | `health_component.gd` | HUD, visualizers | No |
 | `durability_changed(current_dur, max_dur)` | `health_component.gd` | HUD, visualizers | No |
+| `damaged(amount, source)` | `health_component.gd` | owner script, visualizers | No |
+| `healed(amount)` | `health_component.gd` | owner script | No |
 | `player_died(context)` | `player.gd` | GameState, HUD | Yes |
 | `colonist_died(colonist_id)` | `colonist.gd` | Colony, HUD, Memorial | Yes |
 | `projectile_fired(projectile, target)` | `turret_component.gd` | audio, visualizers, tests | No |

@@ -11,14 +11,14 @@ The **Colonists** subsystem (`subsystems/colonists/`) manages colonist entity in
                                   |     Colonist      |  (Entity root node)
                                   +---------+---------+
                                             |
-        +-------------------+---------------+---------------+-------------------+---------------------+
-        |                   |                               |                   |                     |
-        v                   v                               v                   v                     v
-+---------------+   +---------------+               +---------------+   +---------------+     +-------------------+
-| ColonistBrain |   | ColonistNeeds |               |   BTPlayer    |   |VoxelPathfinder|     |ColonistItemManager|
-+---------------+   +---------------+               +---------------+   +-------+-------+     +-------------------+
-(Utility AI)        (Hunger/Rest/Rec)               (LimboAI Engine)            | delegates           (Pocket Hygiene &
-                                                                                v                      Batch Gathering)
+        +-------------------+---------------+---------------+-------------------+
+        |                   |                               |                   |
+        v                   v                               v                   v
++---------------+   +---------------+               +---------------+   +---------------+
+| ColonistBrain |   | ColonistNeeds |               |   BTPlayer    |   |VoxelPathfinder|
++---------------+   +---------------+               +---------------+   +-------+-------+
+(Utility AI)        (Hunger/Rest/Rec)               (LimboAI Engine)            | delegates
+                                                                                v
                                                                         +---------------+
                                                                         |Pathfinding-   |
                                                                         |Strategy       |
@@ -28,7 +28,9 @@ The **Colonists** subsystem (`subsystems/colonists/`) manages colonist entity in
 
 (Scene also mounts: ColonistAnimationController + AnimationPlayer [mixamo library] —
 see the class reference below and docs/HOWTO-use-makehuman-mixamo.md. Also code-created in _ready:
-CharacterInventory, Equipment, and EquipmentVisualizer — see docs/architecture/equipment.md.)
+CharacterInventory, HungerComponent, Equipment, and EquipmentVisualizer — see
+docs/architecture/hunger.md and docs/architecture/equipment.md. Carry-inventory hygiene and
+equipment fulfillment are BT-task-driven, not a dedicated component — see below.)
 ```
 
 ---
@@ -42,23 +44,17 @@ CharacterInventory, Equipment, and EquipmentVisualizer — see docs/architecture
 **Description:** Physical entity representing a colonist in the world. Owns HP state, carry inventory (`CharacterInventory`), equipment (`Equipment`, `EquipmentVisualizer`), skill set, labor priorities, and attached components (`ColonistBrain`, `ColonistNeeds`, `BTPlayer`, `VoxelPathfinder`, `ColonistAnimationController`).
 
 **Key Properties & Components:**
-- `colonist_id`: Unique identifier (`String`).
-- `colonist_def`: `ColonistDef` resource configuring base stats.
+- `colonist_id`: Unique identifier (`String`), generated in `_ready`.
+- `colonist_def`: `ColonistDef` resource configuring base stats (`@export`, defaults to `default_colonist.tres`).
 - `labor_priorities`: Dictionary mapping `labor_id` -> priority weight (`0..5`).
-- `inventory`: `var inventory: CharacterInventory` (carry inventory, code-created in `_ready`).
-- `equipment`: `var equipment: Equipment` (8-slot equipment component, code-created in `_ready`).
-- `brain`: `@onready var brain: ColonistBrain = $ColonistBrain`
-- `needs`: `@onready var needs: ColonistNeeds = $ColonistNeeds`
-- `bt_player`: `@onready var bt_player: BTPlayer = $BTPlayer`
-- `animation_controller`: `@onready var animation_controller = $ColonistAnimationController`
-- `pathfinder`: `@onready var pathfinder: VoxelPathfinder = $VoxelPathfinder`
-- `item_manager`: `@onready var item_manager: ColonistItemManager = $ColonistItemManager`
-
-### Class: ColonistItemManager
-
-**Extends:** Node  
-**Script:** `subsystems/colonists/colonist_item_manager.gd`  
-**Description:** Component managing carried inventory hygiene and opportunistic multi-item gathering. Distinguishes loose materials from tools/equipped items, coordinates single-crate auto-deposits, handles ground purge fallbacks with cooldowns, and batches nearby collect jobs within a 12m radius up to carry weight and colony storage availability.
+- `inventory`: `CharacterInventory`, code-created in `_ready` (mirrors Player's scene-placed inventory).
+- `equipment`: `Equipment`, resolved/created in `_ready` via `Equipment.ensure_on(self, equipment)` — see [Equipment](equipment.md).
+- `hunger_component`: `HungerComponent`, resolved/created in `_ready` via `HungerComponent.ensure_on(self)` — see [Hunger](hunger.md).
+- `skill_set`: `SkillSet`, scene child (`$SkillSet`), seeded from `colonist_def.starting_skills`.
+- `stamina_component`: `StaminaComponent`, scene child (`$StaminaComponent`).
+- `pathfinder`: `VoxelPathfinder`, scene child (`$VoxelPathfinder`).
+- `needs` / `brain` / `bt_player`: `ColonistNeeds` / `ColonistBrain` / `BTPlayer` — each resolved via `get_node_or_null` in `_ready`, code-created and added as a child if the scene doesn't already have one (so hand-authored scenes can override, but `colonist.tscn` need not include them). `bt_player.behavior_tree` loads from `data/ai/trees/colonist_root.tres` when created.
+- `interaction`: `InteractionComponent`, resolved or code-created the same way; rebuilt each time via `refresh_interaction_options()`.
 
 ### Class: ColonistBrain
 
@@ -78,12 +74,6 @@ CharacterInventory, Equipment, and EquipmentVisualizer — see docs/architecture
 **Script:** `subsystems/colonists/colonist_animation_controller.gd`  
 **Description:** Manages animation playback, blending locomotion states with interaction loops. Supports behavior tree animation overrides via `play_animation_override(anim_name)` and `clear_override()`. Animations resolve through the scene AnimationPlayer's `mixamo` library (`assets/mixamo/mixamo.res`); missing keys fall back (Sprint to Walk, otherwise Idle) with a one-time warning. `_setup_skeleton()` re-homes the BoneMap-retargeted model skeleton's unique name (`GeneralSkeleton`) to the colonist scene root so library tracks like `%GeneralSkeleton:Hips` bind at runtime.
 
-### Class: ColonistAI (Deprecated)
-
-**Extends:** Node  
-**Script:** `subsystems/colonists/colonist_ai.gd`  
-**Status:** Deprecated. Superseded by `ColonistBrain` utility arbitration and LimboAI behavior trees (`data/ai/trees/colonist_root.tres`). Preserved for backward compatibility during legacy scene migration.
-
 ### Class: ColonistMoodletVisualizer
 
 **Extends:** Node3D  
@@ -92,20 +82,14 @@ CharacterInventory, Equipment, and EquipmentVisualizer — see docs/architecture
 
 ---
 
-## Smart Pocket Management & Inventory Hygiene
+## Carry Inventory Hygiene & Equipment Fulfillment
 
-`ColonistItemManager` enforces clean colonist pockets across all behavioral loops:
+There is no dedicated hygiene component — both concerns are driven from `BTActionClaimJob._cleanup_incompatible_held_items`, which runs on every job-claim boundary (and again from `JobBoard.get_best_job_for`'s idle fallback):
 
-1. **Loose Item Identification**:
-   - Any inventory item in carry pockets (`colonist.inventory`) not currently equipped in `Equipment` slots is treated as loose cargo. Carried tools are protected from dirt-floor drops during job transitions/interruptions, but are storable in crates during item hygiene.
-2. **Opportunistic Multi-Item Gathering**:
-   - Following the completion of a `CollectItemJob`, `ColonistItemManager` searches for other `CollectItemJob` candidates within `GATHER_RADIUS` (12m).
-   - Candidates are collected in the same trip if they satisfy **both** remaining colonist weight capacity and `StorageRegistry.find_storage_for(item_id, colonist_pos) != null`. Can batch heterogeneous materials (e.g. 5 Wood + 2 Stone).
-3. **Two-Tier Hygiene Execution**:
-   - **Tier 1 (Single-Crate Deposit Loop)**: When loose materials are carried, the manager finds the nearest storage crate that can accept at least one held item and assigns an atomic `DepositItemJob`. Upon completion, if loose materials remain, the manager immediately selects the next capable crate.
-   - **Tier 2 (Purge Drop Fallback)**: If no storage container in the colony can accept any remaining loose items, the colonist drops the items on the ground via `colonist.drop_item()`. Dropped `WorldItem`s receive a 20-second purge cooldown (`purge_cooldown_until_msec`), preventing immediate re-pickup loops.
-4. **Behavior Tree Gating (`BTActionClaimJob`)**:
-   - Prior to claiming unrelated labor (e.g. mining or building), `BTActionClaimJob` checks `item_manager.has_loose_items()`. If loose items exist, it runs hygiene to deposit or purge items before proceeding to the designated task.
+1. **Equipment Audit First**: `EquipmentAudit.run_audit(colonist, job_board)` reconciles the colonist's desired loadout (`Equipment._desired_slots`) before hygiene — swapping main_hand/holster and off_hand/back in place where possible, and posting a `FetchEquipmentJob` otherwise. See [Equipment](equipment.md).
+2. **Tool Protection**: If the colonist's hands are full (`colonist.hands_full()`) and the current or upcoming job requires a specific tool tag, `colonist.equipment.has_required_equipment(...)` (falling back to an inventory tag scan) checks whether a matching tool is already held. If not, `colonist.drop_held_item()` drops one carried item to the ground to free a hand.
+3. **Non-Tool Item Cleanup**: For hauling jobs where the colonist isn't standing at the destination crate/sink, `AIUtils.drop_unneeded_items(colonist, needed_ids)` drops every non-tool carried item whose `item_id` isn't in `needed_ids` (the job's still-required materials) as loose `WorldItem`s at the colonist's feet.
+4. **No Batching, No Cooldown**: Items are dropped one at a time via `WorldItem.spawn_at`; there is no opportunistic multi-item gathering pass and no purge cooldown on the dropped items — a colonist can pick the same item back up on its next job evaluation. See [Inventory](inventory.md) for `WorldItem.forbidden`, the only supported "don't touch this" flag (player-toggled, not auto-set here).
 
 ---
 

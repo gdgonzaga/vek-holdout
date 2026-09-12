@@ -1,8 +1,8 @@
-# Architecture — Vek: Holdout
+# Architecture — Xeno Frontier: Colony Defense
 
-Last updated: 2026-08-25 (AI Subsystem & Behavior Trees integration complete — LimboAI behavior tree engine, ColonistBrain Utility AI goal arbitration, ColonistNeeds dynamic needs management, Fractional Job system with JobInstance and WorkerClaim, custom BTTask action/condition library, and data schema updates for JobDef and NeedDef).
+Last updated: 2026-09-12 (multi-leg job completion for hauling/construction, AI behavior-tree task dedupe, and shared Player/Colonist equipment + hunger setup).
 
-> Companion to `GDD.md` (v2.6). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
+> Companion to `GDD.md` (v2.7). Every subsystem below maps to a GDD section; cross-references are in each subsystem's Files table. **Scope:** medium solo project — simple over flexible, no over-engineering.
 
 ---
 
@@ -36,6 +36,9 @@ Last updated: 2026-08-25 (AI Subsystem & Behavior Trees integration complete —
 | [Wild Flora](wild-flora.md) | Trees, bushes, wild plants, foraging, real-time felling & stage progression | §6, §7.4 |
 | [Hunger](hunger.md) | HungerComponent, FoodParams, starvation, pocket feeding, player food | §6.12 |
 | [Mining](mining.md) | Voxel digging, strata materials, dig box designation, markers | §7.5 |
+| [Combat](combat.md) | Durability-before-HP, weapons, enemy archetypes, turrets | §6.11 |
+| [Equipment & Loadouts](equipment.md) | 8-slot gear, auto-equip/unequip, EquipmentAudit | §17 |
+| [Raids](raids.md) | Night raid controller, spawn pacing, threat model | §17 |
 | [UI](ui.md) | HUD + all full-screen screens | §12 |
 | [Game Log](game-log.md) | On-screen message feed, history buffer | §12 |
 
@@ -50,23 +53,20 @@ Last updated: 2026-08-25 (AI Subsystem & Behavior Trees integration complete —
 | Page | Description |
 |---|---|
 | [Tech Debt & Unimplemented](tech-debt.md) | Known debt, unimplemented subsystems, missing schemas |
+| [Job system extensions](job-extensions.md) | Plan-of-record for the job features (Core/Crafting/Harvesting/Farming built; Patrol planned) |
+| [Open world](open-world.md) | Non-binding streaming-world migration analysis — not a planned feature |
 
 ## Planned
 
-Pages for subsystems that exist only as design (their folders are empty placeholders). Each carries a "planned — not yet built" status banner.
+Pages for subsystems that exist only as design (their folders are empty or near-empty placeholders). Each carries a "planned — not yet built" status banner.
 
 | Page | Subsystem | GDD |
 |---|---|---|
-| [Combat](combat.md) | Durability-before-HP, weapons, enemy archetypes | §6.11 |
-| [Equipment & Loadouts](equipment.md) | 8-slot gear, auto-equip/unequip, templates | §17 |
 | [Energy](energy.md) | Breath (burst) + Stamina (daily) pools | §17 |
 | [Permadeath & Memorial](permadeath-memorial.md) | Deceased roster, Day Summary/Game Over | §17 |
-| [Raids](raids.md) | Raid scheduler, threat weights, spawn manager | §17 |
 | [Loot](loot.md) | Loot tables, containers, Key Item pool | §17 |
 | [Debug Console](debug-console.md) | Command registry, dev-only tools | §17 |
 | [Debug Commands](debug-commands.md) | Full command reference for the debug console | §17 |
-| [Open world](open-world.md) | Streaming-world migration analysis | — |
-| [Job system extensions](job-extensions.md) | Plan-of-record for the job features | §6 |
 
 ## About
 

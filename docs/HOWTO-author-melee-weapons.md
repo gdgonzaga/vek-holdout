@@ -1,6 +1,6 @@
 # How To: Author Melee Weapon Models in Blender
 
-> End-to-end guide for modeling, scaling, orienting, texturing, exporting, and integrating 3D melee weapons (batons, swords, axes, clubs) for *Vek Holdout*.
+> End-to-end guide for modeling, scaling, orienting, texturing, exporting, and integrating 3D melee weapons (batons, swords, axes, clubs) for *Xeno Frontier: Colony Defense*.
 > Covers grip origin placement, coordinate alignment for humanoid hand sockets, glTF export settings, `ItemDef`, `EquippableParams`, and `MeleeActionParams` resource configuration.
 >
 > **Prerequisites:** Blender 4.x+, basic Godot resource editing, and familiarity with `docs/architecture/equipment.md` and `docs/architecture/combat.md`.
@@ -9,7 +9,7 @@
 
 ## 1. Modeling Specifications & Scale Standards
 
-All measurements in *Vek Holdout* follow Godot's standard metric units (**1 Blender Unit = 1.0 meter**).
+All measurements in *Xeno Frontier: Colony Defense* follow Godot's standard metric units (**1 Blender Unit = 1.0 meter**).
 
 ### Standard Melee Dimensions
 
@@ -125,7 +125,7 @@ Baton (MeshInstance3D / Node3D)
 
 ## 4. Materials & Texturing
 
-Vek Holdout uses low-poly stylization and palette texture atlases:
+Xeno Frontier: Colony Defense uses low-poly stylization and palette texture atlases:
 1. **Palette Atlas (Preferred)**: Map the weapon's UV faces to the shared texture atlas (`res://assets/animpic-mega-survival-construction/MainTexture.png`).
 2. **Dedicated Material**: If using a custom texture, keep resolution at 512x512 or 1024x1024 with clean albedo, roughness, and metallic channels.
 3. Name your material cleanly in Blender (e.g. `Mat_Baton`, `Mat_Sword`).

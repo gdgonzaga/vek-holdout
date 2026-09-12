@@ -44,27 +44,27 @@ Player (Shift+G) -> DigBoxController (Raycast / Ghost preview / Box math)
    - Queries `TerrainMaterialDef` at `pos` to determine max HP and `minutes_to_full_heal`.
    - Computes effective current HP considering time elapsed and damage regeneration.
    - Inflicts damage (50 HP per hit).
-   - If HP drops $\le 0$: the cell is carved via `carve_box`, `material.yields` are deposited into the player inventory, `"mining"` skill use is recorded on `skill_set`, and `_hp_by_pos[pos]` is erased.
-   - If HP remains $> 0$: `_hp_by_pos[pos]` records the new HP and timestamp.
+   - If HP drops to 0 or below: the cell is carved via `carve_box`, `material.yields` are deposited into the player inventory, `"mining"` skill use is recorded on `skill_set`, and `_hp_by_pos[pos]` is erased.
+   - If HP remains above 0: `_hp_by_pos[pos]` records the new HP and timestamp.
 4. Abandoned hits heal back to max HP over `minutes_to_full_heal` (default 0.25 min / 15s) and are purged from memory once full. Materials with `minutes_to_full_heal <= 0.0` (e.g. asphalt) retain damage permanently without regenerating.
 
 ## Flow Trace: Dig Box Designation & Colonist Dig Jobs
 
 **Trigger:** Player presses `Shift+G` (`dig_box_toggle`).
 
-1. `InputComponent` fires `dig_box_toggle_pressed` $\\rightarrow$ `Player` switches to `Mode.DIG_BOX_DESIGNATION` and emits `EventBus.dig_box_toggled(true)`.
-2. `DigBoxHud` on `HUDLayer` becomes visible, showing initial dimensions ($W=1, H=3, D=3$) and the controls guide.
-3. `DigBoxController._physics_process` casts a screen-center raycast to the terrain via `VoxelGridAdapter`. When terrain is struck, it derives 6-way orthogonal orientation from the player's camera view direction (Depth forward into view, Height screen-up $+Y$, Width screen-right) and positions the green `GhostPreview` box.
+1. `InputComponent` fires `dig_box_toggle_pressed` -> `Player` switches to `Mode.DIG_BOX_DESIGNATION` and emits `EventBus.dig_box_toggled(true)`.
+2. `DigBoxHud` on `HUDLayer` becomes visible, showing initial dimensions (width 1, height 3, depth 3) and the controls guide.
+3. `DigBoxController._physics_process` casts a screen-center raycast to the terrain via `VoxelGridAdapter`. When terrain is struck, it derives 6-way orthogonal orientation from the player's camera view direction (Depth forward into view, Height screen-up +Y, Width screen-right) and positions the green `GhostPreview` box.
 4. **Resizing:**
-   - **Scroll Wheel**: Adjusts **Width** $\\pm 1$ using alternating Right/Left single-block expansion (odd widths centered, even widths +1 right).
-   - **Shift + Scroll** (or horizontal scroll): Adjusts **Depth** $\\pm 1$.
-   - **Ctrl + Scroll**: Adjusts **Height** $\\pm 1$.
-   - All dimensions clamp between $1$ and $11$, emitting `EventBus.dig_box_dimensions_changed` to update the HUD live.
+   - **Scroll Wheel**: Adjusts **Width** +/- 1 using alternating Right/Left single-block expansion (odd widths centered, even widths +1 right).
+   - **Shift + Scroll** (or horizontal scroll): Adjusts **Depth** +/- 1.
+   - **Ctrl + Scroll**: Adjusts **Height** +/- 1.
+   - All dimensions clamp between 1 and 11, emitting `EventBus.dig_box_dimensions_changed` to update the HUD live.
 5. **Orientation Modes:** **Right-Click (`RMB`)** cycles through 3 orientation modes:
-   - **Horizontal Mode**: Standard ground plane tunneling ($W \times H \times D$).
-   - **Vertical Mode**: Vertical shaft digging down $-Y$ or up $+Y$.
-   - **Stairway Down Mode**: Digs a downward-descending staircase corridor fixed at 2 blocks wide and 3 blocks high clearance, dropping 1 block down per 1 block forward along the player's dominant horizontal view direction. Scroll wheel adjusts the number of downward steps ($1..11$).
-6. **LMB Designation:** **Left-Click (`LMB`)** gathers all voxel coordinates in the volume, filters them through `is_terrain_at` (requiring terrain height $\\ge Y + \\text{terrain\\_solidity\\_threshold}$), logs the coordinates to stdout and `GameLog`, and emits `EventBus.dig_box_designated`.
+   - **Horizontal Mode**: Standard ground plane tunneling (width x height x depth).
+   - **Vertical Mode**: Vertical shaft digging down -Y or up +Y.
+   - **Stairway Down Mode**: Digs a downward-descending staircase corridor fixed at 2 blocks wide and 3 blocks high clearance, dropping 1 block down per 1 block forward along the player's dominant horizontal view direction. Scroll wheel adjusts the number of downward steps (1 to 11).
+6. **LMB Designation:** **Left-Click (`LMB`)** gathers all voxel coordinates in the volume, filters them through `is_terrain_at` (requiring terrain height at or above `Y + terrain_solidity_threshold`), logs the coordinates to stdout and `GameLog`, and emits `EventBus.dig_box_designated`.
 7. **Simulation Dispatch & Marker Placement:**
    - `MiningSystem` receives `dig_box_designated` and places persistent translucent amber `MeshInstance3D` unit cube markers on solid blocks under `DesignationContainer`.
    - `Colony` receives `dig_box_designated` and creates `Dig` jobs (`res://data/jobs/dig.tres`) on the `JobBoard`.

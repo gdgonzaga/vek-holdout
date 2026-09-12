@@ -1,6 +1,6 @@
 # How To: Author Wild Flora
 
-> End-to-end guide for creating, configuring, texturing, and placing wild trees, fruit-bearing bushes, and forageable plants in *Vek: Holdout*.
+> End-to-end guide for creating, configuring, texturing, and placing wild trees, fruit-bearing bushes, and forageable plants in *Xeno Frontier: Colony Defense*.
 > Covers `WildFloraDef` resource setup, multi-stage growth (`WildFloraStage`), perennial fruit foraging, weapon impact/felling tuning, collision policies, and map scattering.
 >
 > **Prerequisites:** Familiarity with Godot `.tres` Resource creation and 3D scene imports (`.glb`).
@@ -10,7 +10,7 @@
 
 ## 1. Overview & Architectural Role
 
-Wild flora in *Vek: Holdout* encompasses all naturally occurring vegetation across the world:
+Wild flora in *Xeno Frontier: Colony Defense* encompasses all naturally occurring vegetation across the world:
 - **Harvestable / Felled Trees**: Solid trunks that yield logs and branches when chopped down with axes.
 - **Perennial Fruit Bushes**: Forageable berry bushes or fruit trees that yield edible food on interaction without destroying the plant, regrowing fruit over time.
 - **Single-Harvest Wild Herbs & Plants**: Uprooted entirely upon harvesting (e.g. wild roots, wild fiber).
@@ -135,17 +135,32 @@ When a tree or plant is attacked by a player, colonist, or enemy:
 
 ## 6. Spawning & World Placement
 
-### Option A: World Generation / Map Authoring (`PlantSpawner`)
-Attach a `PlantSpawner` or `TreeScatterer` node in your map scene (`data/maps/<map_id>/map.tscn`):
-- Assign your `WildFloraDef` to the spawner's flora list.
-- Set Poisson-disc radius, density, and allowed slope angles.
-- On map load, `PlantSpawner` raycasts the smooth terrain surface and registers plants via `FurnitureLayer.spawn(def, cell, 0)`.
+There are three distinct ways a `WildFloraDef` instance ends up in a map — pick the one matching your authoring workflow:
 
-### Option B: Hand-Placement via Map Editor
+### Option A: Design-Time Procedural Scattering (`TreeScatterer`)
+`TreeScatterer` (`subsystems/map_authoring/tree_scatterer.gd`) is a static utility, not a scene node — it's invoked from Map Editor tooling (or a build script) to permanently place authored trees into `FurnitureAuthoring`'s `SpawnPoints`, persisted with the map:
+- Call `TreeScatterer.scatter_trees(map, furniture_auth, tree_types, config)`, where `tree_types` is `Array[Dictionary]` of `{"id": "<flora_id>", "weight": 1.0}` entries (weighted random pick — the `id` must resolve to `res://data/furniture/<id>.tres`) and `config` is an optional `Dictionary` overriding defaults: `target_count` (default 75; use `DENSITY_SPARSE`=30 / `DENSITY_NORMAL`=75 / `DENSITY_DENSE`=150), `min_distance` (4.5m micro-spacing gate), `max_slope_deg` (25°), `player_exclusion_radius` (8m around `PlayerSpawn`), `radius` (64m sample circle), `cluster_frequency`/`cluster_threshold` (FastNoiseLite macro clustering for grove/clearing shaping), and `seed`.
+- Placement is gated by: player-spawn exclusion radius, cluster noise threshold, minimum spacing from already-placed trees, and terrain slope — trees are never placed on steep faces.
+- Remove previously-scattered trees of given def IDs with `TreeScatterer.clear_trees(furniture_auth, tree_ids)`.
+
+### Option B: Dynamic Runtime Regrowth (`PlantSpawner`)
+`PlantSpawner` (`subsystems/environment/plant_spawner.gd`) is wired into every map automatically by `MapWiring.wire_flora` (via `SceneManager`) — you don't attach it by hand. It periodically spawns flora *during play* to replace what colonists chop down, driven entirely by fields on `MapDef` (`data/maps/map_def.gd`):
+
+| `MapDef` field | Default | Description |
+|---|---|---|
+| `flora_palette` | `[]` | `Array[BuildableDef]` — which `WildFloraDef`/other flora resources this map can dynamically spawn. Empty = spawner does nothing. |
+| `flora_spawns_per_day` | `0` | How many spawn attempts are scheduled per in-game day (spaced evenly). `0` disables dynamic spawning. |
+| `flora_spawn_cap` | `60` | Max simultaneous live flora instances (tagged `"live_flora"` or matching the palette) before spawning stops. |
+| `flora_max_spawn_attempts` | `15` | Random-coordinate retries per spawn tick before giving up (each attempt checks player-proximity, existing-flora spacing, ground height, and slope). |
+| `flora_min_distance` | `4.0` | Minimum spacing (meters) enforced against both the player spawn and existing flora. |
+
+Placement uses rejection sampling (not Poisson-disc): a random XZ point inside `MapDef.world_bounds` is queried against the terrain's smooth-grid height/normal, and rejected if too close to the player or another tree, or on a slope steeper than 25°. On success it calls `FurnitureLayer.spawn(chosen_def, anchor, yaw_quarters)` with a random `yaw_quarters` (0-3), not a fixed rotation.
+
+### Option C: Hand-Placement via Map Editor
 1. Launch the Map Editor (`tools/map_editor/map_editor.tscn`).
 2. Switch to **Furniture / Flora Mode**.
 3. Select your flora from the palette and click on the terrain to place it.
-4. Placed instances persist directly into the map definition.
+4. Placed instances persist directly into the map definition (same `FurnitureAuthoring`/`SpawnPoints` mechanism `TreeScatterer` uses).
 
 ---
 

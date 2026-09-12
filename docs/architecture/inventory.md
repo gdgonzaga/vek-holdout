@@ -102,7 +102,10 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furniture` | Best crate for deposit: evaluates highest `priority` (1-5) first, breaking ties with shortest distance to `near`. Null if no storage crate has capacity. |
 | `has_source_for(item_ids: Array[String]) -> bool` | Any crate holds any of `item_ids`. |
 | `nearest_crate(near: Vector3) -> Furniture` | Nearest crate regardless of contents (for surplus return). |
-| `colony_stock(item_id, near_pos, radius)` | `-> int` | Colony-wide stock of one item: storage crates + unforbidden WorldItems (filtered within `radius` of `near_pos`, default 50 cells) + carried items on colonists and player. |
+| `find_closest_item_matching(item_id, tags, near) -> String` | Nearest item_id (by tag or exact id) across crates, for tool/tag-driven fetch. |
+| `find_best_food_source(near, blacklisted_sources = []) -> Dictionary` | Nearest edible item across crates and ground `WorldItem`s, skipping blacklisted sources. Used by `BTActionFindFood` ([Hunger](hunger.md)). |
+| `colony_food_count() -> int` | Total edible item count across crates and ground. |
+| `colony_stock(item_id, near_pos = null, radius = 50.0, include_reserved = false) -> int` | Colony-wide stock of one item: storage crates + unforbidden WorldItems (filtered within `radius` of `near_pos`) + carried items on colonists and player. Reserved WorldItems are excluded unless `include_reserved` is true. |
 | `inventory_of(crate: Furniture) -> StorageInventory` | The crate's `StorageInventory` (or null if the crate is null/freed or has no such child). Shared resolution path so haul legs don't each re-fetch the child node. |
 | `get_all_crates() -> Array[Furniture]` | All live crate `Furniture` nodes in the current map. |
 
@@ -111,6 +114,6 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 - **Weight-based, not slot-based.** No `ItemStack` or fixed slot array. Items accumulate freely; the only constraint is total weight.
 - **transfer_to() uses remove-first-then-add.** Prevents item duplication. If the target is full, overflow items are returned to the source.
 - **transfer_to() return value:** Returns the number of items that did **not** end up in the target. This covers both "target was full" (partial transfer) and "source didn't have enough" (requested 10, source had 3 → returns 7).
-- **Ground Item Purge Cooldown:** `WorldItem` instances dropped via Tier 2 inventory hygiene fallback (when colony storage is full) receive a 20-second cooldown timestamp (`purge_cooldown_until_msec`), preventing `CollectItemJob` from re-claiming them in an immediate loop.
+- **Forbidden flag, not a cooldown.** `WorldItem.forbidden` (toggled by the player via `ToggleForbiddenAction`, or read by `StorageRegistry`/`HaulingJobDef`/`Colony`) excludes an item from hauling and stock counts. It is a persistent flag, not a timed cooldown — nothing currently auto-forbids items dropped by AI inventory hygiene (`AIUtils.drop_unneeded_items`, `Colonist.drop_held_item`).
 - **`_get_def()` is the test seam.** Unit tests subclass `Inventory` and override `_get_def()` with a mock dictionary; no `.tres` files needed in the test suite.
 - **ItemDB autoload** follows the same pattern as `BuildLibrary` and `MapLibrary`: scan a `data/` directory at startup into an `id → def` map, read-only after `_ready`. ItemDB keys by the `ItemDef.id` field (e.g. `wood_block`); the `.tres` filename is just the file location, not the identity.

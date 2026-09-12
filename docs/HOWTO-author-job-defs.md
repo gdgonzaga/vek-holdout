@@ -1,6 +1,6 @@
 # HOWTO: Authoring Job Definitions (`JobDef`)
 
-This guide explains how to create and configure data-driven job templates (`JobDef` resources) for colonist work in Vek: Holdout.
+This guide explains how to create and configure data-driven job templates (`JobDef` resources) for colonist work in Xeno Frontier: Colony Defense.
 
 ---
 
@@ -26,6 +26,7 @@ A `JobDef` is a text-based Godot `.tres` Resource (`data/jobs/*.tres` extending 
 | `max_assignees` | `int` | `1` | Maximum simultaneous worker claims allowed (`1` for single-colonist jobs like building; `>1` for divvied jobs like hauling). |
 | `conditions` | `Array[Condition]` | `[]` | Optional array of actor condition resources (e.g. minimum skill requirements) evaluated before assignment. |
 | `custom_subtree` | `BehaviorTree` | `null` | Optional LimboAI behavior tree override. If `null`, standard generic work BT is used. |
+| `requires_adjacent` | `bool` | `true` | Whether the colonist must navigate to a cell adjacent to the target (mining/building) rather than stand directly on it (deploy/stationing). |
 
 ---
 
@@ -114,16 +115,12 @@ When a gameplay task requires multiple distinct stages (e.g. Haul materials to s
 
 ---
 
-## Authoring Atomic Hauling Defs (`CollectItemJobDef` & `DepositItemJobDef`)
+## Authoring Hauling Defs (`HaulingJobDef`)
 
-For general ground-to-crate item transport, hauling uses atomic, single-leg job definitions rather than monolithic multi-site loops:
+General material and item transport uses a single looping def, `HaulingJobDef` (`data/jobs/hauling_job_def.gd`), rather than separate atomic collect/deposit jobs. It branches on what `job.target_node` resolves to:
 
-- **`CollectItemJobDef`**:
-  - Sets `labor_id = "hauling"`, `work_duration = 0.5`, `work_animation = &"Interact"`.
-  - Targets a specific `WorldItem`.
-  - Enforces `StorageRegistry.find_storage_for(item_id, item_pos)` and `not world_item.is_on_purge_cooldown()` in `is_available_for()`.
-- **`DepositItemJobDef`**:
-  - Sets `labor_id = "hauling"`, `work_duration = 0.5`, `work_animation = &"Interact"`.
-  - Targets a specific `Furniture` storage container.
-  - Enforces carried loose items and container weight capacity.
-  - Multi-crate routing and ground purge fallbacks are orchestrated automatically by `ColonistItemManager`.
+- **Storage crate target** (a `Furniture` with a `StorageInventory`) — one-shot deposit of everything the colonist is carrying, then finishes.
+- **`MaterialSink` target** (a blueprint or crafting station) — loops fetch/deliver cycles via `work_site` (crate while empty-handed, sink while carrying a needed material) until `sink.has_complete_materials()`; drought-persistent (unclaimable via `is_available`/`is_available_for` while no crate stocks a needed material, but stays registered).
+- **`WorldItem` target** (a dropped item on the ground) — picks the item up, opportunistically gathers nearby same-`item_id` items within `GATHER_SEARCH_RADIUS` (12m) while carry capacity allows, then delivers to the nearest crate with space via `StorageRegistry.find_storage_for` (falling back to `nearest_crate`).
+
+Author one `.tres` (e.g. `res://data/jobs/hauling.tres`) with `labor_id = "hauling"`; the target-node branching happens entirely in script, not via separate defs. See `docs/architecture/jobs.md#ground-item-hauling-haulingjobdef-targeting-a-worlditem` for the full flow trace.

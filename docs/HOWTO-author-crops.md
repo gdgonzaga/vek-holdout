@@ -1,6 +1,6 @@
 # How To: Author a Crop
 
-> End-to-end guide for creating and configuring new crops in Vek Holdout —
+> End-to-end guide for creating and configuring new crops in Xeno Frontier: Colony Defense —
 > covering visual growth stages, hydration decay, tending modes, skill & tool gating,
 > dynamic milestone yield tiers, and registering crops with farm plots.
 >
@@ -11,7 +11,7 @@
 
 ## Overview of Crop Resources
 
-A crop in Vek Holdout is defined via data resources located in `res://data/crops/`:
+A crop in Xeno Frontier: Colony Defense is defined via data resources located in `res://data/crops/`:
 
 ```
 CropDef (data/crops/<id>.tres)
@@ -153,11 +153,13 @@ yield_tiers = [SubResource("tier_50pct"), SubResource("tier_100pct")]
 
 ### Step 6: Growth Stage Scenes (Visuals)
 
-`Growable` renders visual stages based on `growth_progress`:
-- **Stage 0 (Sprout):** `< 40%` progress
-- **Stage 1 (Growing):** `40% - 99%` progress
-- **Stage 2 (Mature):** `100%` progress
-- **Stage 3 (Withered):** `wither_hours` exceeded
+`Growable` renders visual stages based on crop state and `growth_progress`, splitting the `GROWING` state evenly across `growth_stages - 1` sub-stages (`_calculate_visual_stage_index`) — for the default `growth_stages = 3` that means:
+- **Stage 0 (Sprout):** `GROWING` state, `< 50%` progress
+- **Stage 1 (Growing):** `GROWING` state, `>= 50%` progress
+- **Stage 2 (Mature):** `MATURE` state (always `growth_stages - 1`)
+- **Stage 3 (Withered):** `WITHERED` state (always `growth_stages`, i.e. one past the last growing index)
+
+Raising `growth_stages` adds more evenly-split sprout/growing sub-stages before maturity — it does not change the fixed 50% split for 3 stages specifically; each additional stage divides `GROWING` progress into finer slices (`int(progress * growing_stages)`).
 
 You can provide custom 3D model scenes (e.g. `.glb` / `.tscn` files) in `stage_scenes = [scene_sprout, scene_growing, scene_mature]`. If left empty, `Growable` automatically renders colored procedural cylinder meshes.
 
@@ -181,7 +183,7 @@ allowed_crops = ["sweet_maize", "potato"]
 1. **Static Catalog Check:** Ensure `CropLibrary.get_crop("<crop_id>")` resolves your resource.
 2. **Player Interaction Check:**
    - Place a farm plot in build mode.
-   - Press **E** to open the context menu $	o$ choose **Select Crop** $	o$ pick your new crop.
+   - Press **E** to open the context menu -> choose **Select Crop** -> pick your new crop.
    - Hold **LMB** to plant, water, tend, and harvest.
 3. **Colonist JobBoard Check:**
    - Set a plot to your crop with no player intervention.

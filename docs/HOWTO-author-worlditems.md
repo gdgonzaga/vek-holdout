@@ -1,6 +1,6 @@
 # How To: Author World Item Meshes
 
-> End-to-end guide for modeling, scaling, exporting, and extracting 3D World Item meshes for `ItemDef` resources in *Vek: Holdout*.
+> End-to-end guide for modeling, scaling, exporting, and extracting 3D World Item meshes for `ItemDef` resources in *Xeno Frontier: Colony Defense*.
 > Covers Blender sizing constraints (0.4 m max dimension), pivot/origin alignment, glTF `.glb` export settings, and extracting standalone `.res` `Mesh` resources via Godot's Import dock.
 > 
 > **Prerequisites:** Basic knowledge of 3D modeling in Blender and Godot `.tres` Resource editing.
@@ -20,7 +20,7 @@ World items exist physically in the 3D voxel environment when dropped on the gro
 
 > [!IMPORTANT]
 > **Why 0.4 m Max Scale?**  
-> Voxel grid blocks in *Vek: Holdout* are 1.0 m³ units. Restricting dropped item models to a maximum size of 0.4 m prevents items from clipping into adjacent voxel walls, floating weirdly, or cluttering the ground when multiple items drop in the same block space.
+> Voxel grid blocks in *Xeno Frontier: Colony Defense* are 1.0 m³ units. Restricting dropped item models to a maximum size of 0.4 m prevents items from clipping into adjacent voxel walls, floating weirdly, or cluttering the ground when multiple items drop in the same block space.
 
 ### B. Pivot & Origin Placement
 

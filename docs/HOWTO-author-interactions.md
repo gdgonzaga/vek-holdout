@@ -105,7 +105,7 @@ subclass in `data/conditions/`, then reference its `.tres` from the
 An `ActionOption` binds one `GameAction` to its gating `Condition`s.
 
 1. In the editor, **New Resource → ActionOption**, save as
-   `data/action_options/<id>.tres` (the directory exists — ten options ship
+   `data/action_options/<id>.tres` (the directory exists — twelve options ship
    there today).
 2. In the inspector:
    - Drag your `GameAction.tres` from Step 1 into the **Action** field.

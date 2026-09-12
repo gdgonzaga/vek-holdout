@@ -102,6 +102,7 @@ GameLog also **listens** to these existing EventBus signals (no new EventBus sig
 |---|---|
 | `log(message: String, category: int = INFO) -> void` | Primary entry point. Builds a `LogEntry`, appends to the ring buffer, emits `entry_added`. |
 | `info(message) -> void` / `combat(...)` / `system(...)` / `craft(...)` / `colony(...)` / `debug(...)` | Category convenience wrappers. Internal impl uses `self.log(...)` to avoid clashing with Godot's global `log()` math function. |
+| `warning(message) -> void` | Currently logs at `SYSTEM` category — same line style as `system(...)`. No dedicated WARNING category exists yet; callers wanting a visually distinct warning line should use `SYSTEM` explicitly until one is added. |
 | `get_entries() -> Array[LogEntry]` | Full history, oldest → newest. `LogHistory` reads this on open. |
 | `recent(count: int) -> Array[LogEntry]` | Last N entries, oldest → newest of the slice. `LogFeed` reads this on mount. |
 | `clear() -> void` | Wipes history. Called on `EventBus.run_started`. |

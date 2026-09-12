@@ -16,16 +16,17 @@ res://
 │   ├── player/         # Player controller, camera rig, state machine
 │   ├── build/          # Blueprint mode, BuildLibrary catalog, ghost preview, block placement
 │   ├── furniture/      # Furniture runtime node (placed-item instance)
-│   ├── colonists/      # Colonist entity, animation controller, voxel pathfinder, roster
+│   ├── colonists/      # Colonist entity, animation controller, voxel pathfinder, roster,
+│   │                   #   HungerComponent, SkillSet (skill progression lives here, not a
+│   │                   #   standalone skills/ folder)
 │   ├── ai/             # AI Subsystem: LimboAI integration, ColonistBrain, ColonistNeeds, BT tasks
 │   ├── jobs/           # Fractional job system: JobInstance, WorkerClaim
-│   ├── skills/         # SkillSet/skill progression
-│   ├── combat/         # Planned — damage resolution, weapons, enemy base (empty)
-│   ├── equipment/      # Planned — equipment component, loadout templates (empty)
+│   ├── combat/         # In-progress — HealthComponent, EnemyBase, turret defenses, enemy BT tasks
+│   ├── equipment/      # Implemented — Equipment component, EquipmentVisualizer, EquipmentAudit
 │   ├── raids/          # NightRaidController, radial enemy spawning around player, pacing curves
 │   ├── expeditions/    # ExpeditionManager: POI discovery, expedition lifecycle
 │   ├── maps/           # MapLibrary catalog, MapWiring, SpawnHelpers
-│   ├── loot/           # Planned — loot tables, container logic (empty)
+│   ├── map_authoring/  # Map-editor support: vox parsing, structure stamping, tree scattering
 │   ├── inventory/      # Weight-based inventory, ItemDef, ItemDB
 │   ├── crafting/       # Recipe model, station logic, craft-Job flow
 │   ├── farming/        # Growable component, CropLibrary — crop lifecycle
@@ -72,6 +73,10 @@ res://
 └── tools/              # Editor/build utilities
 ```
 
+`subsystems/loot/` does not exist yet — Loot is design-only (see [Loot](loot.md)). Functional Rooms
+has no dedicated folder either; its planned state is meant to live on the `Colony` autoload (see
+[Functional Rooms](functional-rooms.md)).
+
 ---
 
 ## Subsystems Overview
@@ -83,13 +88,13 @@ res://
 | Player | `subsystems/player/` | Character controller, camera rig, interaction input. |
 | Build | `subsystems/build/` | Blueprint placement, catalog library, ghost previews. |
 | Actions & Interaction | `subsystems/actions/` | E-key menu options, conditions, interaction component. |
-| Functional Rooms | `subsystems/functional_rooms/` | Room capability tracking based on placed furniture. |
+| Functional Rooms | `subsystems/core/` (planned) | Room capability tracking based on placed furniture — spec only, see [Functional Rooms](functional-rooms.md). |
 | Colonists | `subsystems/colonists/` | Colonist entities, animation controller, pathfinding. |
 | Jobs | `subsystems/jobs/` | Job registry, `JobInstance`, `WorkerClaim` fractional reservations. |
 | AI & Behavior Trees | `subsystems/ai/` | LimboAI engine, `ColonistBrain` Utility AI, `ColonistNeeds`, BT tasks. |
 | Pathfinding & Navigation | `subsystems/colonists/` | Voxel A* 3D pathfinder (`VoxelPathfinder`). |
 | Skills | `subsystems/colonists/` | Entity L1-L5 skill progression and work multipliers. |
-| Maps | `subsystems/maps/` | Map loading, per-map scenes, wiring helpers. |
+| Maps | `subsystems/maps/`, `subsystems/map_authoring/` | Map loading, per-map scenes, wiring helpers, map-editor stamping tools. |
 | Expeditions | `subsystems/expeditions/` | POI discovery, expedition departure and return lifecycle. |
 | Inventory | `subsystems/inventory/` | Weight-based inventory, items, carrying capacity. |
 | Crafting | `subsystems/crafting/` | Workbench/Forge station recipes and craft jobs. |
@@ -97,6 +102,10 @@ res://
 | Wild Flora | `subsystems/environment/` | Wild flora lifecycle, perennial foraging, real-time felling, and tree scattering. |
 | Hunger | `subsystems/colonists/` | Physiological satiety tracking, FoodParams, starvation, and LimboAI feeding. |
 | Mining | `subsystems/mining/` | Dig box designation, strata materials, designation markers. |
+| Combat | `subsystems/combat/` | HealthComponent, EnemyBase, turret defenses, hostile behavior trees. |
+| Equipment | `subsystems/equipment/` | 8-slot gear component, EquipmentVisualizer, EquipmentAudit fulfillment. |
+| Raids | `subsystems/raids/` | NightRaidController, radial enemy spawning, spawn-rate pacing curves. |
+| Loot | — (planned) | Loot tables and container rolls for scavenge missions — spec only, see [Loot](loot.md). |
 | UI | `ui/` | persistent HUD, full-screen screens, dialogs. |
 | Game Log | `subsystems/core/` | On-screen event feed and history log. |
 
@@ -115,7 +124,13 @@ res://
 | **Colony** | `colony.gd` | Colony roster and JobBoard singleton owner. |
 | **TimeSystem** | `time_system.gd` | Continuous time advance and day rollover signals. |
 | **RunProgress** | `run_progress.gd` | Run-scoped unlocked content tracking. |
-| **BuildLibrary** | `build_library.gd` | Buildable catalog index. |
+| **BuildLibrary** | `subsystems/build/build_library.gd` | Buildable catalog index. |
+| **Tools** | `subsystems/autoloads/tools.gd` | Cross-subsystem utility helpers (e.g. UUID generation). |
+| **MapLibrary** | `subsystems/maps/map_library.gd` | `id → MapDef` map catalog registry. |
+| **ItemDB** | `subsystems/inventory/item_db.gd` | `id → ItemDef` item catalog registry. |
+| **ExpeditionManager** | `subsystems/expeditions/expedition_manager.gd` | POI discovery and expedition lifecycle. |
+
+Order above matches `project.godot`'s `[autoload]` section — later autoloads may depend on earlier ones being ready.
 
 ---
 

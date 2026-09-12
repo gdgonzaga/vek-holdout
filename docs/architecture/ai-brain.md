@@ -73,8 +73,10 @@ Desire alone is insufficient; a colonist cannot eat if there is no food, or rest
 - If no valid unblacklisted target exists on the map, `final_score` drops to `0.0`.
 
 ### Step 3: Work Score Evaluation
-- Evaluates `_get_work_score()` based on whether `JobBoard` has available jobs matching the colonist's enabled labor priorities.
-- Base work score scales from `0.4` to `0.6` depending on colony state, providing a baseline desire to work when survival needs are met.
+- `_get_work_score(actor)` queries `JobBoard.get_best_job_for(colonist)`; if no job is available, the work score is `0.0` (no baseline desire to work absent actual work).
+- Otherwise the score is `(labor_priority / 5.0) * def.base_priority` — the colonist's own 0-5 labor priority slider scaled by the job def's authored `base_priority` (defaults to `0.5` if the def doesn't export one).
+- **Special case:** a `DeployJobDef` (or any job with `labor_id == "deploy"`) always scores `2.0`, guaranteeing it outranks every other goal.
+- **Test fallback:** a non-`Colonist` actor (mock actors in unit tests) always scores `0.5`, independent of `JobBoard` state.
 
 ### Step 4: Action Commitment (Inertia Bonus)
 To prevent "thrashing" (rapidly oscillating between eating, resting, and working when scores are close):

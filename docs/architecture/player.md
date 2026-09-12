@@ -12,6 +12,9 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). **Over-the-shoulder framing** via `Camera3D.h_offset`/`v_offset` (export `h_offset`/`v_offset`): the frustum shifts so the body sits screen-left/bottom while the aim direction stays along the spring-arm axis (no camera rotation). LMB/RMB reserved for item actions, not consumed here. |
 | `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Build Menu/Build Placement × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
 | `../core/step_climber.gd` | Script (component) | Shared stair-step / hop assist, added as a `StepClimber` child of both `player.tscn` and `colonist.tscn` (lives in core — the AGENTS ambiguous-ownership rule). Ticks after the body's `move_and_slide()` and walks the player over low lips/risers up to `step_height` (0.5); `hop_height` stays 0 on the player (the Space jump remains manual). See the class reference below. |
+| `Inventory` (scene child) | Scene node | `CharacterInventory`, scene-placed under `player.tscn`. Carry inventory backing `add_item`/`remove_item`/`drop_item`/`has_item`/`can_carry`. See [Inventory](inventory.md). |
+| *(code-created in `_ready`)* | — | `HungerComponent` (via `HungerComponent.ensure_on(self)`, see [Hunger](hunger.md)), `SkillSet` (unseeded — every skill reads L1 until trained by use), and `Equipment` + `EquipmentVisualizer` (via `Equipment.ensure_on(self, equipment)`, see [Equipment](equipment.md)). |
+| `command_controller.gd` | Script (Node, optional) | Child node (`CommandController`), present only when authored in the scene (`get_node_or_null`). Given the active camera in `_ready` for issuing world-space commands (e.g. colonist orders). |
 | `../data/characters/player.tres` | Data *(planned — does not exist yet)* | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See [Data Schemas](data-schemas.md). |
 
 ## Signals
@@ -112,11 +115,18 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `gravity` | `float` | `[export default 9.8]` Gravity acceleration. |
 | `jump_force` | `float` | `[export default 5.0]` Vertical impulse on jump. |
 | `jump_move_speed` | `float` | `[export default 0.5]` Mid-air nudge speed for axis braking. |
-| `mode` | `Mode` enum | `NORMAL`, `BUILD_MENU`, `BUILD_PLACEMENT`, or `DIG_BOX_DESIGNATION`. |
-| `state` | `State` enum | Movement/action state (`IDLE`, `WALK`, `SPRINT`, `ATTACK`, `INTERACT`, `SLEEP`, `DEAD`). Only `IDLE`/`WALK`/`SPRINT` are actively assigned at runtime; the rest are placeholders. |
+| `mode` | `Mode` enum | `NORMAL`, `BUILD_MENU`, `BUILD_PLACEMENT`, or `DIG_BOX_DESIGNATION` (dig-box terrain designation; toggled by `_on_dig_box_toggle_pressed`, mutually exclusive with Blueprint mode). |
+| `state` | `State` enum | Movement/action state (`IDLE`, `WALK`, `SPRINT`, `ATTACK`, `INTERACT`, `SLEEP`, `DEAD`). Only `IDLE`/`WALK`/`SPRINT`/`DEAD` are actively assigned at runtime; `ATTACK`/`INTERACT`/`SLEEP` are placeholders. |
 | `interact_distance` | `float` | `[export default 8.0]` Max range for the interaction crosshair raycast. |
+| `_busy` | `bool` | True while a timed action (e.g. a `BuildAction` with `build_time`) holds the player; gates movement, jump, and discrete actions. Set via `is_busy()`/`set_busy()`. |
 | `_current_interactable` | `InteractionComponent` | The component currently under the crosshair (or `null`). Refreshed every tick by `_update_interaction_target`. |
 | `_input` | `InputComponent` | `@onready` reference to the `$InputComponent` child. All raw input reads go through this component. |
+| `inventory` | `CharacterInventory` | `@onready` reference to the scene-placed `$Inventory` child. Carry inventory backing `add_item`/`remove_item`/`drop_item`/`has_item`/`can_carry`/`consume_food_item`. |
+| `equipment` | `Equipment` | 8-slot gear component; resolved/created in `_ready` via `_ensure_equipment()` (`Equipment.ensure_on`). See [Equipment](equipment.md). |
+| `hunger_component` | `HungerComponent` | Resolved/created in `_ready` via `HungerComponent.ensure_on(self)`. Drives starvation speed penalty and `consume_food_item`'s hunger restore. See [Hunger](hunger.md). |
+| `skill_set` | `SkillSet` | Code-created, unseeded (every skill reads L1 until trained). Shared with `Colonist` so `MinSkillCondition` reads either actor reflectively. |
+| `current_hp` / `max_hp` | `int` | Fallback HP state (both default `100`), used by `take_damage`/`heal` only when no `HealthComponent` child is present. |
+| `command_controller` | `CommandController` *(optional)* | `@onready get_node_or_null("CommandController")`; given the active camera in `_ready` if present. |
 | `character_def` | `CharacterDef` *(planned)* | Loaded resource (player.tres): max_hp, base_move_speed, sprint_multiplier, stamina_drain_rate, breath costs. |
 | `breath_component` | `BreathComponent` *(planned)* | @onready ref; queried for sprint gating + burst-action spending. |
 | `stamina_component` | `StaminaComponent` *(planned)* | @onready ref; queried for work/movement multipliers. |
@@ -140,7 +150,21 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `_interaction_raycast() -> Dictionary` | Screen-center physics raycast (`interact_distance`, bodies only, player excluded). Resolves discrete `WorldItem`s and `Colonist`s prioritized through coarse `BuildBody` bounding boxes. Returns the raw hit dict (empty if nothing struck). |
 | `_update_interaction_target() -> void` | Per-tick crosshair check; updates `_current_interactable` via `_find_interaction_component`. Skipped in Blueprint mode. |
 | `_find_interaction_component(node: Node) -> InteractionComponent` | Walks up the parent chain from a hit collider looking for a child named exactly `"InteractionComponent"`. |
-| `take_damage(amount: int, source: Node) -> void` *(planned)* | Forwards to Combat's damage resolver. |
+| `is_busy() -> bool` / `set_busy(value: bool) -> void` | Query/set `_busy`. Taken by `BuildAction` before showing its progress gauge, released on the gauge's `completed`/`cancelled` signals. |
+| `add_item(item_id, count) -> int` / `remove_item(item_id, count) -> int` | Thin wrappers over `inventory.add`/`inventory.remove`. Return overflow / shortfall respectively. |
+| `has_item(item_id, count) -> bool` / `can_carry(item_id, count) -> bool` | Thin wrappers over `inventory.has_item`/`inventory.can_add`. |
+| `drop_item(item_id: String, count: int = 1) -> WorldItem` | Removes `count` of `item_id` from inventory and spawns it as a `WorldItem` in front of the player (impulse toss). Unequips main_hand first if it holds the last copy of the dropped item. Returns null if the item wasn't carried. |
+| `consume_food_item(item_id: String) -> bool` | Player's instant-eat path (mirrors the colonist BT eat flow without the animation/timer): validates `ItemDef.food`, removes 1 unit, restores hunger via `hunger_component`, and heals via `heal()` if `food.health_restore > 0`. See [Hunger](hunger.md). |
+| `take_damage(amount: int, source: Node = null) -> void` | Forwards to a `HealthComponent` child if present; otherwise clamps `current_hp`, and on death sets `state = DEAD` and emits `EventBus.player_died`. |
+| `heal(amount: int) -> void` | Forwards to a `HealthComponent` child if present; otherwise clamps `current_hp` up to `max_hp`. |
+| `equip_item(item: ItemDef) -> bool` | Equips into main_hand via `equipment.equip_preferring_main_hand`. Visual update is automatic (`EquipmentVisualizer` listens to `Equipment.slot_changed`). See [Equipment](equipment.md). |
+| `unequip_item() -> ItemDef` / `get_equipped_item() -> ItemDef` | Unequip/query main_hand. |
+| `_ensure_equipment() -> void` | Auxiliary: resolves/creates `equipment` (+ its visualizer) via `Equipment.ensure_on(self, equipment)`. |
+| `_execute_equipped_primary_action() -> void` | Runs the item equipped in main_hand's `EquippableParams.primary_action` (respecting its cooldown). Called by `_on_primary_action` when the equipped item is usable. |
+| `_on_primary_action() -> void` | LMB handler (connected to InputComponent's `primary_action_pressed`). Dispatch order: equipped item's primary action, else the crosshair target's `ForageAction`/`FarmManualAction`/`HarvestAction`, else real-time terrain/block mining (50 HP damage per swing via `SmoothGrid.apply_damage_at` or `BlockyGrid.apply_damage`). No-op while busy, in Blueprint mode, or when UiGate blocks input. |
+| `_on_dig_box_toggle_pressed() -> void` | Toggles `mode` between `NORMAL` and `DIG_BOX_DESIGNATION`; emits `EventBus.dig_box_toggled`. |
+| `is_in_water() -> bool` | True if the voxel cell at the player's lower torso is a water block (`BlockyGrid`). Used to dampen ground/jump speed by 0.6x while wading. |
+| `serialize() -> Dictionary` / `deserialize(data: Dictionary) -> void` | SaveSystem contract: position, camera yaw/pitch, inventory, equipment, hunger, HP. Mode/state and the transient interactable target are not persisted. |
 
 ### Class: InputComponent
 

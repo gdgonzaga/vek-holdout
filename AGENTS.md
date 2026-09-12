@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Vek Holdout (tentative title) — Godot 4.7 (Forward Plus, Jolt) voxel colony-survival game. GDScript only. Work lands directly on `main`.
+Xeno Frontier: Colony Defense — Godot 4.7 (Forward Plus, Jolt) voxel colony-survival game. GDScript only. Work lands directly on `main`.
 
 ## Authoritative docs — read before designing
 
@@ -76,7 +76,7 @@ Preferences: prefer **scene files over dynamically created nodes** for any non-t
 
 ## LLM Execution & Code Generation Strategy
 
-When writing or refactoring code for Vek Holdout, prioritize highly granular structures, strict typing, and defensive execution mapping over monolithic script blocks.
+When writing or refactoring code for Xeno Frontier: Colony Defense, prioritize highly granular structures, strict typing, and defensive execution mapping over monolithic script blocks.
 
 ### Auxiliary Functions Preference
 - **Granular Decomposition**: Break complex operations, data transformations, or logic branches into small, pure auxiliary functions. If an operation exceeds 15 lines or performs more than one single task (e.g., both parsing a resource and updating an array), it must be split into isolated helpers.

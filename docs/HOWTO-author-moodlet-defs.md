@@ -1,6 +1,6 @@
 # HOWTO: Authoring Moodlet Definitions (`MoodletDef`)
 
-This guide explains how to author data-driven moodlet definitions (`MoodletDef`, `StatThresholdMoodletDef`, and `ActivityMoodletDef` resources) for the Moodlet Subsystem in Vek: Holdout.
+This guide explains how to author data-driven moodlet definitions (`MoodletDef`, `StatThresholdMoodletDef`, and `ActivityMoodletDef` resources) for the Moodlet Subsystem in Xeno Frontier: Colony Defense.
 
 ---
 

@@ -3,6 +3,8 @@
 Architecture plan for four colonist job features — **Crafting at furniture, Harvesting, Farming, Patrol** — over the [Jobs](jobs.md) core. Companion to [Jobs](jobs.md), [Crafting](crafting.md), and [Farming](farming.md) (the built systems) and [Skills](skills.md) (the skill spec). GDD §6.
 
 > **Status: the Core Changes are built (2026-08-15, with tests); the Crafting Feature is built (2026-08-15, `test/suite_crafting_test.gd`); the Harvesting Feature is built (2026-08-16, `test/suite_harvesting_test.gd`); the Farming Feature is built (`test/suite_farming_test.gd`). Only Patrol is still planned.** Built behavior is documented on [Jobs](jobs.md), [Skills](skills.md), [Crafting](crafting.md), and [Farming](farming.md); this page keeps the plan + the design rules the features must follow. Sequencing at the bottom.
+>
+> **Terminology note:** this page's Verdict and Design Rules sections were written against the pre-fractional-work design (`JobLeg` / `get_next_leg` / a monolithic `ColonistAI`). None of those three exist in the shipped code — work is now tracked as `JobInstance` + `WorkerClaim` (see [Jobs](jobs.md)) and executed by discrete LimboAI BT tasks (`BTActionClaimJob`, `BTActionPerformWork`, see [AI](ai.md)), not a single `ColonistAI` class. Read every `ColonistAI`/`JobLeg` reference below as the historical rationale for the design rule, not a live API.
 
 ## Verdict
 
@@ -43,7 +45,7 @@ Files: `subsystems/colonists/skill_set.gd`, `data/skills/skills.tres`.
 [Skills](skills.md) specifies the API, signals, and flow traces — this is implementation-to-spec, not design: `record_use(skill_id)`, `get_level(skill_id)`, `get_multiplier(labor_id) -> float`, `meets_requirement(skill_id, min_level) -> bool`, signals `skill_progressed`/`skill_leveled_up`. Seeded from `ColonistDef.starting_skills` (ships `mining` + `farming` at L1; `mining` isn't one of the 7 skills and is ignored by the seed).
 
 - **Work speed**: defs divide `begin()`'s duration by `actor.skill_set.get_multiplier(job.labor_id)` — the documented `base_rate` seam (Jobs' deferred list). `StaminaComponent` stays stubbed.
-- **XP**: `ColonistAI` calls `record_use` on `_end_job(true)`, only for labors mapped to a skill in `skills.tres` (unmapped labors grant nothing; hauling maps to none initially).
+- **XP**: as built, the single XP site is `JobDef._finish(actor, job)` (called from `complete()`, shared by every terminal path), which calls `actor.skill_set.record_use_for_labor(labor_id)` — only for labors mapped to a skill in `skills.tres` (unmapped labors grant nothing; hauling maps to none initially).
 
 ### 3. Leaf conditions — `data/conditions/`
 
@@ -117,7 +119,7 @@ Dual-mode harvesting:
 - `get_next_leg`: returns a WORK leg targeting the marked node (null if un-marked or node gone).
 - `is_available`: node valid AND `is_marked_for_harvest` is true.
 - `begin`: duration = `work_time / skill_multiplier - work_done`.
-- `complete`: applies work → yields to colonist inventory → node removed via `FurnitureLayer.remove_at`; skill XP lands in `ColonistAI._end_job` (the single XP site — the def never records).
+- `complete`: applies work → yields to colonist inventory → node removed via `FurnitureLayer.remove_at`; skill XP is recorded by the shared `JobDef._finish` (see Core Change 2 above).
 - `on_end`: persists elapsed work on abort.
 
 **Voxel node harvesting** (follow-up, after Demolition): `BlockDef` gains `drops: Array[ItemAmount]`; a `MiningJobDef` targets a cell — `job.anchor_cell` is the cell's identity (dedupe/cancel by anchor, exactly like blueprints) and `leg.location` the walk target; `complete` drives `BlockyGrid.apply_damage` per swing until `block_destroyed` → drops. The pathfinder is already cell-native (`find_stand_near_cell`; `ColonistAI._path_for_leg` falls back to `find_path_to_adjacent` for non-furniture legs), so no `JobLeg` change is required — an optional `target_cell: Vector3i` is identity sugar. [Tech Debt](tech-debt.md)'s "Demolition (as a Job)" needs the same cell-targeted leg shape and is the smaller proving ground — build it first. Resource veins additionally need worldgen (flat generator today) — a separate effort.

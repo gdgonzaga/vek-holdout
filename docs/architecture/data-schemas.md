@@ -21,13 +21,14 @@ Reusable declarative template for one kind of colonist work (`data/jobs/*.tres`)
 | `base_priority` | `float` | Base priority score evaluated by Utility AI (`ColonistBrain`) (default `0.5`). |
 | `max_assignees` | `int` | Maximum simultaneous worker claims allowed (default `1`). |
 | `conditions` | `Array[Condition]` | Actor requirements (skill/item gates), evaluated hot by `get_best_job_for`. |
+| `requires_adjacent` | `bool` | `[export default true]` Whether the colonist must navigate to a cell adjacent to the target (mining/building) rather than stand directly on it (deploy/stationing). |
 | `custom_subtree` | `BehaviorTree` | Optional LimboAI behavior tree override resource. |
 
 ---
 
-## `data/needs/<id>.tres` (Resource: `need_def.gd`) — `NeedDef`
+## `data/needs/<id>.tres` (Resource: `data/schemas/need_def.gd`) — `NeedDef`
 
-Data-driven definition for colonist needs (`hunger`, `rest`, `recreation`). Loaded from `data/needs/` by `ColonistNeeds`.
+Data-driven definition for colonist needs (`hunger`, `rest`, `recreation`). The `.tres` instances live under `data/needs/`; the schema script itself lives in `data/schemas/` alongside other cross-cutting Resource definitions. Loaded from `data/needs/` by `ColonistNeeds`.
 
 | Field | Type | Description |
 |---|---|---|
@@ -55,6 +56,7 @@ The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef ex
 | `breath_costs` | `Dictionary` | `[export]` Per-action Breath costs keyed by name (default `{"sprint": 1.0, "jump": 1.0}`). |
 | `starting_skills` | `Dictionary` | `[export]` Starting skill xp/level per labor (default mining + farming at L1). |
 | `default_labor_priorities` | `Dictionary` | `[export]` Default labor-priority weights per labor (ships `construction`/`crafting`/`hauling`/`harvesting` at 1). |
+| `moodlet_defs` | `Array[MoodletDef]` | `[export]` The moodlet catalog this colonist's `ColonistMoodletVisualizer` evaluates (see Moodlets below). |
 
 ---
 
@@ -236,11 +238,20 @@ Configures automated turret defenses. When non-null, `FurnitureLayer` attaches a
 
 | Field | Type | Description |
 |---|---|---|
-| `range` | `float` | Maximum targeting range in meters. |
-| `fire_rate` | `float` | Fire rate in shots per second. |
-| `damage` | `int` | Direct damage per hit. |
+| `range` | `float` | Maximum targeting range in meters (default `15.0`). |
+| `fire_rate` | `float` | Fire rate in shots per second (default `1.0`). |
+| `damage` | `int` | Direct damage per hit (default `10`). |
 | `ammo_type` | `ItemDef` | Required ammunition item, or null for infinite/free firing. |
-| `muzzle_offset` | `Vector3` | Local position where projectiles spawn if no "Muzzle" node is found. |
+| `muzzle_offset` | `Vector3` | Local position where projectiles spawn if no "Muzzle" node is found (default `(0, 2.0, 0)`). |
+| `turn_speed` | `float` | Turret rotation speed tracking its target, in radians/second (default `5.0`). |
+| `min_pitch_deg` / `max_pitch_deg` | `float` | Vertical aim clamp in degrees (defaults `-15.0` / `60.0`). |
+| `projectile_scene` | `PackedScene` | Optional projectile visual scene; falls back to `projectile_mesh`/`projectile_material` when unset. |
+| `projectile_mesh` / `projectile_material` | `Mesh` / `Material` | Fallback projectile visuals when `projectile_scene` is unset. |
+| `projectile_speed` | `float` | Projectile travel speed in meters/second (default `25.0`). |
+| `projectile_type` | `ProjectileType` | `REGULAR` or explosive-on-impact variant; gates `explosion_radius` handling. |
+| `explosion_radius` | `float` | Area-damage radius on impact for explosive projectile types (default `3.0`). |
+| `enable_muzzle_flash` / `enable_projectile_trail` / `enable_explosion_particles` | `bool` | Toggle each particle effect independently (all default `true`). |
+| `explosion_particle_scene` | `PackedScene` | Optional custom explosion particle scene override. |
 
 ### `HarvestParams` (Resource: `harvest_params.gd`)
 Configures direct resource harvesting. When non-null, `FurnitureLayer` attaches a `Harvestable` node and contributes `toggle_harvest` `ActionOption`. Must not be used on farm plots (which resolve yields dynamically via `CropDef`).
@@ -277,7 +288,7 @@ Configures physiological nutrition, healing, and consumption properties for edib
 | `health_restore` | `int` | Immediate hit points healed upon ingestion (default `0`). |
 | `eat_duration` | `float` | Time in seconds required for eating cycle (default `2.0`). |
 | `eating_animation` | `StringName` | Animation override key played during consumption (default `&"eat"`). |
-| `mood_modifier` | `String` | Optional moodlet applied to colonist after eating. |
+| `mood_modifier` | `StringName` | Optional moodlet applied to colonist after eating. |
 | `spoilage_hours` | `float` | Reserved shelf-life hours for future perishability system. |
 
 

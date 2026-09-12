@@ -1,6 +1,6 @@
 # HOWTO: Authoring Behavior Trees
 
-This guide explains how to author and extend LimboAI Behavior Trees (`BehaviorTree`) and custom BT tasks for colonists and hostile agents in Vek: Holdout.
+This guide explains how to author and extend LimboAI Behavior Trees (`BehaviorTree`) and custom BT tasks for colonists and hostile agents in Xeno Frontier: Colony Defense.
 
 ---
 
@@ -20,7 +20,7 @@ Decision-making is driven by a hybrid architecture:
 |---|---|---|
 | `colonist_root.tres` | `BTDynamicSelector` | Master colonist behavior tree handling dynamic goal shifts between need satisfaction, work execution, and idle wandering. |
 | `bt_generic_work.tres` | `BTSequence` | Generic job execution sequence (claim job -> verify tool -> navigate -> perform work). |
-| `bt_haul_single_trip.tres` | `BTSequence` | Single-trip material transport sequence (claim -> navigate source -> pickup -> navigate target -> deposit). |
+| `bt_haul_single_trip.tres` | `BTSequence` | Single-trip material transport sequence: `BTActionClaimJob` -> `BTActionNavigateTo` (`source_node`) -> `BTActionHaulBatch` (`mode = LOAD`) -> `BTActionNavigateTo` (`target_node`) -> `BTActionHaulBatch` (`mode = UNLOAD`). The same `BTActionHaulBatch` script drives both legs, distinguished only by `mode`. |
 | `enemy_swarmer.tres` | `BTSelector` | Hostile swarmer tree executing voxel breaching, melee attacks, threat chasing, and scanning. |
 
 ---
@@ -47,7 +47,7 @@ class_name BTActionCustomSample
 func _generate_name() -> String:
 	return "CustomSample (%s)" % [target_var]
 
-func _tick(delta: float) -> int:
+func _tick(delta: float) -> Status:
 	var target: Variant = blackboard.get_var(target_var)
 	if target == null:
 		return FAILURE

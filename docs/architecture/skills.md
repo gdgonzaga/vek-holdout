@@ -2,7 +2,7 @@
 
 Per-entity skill progression (L1–L5, use-based). Determines work-speed multiplier; gates regular jobs at L1. GDD §6.3. Lives on Colonists AND the Player as a `SkillSet` component (the Player's is code-created in `Player._ready`, unseeded — personal crafting consumes and trains it; see [Crafting](crafting.md)). The Player screen's Skills *tab* is post-MVP (the data progresses now; the UI to view it is deferred).
 
-**Work-speed combination:** effective work rate = `base_rate × skill_multiplier × stamina_multiplier`. `SkillSet.get_multiplier(labor)` returns the skill factor (1.0 at L1 → 2.0 at L5); `StaminaComponent.get_work_multiplier()` returns the Stamina factor (**still a stub** — the stamina half of the formula is deferred). JobDefs divide their `begin()` duration by the skill factor (construction, crafting, harvest, and the farming defs today; see [Jobs](jobs.md)). See Flow Trace below.
+**Work-speed combination:** effective work rate = `base_rate × skill_multiplier × stamina_multiplier`. `SkillSet.get_multiplier(labor)` returns the skill factor (1.0 at L1 → 2.0 at L5); `StaminaComponent.get_work_multiplier()` returns the Stamina factor (**still a stub** — the stamina half of the formula is deferred). `JobDef.begin()` itself only returns the *unskilled* cycle duration (0.0 keeps the authored/default duration) — the division by the skill factor happens one layer up, in whichever caller resolves that duration for its actor: `BTActionPerformWork._enter` for colonist jobs (construction, crafting, farming, mining, hauling — anything routed through the behavior tree; see [Jobs](jobs.md)), and each Player manual-action script (`dig_action.gd`, `harvest_action.gd`, `craft_action.gd`, `farm_manual_action.gd`, `forage_action.gd`) for the Player's own direct-input actions. See Flow Trace below.
 
 ## Files
 
@@ -25,9 +25,9 @@ All same-scene (No EventBus) — skills are per-entity, read locally. No listene
 
 ## Flow Trace: Skill gains progress on a successful job completion
 
-**Trigger:** A colonist successfully completes a skilled Job — `ColonistAI._end_job(true)`.
+**Trigger:** A colonist's `BTActionPerformWork` cycle completes and calls the active job's `JobDef.complete(actor, job)` — or, for the Player, one of the manual action scripts finishes its own work cycle.
 
-1. ColonistAI calls `skill_set.record_use_for_labor(job.labor_id)` — the single XP entry point.
+1. `JobDef.complete()` calls the base `_finish(actor, job)` (subclasses that override `complete()` still call it after applying their world effect) — `_finish` calls `actor.skill_set.record_use_for_labor(labor_id)`, the shared colonist-path XP entry point. The Player's manual actions (`dig_action.gd`, `harvest_action.gd`, `craft_action.gd`, `farm_manual_action.gd`, `forage_action.gd`) call `record_use_for_labor` the same way but inline, without going through a JobDef.
 2. `SkillSet` maps the Labor to its governing skill via `skills.tres` (construction, crafting, mechanics, farming, and mining are mapped; labors with no skill — hauling, harvesting today — grant nothing and return false; `tree_chopping` has no labor).
 3. `SkillSet` increments the skill's cumulative use count.
 4. Emits `skill_progressed(skill_id, progress)` (for the future Skills-tab UI).
@@ -37,13 +37,14 @@ All same-scene (No EventBus) — skills are per-entity, read locally. No listene
 
 ## Flow Trace: Work-speed multiplier resolves a Job's duration
 
-**Trigger:** A colonist arrives at a timed WORK leg (`ColonistAI._begin_work`).
+**Trigger:** A colonist's `BTActionPerformWork._enter` resolves the duration of a timed work cycle (or, for the Player, a manual action script resolves its own).
 
-1. The JobDef's `begin()` computes `base_duration / skill_set.get_multiplier(labor_id)` — construction: `BuildableDef.build_time ÷ multiplier`, crafting: `recipe.base_time ÷ multiplier`, harvest/farming: the def's work time ÷ multiplier.
-2. `get_multiplier` maps Labor → governing skill → level → `multipliers[level-1]` from `skills.tres` (L1 = 1.0 → L5 = 2.0). Unskilled labors (hauling) read 1.0.
-3. The returned duration drives the WORK tick in ColonistAI. (The Stamina factor would multiply here too once `StaminaComponent.get_work_multiplier()` exists.)
+1. `JobDef.begin(actor, job)` returns the *unskilled* cycle duration (construction: `BuildableDef.build_time`, crafting: `recipe.base_time`, harvest/farming: the def's work time; `0.0` means "keep the authored `work_duration`").
+2. `BTActionPerformWork._enter` divides that duration by `agent.skill_set.get_multiplier(labor_id)` before starting the cycle. The Player's manual action scripts do the same division themselves, inline, against their own duration.
+3. `get_multiplier` maps Labor → governing skill → level → `multipliers[level-1]` from `skills.tres` (L1 = 1.0 → L5 = 2.0). Unskilled labors (hauling, harvesting) read 1.0.
+4. The scaled duration drives the WORK tick. (The Stamina factor would multiply here too once `StaminaComponent.get_work_multiplier()` exists.)
 
-**End state:** Skilled colonists finish timed legs proportionally faster; completion grants skill progress (Flow Trace above).
+**End state:** Skilled colonists and the skilled Player finish timed legs proportionally faster; completion grants skill progress (Flow Trace above).
 
 ## Class Reference
 
@@ -52,7 +53,7 @@ All same-scene (No EventBus) — skills are per-entity, read locally. No listene
 **Extends:** Node
 **Script:** `subsystems/colonists/skill_set.gd` (child of the Colonist scene)
 **Description:** Per-entity skill progression. Holds level + cumulative use-count for each of the 8 catalog skills. Use-based leveling on successful job completions. Exposes the work-speed multiplier per Labor.
-**Used by:** Colonist (`_ready` seeds from `colonist_def.starting_skills`; `serialize` round-trips), ColonistAI (`record_use_for_labor` on job success), the construction/crafting/harvest/farming JobDefs (`get_multiplier` in `begin`), `DigAction` (player mining: multiplier + `record_use_for_labor("mining")`), `MinSkillCondition` (`meets_requirement`).
+**Used by:** Colonist (`_ready` seeds from `colonist_def.starting_skills`; `serialize` round-trips), `JobDef._finish` (base class — every colonist job's terminal `record_use_for_labor` call), `BTActionPerformWork` (`get_multiplier` when scaling a colonist job's `begin()` duration), the Player's manual action scripts — `dig_action.gd`, `harvest_action.gd`, `craft_action.gd`, `farm_manual_action.gd`, `forage_action.gd` (each calls `get_multiplier` + `record_use_for_labor` directly for its own labor), `MinSkillCondition` (`meets_requirement`).
 **Lifecycle:** `_ready` builds the labor→skill map from the shared `skills.tres`. `Colonist._ready` (parent, runs after children) then calls `seed(colonist_def.starting_skills)` — unknown ids are ignored so state always matches the catalog. (The default def's `mining` entry, formerly a dropped leftover, became live when mining entered the catalog — it seeds L1/0, the neutral baseline.)
 
 **Properties:**

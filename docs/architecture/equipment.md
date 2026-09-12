@@ -153,7 +153,9 @@ When colonists fall idle and perform storage hygiene, `JobBoard._find_best_crate
 | `is_empty(slot_id)` | `bool` | True if slot holds no item. |
 | `get_slot_for_item(item_def)` | `String` | First valid empty slot (prefers main_hand/holster), or "". |
 | `has_item_with_tag(tag)` | `bool` | True if any equipped slot holds an item with the tag. |
+| `has_required_equipment(item_id, tags)` | `bool` | True if any equipped slot matches `item_id` or carries any of `tags`. Checked by `BTConditionHasTool` before falling back to an inventory scan. |
 | `swap_hand_for_tag(needed_tag)` | `bool` | main_hand/holster swap helper. See design above. |
+| `swap_hand_for_requirements(item_id, tags)` | `bool` | Like `swap_hand_for_tag`, but matches by exact `item_id` or any of `tags`. |
 | `swap_hand_to_holster()` | `void` | Unconditional main_hand <-> holster swap. |
 | `stow_and_equip(slot_id, item_def, inventory)` | `bool` | Equips item into slot, cascading existing item into holster or inventory if needed. |
 | `get_desired_item(slot_id)` | `String` | Returns configured desired item ID for slot ("" if none). |

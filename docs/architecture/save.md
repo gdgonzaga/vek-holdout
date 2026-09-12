@@ -56,10 +56,11 @@ Two top-level scopes, mirroring how state actually lives in memory:
   "format_version": 1,
   "global": {                          // autoloads + persistent player (slot-scoped, not map-scoped)
     "game_state":   { ... },           // GameState.serialize()   — day, scene_id
-    "time":         { ... },           // TimeSystem.serialize()  — elapsed_in_day
+    "time":         { ... },           // TimeSystem.serialize()  — elapsed_in_day, realtime_play_time
     "run_progress": { ... },           // RunProgress.serialize() — unlocked ids
     "expeditions":  { ... },           // ExpeditionManager.serialize() — discovered_pois, on_expedition
     "game_log":     { ... },           // GameLog.serialize()     — entries buffer
+    "colony":       { ... },           // Colony.serialize()      — colonist roster, squads, job_board
     "player":       { ... }            // Player.serialize()      — pos, cam_yaw, cam_pitch, inventory
   },
   "maps": {                            // per-map state, keyed by MapDef.id
@@ -161,7 +162,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 1. `_park_current_map(current_scene_id)` → fold the live map's state into `_parked` (INV-3: flush both grids + capture).
 2. `await _await_stream_quiesce(2.0)` → wait out any in-flight sqlite transactions (hot `-journal` files) so the snapshot can't copy a stale db.
 3. Build `state` dict from:
-   - `global`: each autoload's `serialize()` + `_serialize_player()`.
+   - `global`: each autoload's `serialize()` (GameState, TimeSystem, RunProgress, ExpeditionManager, GameLog, Colony) + `_serialize_player()`.
    - `maps`: `_parked.duplicate(true)`.
 4. Write `meta.json` + `state.json` to `user://saves/<slot>/`.
 5. `_snapshot_maps_to_slot()` → `DirAccess.copy_absolute` each db in `Map.stream_dbs()` (`map.sqlite` + `terrain.sqlite`) from `user://maps/<id>/` into `user://saves/<slot>/maps/<id>/`. Missing files are skipped (a stream with no edits may have created none). Copy failures `push_warning` but don't fail the save — `_snapshot_maps_to_slot`'s result is unchecked.
@@ -177,7 +178,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 1. Read `meta.json` + `state.json` from `user://saves/<slot>/`.
 2. `format_version` check → refuse on mismatch (no migration path yet; current loader only refuses).
 3. Restore global autoloads via `deserialize()`:
-   - GameState, TimeSystem, RunProgress, ExpeditionManager, GameLog.
+   - GameState, TimeSystem, RunProgress, ExpeditionManager, GameLog, Colony (roster, squads, job_board — `Colony.deserialize` calls `reset_for_new_game()` first, then stages colonist records for restore).
    - Player state is staged in `_pending_player` — restored AFTER `swap_map` (player must be in the tree).
    - (The per-layer `_is_restoring` flags are NOT touched here — each toggles inside its own `deserialize()` at step 9.)
 4. **`_parked = state["maps"].duplicate(true)`** (REPLACE, per INV-2).
@@ -267,7 +268,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 
 - ~~**Load menu UI** — no Load screen exists yet.~~ **Resolved:** the Load Game screen (`ui/load_menu/load_menu.gd`) lists slots via `list_saves()`, loads on row click (`await load_game`), and deletes via a per-row `X` button wired to `delete_save()` (no confirmation dialog in v1).
 - **Save-before-quit hook** — the Pause → **Quit to Main Menu** path now exists (`pause_menu` unloads the live map + opens the Main Menu) but does **not** autosave. It does discard an unsaved active slot (`discard_unsaved_active_slot`) so a never-saved New Game leaves no unloadable stub — that's cleanup, not a save. A `NOTIFICATION_WM_CLOSE_REQUEST` handler in `main.gd` calling `save_game()` (and the same discard) would make window-close quits safe too — still not implemented.
-- **Colonists wiring** — `colonist.gd` has the serialize/deserialize contract and live instances now exist at runtime (`Colony` spawns/reparents them on each map load), but the roster is NOT yet saved/restored. Remaining work: park/restore colonists via `SaveSystem._parked` and add the New-Game roster reset (currently the roster is never cleared — see the gap note in `colony.gd`).
+- ~~**Colonists wiring** — the roster is NOT yet saved/restored.~~ **Resolved:** `SaveSystem` calls `Colony.serialize()` / `Colony.deserialize()` as part of the global scope. `deserialize()` calls `reset_for_new_game()` then stages colonist records in `_pending_colonist_records`, which `MapWiring` spawns on the next map wire. `main_menu._start_new_game` also calls `Colony.reset_for_new_game()` so a fresh run never inherits the prior slot's roster.
 - **Format migration** — `_FORMAT_VERSION` field is in place; migration helpers get added when v2 lands. Loader currently refuses mismatched versions.
 - **Binary/compressed format** — JSON is debuggable; sqlite is already binary. Revisit if save size becomes a real problem (none projected — typical state.json is a few KB).
 - **Autosave on `map_unloading`** — currently off (park only). If "park without save" semantics turn out to confuse players, revisit.

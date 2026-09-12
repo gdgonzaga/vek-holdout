@@ -127,9 +127,9 @@ Agents communicate state between `ColonistBrain`, `BTPlayer`, and `BTTask` leave
 
 ## Save & Load Persistence
 
-- `ColonistBrain` saves and restores active blackboard variables (`current_goal`, active targets).
-- `ColonistNeeds` serializes dictionary of need values (`hunger`, `rest`, `recreation`).
-- `JobBoard` preserves temporary colonist job blacklists across save states.
+- `ColonistNeeds` serializes its dictionary of need values (`hunger`, `rest`, `recreation`) via `serialize()`/`deserialize()`.
+- `ColonistBrain` itself holds no persisted state: it has no `serialize`/`deserialize`. On `Colonist.deserialize`, the blackboard's `current_goal`/targets are not restored — `bt_player.restart()` resets the tree and `brain.evaluate_goals()` re-arbitrates fresh against the just-loaded needs/inventory.
+- `JobBoard.serialize()`/`deserialize()` only round-trips `JobSequence` state; per-colonist job blacklists (`blacklist_job_for`) are in-memory only and do not survive a save/load.
 
 ---
 

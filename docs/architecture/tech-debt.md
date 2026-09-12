@@ -19,11 +19,15 @@ Tracking page for known architectural debt, incomplete features, missing schemas
 
 ## Unimplemented Subsystems (Planned)
 
-1. **Combat Subsystem** (`subsystems/combat/`) — DamageResolver, HealthComponent, BreathComponent, WeaponBase.
-2. **Equipment Subsystem** (`subsystems/equipment/`) — 8-slot loadouts, auto-equip logic.
-3. **Energy Subsystem** (`subsystems/energy/`) — Daily stamina pool and breath resource management.
-4. **Raids Subsystem** (`subsystems/raids/`) — Raid scheduler, threat direction, wave spawning.
-5. **Permadeath & Memorial Subsystem** (`subsystems/permadeath/`) — Memorial registry and colony loss handling.
+Combat, Equipment, and Raids have since moved from planned to implemented/in-progress — see
+[Combat](combat.md), [Equipment](equipment.md), and [Raids](raids.md) for current status. What
+remains genuinely unimplemented:
+
+1. **Energy Subsystem** — no `BreathComponent` anywhere; `StaminaComponent` is a 5-line stub. See [Energy](energy.md).
+2. **Permadeath & Memorial Subsystem** — no memorial registry, Day Summary, or Game Over screen. See [Permadeath & Memorial](permadeath-memorial.md).
+3. **Loot Subsystem** — `subsystems/loot/` and `data/loot/` don't exist; no LootTable/LootRoller/KeyItemPool. See [Loot](loot.md).
+4. **Functional Rooms** — no `functional_counts` state or listeners on `Colony`. See [Functional Rooms](functional-rooms.md).
+5. **Debug Console** — `debug/` is empty; no console autoload or commands exist. See [Debug Console](debug-console.md).
 
 ---
 

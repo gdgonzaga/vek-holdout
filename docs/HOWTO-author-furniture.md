@@ -1,6 +1,6 @@
 # How To: Author Furniture with Pluggable Capabilities
 
-> Complete guide for authoring furniture definitions, configuring existing capability parameters (storage, crafting, turrets, lights, beds, farm plots), and adding new pluggable capability types in *Vek: Holdout*.
+> Complete guide for authoring furniture definitions, configuring existing capability parameters (storage, crafting, turrets, lights, beds, farm plots), and adding new pluggable capability types in *Xeno Frontier: Colony Defense*.
 >
 > **Prerequisites:** Familiarity with Godot `.tres` text resources, `docs/architecture/build.md`, and `docs/architecture/data-schemas.md`.
 
@@ -8,7 +8,7 @@
 
 ## 1. Core Architecture Overview
 
-In *Vek: Holdout*, free-standing structures that occupy space in the world are defined as **`FurnitureDef`** resources. Rather than creating subclasses for every distinct furniture archetype (e.g., `BedDef`, `StorageDef`, `TurretDef`), the game uses a **pluggable composition architecture**:
+In *Xeno Frontier: Colony Defense*, free-standing structures that occupy space in the world are defined as **`FurnitureDef`** resources. Rather than creating subclasses for every distinct furniture archetype (e.g., `BedDef`, `StorageDef`, `TurretDef`), the game uses a **pluggable composition architecture**:
 
 ```
 FurnitureDef (e.g. data/furniture/colonist_bed.tres)
@@ -25,7 +25,7 @@ FurnitureDef (e.g. data/furniture/colonist_bed.tres)
 
 ### How the Runtime Instantiates Furniture
 
-When `FurnitureLayer.spawn(def, anchor, rotation)` creates a furniture instance:
+When `FurnitureLayer.spawn(def, anchor, yaw_quarters)` creates a furniture instance:
 1. **Root Creation**: Spawns a root `Furniture` node with physical collision (Layer 1 World trimesh) and build selection collision (Layer 5 Build box shape).
 2. **Interaction Option Pass**: Calls `collect_action_options()` on all active capabilities and merges them with `fdef.action_options` into a single `InteractionComponent`.
 3. **Capability Component Pass**: Introspects `fdef.get_property_list()` for non-null `FurnitureCapability` sub-resources. For each active capability, `FurnitureLayer` executes the factory registered in its static capability registry (e.g., spawning `BedComponent`, `StorageInventory`, or `CraftingStation`).

@@ -32,11 +32,12 @@ Each page is a standalone document with its own heading hierarchy:
 Every subsystem page follows this order:
 
 1. **Title + one-paragraph description** (the GDD section it maps to, if any)
-2. **Design notes** (if any — in a blockquote or bullet list)
-3. `## Files` — table of `{ File, Type, Responsibility }`
-4. `## Signals` — table of `{ Signal, Emitted by, Listeners, Via EventBus?, Flows }`
-5. `## Flow Trace: …` — numbered step-by-step sequences (one per significant flow)
-6. `## Class Reference` — per-class blocks with `{ Extends, Script, Description, Used by, Properties, Signals, Functions }`
+2. **Implementation status blockquote** (required for any subsystem that is `planned, not yet built` or `in-progress` — omit only once a subsystem is fully implemented). One `>` blockquote, opening with **Implementation status: `<planned, not yet built | in-progress | implemented>`**, naming the concrete scripts/classes that do and do not exist yet. This is what lets a page describe a spec ahead of the code without misleading a reader — see [Combat](combat.md), [Equipment](equipment.md), or [Loot](loot.md) for the three states in practice.
+3. **Design notes** (if any — bullet list, each bullet bold-led)
+4. `## Files` — table of `{ File, Type, Responsibility }`
+5. `## Signals` — table of `{ Signal, Emitted by, Listeners, Via EventBus?, Flows }`
+6. `## Flow Trace: …` — numbered step-by-step sequences (one per significant flow)
+7. `## Class Reference` — per-class blocks with `{ Extends, Script, Description, Used by, Properties, Signals, Functions }`
 
 Not every subsystem has all sections — some omit Signals or Flow Traces. Keep the order above when present.
 

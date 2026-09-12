@@ -1,4 +1,4 @@
-# Architecture — Vek: Holdout
+# Architecture — Xeno Frontier: Colony Defense
 
 Last updated: 2026-08-17 (doc-vs-code audit: as-built pages synced with the code — EventBus registry, farming/harvesting coverage, labor/skill/action counts, UI inventory incl. colony_management; the unbuilt subsystem pages (combat, equipment, energy, permadeath-memorial, raids, loot, debug console/commands) now carry "planned — not yet built" banners and live in the Planned nav group; log_history screen moved to ui/log_history/ so the H key works. Prior: job-system extension foundations built — JobDef requirement gating, MaterialSink haul contract, ItemDef tags + tool retention, Furniture state bag, Skills live; harvesting + farming features built)
 
