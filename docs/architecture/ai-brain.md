@@ -111,9 +111,8 @@ The root task of the colonist behavior tree is a **`BTDynamicSelector`**. Unlike
    - `BTActionNavigateTo`: Navigates to job site (`target_pos` / anchor cell / target node).
    - `BTActionPerformWork`: Plays work animation, steps work duration with skill scaling, and materializes progress or finishes job.
 
-4. **Idle Wander Sequence (`BTSequence_8b4im` - Fallback)**:
-   - `BTWait`: Pauses briefly (1 second).
-   - `BTActionWander`: Picks a random walkable cell within radius and walks there.
+4. **Idle Wander (Fallback, bare leaf under the root selector)**:
+   - `BTActionWander`: Picks a random walkable cell within radius and walks there, then holds position for `wait_duration` before wandering again.
 
 ---
 

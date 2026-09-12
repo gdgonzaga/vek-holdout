@@ -3,6 +3,7 @@ extends GdUnitTestSuite
 ## Unit tests for Phase 1-4 LimboAI tasks, master behavior trees, and Utility AI.
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+const Doubles = preload("res://test/helpers/doubles.gd")
 
 const BTActionNavigateToScript = preload("res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd")
 const BTActionPerformWorkScript = preload("res://subsystems/ai/tasks/actions/bt_action_perform_work.gd")
@@ -471,9 +472,79 @@ func test_perform_work_unassigns_legacy_job_after_cycle() -> void:
 func test_wander_fails_gracefully_without_pathfinder() -> void:
 	var task: BTAction = auto_free(BTActionWanderScript.new()) as BTAction
 	task.initialize(_actor, _blackboard, _actor)
-	
+
 	var status: int = task.execute(0.1)
 	assert_int(status).is_equal(BTAction.FAILURE)
+
+
+func _make_flat_floor_pathfinder() -> VoxelPathfinder:
+	## Auxiliary: open, infinite flat floor at y == 1 -- gives BTActionWander
+	## real walkable terrain to roll a target on without a full map/voxel grid.
+	var finder: VoxelPathfinder = auto_free(VoxelPathfinder.new()) as VoxelPathfinder
+	var predicate := func(cell: Vector3i) -> bool:
+		return cell.y == 1
+	finder.set_walkability(predicate)
+	return finder
+
+
+func test_wander_targets_a_cell_other_than_agents_own() -> void:
+	var agent: Doubles.PathRecordingAgent = auto_free(Doubles.PathRecordingAgent.new()) as Doubles.PathRecordingAgent
+	add_child(agent)
+	agent.global_position = Vector3(0.5, 1.0, 0.5)
+	agent.pathfinder = _make_flat_floor_pathfinder()
+
+	var task: BTAction = auto_free(BTActionWanderScript.new()) as BTAction
+	task.radius = 4
+	task.initialize(agent, _blackboard, agent)
+	var status: int = task.execute(0.1)
+
+	# The agent's position never advances in this test, so it never reaches
+	# the rolled target -- the task stays RUNNING, having planned exactly one
+	# path (from _enter()).
+	assert_int(status).is_equal(BTAction.RUNNING)
+	assert_int(agent.received_paths.size()).is_equal(1)
+	assert_int(agent.received_paths[0].size()).is_greater(1)
+
+
+func test_wander_holds_position_for_wait_duration_after_arrival() -> void:
+	var agent: Doubles.PathRecordingAgent = auto_free(Doubles.PathRecordingAgent.new()) as Doubles.PathRecordingAgent
+	add_child(agent)
+	agent.global_position = Vector3(0.5, 1.0, 0.5)
+	agent.pathfinder = _make_flat_floor_pathfinder()
+
+	var task: BTAction = auto_free(BTActionWanderScript.new()) as BTAction
+	task.radius = 4
+	task.wait_duration = 1.0
+	task.initialize(agent, _blackboard, agent)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+
+	# Jump the agent straight to the rolled destination -- the tick that
+	# detects arrival only starts the wait phase (still RUNNING); the delta
+	# on that tick isn't counted toward the wait itself.
+	agent.global_position = task._target_world_pos
+	assert_int(task.execute(0.6)).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.6)).is_equal(BTAction.RUNNING)
+
+	# 1.2s has now elapsed across the two post-arrival wait ticks, clearing
+	# wait_duration (1.0s).
+	assert_int(task.execute(0.6)).is_equal(BTAction.SUCCESS)
+
+
+func test_wander_skips_wait_when_wait_duration_is_zero() -> void:
+	var agent: Doubles.PathRecordingAgent = auto_free(Doubles.PathRecordingAgent.new()) as Doubles.PathRecordingAgent
+	add_child(agent)
+	agent.global_position = Vector3(0.5, 1.0, 0.5)
+	agent.pathfinder = _make_flat_floor_pathfinder()
+
+	var task: BTAction = auto_free(BTActionWanderScript.new()) as BTAction
+	task.radius = 4
+	task.wait_duration = 0.0
+	task.initialize(agent, _blackboard, agent)
+	task.execute(0.1)
+
+	agent.global_position = task._target_world_pos
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
 
 
 # ── BTConditionHasTool ──────────────────────────────────────────────────────

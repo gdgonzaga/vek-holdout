@@ -69,3 +69,18 @@ class RecordingSmoothGrid extends SmoothGrid:
 
 	func get_first_material_def_in_box(_min_pos: Vector3, _max_pos: Vector3) -> TerrainMaterialDef:
 		return material_def
+
+
+## Duck-typed BTActionWander/BTActionNavigateTo agent double (pathfinder,
+## global_position, set_path, has_arrived) that records every path handed to
+## set_path() so tests can assert on the planned path without a full Colonist
+## scene tree.
+class PathRecordingAgent extends CharacterBody3D:
+	var pathfinder: VoxelPathfinder = null
+	var received_paths: Array = []
+
+	func set_path(path: Array) -> void:
+		received_paths.append(path)
+
+	func has_arrived() -> bool:
+		return false
