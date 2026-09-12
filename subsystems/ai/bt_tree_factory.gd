@@ -13,9 +13,11 @@ const BTActionEquipToolScript = preload("res://subsystems/ai/tasks/actions/bt_ac
 const BTActionFindFoodScript = preload("res://subsystems/ai/tasks/actions/bt_action_find_food.gd")
 const BTActionFetchFoodScript = preload("res://subsystems/ai/tasks/actions/bt_action_fetch_food.gd")
 const BTActionEatFoodScript = preload("res://subsystems/ai/tasks/actions/bt_action_eat_food.gd")
+const BTActionUseRecreationScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_recreation.gd")
 
 const BTConditionHasToolScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd")
 const BTConditionInGroupScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_in_group.gd")
+const BTConditionGoalIsScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_goal_is.gd")
 
 const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd")
 const BTActionMeleeAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd")
@@ -140,8 +142,16 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	eat_seq.add_child(eat_food)
 	root.add_child(eat_seq)
 
-	# 3. Dynamic Need Satisfier (Sequence for generic smart objects: sleep, rest)
+	# 3. Sleep / Generic Smart Object Satisfier. The goal guard is load-bearing:
+	# without it, an eat goal whose food vanished mid-cycle falls through from
+	# branch 2 into this sequence, walks to the food crate, and BTActionUseSmartObject
+	# matches goal_name == "eat" and refills hunger without consuming anything.
 	var need_seq := BTSequence.new()
+	var sleep_goal_guard = BTConditionGoalIsScript.new()
+	sleep_goal_guard.goal_var = &"current_goal"
+	sleep_goal_guard.expected_goal = &"sleep"
+	need_seq.add_child(sleep_goal_guard)
+
 	var nav_smart = BTActionNavigateToScript.new()
 	nav_smart.target_var = &"target_smart_object"
 	nav_smart.arrival_distance = 1.5
@@ -151,14 +161,34 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	need_seq.add_child(use_smart)
 	root.add_child(need_seq)
 
-	# 4. Work Goal Runner
+	# 4. Recreation Satisfier. Kept separate from branch 3 because recreation
+	# accrues per second against an authored capacity and session window, none of
+	# which the flat-restore generic smart-object action models.
+	var rec_seq := BTSequence.new()
+	var rec_goal_guard = BTConditionGoalIsScript.new()
+	rec_goal_guard.goal_var = &"current_goal"
+	rec_goal_guard.expected_goal = &"recreation"
+	rec_seq.add_child(rec_goal_guard)
+
+	# Navigates to the stand position ColonistBrain resolved from the object's
+	# occupancy slot, which is the furniture origin when no offsets are authored.
+	var nav_rec = BTActionNavigateToScript.new()
+	nav_rec.target_var = &"target_stand_pos"
+	nav_rec.arrival_distance = 1.5
+	rec_seq.add_child(nav_rec)
+
+	var use_rec = BTActionUseRecreationScript.new()
+	rec_seq.add_child(use_rec)
+	root.add_child(rec_seq)
+
+	# 5. Work Goal Runner
 	if work_tree == null:
 		work_tree = create_generic_work_tree()
 	var work_subtree := BTSubtree.new()
 	work_subtree.subtree = work_tree
 	root.add_child(work_subtree)
 
-	# 5. Idle Wander (Fallback)
+	# 6. Idle Wander (Fallback)
 	var wander_task = BTActionWanderScript.new()
 	wander_task.radius = 4
 	root.add_child(wander_task)

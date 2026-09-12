@@ -19,6 +19,32 @@ static func find_nearest_in_group(
 		max_dist_sq: float = INF,
 		skip_dead: bool = false
 ) -> Node3D:
+	# 1. Unfiltered Delegation: An always-true predicate keeps this the plain
+	# nearest-node search every existing caller expects.
+	return find_nearest_in_group_where(
+		tree,
+		group_name,
+		origin,
+		func(_node: Node3D) -> bool: return true,
+		exclude,
+		max_dist_sq,
+		skip_dead
+	)
+
+
+## Same search as find_nearest_in_group, but only considers nodes for which
+## predicate.call(node) returns true. Used by ColonistBrain to skip smart objects
+## that are already fully claimed, so colonists stop converging on one bed or one
+## single-user recreation object.
+static func find_nearest_in_group_where(
+		tree: SceneTree,
+		group_name: StringName,
+		origin: Vector3,
+		predicate: Callable,
+		exclude: Node = null,
+		max_dist_sq: float = INF,
+		skip_dead: bool = false
+) -> Node3D:
 	if tree == null:
 		return null
 
@@ -27,6 +53,10 @@ static func find_nearest_in_group(
 	for node in tree.get_nodes_in_group(group_name):
 		# 1. Candidate Validation: Filters freed/queued/excluded/dead nodes before distance checks.
 		if not _is_valid_candidate(node, exclude, skip_dead):
+			continue
+		# 2. Caller Filter: Applies the availability rule before the distance
+		# comparison so an unusable near node never shadows a usable far one.
+		if predicate.is_valid() and not bool(predicate.call(node as Node3D)):
 			continue
 		var dist_sq: float = origin.distance_squared_to((node as Node3D).global_position)
 		if dist_sq <= nearest_dist_sq:

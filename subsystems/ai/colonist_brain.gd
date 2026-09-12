@@ -17,6 +17,16 @@ var _poll_timer: float = EVAL_INTERVAL
 
 var _unreachable_food_blacklist: Dictionary = {}
 
+## Smart object this colonist currently holds a claim on (a bed, a recreation
+## object). Held here rather than on the blackboard because the claim must be
+## released when the colonist leaves the tree, which the blackboard can't observe.
+var _reserved_object: Node = null
+
+## Node the claim was taken for. Recorded rather than re-derived from get_parent()
+## at release time so the release always reaches the same slot the reserve took,
+## even while the brain is being detached.
+var _reservation_holder: Node = null
+
 
 func _ready() -> void:
 	var colonist := get_parent()
@@ -35,6 +45,13 @@ func _process(delta: float) -> void:
 	if _poll_timer >= EVAL_INTERVAL:
 		_poll_timer = 0.0
 		evaluate_goals()
+
+
+func _exit_tree() -> void:
+	# 1. Claim Cleanup: A colonist that dies or despawns mid-approach would
+	# otherwise hold a bed or recreation slot forever, permanently shrinking the
+	# colony's usable furniture.
+	_release_reservation()
 
 
 ## Evaluates current desires and writes winning goal and target to LimboAI Blackboard.
@@ -135,7 +152,16 @@ func evaluate_goals() -> void:
 	var winning_target: Variant = best_targets.get(winning_goal, null)
 	bt_player.blackboard.set_var(&"target_smart_object", winning_target)
 
-	# 1. Utility AI Evaluation Logging: Record evaluated desires and chosen behavior.
+	# 1. Claim Handover: Take the winner's slot and drop any stale one now that a
+	# winner exists, so rival colonists stop scoring this object on their next poll.
+	_sync_reservation(winning_target as Node, colonist)
+
+	# 2. Stand Position Publication: Resolve the exact spot this colonist should
+	# occupy. Written every cycle (null included) so the recreation branch can
+	# never navigate to a position left over from a previous target.
+	bt_player.blackboard.set_var(&"target_stand_pos", _resolve_stand_pos(winning_target as Node, colonist))
+
+	# 3. Utility AI Evaluation Logging: Record evaluated desires and chosen behavior.
 	ColonistLogger.log_brain_eval(colonist, winning_goal, scores, deficits, winning_target, has_critical_need, active_goal != &"none")
 
 
@@ -220,10 +246,79 @@ func _resolve_best_food_target(actor: Node) -> Node3D:
 	
 
 func _resolve_nearest_group_target(colonist: Node3D, target_group: StringName) -> Node3D:
-	## Auxiliary: Resolves nearest valid Node3D belonging to target_group.
+	## Auxiliary: Resolves the nearest Node3D in target_group this colonist can
+	## actually claim, so a full bed or an occupied single-user recreation object
+	## is skipped rather than drawing every colonist to the same piece of furniture.
 	if not is_inside_tree() or colonist == null:
 		return null
-	return AIUtils.find_nearest_in_group(get_tree(), target_group, colonist.global_position)
+	return AIUtils.find_nearest_in_group_where(
+		get_tree(),
+		target_group,
+		colonist.global_position,
+		func(node: Node3D) -> bool: return _is_smart_object_usable_by(node, colonist)
+	)
+
+
+func _is_smart_object_usable_by(node: Node, colonist: Node) -> bool:
+	## Auxiliary: Applies a smart object's IOccupiable gate when it has one.
+	## Nodes with no occupancy component (food crates, plain furniture) are always
+	## usable, which is what keeps existing need targeting behaviour unchanged.
+	var occupancy := _find_occupancy_component(node)
+	if occupancy == null:
+		return true
+	return bool(occupancy.call(&"is_usable_by", colonist))
+
+
+func _find_occupancy_component(node: Node) -> Node:
+	## Auxiliary: Returns the first child implementing the IOccupiable contract.
+	if node == null or not is_instance_valid(node):
+		return null
+	for child in node.get_children():
+		if child.has_method(&"is_usable_by"):
+			return child
+	return null
+
+
+func _sync_reservation(winning_target: Node, colonist: Node) -> void:
+	## Auxiliary: Moves this colonist's claim onto the winning target, releasing
+	## whatever it held before. Called once per evaluation after the winner is
+	## known — never during scoring, where reserving a loser would starve rivals.
+	if winning_target == _reserved_object and is_instance_valid(_reserved_object):
+		return
+
+	# 1. Stale Claim Release: Hand back the previous slot before taking a new one,
+	# otherwise a colonist that changes its mind leaks a slot for the whole run.
+	_release_reservation()
+
+	if winning_target == null or colonist == null:
+		return
+	var occupancy := _find_occupancy_component(winning_target)
+	if occupancy == null:
+		return
+	if bool(occupancy.call(&"reserve", colonist)):
+		_reserved_object = winning_target
+		_reservation_holder = colonist
+
+
+func _release_reservation() -> void:
+	## Auxiliary: Drops the held claim if the object still exists.
+	if _reserved_object != null and is_instance_valid(_reserved_object):
+		var occupancy := _find_occupancy_component(_reserved_object)
+		if occupancy != null:
+			occupancy.call(&"release", _reservation_holder)
+	_reserved_object = null
+	_reservation_holder = null
+
+
+func _resolve_stand_pos(winning_target: Node, colonist: Node) -> Variant:
+	## Auxiliary: Resolves the exact world position this colonist should stand at
+	## to use the winning target, or null when the target has no opinion.
+	if winning_target == null or colonist == null:
+		return null
+	var occupancy := _find_occupancy_component(winning_target)
+	if occupancy == null or not occupancy.has_method(&"use_position_for"):
+		return null
+	return occupancy.call(&"use_position_for", colonist)
 
 
 func _actor_has_food_in_pockets(actor: Node) -> bool:

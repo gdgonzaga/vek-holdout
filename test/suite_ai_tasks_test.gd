@@ -913,7 +913,8 @@ func test_colonist_root_tree_has_combat_branch_as_highest_priority() -> void:
 	var colonist_tree: BehaviorTree = BTTreeFactoryScript.create_colonist_root_tree()
 	var root: BTDynamicSelector = colonist_tree.root_task as BTDynamicSelector
 	assert_object(root).is_not_null()
-	assert_int(root.children.size()).is_equal(5)
+	# combat, eat, sleep, recreation, work subtree, wander
+	assert_int(root.children.size()).is_equal(6)
 
 	var combat_branch: BTSequence = root.children[0] as BTSequence
 	assert_object(combat_branch).is_not_null()

@@ -12,6 +12,8 @@
 [ext_resource type="Script" uid="uid://db1p81mcvv8lj" path="res://subsystems/ai/tasks/actions/bt_action_wander.gd" id="6_oxad6"]
 [ext_resource type="Script" uid="uid://clv35wq5ixo15" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="7_scanthreats"]
 [ext_resource type="Script" uid="uid://rdo4ft475lgi" path="res://subsystems/ai/tasks/actions/bt_action_colonist_combat_attack.gd" id="8_combatattack"]
+[ext_resource type="Script" uid="uid://dq46r7ak5x0rn" path="res://subsystems/ai/tasks/conditions/bt_condition_goal_is.gd" id="9_goalis"]
+[ext_resource type="Script" uid="uid://dl87nljpoqnak" path="res://subsystems/ai/tasks/actions/bt_action_use_recreation.gd" id="10_userec"]
 
 [sub_resource type="BlackboardPlan" id="BlackboardPlan_ftx7d"]
 
@@ -44,6 +46,10 @@ script = ExtResource("4_ftx7d")
 [sub_resource type="BTSequence" id="BTSequence_uia37"]
 children = [SubResource("BTAction_e02yw"), SubResource("BTAction_q8ysw"), SubResource("BTAction_ekcvg"), SubResource("BTAction_2xrlx")]
 
+[sub_resource type="BTCondition" id="BTCondition_sleepgoal"]
+script = ExtResource("9_goalis")
+expected_goal = &"sleep"
+
 [sub_resource type="BTAction" id="BTAction_tc6q8"]
 script = ExtResource("1_11mb1")
 target_var = &"target_smart_object"
@@ -53,7 +59,22 @@ arrival_distance = 1.5
 script = ExtResource("2_5jm7j")
 
 [sub_resource type="BTSequence" id="BTSequence_vo5ph"]
-children = [SubResource("BTAction_tc6q8"), SubResource("BTAction_t88ud")]
+children = [SubResource("BTCondition_sleepgoal"), SubResource("BTAction_tc6q8"), SubResource("BTAction_t88ud")]
+
+[sub_resource type="BTCondition" id="BTCondition_recgoal"]
+script = ExtResource("9_goalis")
+expected_goal = &"recreation"
+
+[sub_resource type="BTAction" id="BTAction_navrec"]
+script = ExtResource("1_11mb1")
+target_var = &"target_stand_pos"
+arrival_distance = 1.5
+
+[sub_resource type="BTAction" id="BTAction_userec"]
+script = ExtResource("10_userec")
+
+[sub_resource type="BTSequence" id="BTSequence_recreation"]
+children = [SubResource("BTCondition_recgoal"), SubResource("BTAction_navrec"), SubResource("BTAction_userec")]
 
 [sub_resource type="BlackboardPlan" id="BlackboardPlan_8b4im"]
 
@@ -90,7 +111,7 @@ blackboard_plan = SubResource("BlackboardPlan_8b4im")
 script = ExtResource("6_oxad6")
 
 [sub_resource type="BTDynamicSelector" id="BTDynamicSelector_42id2"]
-children = [SubResource("BTSequence_gqtk8"), SubResource("BTSequence_uia37"), SubResource("BTSequence_vo5ph"), SubResource("BTSubtree_j35in"), SubResource("BTAction_owwva")]
+children = [SubResource("BTSequence_gqtk8"), SubResource("BTSequence_uia37"), SubResource("BTSequence_vo5ph"), SubResource("BTSequence_recreation"), SubResource("BTSubtree_j35in"), SubResource("BTAction_owwva")]
 
 [resource]
 description = "Colonist master behavior tree with dynamic needs, work delegation, and idle wander"
