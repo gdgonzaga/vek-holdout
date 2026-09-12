@@ -86,9 +86,10 @@ Custom tasks extend `BTAction` or `BTCondition` and reside in `subsystems/ai/tas
 | `BTActionHaulBatch` | `bt_action_haul_batch.gd` | Executes item pickup (mode 0) and deposit (mode 1) between inventory and storage targets. |
 | `BTActionUseSmartObject` | `bt_action_use_smart_object.gd` | Interacts with smart objects (beds, dining tables, chairs) to satisfy colonist needs and play interaction animations. |
 | `BTActionWander` | `bt_action_wander.gd` | Picks a random walkable point within a specified radius for idle movement. |
-| `BTActionScanThreats` | `bt_action_scan_threats.gd` | Scans surrounding area for hostile targets (colonists or colony structures). |
-| `BTActionMeleeAttack` | `bt_action_melee_attack.gd` | Executes melee attack against target within range. |
-| `BTActionBreachVoxel` | `bt_action_breach_voxel.gd` | Destroys blocking voxel terrain obstructing enemy pathfinding. |
+| `BTActionScanThreats` | `bt_action_scan_threats.gd` | Scans surrounding area for hostile targets. Generic over `threat_groups` — reused unmodified by both `enemy_swarmer.tres` (scanning `player`/`players`/`colonists`) and `colonist_root.tres` (scanning `enemies`). |
+| `BTActionMeleeAttack` | `bt_action_melee_attack.gd` | Executes melee attack against target within range, dealing flat authored damage (enemy AI only — see `BTActionColonistCombatAttack` for weapon-resource-driven colonist attacks). |
+| `BTActionBreachVoxel` | `bt_action_breach_voxel.gd` | Applies real per-material voxel HP damage (`BlockyGrid.apply_damage()`, resolved via `SceneManager.get_current_map().get_blocky_grid()`) to blocking voxel terrain obstructing enemy pathfinding. |
+| `BTActionColonistCombatAttack` | `bt_action_colonist_combat_attack.gd` | Reactive colonist combat (GDD §6.7 "Fight" stance, MVP subset): fires/swings the colonist's equipped weapon via `ColonistCombat` at a `threat_target` already found by `BTActionScanThreats`. Halts any in-progress path (`set_path([])`) before attacking — never pursues. |
 
 ### Condition Tasks (`subsystems/ai/tasks/conditions/`)
 
@@ -112,13 +113,13 @@ Agents communicate state between `ColonistBrain`, `BTPlayer`, and `BTTask` leave
 | `target_pos` | `Vector3` | Target destination for navigation or work execution. |
 | `source_node` | `Node3D` / `Vector3` | Pickup source location for hauling jobs. |
 | `target_node` | `Node3D` / `Vector3` | Deposit/work target node for hauling or construction jobs. |
-| `threat_target` | `Node3D` | Active combat target for enemy behavior trees. |
+| `threat_target` | `Node3D` | Active combat target, written by `BTActionScanThreats` for both enemy and colonist behavior trees. |
 
 ---
 
 ## Behavior Trees (`data/ai/trees/`)
 
-- **`colonist_root.tres`**: Master colonist behavior tree utilizing a `BTDynamicSelector` to prioritize emergency need satisfaction over work execution and idle wandering.
+- **`colonist_root.tres`**: Master colonist behavior tree utilizing a `BTDynamicSelector` to prioritize reactive combat (any armed colonist fighting back, GDD §6.7) above emergency need satisfaction, which in turn takes priority over work execution and idle wandering.
 - **`bt_generic_work.tres`**: Sequence executing job claim, tool validation, navigation, and work progress.
 - **`bt_haul_single_trip.tres`**: Sequence executing haul job claim, source navigation, item loading, target navigation, and item unloading.
 - **`enemy_swarmer.tres`**: Hostile swarmer behavior tree executing voxel breaching on blocked paths, melee attacks, threat chasing, and aggro scanning.

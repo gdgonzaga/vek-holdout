@@ -10,6 +10,7 @@
 [ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="8_ip60t"]
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
 [ext_resource type="Script" uid="uid://bufhbvdq71j4l" path="res://subsystems/colonists/command_controller.gd" id="15_cmdctrl"]
+[ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="16_health"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
@@ -196,3 +197,7 @@ script = ExtResource("8_ip60t")
 
 [node name="CommandController" type="Node3D" parent="." unique_id=198273699]
 script = ExtResource("15_cmdctrl")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("16_health")
+max_hp = 100

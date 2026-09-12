@@ -21,6 +21,7 @@ const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_
 const BTActionMeleeAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd")
 const BTActionBreachVoxelScript = preload("res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd")
 const BTConditionPathBlockedScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd")
+const BTActionColonistCombatAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_colonist_combat_attack.gd")
 
 
 ## Builds the universal work sequence behavior tree
@@ -102,8 +103,23 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	tree.description = "Colonist master behavior tree with dynamic needs, work delegation, and idle wander"
 	
 	var root := BTDynamicSelector.new()
-	
-	# 1. Autonomous Eating Loop (Sequence)
+
+	# 1. Reactive Combat (GDD §6.7 "Fight" stance, MVP subset -- any armed
+	# colonist fights back from wherever it is, no pursuit). Highest priority
+	# so it interrupts eating/needs/work/wander whenever a threat is in range.
+	var combat_seq := BTSequence.new()
+	var scan_threats = BTActionScanThreatsScript.new()
+	var combat_threat_groups: Array[StringName] = [&"enemies"]
+	scan_threats.threat_groups = combat_threat_groups
+	scan_threats.radius = 60.0
+	scan_threats.result_var = &"threat_target"
+	combat_seq.add_child(scan_threats)
+	var combat_attack = BTActionColonistCombatAttackScript.new()
+	combat_attack.target_var = &"threat_target"
+	combat_seq.add_child(combat_attack)
+	root.add_child(combat_seq)
+
+	# 2. Autonomous Eating Loop (Sequence)
 	var eat_seq := BTSequence.new()
 	var find_food = BTActionFindFoodScript.new()
 	find_food.goal_var = &"current_goal"
@@ -123,25 +139,25 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	eat_seq.add_child(eat_food)
 	root.add_child(eat_seq)
 
-	# 2. Dynamic Need Satisfier (Sequence for generic smart objects: sleep, rest)
+	# 3. Dynamic Need Satisfier (Sequence for generic smart objects: sleep, rest)
 	var need_seq := BTSequence.new()
 	var nav_smart = BTActionNavigateToScript.new()
 	nav_smart.target_var = &"target_smart_object"
 	nav_smart.arrival_distance = 1.5
 	need_seq.add_child(nav_smart)
-	
+
 	var use_smart = BTActionUseSmartObjectScript.new()
 	need_seq.add_child(use_smart)
 	root.add_child(need_seq)
-	
-	# 3. Work Goal Runner
+
+	# 4. Work Goal Runner
 	if work_tree == null:
 		work_tree = create_generic_work_tree()
 	var work_subtree := BTSubtree.new()
 	work_subtree.subtree = work_tree
 	root.add_child(work_subtree)
-	
-	# 4. Idle Wander (Fallback)
+
+	# 5. Idle Wander (Fallback)
 	var wander_task = BTActionWanderScript.new()
 	wander_task.radius = 4
 	root.add_child(wander_task)

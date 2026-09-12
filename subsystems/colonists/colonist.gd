@@ -46,14 +46,20 @@ var _stuck_timer: float = 0.0
 var _wiggle_timer: float = 0.0
 var _wiggle_dir: Vector3 = Vector3.ZERO
 
-var _current_hp: int = 100
-var _is_dead: bool = false
-
 ## Equipment component — 8 slots keyed by slot ID. Created in _ready.
 ## Use equipment.get_item(Equipment.SLOT_MAIN_HAND) for direct access.
 var equipment: Equipment
 
 @onready var interaction: InteractionComponent = get_node_or_null("InteractionComponent") as InteractionComponent
+@onready var health_component: HealthComponent = $HealthComponent
+@onready var combat: ColonistCombat = $ColonistCombat
+
+## True once health_component has reached 0 HP (ARCH combat.md — the same
+## flag Player/EnemyBase expose so threat-scanning tasks can skip dead
+## targets uniformly across actor types).
+var is_dead: bool:
+	get:
+		return health_component.is_dead if health_component != null else false
 
 func _ready() -> void:
 	add_to_group("colonists")
@@ -106,7 +112,8 @@ func _ready() -> void:
 	# visualizer connects its slot_changed signal in its own _ready.
 	_ensure_equipment()
 
-	_current_hp = colonist_def.max_hp
+	health_component.setup(colonist_def.max_hp)
+	health_component.entity_died.connect(_on_health_component_died)
 	floor_max_angle = deg_to_rad(60.0)
 	if interaction == null:
 		interaction = get_node_or_null("InteractionComponent") as InteractionComponent
@@ -207,86 +214,28 @@ func _follow_path(delta: float) -> void:
 
 
 func take_damage(amount: int, source: Node) -> void:
-	if _is_dead:
-		return
-	_current_hp -= amount
-
-	# 1. Damage Visuals: Spawning big red impact particles on colonist damage.
-	_spawn_big_red_hit_effect(false)
-
-	if _current_hp <= 0:
-		_current_hp = 0
-		_die()
+	health_component.take_damage(amount, source)
 
 
 func heal(amount: int) -> void:
-	if _is_dead:
-		return
-	_current_hp = clamp(_current_hp + amount, 0, colonist_def.max_hp)
+	health_component.heal(amount)
 
 
 func get_hp() -> int:
-	return _current_hp
+	return health_component.current_hp if health_component != null else 0
 
 
+## Guards against health_component being unset: ColonistMoodletVisualizer
+## (a child) evaluates moodlets in its own _ready(), which Godot runs before
+## this node's own @onready vars are assigned.
 func get_max_hp() -> int:
+	if health_component != null:
+		return health_component.max_hp
 	return colonist_def.max_hp if colonist_def != null else 100
 
 
-func _die() -> void:
-	_is_dead = true
-
-	# 1. Death Visuals: Spawning big red death particle burst on colonist death.
-	_spawn_big_red_hit_effect(true)
-
+func _on_health_component_died(_entity: Node) -> void:
 	EventBus.colonist_died.emit(colonist_id)
-
-
-## Auxiliary: Spawns big red particle visual effect at colonist location on taking damage or dying
-func _spawn_big_red_hit_effect(is_death: bool = false) -> void:
-	if get_tree() == null or not is_inside_tree():
-		return
-
-	var tree := get_tree()
-	var scene_root: Node = tree.current_scene if tree.current_scene != null else get_parent()
-	if scene_root == null:
-		return
-
-	var particles := GPUParticles3D.new()
-	var mat := ParticleProcessMaterial.new()
-	mat.direction = Vector3.UP
-	mat.spread = 180.0 if is_death else 60.0
-	mat.initial_velocity_min = 4.0 if is_death else 2.5
-	mat.initial_velocity_max = 8.0 if is_death else 5.5
-	mat.gravity = Vector3(0, -9.8, 0)
-	mat.scale_min = 0.15 if is_death else 0.12
-	mat.scale_max = 0.35 if is_death else 0.25
-	mat.color = Color(0.95, 0.05, 0.05)
-
-	var draw_mesh := BoxMesh.new()
-	var mesh_size: float = 0.18 if is_death else 0.12
-	draw_mesh.size = Vector3(mesh_size, mesh_size, mesh_size)
-
-	var draw_mat := StandardMaterial3D.new()
-	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	draw_mat.albedo_color = Color(0.95, 0.05, 0.05)
-	draw_mesh.material = draw_mat
-
-	particles.process_material = mat
-	particles.draw_pass_1 = draw_mesh
-	particles.amount = 24 if is_death else 14
-	particles.lifetime = 0.35
-	particles.one_shot = true
-	particles.explosiveness = 1.0
-
-	scene_root.add_child(particles)
-	var spawn_pos := global_position + Vector3(0, 1.0, 0)
-	particles.global_position = spawn_pos
-	particles.emitting = true
-
-	var timer := tree.create_timer(0.4)
-	timer.timeout.connect(particles.queue_free)
-
 
 
 func set_labor_priority(labor_id: String, priority: int) -> void:
@@ -358,7 +307,7 @@ func _resolve_stat_ratio(stat_name: StringName) -> float:
 	match stat_name:
 		&"hp", &"health":
 			var max_health: int = get_max_hp()
-			return float(_current_hp) / float(max_health) if max_health > 0 else 0.0
+			return float(get_hp()) / float(max_health) if max_health > 0 else 0.0
 		&"stamina":
 			if stamina_component != null and stamina_component.max_stamina > 0.0:
 				return stamina_component.current_stamina / stamina_component.max_stamina
@@ -379,7 +328,7 @@ func _resolve_stat_value(stat_name: StringName) -> float:
 	## Auxiliary: Resolves raw value for health, stamina, or needs.
 	match stat_name:
 		&"hp", &"health":
-			return float(_current_hp)
+			return float(get_hp())
 		&"stamina":
 			if stamina_component != null:
 				return stamina_component.current_stamina
@@ -511,8 +460,7 @@ func serialize() -> Dictionary:
 		"labor_priorities": labor_priorities.duplicate(true),
 		"raid_stance": raid_stance,
 		"squad_id": squad_id,
-		"hp": _current_hp,
-		"is_dead": _is_dead,
+		"health": health_component.serialize(),
 		"skills": skill_set.serialize() if skill_set != null else {},
 		"needs": needs.serialize() if needs != null else {},
 		"hunger": hunger_component.serialize() if hunger_component != null else {},
@@ -544,6 +492,17 @@ func get_equipped_item() -> ItemDef:
 	return equipment.get_item(Equipment.SLOT_MAIN_HAND)
 
 
+## Aim-ray contract consumed by MeleeActionParams/RangedActionParams.execute()
+## (checked via has_method(), the same generic fallback Player's get_camera()
+## satisfies with the camera ray instead).
+func get_aim_origin() -> Vector3:
+	return global_position + Vector3(0, 1.0, 0)
+
+
+func get_aim_direction() -> Vector3:
+	return combat.get_aim_direction() if combat != null else -global_transform.basis.z
+
+
 func _ensure_equipment() -> void:
 	## Auxiliary: Ensures Equipment and EquipmentVisualizer children exist and are wired.
 	equipment = Equipment.ensure_on(self, equipment)
@@ -555,8 +514,9 @@ func deserialize(data: Dictionary) -> void:
 	labor_priorities = data.get("labor_priorities", {}).duplicate(true)
 	raid_stance = int(data.get("raid_stance", raid_stance))
 	squad_id = data.get("squad_id", "")
-	_current_hp = int(data.get("hp", _current_hp))
-	_is_dead = bool(data.get("is_dead", false))
+	# 1. Health Restore: Deserialize the nested HealthComponent dict, or fall
+	# back to legacy flat "hp"/"is_dead" keys from pre-HealthComponent saves.
+	_deserialize_health(data)
 	if skill_set != null and data.has("skills"):
 		skill_set.deserialize(data["skills"])
 	if needs != null and data.has("needs"):
@@ -574,6 +534,19 @@ func deserialize(data: Dictionary) -> void:
 		bt_player.restart()
 	if brain != null:
 		brain.evaluate_goals()
+
+
+func _deserialize_health(data: Dictionary) -> void:
+	## Auxiliary: Restores health_component from its nested dict, or synthesizes
+	## one from legacy flat "hp"/"is_dead" keys (pre-HealthComponent saves).
+	if data.has("health"):
+		health_component.deserialize(data["health"])
+	else:
+		health_component.deserialize({
+			"max_hp": health_component.max_hp,
+			"current_hp": int(data.get("hp", health_component.max_hp)),
+			"is_dead": bool(data.get("is_dead", false)),
+		})
 
 
 ## Dynamically builds interaction options (Deploy / Dismiss single & squad).

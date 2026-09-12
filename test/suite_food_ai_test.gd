@@ -178,12 +178,12 @@ func test_eat_food_interruption_preserves_item() -> void:
 func test_player_consumes_food_restores_hunger_and_hp() -> void:
 	var player: Player = _sandbox.make_player()
 	player.inventory.add(_test_food_id, 1)
-	player.current_hp = 50
-	player.max_hp = 100
+	player.health_component.current_hp = 50
+	player.health_component.max_hp = 100
 	player.hunger_component.current_hunger = 0.3
 
 	var success: bool = player.consume_food_item(_test_food_id)
 	assert_bool(success).is_true()
 	assert_int(player.inventory.get_item_count(_test_food_id)).is_equal(0)
 	assert_float(player.hunger_component.current_hunger).is_equal_approx(0.75, 0.01)
-	assert_int(player.current_hp).is_equal(56)
+	assert_int(player.health_component.current_hp).is_equal(56)

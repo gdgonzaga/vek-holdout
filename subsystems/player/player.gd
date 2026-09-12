@@ -54,8 +54,14 @@ var _equipped_action_cooldown: float = 0.0
 
 ## Hunger and survival state
 var hunger_component: HungerComponent
-var current_hp: int = 100
-var max_hp: int = 100
+@onready var health_component: HealthComponent = $HealthComponent
+
+## True once health_component has reached 0 HP (ARCH combat.md — mirrors the
+## is_dead flag EnemyBase/Colonist expose so threat-scanning tasks can skip
+## dead targets uniformly across actor types).
+var is_dead: bool:
+	get:
+		return health_component.is_dead if health_component != null else false
 
 ## Player skill progression (the same SkillSet colonists use — GDD §6.3).
 ## Code-created (the Colonist's code-created-inventory precedent; script-only,
@@ -146,22 +152,16 @@ func consume_food_item(item_id: String) -> bool:
 
 
 func take_damage(amount: int, source: Node = null) -> void:
-	var health_comp := get_node_or_null("HealthComponent") as HealthComponent
-	if health_comp != null:
-		health_comp.take_damage(amount, source)
-		return
-	current_hp = maxi(0, current_hp - amount)
-	if current_hp <= 0:
-		state = State.DEAD
-		EventBus.player_died.emit()
+	health_component.take_damage(amount, source)
 
 
 func heal(amount: int) -> void:
-	var health_comp := get_node_or_null("HealthComponent") as HealthComponent
-	if health_comp != null:
-		health_comp.heal(amount)
-		return
-	current_hp = mini(max_hp, current_hp + amount)
+	health_component.heal(amount)
+
+
+func _on_health_component_died(_entity: Node) -> void:
+	state = State.DEAD
+	EventBus.player_died.emit("combat")
 
 
 # --- SaveSystem contract -----------------------------------------------------
@@ -178,8 +178,7 @@ func serialize() -> Dictionary:
 		"inventory": inventory.serialize(),
 		"equipment": equipment.serialize() if equipment != null else {},
 		"hunger": hunger_component.serialize() if hunger_component != null else {},
-		"hp": current_hp,
-		"max_hp": max_hp,
+		"health": health_component.serialize(),
 	}
 
 
@@ -199,11 +198,25 @@ func deserialize(data: Dictionary) -> void:
 		equipment.deserialize(data["equipment"])
 	if data.has("hunger") and hunger_component != null:
 		hunger_component.deserialize(data["hunger"])
-	current_hp = int(data.get("hp", current_hp))
-	max_hp = int(data.get("max_hp", max_hp))
+	# 1. Health Restore: Deserialize the nested HealthComponent dict, or fall
+	# back to legacy flat "hp"/"max_hp" keys from pre-HealthComponent saves.
+	_deserialize_health(data)
 	var guard := get_node_or_null("GroundSafetyGuard") as GroundSafetyGuard
 	if guard != null:
 		guard.rearm()
+
+
+func _deserialize_health(data: Dictionary) -> void:
+	## Auxiliary: Restores health_component from its nested dict, or synthesizes
+	## one from legacy flat "hp"/"max_hp" keys (pre-HealthComponent saves).
+	if data.has("health"):
+		health_component.deserialize(data["health"])
+	else:
+		health_component.deserialize({
+			"max_hp": int(data.get("max_hp", health_component.max_hp)),
+			"current_hp": int(data.get("hp", health_component.max_hp)),
+			"is_dead": false,
+		})
 
 
 var _velocity_on_jump := Vector3.ZERO # horizontal world-velocity frozen at jump (y=0)
@@ -229,6 +242,8 @@ func _ready() -> void:
 	# Equipment component: 8-slot gear state. Added before EquipmentVisualizer
 	# so the sibling node exists when the visualizer wires slot_changed in _ready.
 	_ensure_equipment()
+
+	health_component.entity_died.connect(_on_health_component_died)
 
 	# React to a buildable selection (emitted by the build menu) by entering
 	# Blueprint mode + recapturing the mouse. The selected id itself goes straight
@@ -669,7 +684,15 @@ func _execute_equipped_primary_action() -> void:
 		return
 
 	var action: EquipActionParams = equip_params.primary_action
-	_equipped_action_cooldown = action.cooldown_seconds
+	_equipped_action_cooldown = action.get_lockout_duration()
+
+	# 1. Action Animation Trigger: Only plays once the action actually fires --
+	# triggering unconditionally on every input event (the old call site, in
+	# _on_primary_action) restarted the one-shot mid-swing whenever the player
+	# clicked faster than the weapon's own lockout duration.
+	var anim: StringName = equip_params.use_animation if equip_params.use_animation != &"" else &"Interact"
+	_trigger_animation_action(anim)
+
 	action.execute(self)
 
 
@@ -679,9 +702,6 @@ func _on_primary_action() -> void:
 
 	var active_item: ItemDef = equipment.get_item(Equipment.SLOT_MAIN_HAND) if equipment != null else null
 	if active_item != null and active_item.is_equippable():
-		var anim: StringName = active_item.equippable.use_animation if (active_item.equippable and active_item.equippable.use_animation != &"") else &"Interact"
-		# 1. Action Animation Trigger: Trigger item action animation.
-		_trigger_animation_action(anim)
 		_execute_equipped_primary_action()
 		return
 

@@ -812,6 +812,50 @@ func test_melee_attack_damages_target() -> void:
 	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
 
 
+# ── BTActionBreachVoxel ──────────────────────────────────────────────────────
+
+func test_breach_voxel_applies_real_hp_damage_via_apply_damage() -> void:
+	var grid := BlockyGrid.new()
+	auto_free(grid)
+	grid.deserialize({"hp": {"1,0,0": 100}})
+
+	var stub_map := StubMapWithGrid.new()
+	auto_free(stub_map)
+	stub_map.grid = grid
+
+	var real_map: Node = SceneManager.get_current_map()
+	SceneManager._current_map = stub_map
+
+	var task: BTAction = auto_free(BTActionBreachVoxelScript.new()) as BTAction
+	task.voxel_damage = 30
+	task.swing_duration = 0.1
+	_blackboard.set_var(&"obstructing_voxel_cell", Vector3i(1, 0, 0))
+	task.initialize(_actor, _blackboard, _actor)
+
+	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
+	assert_int(grid.get_hp_at(Vector3i(1, 0, 0))).is_equal(70)
+
+	SceneManager._current_map = real_map
+
+
+func test_colonist_root_tree_has_combat_branch_as_highest_priority() -> void:
+	var colonist_tree: BehaviorTree = BTTreeFactoryScript.create_colonist_root_tree()
+	var root: BTDynamicSelector = colonist_tree.root_task as BTDynamicSelector
+	assert_object(root).is_not_null()
+	assert_int(root.children.size()).is_equal(5)
+
+	var combat_branch: BTSequence = root.children[0] as BTSequence
+	assert_object(combat_branch).is_not_null()
+	assert_int(combat_branch.children.size()).is_equal(2)
+
+	var scan: BTActionScanThreats = combat_branch.children[0] as BTActionScanThreats
+	assert_object(scan).is_not_null()
+	assert_array(scan.threat_groups).contains([&"enemies"])
+
+	var attack: Variant = combat_branch.children[1]
+	assert_bool(attack is BTActionColonistCombatAttack).is_true()
+
+
 func test_tree_factory_generates_and_saves_trees() -> void:
 	var work_tree: BehaviorTree = BTTreeFactoryScript.create_generic_work_tree()
 	assert_object(work_tree).is_not_null()
@@ -935,6 +979,13 @@ func test_stateless_colonist_save_load() -> void:
 	assert_int(loaded_colonist.inventory.get_item_count("wood_plank")).is_equal(7)
 	assert_float(loaded_colonist.needs.get_need(&"hunger")).is_equal_approx(0.42, 0.001)
 	assert_float(loaded_colonist.needs.get_need(&"rest")).is_equal_approx(0.88, 0.001)
+
+
+class StubMapWithGrid extends Node:
+	var grid: BlockyGrid = null
+
+	func get_blocky_grid() -> BlockyGrid:
+		return grid
 
 
 class StubCompletingJobDef extends JobDef:
