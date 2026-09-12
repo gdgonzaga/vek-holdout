@@ -79,3 +79,9 @@ class_name FurnitureDef
 ## Light emission capability (GDD §7.2): emission properties for light sources.
 ## Non-null → FurnitureLayer attaches a LightSourceComponent child.
 @export var light_params: LightParams
+
+## Recreation capability (ARCH recreation.md): restore rate, session window,
+## simultaneous-user capacity and usable range for the colonist `recreation` need.
+## Non-null → FurnitureLayer attaches a RecreationComponent child. The def must
+## also carry tags = ["recreation_object"] so it joins the group the need targets.
+@export var recreation_params: RecreationParams

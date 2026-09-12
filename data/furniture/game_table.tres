@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/recreation_params.gd" id="2_rparams"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_amt"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="4_plank"]
+[ext_resource type="Resource" path="res://data/items/clockwork_mechanism.tres" id="5_mech"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_game_table"]
+size = Vector3(2, 1, 1)
+
+[sub_resource type="Resource" id="RecreationParams_game_table"]
+script = ExtResource("2_rparams")
+recreation_per_second = 0.12
+min_session_seconds = 5.0
+max_session_seconds = 20.0
+capacity = 1
+use_radius = 1.5
+use_offsets = Array[Vector3]([Vector3(0, 0, 0.9)])
+use_animation = &"Interact"
+
+[sub_resource type="Resource" id="Resource_cost_plank"]
+script = ExtResource("3_amt")
+item_def = ExtResource("4_plank")
+count = 5
+
+[sub_resource type="Resource" id="Resource_cost_mech"]
+script = ExtResource("3_amt")
+item_def = ExtResource("5_mech")
+count = 1
+
+[resource]
+script = ExtResource("1_fdef")
+id = "game_table"
+display_name = "Game Table"
+hp = 60
+dimensions = Vector3i(2, 1, 1)
+mesh = SubResource("BoxMesh_game_table")
+recreation_params = SubResource("RecreationParams_game_table")
+material_cost = Array[ExtResource("3_amt")]([SubResource("Resource_cost_plank"), SubResource("Resource_cost_mech")])
+unlocked_by_default = true
+build_time = 6.0
+tags = Array[String](["recreation_object"])

@@ -324,6 +324,10 @@ static func _ensure_capability_registry() -> void:
 		var b := BedComponent.new()
 		b.name = "BedComponent"
 		furniture.add_child(b))
+	_register_capability_factory(RecreationParams, func(_params: RecreationParams, furniture: Furniture) -> void:
+		var r := RecreationComponent.new()
+		r.name = "RecreationComponent"
+		furniture.add_child(r))
 
 
 static func _register_capability_factory(cap_type: Script, factory: Callable) -> void:
