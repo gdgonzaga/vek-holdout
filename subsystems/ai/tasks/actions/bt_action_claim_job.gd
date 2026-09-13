@@ -13,6 +13,18 @@ extends BTAction
 ## Blackboard variable where the target world position is written
 @export var target_pos_var: StringName = &"target_pos"
 
+## How often an already-held job's is_available_for() is allowed to re-scan
+## (crates, storage sources, reservations) instead of every single 60Hz tick.
+## is_available_for() is a live scan that other colonists' concurrent claims
+## are also mutating; checking it every tick meant a single-frame flicker
+## (contested crate capacity, a rival hauler mid-delivery) unclaimed and
+## reclaimed the same job every frame, visible as the colonist repeatedly
+## turning back toward the same spot.
+const AVAILABILITY_RECHECK_INTERVAL_MSEC: int = 500
+
+var _last_checked_job: Variant = null
+var _next_availability_check_msec: int = 0
+
 
 func _generate_name() -> String:
 	return "Claim Job  -> %s, %s" % [
@@ -52,7 +64,14 @@ func _tick(_delta: float) -> Status:
 		if existing_job != null and is_instance_valid(existing_job):
 			var is_dead: bool = _job_is_dead(existing_job)
 			if not is_dead and colonist != null and existing_job.has_method("is_available_for"):
-				if not existing_job.is_available_for(colonist):
+				# 2. Recheck Throttling: Skip the (expensive, scan-based)
+				# availability re-check unless the debounce window elapsed —
+				# see AVAILABILITY_RECHECK_INTERVAL_MSEC above.
+				if _should_recheck_availability(existing_job) and not existing_job.is_available_for(colonist):
+					# 3. Unavailability Diagnostics: Explain exactly which gate
+					# tripped, so rapid claim/drop churn on the same site can
+					# be traced to its root cause instead of just its symptom.
+					_log_job_unavailable(colonist, existing_job)
 					ColonistLogger.log_msg(colonist, &"JOB", "Job no longer available for colonist")
 					is_dead = true
 					if existing_job.has_method("unassign"):
@@ -212,6 +231,36 @@ func _job_is_dead(job: Variant) -> bool:
 	if "is_cancelled" in job and bool(job.is_cancelled):
 		return true
 	return false
+
+
+func _should_recheck_availability(job: Variant) -> bool:
+	## Auxiliary: Throttles is_available_for() to once per
+	## AVAILABILITY_RECHECK_INTERVAL_MSEC instead of every tick. A newly-seen
+	## job (just claimed, or this task instance's first tick on it) always
+	## checks immediately — only a job already held across ticks gets debounced.
+	var now := Time.get_ticks_msec()
+	if job != _last_checked_job:
+		_last_checked_job = job
+		_next_availability_check_msec = now + AVAILABILITY_RECHECK_INTERVAL_MSEC
+		return true
+	if now < _next_availability_check_msec:
+		return false
+	_next_availability_check_msec = now + AVAILABILITY_RECHECK_INTERVAL_MSEC
+	return true
+
+
+func _log_job_unavailable(colonist: Colonist, job: Variant) -> void:
+	## Auxiliary: Logs why an already-held job just failed its per-tick
+	## availability re-check, so rapid claim/drop churn on the same site can be
+	## traced to the specific gate that tripped (crate full, reserved, freed,
+	## no source, etc) instead of just the "no longer available" symptom.
+	if not ColonistLogger.is_enabled():
+		return
+	var reason := "unknown (def has no diagnostic)"
+	var def_obj: Resource = AIUtils.resolve_job_def(job)
+	if def_obj != null and def_obj.has_method("describe_unavailable_reason"):
+		reason = str(def_obj.call("describe_unavailable_reason", job, colonist))
+	ColonistLogger.log_msg(colonist, &"JOB", "Job unavailable diagnostic | %s" % reason)
 
 
 func _sync_tool_requirements_to_blackboard(def_obj: Resource) -> void:

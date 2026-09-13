@@ -86,6 +86,41 @@ func test_colonist_logger_brain_eval_summary() -> void:
 	assert_str(content).contains("Target: Furniture_bed")
 
 
+func test_colonist_logger_brain_eval_shows_need_lock_tag() -> void:
+	var colonist_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist := colonist_scene.instantiate() as Colonist
+	auto_free(colonist)
+
+	var scores := {&"eat": 1.0}
+	var deficits := {&"hunger": 1.0}
+
+	ColonistLogger.log_brain_eval(colonist, &"eat", scores, deficits, null, true, false, &"hunger")
+	ColonistLogger.flush()
+
+	var content: String = FileAccess.get_file_as_string(_TEST_LOG_PATH)
+	assert_str(content).contains("[CRITICAL_NEED, NEED_LOCK:hunger]")
+	assert_str(content).not_contains("INERTIA_APPLIED")
+
+
+func test_colonist_logger_brain_eval_omits_inertia_tag_when_not_applied() -> void:
+	var colonist_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist := colonist_scene.instantiate() as Colonist
+	auto_free(colonist)
+
+	var scores := {&"work": 0.0}
+	var deficits := {&"hunger": 0.0}
+
+	# inertia_applied=false must never surface INERTIA_APPLIED, even with a
+	# previously-active goal on the blackboard — this is the exact distinction
+	# the tag used to get wrong (see ai-brain.md §8, "was there a previous
+	# goal" vs "did the +0.30 bonus actually fire").
+	ColonistLogger.log_brain_eval(colonist, &"work", scores, deficits, null, false, false)
+	ColonistLogger.flush()
+
+	var content: String = FileAccess.get_file_as_string(_TEST_LOG_PATH)
+	assert_str(content).not_contains("INERTIA_APPLIED")
+
+
 func test_colonist_logger_job_claim_and_need() -> void:
 	var colonist_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
 	var colonist := colonist_scene.instantiate() as Colonist

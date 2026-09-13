@@ -123,3 +123,92 @@ func deserialize_state(data: Dictionary) -> void:
 	deserialize(data)
 
 
+# --- Haul reservations --------------------------------------------------------
+# Lets an in-flight haul job "hold" the capacity it intends to deliver into, so
+# repeated is_available_for() checks on that SAME job don't need to re-derive
+# availability from a live scan that other concurrent haulers are also
+# mutating (the source of the claim/drop churn documented in ai-brain.md
+# "Job Slot Capacity Self-Rejection" — this is the storage-capacity shape of
+# the same failure class). Reservations self-expire so a claim_key that never
+# explicitly releases (a missed unassign/abort path) can't leak capacity
+# forever — mirrors ColonistBrain's food-source blacklist TTL pattern.
+
+const RESERVATION_TTL_MSEC: int = 30000
+
+## claim_key (Variant, typically the Job/JobInstance itself) -> Dictionary
+## {"item_id": String, "count": int, "expires_at_msec": int}.
+var _reservations: Dictionary = {}
+
+
+## Reserves capacity for count of item_id on behalf of claim_key, or renews an
+## existing reservation for that same key. Returns true if capacity was (or
+## already is) available and the reservation is now recorded.
+func reserve_capacity(claim_key: Variant, item_id: String, count: int) -> bool:
+	_purge_expired_reservations()
+	if not _has_capacity_for(item_id, count, claim_key):
+		return false
+	_reservations[claim_key] = {
+		"item_id": item_id,
+		"count": count,
+		"expires_at_msec": Time.get_ticks_msec() + RESERVATION_TTL_MSEC,
+	}
+	return true
+
+
+## True if claim_key currently holds a live (unexpired) reservation here.
+func has_reservation(claim_key: Variant) -> bool:
+	_purge_expired_reservations()
+	return _reservations.has(claim_key)
+
+
+## Releases a previously held reservation (delivered, aborted, or unassigned).
+## No-op if claim_key never reserved anything here.
+func release_reservation(claim_key: Variant) -> void:
+	_reservations.erase(claim_key)
+
+
+## Weight-aware capacity check that also counts every OTHER claim_key's live
+## reservations, so two concurrent haulers can't both be told the same last
+## unit of room is free. Pass the querying job as exclude_claim_key so a job
+## re-checking its own already-reserved crate isn't blocked by itself.
+func can_add_reserving(item_id: String, count: int, exclude_claim_key: Variant = null) -> bool:
+	_purge_expired_reservations()
+	return _has_capacity_for(item_id, count, exclude_claim_key)
+
+
+func _has_capacity_for(item_id: String, count: int, exclude_claim_key: Variant) -> bool:
+	## Auxiliary: Same weight-budget math as can_add(), plus every live
+	## reservation's weight except the caller's own.
+	var def := _get_def(item_id)
+	if def == null or not is_item_allowed(item_id):
+		return false
+	var reserved_weight: float = _reserved_weight_excluding(exclude_claim_key)
+	return current_weight() + reserved_weight + (count * def.weight) <= capacity
+
+
+func _reserved_weight_excluding(exclude_claim_key: Variant) -> float:
+	## Auxiliary: Sums the weight of every live reservation except exclude_claim_key's own.
+	var total := 0.0
+	for key in _reservations:
+		if key == exclude_claim_key:
+			continue
+		var r: Dictionary = _reservations[key]
+		var r_def := _get_def(str(r.get("item_id", "")))
+		if r_def != null:
+			total += float(r.get("count", 0)) * r_def.weight
+	return total
+
+
+func _purge_expired_reservations() -> void:
+	## Auxiliary: Drops reservations past their TTL — the leak-proofing safety net.
+	if _reservations.is_empty():
+		return
+	var now := Time.get_ticks_msec()
+	var expired: Array = []
+	for key in _reservations:
+		if now >= int(_reservations[key].get("expires_at_msec", 0)):
+			expired.append(key)
+	for key in expired:
+		_reservations.erase(key)
+
+

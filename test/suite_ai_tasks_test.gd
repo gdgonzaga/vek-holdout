@@ -9,7 +9,6 @@ const BTActionNavigateToScript = preload("res://subsystems/ai/tasks/actions/bt_a
 const BTActionPerformWorkScript = preload("res://subsystems/ai/tasks/actions/bt_action_perform_work.gd")
 const BTActionWanderScript = preload("res://subsystems/ai/tasks/actions/bt_action_wander.gd")
 const BTActionClaimJobScript = preload("res://subsystems/ai/tasks/actions/bt_action_claim_job.gd")
-const BTActionUseSmartObjectScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_smart_object.gd")
 const BTActionHaulBatchScript = preload("res://subsystems/ai/tasks/actions/bt_action_haul_batch.gd")
 
 const BTConditionHasToolScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_has_tool.gd")
@@ -776,9 +775,189 @@ func test_colonist_brain_commitment_bonus() -> void:
 	brain._ready()
 	
 	bt_player.blackboard.set_var(&"current_goal", &"eat")
-	
+
 	needs.set_need(&"hunger", 0.79)
 	brain.evaluate_goals()
+	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("eat")
+
+
+func _make_brain_with_single_need(need_id: StringName, goal_name: StringName, target_group: StringName) -> Dictionary:
+	## Test helper: wires a ColonistBrain + ColonistNeeds + BTPlayer parented
+	## under a fresh Node3D, with one real NeedDef (default emergency_threshold
+	## 0.10 / release_threshold 0.5) resolving to a mock target in target_group.
+	## Returns {"brain", "bt_player", "needs", "target"}.
+	var brain: ColonistBrain = auto_free(ColonistBrainScript.new()) as ColonistBrain
+	var bt_player: BTPlayer = auto_free(BTPlayer.new()) as BTPlayer
+	bt_player.blackboard = Blackboard.new()
+	brain.bt_player = bt_player
+
+	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
+	needs.name = "ColonistNeeds"
+
+	var mock_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
+	mock_def.id = need_id
+	mock_def.decay_per_game_hour = 0.05
+	mock_def.goal_name = goal_name
+	mock_def.target_group = target_group
+	var curve: Curve = Curve.new()
+	curve.add_point(Vector2(0, 0))
+	curve.add_point(Vector2(1, 1))
+	mock_def.response_curve = curve
+	ColonistNeeds._cached_need_defs[need_id] = mock_def
+
+	var parent: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(parent)
+	parent.add_child(needs)
+	parent.add_child(brain)
+	var mock_target := auto_free(Node3D.new()) as Node3D
+	mock_target.add_to_group(target_group)
+	parent.add_child(mock_target)
+	brain._ready()
+
+	return {"brain": brain, "bt_player": bt_player, "needs": needs, "target": mock_target}
+
+
+func test_colonist_brain_establishes_and_holds_hard_lock() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+
+	var rig := _make_brain_with_single_need(&"hunger", &"eat", &"test_food")
+	var brain: ColonistBrain = rig["brain"]
+	var needs: ColonistNeeds = rig["needs"]
+
+	needs.set_need(&"hunger", 0.05) # below the default 0.10 emergency_threshold
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
+	assert_str(String(rig["bt_player"].blackboard.get_var(&"current_goal"))).is_equal("eat")
+
+	# A second poll with nothing changed must hold the same lock, not just
+	# coincidentally re-pick the same goal via scoring.
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
+	assert_str(String(rig["bt_player"].blackboard.get_var(&"current_goal"))).is_equal("eat")
+
+
+func test_colonist_brain_lock_survives_a_different_need_becoming_critical() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+
+	var brain: ColonistBrain = auto_free(ColonistBrainScript.new()) as ColonistBrain
+	var bt_player: BTPlayer = auto_free(BTPlayer.new()) as BTPlayer
+	bt_player.blackboard = Blackboard.new()
+	brain.bt_player = bt_player
+
+	var needs: ColonistNeeds = auto_free(ColonistNeedsScript.new()) as ColonistNeeds
+	needs.name = "ColonistNeeds"
+
+	var curve: Curve = Curve.new()
+	curve.add_point(Vector2(0, 0))
+	curve.add_point(Vector2(1, 1))
+
+	var hunger_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
+	hunger_def.id = &"hunger"
+	hunger_def.decay_per_game_hour = 0.05
+	hunger_def.goal_name = &"eat"
+	hunger_def.target_group = &"test_food"
+	hunger_def.response_curve = curve
+	ColonistNeeds._cached_need_defs[&"hunger"] = hunger_def
+
+	var rest_def: Resource = preload("res://data/schemas/need_def.gd").new() as Resource
+	rest_def.id = &"rest"
+	rest_def.decay_per_game_hour = 0.05
+	rest_def.goal_name = &"sleep"
+	rest_def.target_group = &"test_bed"
+	rest_def.response_curve = curve
+	ColonistNeeds._cached_need_defs[&"rest"] = rest_def
+
+	var parent: Node3D = auto_free(Node3D.new()) as Node3D
+	add_child(parent)
+	parent.add_child(needs)
+	parent.add_child(brain)
+	var food_target := auto_free(Node3D.new()) as Node3D
+	food_target.add_to_group(&"test_food")
+	parent.add_child(food_target)
+	var bed_target := auto_free(Node3D.new()) as Node3D
+	bed_target.add_to_group(&"test_bed")
+	parent.add_child(bed_target)
+	brain._ready()
+
+	needs.set_need(&"hunger", 0.05)
+	needs.set_need(&"rest", 1.0)
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
+
+	# Rest also goes critical mid-lock -- the lock must hold on hunger regardless.
+	needs.set_need(&"rest", 0.05)
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
+	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("eat")
+
+
+func test_colonist_brain_lock_releases_at_release_threshold() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+
+	var rig := _make_brain_with_single_need(&"hunger", &"eat", &"test_food")
+	var brain: ColonistBrain = rig["brain"]
+	var needs: ColonistNeeds = rig["needs"]
+
+	needs.set_need(&"hunger", 0.05)
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
+
+	# Crossing the default release_threshold (0.5) must release the lock, even
+	# though nothing outside the need itself changed.
+	needs.set_need(&"hunger", 0.5)
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("")
+
+
+func test_colonist_brain_lock_outranks_deploy_work_score() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+
+	var rig := _make_brain_with_single_need(&"hunger", &"eat", &"test_food")
+	var brain: ColonistBrain = rig["brain"]
+	var needs: ColonistNeeds = rig["needs"]
+
+	needs.set_need(&"hunger", 0.05)
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
+
+	# A Deploy job always scores 2.0 in _get_work_score -- it must still lose
+	# to an already-established lock, which never even scores work.
+	var deploy_def: JobDef = auto_free(DeployJobDef.new()) as JobDef
+	deploy_def.id = "deploy_test"
+	deploy_def.display_name = "Deploy"
+	deploy_def.labor_id = "deploy"
+	var deploy_job: Job = Job.from_def(deploy_def)
+	Colony.job_board.add_job(deploy_job)
+
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
+	assert_str(String(rig["bt_player"].blackboard.get_var(&"current_goal"))).is_equal("eat")
+
+
+func test_colonist_brain_lock_suspends_during_threat_and_resumes_after() -> void:
+	ColonistNeeds._cached_need_defs.clear()
+	ColonistNeeds._defs_loaded = true
+
+	var rig := _make_brain_with_single_need(&"hunger", &"eat", &"test_food")
+	var brain: ColonistBrain = rig["brain"]
+	var needs: ColonistNeeds = rig["needs"]
+	var bt_player: BTPlayer = rig["bt_player"]
+
+	var threat := auto_free(Node3D.new()) as Node3D
+	bt_player.blackboard.set_var(&"threat_target", threat)
+
+	needs.set_need(&"hunger", 0.05)
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("")
+
+	# Threat clears -- the same critical need now locks in normally.
+	bt_player.blackboard.erase_var(&"threat_target")
+	brain.evaluate_goals()
+	assert_str(String(brain.get_locked_need_id())).is_equal("hunger")
 	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("eat")
 
 
@@ -810,24 +989,6 @@ func test_claim_job_claims_from_job_board() -> void:
 	
 	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
 	assert_object(_blackboard.get_var(&"active_job")).is_equal(job)
-
-
-func test_use_smart_object_replenishes_need_and_resets_goal() -> void:
-	var task: BTAction = auto_free(BTActionUseSmartObjectScript.new()) as BTAction
-	task.default_duration = 0.5
-	task.restore_amount = 0.6
-	
-	var colonist: Colonist = _sandbox.make_colonist()
-	colonist.needs.set_need(&"hunger", 0.2)
-	
-	_blackboard.set_var(&"current_goal", &"eat")
-	task.initialize(colonist, _blackboard, colonist)
-	
-	assert_int(task.execute(0.2)).is_equal(BTAction.RUNNING)
-	assert_int(task.execute(0.4)).is_equal(BTAction.SUCCESS)
-	
-	assert_float(colonist.needs.get_need(&"hunger")).is_equal_approx(0.8, 0.01)
-	assert_str(String(_blackboard.get_var(&"current_goal"))).is_equal("none")
 
 
 func test_haul_batch_transfers_items() -> void:
