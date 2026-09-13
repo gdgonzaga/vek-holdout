@@ -110,15 +110,21 @@ func _collect_valid_moodlets() -> Array[Dictionary]:
 
 func _sync_sprites(valid_moodlets: Array[Dictionary]) -> void:
 	## Auxiliary: Updates positions, textures, and visibility for all sprite billboard instances.
-	var count: int = mini(valid_moodlets.size(), max_icons)
-	
-	# 1. Capacity Assurance: Ensure sufficient Sprite3D instances exist in the pool.
+	# 1. Line Grouping: Group by row first and cap each row independently, so a
+	# crowded status row (line_number 4) can never starve out an unrelated
+	# row's icon (e.g. the activity row, line_number 2) the way slicing the
+	# flat pre-grouped list used to.
+	var grouped_lines: Dictionary = _group_moodlets_by_line(valid_moodlets, max_icons)
+	var active_lines: Array[int] = _get_sorted_active_lines(grouped_lines)
+	var count: int = _count_grouped_sprites(grouped_lines, active_lines)
+
+	# 2. Capacity Assurance: Ensure sufficient Sprite3D instances exist in the pool.
 	_ensure_sprite_capacity(count)
-	
-	# 2. Active Layout: Position and assign textures to active sprites grouped by line number.
-	_layout_active_sprites(valid_moodlets, count)
-	
-	# 3. Inactive Cleanup: Hide surplus sprite instances beyond the active count.
+
+	# 3. Active Layout: Position and assign textures to active sprites grouped by line number.
+	_position_grouped_sprites(grouped_lines, active_lines)
+
+	# 4. Inactive Cleanup: Hide surplus sprite instances beyond the active count.
 	_hide_surplus_sprites(count)
 
 
@@ -137,30 +143,28 @@ func _ensure_sprite_capacity(required_count: int) -> void:
 		_sprites.append(sprite)
 
 
-func _layout_active_sprites(valid_moodlets: Array[Dictionary], count: int) -> void:
-	## Auxiliary: Configures billboard textures, hframes, and positions sprites across active lines.
-	# 1. Line Grouping: Group the capped active moodlets by line number.
-	var grouped_lines: Dictionary = _group_moodlets_by_line(valid_moodlets, count)
-	
-	# 2. Active Line Sorting: Extract unique active line numbers in ascending order.
-	var active_lines: Array[int] = _get_sorted_active_lines(grouped_lines)
-	
-	# 3. Grid Positioning: Layout sprites in compacted rows above the entity.
-	_position_grouped_sprites(grouped_lines, active_lines)
-
-
-func _group_moodlets_by_line(valid_moodlets: Array[Dictionary], count: int) -> Dictionary:
-	## Auxiliary: Buckets active moodlet records by their line_number property.
+func _group_moodlets_by_line(valid_moodlets: Array[Dictionary], per_line_cap: int) -> Dictionary:
+	## Auxiliary: Buckets active moodlet records by their line_number property,
+	## capping each row independently at per_line_cap rather than capping the
+	## flat list before grouping — so one crowded row can't crowd out another.
 	var grouped: Dictionary = {}
-	for i in range(count):
-		var moodlet_data: Dictionary = valid_moodlets[i]
+	for moodlet_data: Dictionary in valid_moodlets:
 		var m_def: MoodletDef = moodlet_data.get("def", null) as MoodletDef
 		var line_num: int = m_def.line_number if m_def != null else 0
 		if not grouped.has(line_num):
 			grouped[line_num] = []
 		var line_list: Array = grouped[line_num]
-		line_list.append(moodlet_data)
+		if line_list.size() < per_line_cap:
+			line_list.append(moodlet_data)
 	return grouped
+
+
+func _count_grouped_sprites(grouped_lines: Dictionary, active_lines: Array[int]) -> int:
+	## Auxiliary: Sums sprite counts across all active lines after per-line capping.
+	var total := 0
+	for line_num in active_lines:
+		total += (grouped_lines[line_num] as Array).size()
+	return total
 
 
 func _get_sorted_active_lines(grouped_lines: Dictionary) -> Array[int]:
