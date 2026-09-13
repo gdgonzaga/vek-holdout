@@ -125,26 +125,20 @@ func _consume_food_and_replenish() -> bool:
 
 
 func _apply_hunger_restoration(amount: float) -> void:
-	## Auxiliary: Updates hunger on HungerComponent and ColonistNeeds.
-	var hunger_comp: HungerComponent = null
-	if agent != null:
-		hunger_comp = agent.get_node_or_null("HungerComponent") as HungerComponent
-		if hunger_comp == null and "hunger_component" in agent:
-			hunger_comp = agent.hunger_component
-
-	if hunger_comp != null:
-		hunger_comp.restore_hunger(amount)
-		return
-
-	var needs: ColonistNeeds = null
-	if agent != null:
-		needs = agent.get_node_or_null("ColonistNeeds") as ColonistNeeds
-		if needs == null and "needs" in agent:
-			needs = agent.needs
-
+	## Auxiliary: Updates hunger on ColonistNeeds.
+	var needs := _resolve_needs()
 	if needs != null:
-		var current_val := needs.get_need(&"hunger")
-		needs.set_need(&"hunger", clampf(current_val + amount, 0.0, 1.0))
+		needs.restore_need(&"hunger", amount)
+
+
+func _resolve_needs() -> ColonistNeeds:
+	## Auxiliary: Resolves ColonistNeeds by node name, then by property.
+	if agent == null:
+		return null
+	var needs := agent.get_node_or_null("ColonistNeeds") as ColonistNeeds
+	if needs == null and "needs" in agent:
+		needs = agent.needs
+	return needs
 
 
 func _clear_blackboard_goal() -> void:

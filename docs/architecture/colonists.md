@@ -49,11 +49,10 @@ equipment fulfillment are BT-task-driven, not a dedicated component — see belo
 - `labor_priorities`: Dictionary mapping `labor_id` -> priority weight (`0..5`).
 - `inventory`: `CharacterInventory`, code-created in `_ready` (mirrors Player's scene-placed inventory).
 - `equipment`: `Equipment`, resolved/created in `_ready` via `Equipment.ensure_on(self, equipment)` — see [Equipment](equipment.md).
-- `hunger_component`: `HungerComponent`, resolved/created in `_ready` via `HungerComponent.ensure_on(self)` — see [Hunger](hunger.md).
 - `skill_set`: `SkillSet`, scene child (`$SkillSet`), seeded from `colonist_def.starting_skills`.
 - `stamina_component`: `StaminaComponent`, scene child (`$StaminaComponent`).
 - `pathfinder`: `VoxelPathfinder`, scene child (`$VoxelPathfinder`).
-- `needs` / `brain` / `bt_player`: `ColonistNeeds` / `ColonistBrain` / `BTPlayer` — each resolved via `get_node_or_null` in `_ready`, code-created and added as a child if the scene doesn't already have one (so hand-authored scenes can override, but `colonist.tscn` need not include them). `bt_player.behavior_tree` loads from `data/ai/trees/colonist_root.tres` when created.
+- `needs` / `brain` / `bt_player`: `ColonistNeeds` / `ColonistBrain` / `BTPlayer` — each resolved via `get_node_or_null` in `_ready`, code-created and added as a child if the scene doesn't already have one (so hand-authored scenes can override, but `colonist.tscn` need not include them). `needs` manages hunger, rest, and recreation uniformly; `bt_player.behavior_tree` loads from `data/ai/trees/colonist_root.tres` when created.
 - `interaction`: `InteractionComponent`, resolved or code-created the same way; rebuilt each time via `refresh_interaction_options()`.
 
 ### Class: ColonistBrain

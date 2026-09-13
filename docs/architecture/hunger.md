@@ -3,7 +3,8 @@
 The Hunger and Nutrition subsystem governs physiological energy depletion, autonomous colonist sustenance seeking, starvation hazards, and player manual consumption (GDD §6.12). Satiety decays continuously, transitioning into starvation when depleted. Starving entities suffer movement speed debuffs and periodic health damage until food is consumed. Edible resources are defined declaratively via composition through the FoodParams capability schema on ItemDef.
 
 **Design notes:**
-- **Entity Agnostic Architecture**: Both Colonist and Player mount HungerComponent, sharing identical decay, starvation transition, damage accumulation, and serialization logic.
+- **Data-Driven Need Consolidation**: Hunger is defined as a standard `NeedDef` resource (`data/needs/need_hunger.tres`), managed alongside `rest` and `recreation` by `ColonistNeeds` on both `Colonist` and `Player`.
+- **Unified Depletion Consequences**: Starvation penalties (periodic HP damage, movement speed penalty, and stamina recovery multiplier) are configured declaratively on `NeedDef` and executed generically by `ColonistNeeds`.
 - **Data-Driven Composition**: Food properties (nutrition value, heal amount, consumption duration, animations, moodlets) are encapsulated in FoodParams (`ItemDef.food`), leaving ammunition, fuel, and materials decoupled.
 - **Pocket Feeding Priority**: Colonists prioritize consuming food already carried in their personal inventory over travelling across the colony to storage crates, saving transit time and pathfinding overhead.
 - **Thrash and Race Resilience**: If a food container is emptied before arrival or is physically unreachable, the target is blacklisted on ColonistBrain for 10 seconds to allow dynamic re-arbitration without 1.5-second pathing lockup loops.
@@ -13,12 +14,12 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 
 | File | Type | Responsibility |
 |---|---|---|
-| `subsystems/colonists/hunger_component.gd` | Script | Tracks hunger, starvation state, starvation damage intervals, and speed multipliers. |
+| `data/needs/need_hunger.tres` | Resource | Declarative need definition specifying decay rate, emergency threshold, and depletion penalties. |
+| `subsystems/ai/colonist_needs.gd` | Script | Entity needs tracker managing hunger decay, depletion timers, damage ticks, and speed multipliers. |
 | `data/capability_params/food_params.gd` | Script | Declarative capability parameter resource attached to edible `ItemDef.food`. |
 | `subsystems/ai/tasks/actions/bt_action_find_food.gd` | Script | LimboAI task locating pocket food or nearest unblacklisted colony food source. |
 | `subsystems/ai/tasks/actions/bt_action_fetch_food.gd` | Script | LimboAI task transferring 1 food unit from storage container to colonist pockets. |
 | `subsystems/ai/tasks/actions/bt_action_eat_food.gd` | Script | LimboAI task executing timed eating animation, physiological replenishment, and goal clearance. |
-| `subsystems/ai/colonist_needs.gd` | Script | Synchronizes hunger queries and decay with HungerComponent when attached. |
 | `subsystems/ai/colonist_brain.gd` | Script | Arbitrates eating desires, tracks unreachable food blacklist, and evaluates food targets. |
 | `subsystems/inventory/storage_registry.gd` | Script | Spatial queries for edible items across registered crates and world drops. |
 | `ui/hud/hud.gd` | Script | HUD inventory panel rendering "Eat" action for carried food items. |
@@ -27,10 +28,10 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
-| `hunger_changed(current: float, max_val: float)` | `hunger_component.gd` | UI panels, telemetry | No | Satiety updates |
-| `starvation_started()` | `hunger_component.gd` | Colonist, Player, GameLog | No | Starvation state enter |
-| `starvation_ended()` | `hunger_component.gd` | Colonist, Player, GameLog | No | Starvation state exit |
-| `starvation_tick_damage(amount: int)` | `hunger_component.gd` | Parent entity `take_damage` | No | Periodic starvation damage |
+| `need_changed(need_id: StringName, current: float, max_val: float)` | `colonist_needs.gd` | UI panels, telemetry | No | Need level updates |
+| `need_depleted(need_id: StringName)` | `colonist_needs.gd` | Colonist, Player, GameLog | No | Depletion / starvation enter |
+| `need_replenished(need_id: StringName)` | `colonist_needs.gd` | Colonist, Player, GameLog | No | Depletion / starvation exit |
+| `depletion_tick_damage(need_id: StringName, amount: int)` | `colonist_needs.gd` | Parent entity `take_damage` | No | Periodic starvation / depletion damage |
 
 ## Flow Trace: Colonist Autonomous Feeding
 
@@ -41,7 +42,7 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 3. If pockets are empty, BTActionFindFood queries StorageRegistry.find_best_food_source (filtering blacklisted nodes) and writes the crate node to blackboard.
 4. BTActionNavigateTo guides the colonist to the storage crate. On path failure, the target is blacklisted for 10 seconds.
 5. BTActionFetchFood retrieves 1 food item into colonist inventory. If the container was depleted by another actor, the task fails cleanly.
-6. BTActionEatFood locks movement, triggers the eating animation override, counts down eat_duration, applies nutrition restoration to HungerComponent, heals HP if specified, and resets current_goal to `&"none"`.
+6. BTActionEatFood locks movement, triggers the eating animation override, counts down eat_duration, applies nutrition restoration to ColonistNeeds, heals HP if specified, and resets current_goal to `&"none"`.
 
 **End state:** Colonist hunger is replenished above emergency thresholds; carry inventory count is deducted; LimboAI returns to standard labor arbitration.
 
@@ -52,7 +53,7 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 1. HUD._on_inventory_eat_pressed dispatches item ID to Player.consume_food_item(item_id).
 2. Player checks that the item exists in carry inventory and has `def.is_food() == true`.
 3. Player.inventory.remove(item_id, 1) deducts 1 unit from carried weight and stacks.
-4. Player.hunger_component.restore_hunger(nutrition_value) increases current hunger and clears starvation state if applicable.
+4. Player.needs.restore_need(&"hunger", nutrition_value) increases current hunger and clears starvation state if applicable.
 5. If `health_restore > 0`, Player.heal(health_restore) replenishes player hit points.
 6. HUD updates inventory list and hunger progress telemetry.
 
@@ -60,37 +61,32 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 
 ## Class Reference
 
-### Class: HungerComponent
+### Class: ColonistNeeds
 
 **Extends:** `Node`  
-**Script:** `subsystems/colonists/hunger_component.gd`  
-**Description:** Modular physiological node tracking hunger ratio (0.0 to 1.0), decay scaling, starvation transitions, damage accumulation, and movement speed penalties.  
+**Script:** `subsystems/ai/colonist_needs.gd`  
+**Description:** Core physiological component tracking all entity need levels (hunger, rest, recreation), applying game-hour decay, evaluating depletion transitions, accumulating damage ticks, and scaling locomotion speed / stamina recovery.  
 **Used by:** `Colonist`, `Player`.  
 
 **Properties:**
 
 | Property | Type | Description |
 |---|---|---|
-| `max_hunger` | `float` | Maximum hunger capacity (default `1.0`). |
-| `current_hunger` | `float` | Current hunger points (default `1.0`). Setter clamps to `[0.0, max_hunger]` and emits `hunger_changed` on change. |
-| `decay_per_game_hour` | `float` | Satiety drained per real second during simulation (default `0.05`). |
-| `starvation_damage_interval` | `float` | Time in seconds between starvation damage applications (default `5.0`). |
-| `starvation_damage` | `int` | Damage points inflicted per starvation tick (default `2`). |
-| `starvation_speed_mult` | `float` | Movement speed multiplier applied while starving (default `0.80`). |
-| `starvation_stamina_mult` | `float` | Stamina recovery multiplier applied while starving (default `0.50`). |
+| `needs` | `Dictionary` | Base need levels normalized between 0.0 (depleted) and 1.0 (satisfied). |
 
 **Functions:**
 
 | Function | Description |
 |---|---|
-| `ensure_on(actor: Node) -> HungerComponent` | Static. Returns actor's existing HungerComponent child, or creates and adds one. Shared by Player/Colonist `_ready`. |
-| `restore_hunger(amount: float) -> void` | Restores hunger points clamped to max_hunger and clears starvation if hunger > 0. |
-| `is_starving() -> bool` | Returns true if hunger is at or below 0.0. |
-| `get_hunger_ratio() -> float` | Returns current hunger normalized between 0.0 and 1.0. |
-| `get_speed_multiplier() -> float` | Returns `starvation_speed_mult` if starving, else 1.0. |
-| `get_stamina_recovery_multiplier() -> float` | Returns `starvation_stamina_mult` if starving, else 1.0. |
-| `serialize() -> Dictionary` | Serializes hunger state and starvation timers for save games. |
-| `deserialize(data: Dictionary) -> void` | Restores hunger state and starvation timers from save data. |
+| `get_need(need_id: StringName) -> float` | Returns current level for the specified need. |
+| `set_need(need_id: StringName, value: float) -> void` | Sets need level clamped to [0.0, 1.0], triggering signals on change. |
+| `restore_need(need_id: StringName, amount: float) -> void` | Restores specified need by amount clamped to 1.0. |
+| `get_deficit(need_id: StringName) -> float` | Returns deficit (1.0 - current) on a 0.0 to 1.0 scale. |
+| `is_depleted(need_id: StringName) -> bool` | Returns true if need is at or below 0.0. |
+| `get_speed_multiplier() -> float` | Compound speed multiplier computed from all active depleted needs. |
+| `get_stamina_recovery_multiplier() -> float` | Compound stamina recovery multiplier computed from all active depleted needs. |
+| `serialize() -> Dictionary` | Serializes need states and depletion timers for save games. |
+| `deserialize(data: Dictionary) -> void` | Restores need states and depletion timers from save data. |
 
 ### Class: FoodParams
 

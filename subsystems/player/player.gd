@@ -52,8 +52,8 @@ signal interactable_changed(component: InteractionComponent)
 var equipment: Equipment
 var _equipped_action_cooldown: float = 0.0
 
-## Hunger and survival state
-var hunger_component: HungerComponent
+## Needs and physiological state (hunger, etc.)
+var needs: ColonistNeeds
 @onready var health_component: HealthComponent = $HealthComponent
 
 ## True once health_component has reached 0 HP (ARCH combat.md — mirrors the
@@ -144,8 +144,8 @@ func consume_food_item(item_id: String) -> bool:
 		return false
 
 	inventory.remove(item_id, 1)
-	if hunger_component != null:
-		hunger_component.restore_hunger(def.food.nutrition_value)
+	if needs != null:
+		needs.restore_need(&"hunger", def.food.nutrition_value)
 	if def.food.health_restore > 0:
 		heal(def.food.health_restore)
 	return true
@@ -177,7 +177,7 @@ func serialize() -> Dictionary:
 		"cam_pitch": _rig.get_pitch(),
 		"inventory": inventory.serialize(),
 		"equipment": equipment.serialize() if equipment != null else {},
-		"hunger": hunger_component.serialize() if hunger_component != null else {},
+		"needs": needs.serialize() if needs != null else {},
 		"health": health_component.serialize(),
 	}
 
@@ -196,8 +196,10 @@ func deserialize(data: Dictionary) -> void:
 		inventory.deserialize(data["inventory"])
 	if data.has("equipment") and equipment != null:
 		equipment.deserialize(data["equipment"])
-	if data.has("hunger") and hunger_component != null:
-		hunger_component.deserialize(data["hunger"])
+	if data.has("needs") and needs != null:
+		needs.deserialize(data["needs"])
+	elif data.has("hunger") and needs != null:
+		needs.deserialize(data["hunger"])
 	# 1. Health Restore: Deserialize the nested HealthComponent dict, or fall
 	# back to legacy flat "hp"/"max_hp" keys from pre-HealthComponent saves.
 	_deserialize_health(data)
@@ -230,8 +232,12 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	floor_max_angle = deg_to_rad(60.0)
 
-	# HungerComponent child for hunger decay and starvation penalties
-	hunger_component = HungerComponent.ensure_on(self)
+	# Needs component for physiological needs (hunger, etc.) and depletion penalties
+	needs = get_node_or_null("ColonistNeeds") as ColonistNeeds
+	if not needs:
+		needs = ColonistNeeds.new()
+		needs.name = "ColonistNeeds"
+		add_child(needs)
 
 	# SkillSet child (skill catalog loads in its own _ready; unseeded = all L1).
 	var skills := SkillSet.new()
@@ -560,8 +566,8 @@ func _handle_move_keys(delta: float) -> void:
 	var speed: float
 	if is_on_floor():
 		speed = sprint_speed if _input.wants_sprint() else walk_speed
-		if hunger_component != null:
-			speed *= hunger_component.get_speed_multiplier()
+		if needs != null:
+			speed *= needs.get_speed_multiplier()
 		# 1. Drag Evaluation: Dampens ground movement speed by 0.6x when wading through fluid voxels.
 		if is_in_water():
 			speed *= 0.6

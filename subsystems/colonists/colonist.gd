@@ -25,7 +25,6 @@ var pathfinder: VoxelPathfinder
 
 ## LimboAI / Utility AI components
 var needs: ColonistNeeds
-var hunger_component: HungerComponent
 var brain: ColonistBrain
 var bt_player: BTPlayer
 
@@ -75,8 +74,6 @@ func _ready() -> void:
 	pathfinder = $VoxelPathfinder
 	
 	# Resolve or initialize AI components
-	hunger_component = HungerComponent.ensure_on(self)
-
 	needs = get_node_or_null("ColonistNeeds") as ColonistNeeds
 	if not needs:
 		needs = ColonistNeeds.new()
@@ -182,8 +179,8 @@ func _follow_path(delta: float) -> void:
 		to_target.y = 0.0
 	var dir: Vector3 = to_target.normalized()
 	var speed: float = colonist_def.base_move_speed
-	if hunger_component != null:
-		speed *= hunger_component.get_speed_multiplier()
+	if needs != null:
+		speed *= needs.get_speed_multiplier()
 	
 	if _wiggle_timer > 0.0:
 		_wiggle_timer -= delta
@@ -312,12 +309,6 @@ func _resolve_stat_ratio(stat_name: StringName) -> float:
 			if stamina_component != null and stamina_component.max_stamina > 0.0:
 				return stamina_component.current_stamina / stamina_component.max_stamina
 			return 1.0
-		&"hunger":
-			if hunger_component != null:
-				return hunger_component.get_hunger_ratio()
-			if needs != null and needs.needs.has(stat_name):
-				return needs.get_need(stat_name)
-			return -1.0
 		_:
 			if needs != null and needs.needs.has(stat_name):
 				return needs.get_need(stat_name)
@@ -333,12 +324,6 @@ func _resolve_stat_value(stat_name: StringName) -> float:
 			if stamina_component != null:
 				return stamina_component.current_stamina
 			return 100.0
-		&"hunger":
-			if hunger_component != null:
-				return hunger_component.current_hunger
-			if needs != null and needs.needs.has(stat_name):
-				return needs.get_need(stat_name)
-			return -1.0
 		_:
 			if needs != null and needs.needs.has(stat_name):
 				return needs.get_need(stat_name)
@@ -463,7 +448,6 @@ func serialize() -> Dictionary:
 		"health": health_component.serialize(),
 		"skills": skill_set.serialize() if skill_set != null else {},
 		"needs": needs.serialize() if needs != null else {},
-		"hunger": hunger_component.serialize() if hunger_component != null else {},
 		"inventory": inventory.serialize() if inventory != null else {},
 		"equipment": equipment.serialize() if equipment != null else {},
 		"pos": [global_position.x, global_position.y, global_position.z],
@@ -521,8 +505,8 @@ func deserialize(data: Dictionary) -> void:
 		skill_set.deserialize(data["skills"])
 	if needs != null and data.has("needs"):
 		needs.deserialize(data["needs"])
-	if hunger_component != null and data.has("hunger"):
-		hunger_component.deserialize(data["hunger"])
+	elif needs != null and data.has("hunger"):
+		needs.deserialize(data["hunger"])
 	if inventory != null and data.has("inventory"):
 		inventory.deserialize(data["inventory"])
 	# Equipment must deserialize after inventory since slots are separate stores.

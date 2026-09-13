@@ -123,7 +123,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `_input` | `InputComponent` | `@onready` reference to the `$InputComponent` child. All raw input reads go through this component. |
 | `inventory` | `CharacterInventory` | `@onready` reference to the scene-placed `$Inventory` child. Carry inventory backing `add_item`/`remove_item`/`drop_item`/`has_item`/`can_carry`/`consume_food_item`. |
 | `equipment` | `Equipment` | 8-slot gear component; resolved/created in `_ready` via `_ensure_equipment()` (`Equipment.ensure_on`). See [Equipment](equipment.md). |
-| `hunger_component` | `HungerComponent` | Resolved/created in `_ready` via `HungerComponent.ensure_on(self)`. Drives starvation speed penalty and `consume_food_item`'s hunger restore. See [Hunger](hunger.md). |
+| `needs` | `ColonistNeeds` | Resolved/created in `_ready`. Manages physiological needs (hunger decay, starvation speed penalties) and `consume_food_item`'s hunger restore. See [Hunger](hunger.md). |
 | `skill_set` | `SkillSet` | Code-created, unseeded (every skill reads L1 until trained). Shared with `Colonist` so `MinSkillCondition` reads either actor reflectively. |
 | `health_component` | `HealthComponent` | `@onready` reference to the scene-placed `$HealthComponent` child (`max_hp = 100`). See [Combat](combat.md). |
 | `is_dead` | `bool` *(computed)* | `health_component.is_dead`. Lets threat-scanning tasks skip a dead player the same way they skip dead colonists/enemies. |
@@ -155,7 +155,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `add_item(item_id, count) -> int` / `remove_item(item_id, count) -> int` | Thin wrappers over `inventory.add`/`inventory.remove`. Return overflow / shortfall respectively. |
 | `has_item(item_id, count) -> bool` / `can_carry(item_id, count) -> bool` | Thin wrappers over `inventory.has_item`/`inventory.can_add`. |
 | `drop_item(item_id: String, count: int = 1) -> WorldItem` | Removes `count` of `item_id` from inventory and spawns it as a `WorldItem` in front of the player (impulse toss). Unequips main_hand first if it holds the last copy of the dropped item. Returns null if the item wasn't carried. |
-| `consume_food_item(item_id: String) -> bool` | Player's instant-eat path (mirrors the colonist BT eat flow without the animation/timer): validates `ItemDef.food`, removes 1 unit, restores hunger via `hunger_component`, and heals via `heal()` if `food.health_restore > 0`. See [Hunger](hunger.md). |
+| `consume_food_item(item_id: String) -> bool` | Player's instant-eat path (mirrors the colonist BT eat flow without the animation/timer): validates `ItemDef.food`, removes 1 unit, restores hunger via `needs.restore_need`, and heals via `heal()` if `food.health_restore > 0`. See [Hunger](hunger.md). |
 | `take_damage(amount: int, source: Node = null) -> void` | Forwards to `health_component.take_damage()`. On `entity_died`, `_on_health_component_died` sets `state = DEAD` and emits `EventBus.player_died("combat")`. |
 | `heal(amount: int) -> void` | Forwards to `health_component.heal()`. |
 | `equip_item(item: ItemDef) -> bool` | Equips into main_hand via `equipment.equip_preferring_main_hand`. Visual update is automatic (`EquipmentVisualizer` listens to `Equipment.slot_changed`). See [Equipment](equipment.md). |

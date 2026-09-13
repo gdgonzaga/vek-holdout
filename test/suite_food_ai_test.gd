@@ -11,7 +11,6 @@ const BTActionEatFoodScript = preload("res://subsystems/ai/tasks/actions/bt_acti
 
 const FoodParamsScript = preload("res://data/capability_params/food_params.gd")
 const ItemDefScript = preload("res://data/items/item_def.gd")
-const HungerComponentScript = preload("res://subsystems/colonists/hunger_component.gd")
 
 var _sandbox: ColonySandbox
 var _blackboard: Blackboard
@@ -140,7 +139,7 @@ func test_fetch_food_fails_cleanly_if_crate_emptied() -> void:
 
 func test_eat_food_consumes_and_replenishes_hunger() -> void:
 	_actor.inventory.add(_test_food_id, 1)
-	_actor.hunger_component.current_hunger = 0.2
+	_actor.needs.set_need(&"hunger", 0.2)
 
 	_blackboard.set_var(&"food_item_id", _test_food_id)
 	_blackboard.set_var(&"current_goal", &"eat")
@@ -156,7 +155,7 @@ func test_eat_food_consumes_and_replenishes_hunger() -> void:
 	# Finished eating: SUCCESS
 	assert_int(task.execute(0.15)).is_equal(BTAction.SUCCESS)
 	assert_int(_actor.inventory.get_item_count(_test_food_id)).is_equal(0)
-	assert_float(_actor.hunger_component.current_hunger).is_equal_approx(0.65, 0.01)
+	assert_float(_actor.needs.get_need(&"hunger")).is_equal_approx(0.65, 0.01)
 	assert_str(str(_blackboard.get_var(&"current_goal"))).is_equal("none")
 
 
@@ -180,10 +179,10 @@ func test_player_consumes_food_restores_hunger_and_hp() -> void:
 	player.inventory.add(_test_food_id, 1)
 	player.health_component.current_hp = 50
 	player.health_component.max_hp = 100
-	player.hunger_component.current_hunger = 0.3
+	player.needs.set_need(&"hunger", 0.3)
 
 	var success: bool = player.consume_food_item(_test_food_id)
 	assert_bool(success).is_true()
 	assert_int(player.inventory.get_item_count(_test_food_id)).is_equal(0)
-	assert_float(player.hunger_component.current_hunger).is_equal_approx(0.75, 0.01)
+	assert_float(player.needs.get_need(&"hunger")).is_equal_approx(0.75, 0.01)
 	assert_int(player.health_component.current_hp).is_equal(56)
