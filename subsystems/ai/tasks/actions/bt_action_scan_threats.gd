@@ -29,24 +29,27 @@ func _generate_name() -> String:
 
 func _tick(_delta: float) -> Status:
 	if not agent or not agent.get_tree() or not (agent is Node3D):
+		_clear_result_var()
 		return FAILURE
-		
+
 	var agent_node := agent as Node3D
 	var effective_radius: float = radius
 	if use_weapon_range:
 		# 1. Weapon Range Query: Resolves attack reach from agent's ColonistCombat component.
 		var weapon_range: float = _resolve_weapon_range(agent_node)
 		if weapon_range <= 0.0:
+			_clear_result_var()
 			return FAILURE
 		effective_radius = weapon_range
 
 	var max_dist_sq: float = effective_radius * effective_radius
-	
+
 	# 2. Threat Acquisition: Finding the closest target across all threat groups within sensory radius.
 	var closest_target: Node3D = _find_closest_threat(agent_node, max_dist_sq)
 	if closest_target == null:
+		_clear_result_var()
 		return FAILURE
-		
+
 	if blackboard and result_var != &"":
 		blackboard.set_var(result_var, closest_target)
 	return SUCCESS
@@ -58,6 +61,15 @@ func _resolve_weapon_range(agent_node: Node3D) -> float:
 	if combat != null:
 		return combat.get_attack_range()
 	return 0.0
+
+
+func _clear_result_var() -> void:
+	## Auxiliary: Erases a stale threat on scan failure — a previous sighting
+	## must not read as "still present" once a rescan comes back empty. Both
+	## BTActionColonistCombatAttack and ColonistBrain's need-lock suspension
+	## depend on this being an accurate current-presence signal, not a memory.
+	if blackboard and result_var != &"":
+		blackboard.erase_var(result_var)
 
 
 

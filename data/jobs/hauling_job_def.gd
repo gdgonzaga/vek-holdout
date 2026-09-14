@@ -67,8 +67,14 @@ func work_site(actor: Node, job: Variant) -> Variant:
 			if next_item != null:
 				return next_item.global_position
 
-			var crate := Colony.storage_registry.find_storage_for(world_item.item_id, actor_pos)
-			if crate == null:
+			# 1. Reserving Crate Search: Pick a crate accounting for OTHER jobs'
+			# live reservations, then reserve-or-renew this job's own claim on
+			# it — so a rival hauler's is_available_for() scan can't see (and
+			# take) the same last unit of room between now and delivery.
+			var crate := Colony.storage_registry.find_storage_for_reserving(world_item.item_id, actor_pos, 1, job)
+			if crate != null:
+				_reserve_delivery_crate(actor, job, crate, world_item.item_id)
+			else:
 				crate = Colony.storage_registry.nearest_crate(actor_pos)
 			if crate == null:
 				return null
@@ -204,7 +210,34 @@ func _finalize_world_item_delivery(actor: Node, job: Variant, world_item: WorldI
 			var colony: Node = actor.get_node_or_null("/root/Colony")
 			if colony != null and colony.has_method("register_world_item"):
 				colony.call("register_world_item", world_item)
+	# Delivery landed — release the destination crate's reserved capacity now
+	# rather than waiting out the reservation's TTL.
+	_release_delivery_reservation(actor, job, "delivered")
 	_finish(actor, job)
+
+
+func _reserve_delivery_crate(actor: Node, job: Variant, crate: Furniture, item_id: String) -> void:
+	## Auxiliary: Reserves (or renews) this job's claim on the chosen crate's
+	## capacity, so is_available_for() can trust it instead of re-scanning.
+	var crate_inv: StorageInventory = Colony.storage_registry.inventory_of(crate) if Colony.storage_registry != null else null
+	if crate_inv == null:
+		return
+	var reserved := crate_inv.reserve_capacity(job, item_id, 1)
+	if reserved and ColonistLogger.is_enabled():
+		ColonistLogger.log_msg(actor, &"JOB", "Haul reservation held on %s for %s x1" % [crate.name, item_id])
+
+
+func _release_delivery_reservation(actor: Node, job: Variant, reason: String) -> void:
+	## Auxiliary: Releases this job's crate reservation, if any, and logs it —
+	## a reservation that instead expires via TTL (never released here) means
+	## some exit path was missed and is worth noticing.
+	if Colony == null or Colony.storage_registry == null:
+		return
+	if not Colony.storage_registry.has_reservation(job):
+		return
+	Colony.storage_registry.release_reservation(job)
+	if ColonistLogger.is_enabled():
+		ColonistLogger.log_msg(actor, &"JOB", "Haul reservation released (%s)" % reason)
 
 
 func meets_requirements_any(actor: Node, job: Variant) -> bool:
@@ -260,9 +293,57 @@ func is_available_for(job: Variant, actor: Node = null) -> bool:
 				var claimer_str := str(claimer) if claimer != null else ""
 				if not assigned.has(claimer_str):
 					return false
-		return Colony.storage_registry != null and Colony.storage_registry.find_storage_for(world_item.item_id, world_item.global_position) != null
+		if Colony == null or Colony.storage_registry == null:
+			return false
+		if actor != null and _carries_item(actor, world_item.item_id) and Colony.storage_registry.has_reservation(job):
+			# Already delivering with a live reservation on the destination
+			# crate — trust it instead of re-scanning every crate, so a rival
+			# hauler's concurrent delivery can't yank this job out from under
+			# a colonist already carrying the goods.
+			return true
+		return Colony.storage_registry.find_storage_for_reserving(world_item.item_id, world_item.global_position, 1, job) != null
 
 	return false
+
+
+## Diagnostic-only: explains why is_available_for() just returned false for
+## this job/actor, mirroring its branches with a human-readable reason instead
+## of a bool — so a job that gets claimed and immediately re-dropped can be
+## traced to the exact gate that tripped (crate full, sink satisfied, world
+## item reserved/forbidden/freed, no storage source, etc). Never used by
+## gameplay logic.
+func describe_unavailable_reason(job: Variant, actor: Node = null) -> String:
+	if _storage_crate_of(job) != null:
+		return "storage_crate: no crate can accept anything (nearest_crate() found none)"
+
+	var sink := _sink_of(job)
+	if sink != null:
+		if sink.has_complete_materials():
+			return "sink: materials already complete"
+		if actor != null and _carries_needed_material(actor, sink):
+			return "sink: actor carries needed material (should have been available — unexpected)"
+		if Colony == null or Colony.storage_registry == null:
+			return "sink: Colony/storage_registry unavailable"
+		return "sink: no colony source for needed_item_ids=%s" % [sink.needed_item_ids()]
+
+	var world_item := _world_item_of(job)
+	if world_item != null:
+		if world_item.is_forbidden():
+			return "world_item: forbidden"
+		if not is_instance_valid(world_item) or world_item.is_queued_for_deletion():
+			return "world_item: freed/queued_for_deletion"
+		if world_item.is_reserved():
+			var claimer: Variant = world_item.get_claimer()
+			return "world_item: reserved by a different claimer (%s)" % [str(claimer)]
+		if Colony == null or Colony.storage_registry == null:
+			return "world_item: Colony/storage_registry unavailable"
+		if actor != null and _carries_item(actor, world_item.item_id) and Colony.storage_registry.has_reservation(job):
+			return "world_item: unknown (held reservation says available, is_available_for still failed)"
+		if Colony.storage_registry.find_storage_for_reserving(world_item.item_id, world_item.global_position, 1, job) == null:
+			return "world_item: no crate has room, even accounting for other jobs' reservations"
+		return "world_item: unknown (find_storage_for_reserving succeeded but is_available_for still failed)"
+
+	return "no storage_crate/sink/world_item target resolved on this job"
 
 
 func should_close(job: Variant) -> bool:
@@ -304,12 +385,16 @@ func job_complete(job: Variant) -> bool:
 
 
 func on_abort(actor: Node, job: Variant, _elapsed: float = 0.0) -> void:
-	print("aborting haul")
+	if ColonistLogger.is_enabled():
+		ColonistLogger.log_msg(actor, &"JOB", "Haul aborted")
 	var world_item := _world_item_of(job)
 	if world_item != null and is_instance_valid(world_item):
 		world_item.unreserve(actor)
 		if world_item.count <= 0 and not world_item.visible:
 			world_item.queue_free()
+	# Release any held delivery-crate reservation immediately rather than
+	# waiting out its TTL — the job may be reclaimed and re-delivered right away.
+	_release_delivery_reservation(actor, job, "aborted")
 	var tree := (actor as Node).get_tree() if actor != null else null
 	if tree != null and tree.root != null:
 		_unreserve_actor_items_recursive(tree.root, actor)
@@ -329,7 +414,6 @@ func _unreserve_actor_items_recursive(node: Node, actor: Node) -> void:
 
 
 func _find_next_reachable_ground_item(actor: Node, item_id: String, max_radius: float = GATHER_SEARCH_RADIUS) -> WorldItem:
-	print("looking for next reachable item")
 	if actor == null or not is_instance_valid(actor) or not (actor is Node3D):
 		return null
 	if not _actor_has_remaining_capacity(actor):
@@ -359,11 +443,8 @@ func _find_next_reachable_ground_item(actor: Node, item_id: String, max_radius: 
 				if path.is_empty() and actor_pos.distance_to(cand.global_position) > 1.5:
 					continue
 
-		print("found one!")
 		return cand
 
-
-	print("did not find another reachable item")
 	return null
 
 

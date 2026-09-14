@@ -47,14 +47,15 @@ static func log_brain_eval(
 	deficits: Dictionary = {},
 	target: Variant = null,
 	critical: bool = false,
-	inertia: bool = false
+	inertia_applied: bool = false,
+	locked_need_id: StringName = &""
 ) -> void:
 	# 1. Active Check: Skip if colonist logging is disabled.
 	if not is_enabled():
 		return
 
 	# 2. Summary Formatting: Construct compact human-readable brain decision text.
-	var summary: String = _format_brain_eval_summary(winning_goal, scores, deficits, target, critical, inertia)
+	var summary: String = _format_brain_eval_summary(winning_goal, scores, deficits, target, critical, inertia_applied, locked_need_id)
 
 	# 3. Log Dispatch: Output under the BRAIN category.
 	log_msg(colonist, &"BRAIN", summary)
@@ -138,7 +139,8 @@ static func _format_brain_eval_summary(
 	deficits: Dictionary,
 	target: Variant,
 	critical: bool,
-	inertia: bool
+	inertia_applied: bool,
+	locked_need_id: StringName = &""
 ) -> String:
 	## Auxiliary: Builds single-line formatted summary of utility AI scores and decisions.
 	var score_entries: Array[String] = []
@@ -164,7 +166,9 @@ static func _format_brain_eval_summary(
 	var flags: Array[String] = []
 	if critical:
 		flags.append("CRITICAL_NEED")
-	if inertia:
+	if locked_need_id != &"":
+		flags.append("NEED_LOCK:%s" % locked_need_id)
+	if inertia_applied:
 		flags.append("INERTIA_APPLIED")
 	var flags_str := (" [%s]" % ", ".join(flags)) if not flags.is_empty() else ""
 

@@ -36,6 +36,7 @@ Data-driven definition for colonist needs (`hunger`, `rest`, `recreation`). The 
 | `decay_per_game_hour` | `float` | Need decay rate per second (from `1.0` satisfied toward `0.0` depleted). |
 | `response_curve` | `Curve` | Optional Curve mapping deficit (`0.0`..`1.0`) to Utility AI urgency score (`0.0`..`1.0`). |
 | `emergency_threshold` | `float` | Critical threshold (`0.10`) forcing immediate need satisfaction. |
+| `release_threshold` | `float` | Raw need value (`0.5` default) a hard-locked need must recover to before `ColonistBrain` will arbitrate away from it. See [AI Brain & Decision Making](ai-brain.md). |
 | `goal_name` | `StringName` | High-level goal written to Blackboard on winning arbitration (e.g. `&"eat"`, `&"rest"`). |
 | `target_group` | `StringName` | Node group name for spatial proximity lookups of smart objects (e.g. `&"storage_crate"`, `&"bed"`). |
 

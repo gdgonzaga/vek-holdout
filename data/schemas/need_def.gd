@@ -6,6 +6,10 @@ class_name NeedDef
 @export var decay_per_game_hour: float = 3.75
 @export var response_curve: Curve          ## Visual Inspector Curve (Deficit 0..1 -> Urgency 0..1)
 @export var emergency_threshold: float = 0.10
+## Raw need value this need must climb back to before ColonistBrain's hard
+## lock on it (see colonist_brain.gd's _locked_need_id) releases. Must be
+## authored greater than emergency_threshold or the lock can never hold.
+@export var release_threshold: float = 0.5
 @export var goal_name: StringName = &"eat"
 @export var target_group: StringName = &"storage_crate"
 

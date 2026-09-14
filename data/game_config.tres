@@ -8,7 +8,6 @@ point_count = 3
 
 [resource]
 script = ExtResource("1_script")
-loop_length_minutes = 1.0
 spawn_distance_min = 10.0
 spawn_distance_max = 20.0
 spawn_start_hour = 18.0

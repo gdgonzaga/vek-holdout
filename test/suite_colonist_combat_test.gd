@@ -292,6 +292,32 @@ func test_scan_threats_use_weapon_range_armed_filters_distant_threat() -> void:
 	assert_object(_blackboard.get_var(&"threat_target")).is_equal(enemy)
 
 
+func test_scan_threats_clears_stale_target_when_threat_leaves_range() -> void:
+	var colonist := _sandbox.make_colonist()
+	colonist.equip_item(_make_weapon(_make_melee_action(1.0)))
+	colonist.global_position = Vector3.ZERO
+
+	var enemy := _make_target(Vector3(0.8, 0, 0))
+	enemy.add_to_group(&"enemies")
+
+	var task: BTAction = auto_free(BTActionScanThreatsScript.new()) as BTAction
+	task.use_weapon_range = true
+	var groups: Array[StringName] = [&"enemies"]
+	task.threat_groups = groups
+	task.initialize(colonist, _blackboard, colonist)
+
+	# Enemy in range -> scan succeeds, threat_target set
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_object(_blackboard.get_var(&"threat_target")).is_equal(enemy)
+
+	# Enemy walks back out of weapon reach -> a stale threat_target must not
+	# survive the rescan (ColonistBrain's need-lock suspension, and any future
+	# fight-or-flight logic, depend on this being current, not a memory).
+	enemy.global_position = Vector3(5.0, 0, 0)
+	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+	assert_bool(_blackboard.has_var(&"threat_target")).is_false()
+
+
 
 func test_bt_attack_faces_target_during_tick() -> void:
 	var colonist := _sandbox.make_colonist()

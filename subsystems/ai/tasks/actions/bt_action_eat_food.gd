@@ -2,7 +2,7 @@
 class_name BTActionEatFood
 extends BTAction
 ## AI Task: Consumes 1 food item from colonist carry inventory, plays the eating animation,
-## replenishes hunger on HungerComponent/ColonistNeeds, and heals HP if specified by FoodParams.
+## replenishes hunger on ColonistNeeds, and heals HP if specified by FoodParams.
 ## Resilient against interruptions (preserves unconsumed food if aborted early).
 
 @export var food_item_var: StringName = &"food_item_id"
@@ -114,7 +114,7 @@ func _consume_food_and_replenish() -> bool:
 		nutrition = _food_params.nutrition_value
 		health_heal = _food_params.health_restore
 
-	# 1. Hunger Restoration: Restore satiety on HungerComponent or ColonistNeeds.
+	# 1. Hunger Restoration: Restore satiety on ColonistNeeds.
 	_apply_hunger_restoration(nutrition)
 
 	# 2. HP Healing: Heal entity if food provides health restoration.

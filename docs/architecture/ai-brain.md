@@ -86,11 +86,16 @@ Desire alone is insufficient; a colonist cannot eat if there is no food, or rest
 - **Special case:** a `DeployJobDef` (or any job with `labor_id == "deploy"`) always scores `2.0`, guaranteeing it outranks every other goal.
 - **Test fallback:** a non-`Colonist` actor (mock actors in unit tests) always scores `0.5`, independent of `JobBoard` state.
 
-### Step 4: Action Commitment (Inertia Bonus)
-To prevent "thrashing" (rapidly oscillating between eating, resting, and working when scores are close):
-- If the colonist is already pursuing a goal (`active_goal != &"none"`), and has **no critical needs** (`current_value > emergency_threshold` across all needs):
-  - A `+0.30` inertia bonus is added to `scores[active_goal]`.
-- This ensures colonists finish current tasks before switching desires, unless an emergency occurs.
+### Step 4: Critical Need Lock & Action Commitment
+To prevent "thrashing" (rapidly oscillating between eating, resting, and working when scores are close), two mechanisms cooperate:
+
+**Hard lock (primary, critical needs):** once a need drops to/below its `emergency_threshold` **and** has a resolvable target, `ColonistBrain` hard-locks onto it (`_locked_need_id`) and bypasses scoring/selection entirely on every subsequent poll until that need's raw value climbs back to its own `NeedDef.release_threshold` (default `0.5`). While locked:
+- The lock holds even if a *different* need also becomes critical in the meantime — one need is resolved to its threshold before another gets a turn.
+- The lock is immune to `work`'s scoring, including a `Deploy` job's inflated `2.0` — work is never even scored while a lock is active (`_find_lock_candidate` runs, and can win, before `_get_work_score` is called at all).
+- **The only thing that suspends a lock is combat:** each poll, `_is_threat_present()` reads the blackboard's `threat_target` — the same signal `BTActionScanThreats` writes to gate the tree's reactive-combat branch above all need branches (§3). While a threat is present, the brain neither acquires nor re-asserts a lock, leaving room for a future fight-or-flight response to act freely; once the threat clears, the same locked need (if not yet resolved) resumes where it left off.
+- A target that becomes momentarily unresolvable (a bed taken, a crate emptied) doesn't drop the lock — only reaching `release_threshold` or a combat interrupt does. A single-tick fallthrough at the tree level in that case is the `BTDynamicSelector`'s existing "60 Hz Preemption Gotcha" (§7.1), not a lock failure.
+
+**Inertia bonus (secondary, non-critical stickiness):** for goals that never triggered a lock, the original `+0.30` bonus on the active goal still applies — if the colonist is already pursuing a goal (`active_goal != &"none"`) and has **no critical needs** (`current_value > emergency_threshold` across all needs). This now only matters when choosing between comparably-desirable non-critical goals; a critical need with a resolvable target locks in instead (above).
 
 ### Step 5: Winning Goal Selection & Blackboard Write
 - The highest-scoring goal is selected (`winning_goal`). If all scores are `<= 0.0`, it defaults to `&"work"`.
@@ -258,7 +263,7 @@ When colonists exhibit stuttering, rapid state oscillation, or idle wandering du
 1. Enable colonist logging in `tmp/debug.log`:
    - Inspect `[COLONIST] [Colonist:<name>(<id>)]` entries.
 2. Filter by category:
-   - `[BRAIN]`: Shows utility scores, deficits, winning goals, and inertia application.
+   - `[BRAIN]`: Shows utility scores, deficits, winning goals, `NEED_LOCK:<need_id>` while a critical-need lock is held, and `INERTIA_APPLIED` only when the +0.30 bonus actually fired (not merely "a previous goal existed").
    - `[JOB]`: Shows `JobClaim` events (`CLAIMED`, `REJECT`), slot unassignments, and dead job prunes.
    - `[JOB_BOARD]`: Shows job evaluation rejections (e.g. `tool requirement failed`).
    - `[TOOL]`: Shows `ConditionHasTool` or `EquipTool` failures.

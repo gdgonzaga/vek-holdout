@@ -63,6 +63,50 @@ func find_storage_for(item_id: String, near: Vector3, count: int = 1) -> Furnitu
 	return best
 
 
+## Like find_storage_for, but capacity-checks account for every other job's
+## live delivery reservation (StorageInventory.reserve_capacity), so two
+## concurrent haulers can't both be told the same last unit of room is free.
+## exclude_claim_key is normally the querying job itself, so it isn't blocked
+## by its own already-held reservation on the crate it's re-checking.
+func find_storage_for_reserving(item_id: String, near: Vector3, count: int, exclude_claim_key: Variant = null) -> Furniture:
+	var best: Furniture = null
+	var best_priority: int = -1
+	var best_dist_sq: float = INF
+	for crate in _crates():
+		var inv := inventory_of(crate)
+		if inv == null:
+			continue
+		if not inv.can_add_reserving(item_id, count, exclude_claim_key):
+			continue
+		var p: int = inv.priority
+		var d: float = crate.global_position.distance_squared_to(near)
+		if p > best_priority or (p == best_priority and d < best_dist_sq):
+			best = crate
+			best_priority = p
+			best_dist_sq = d
+	return best
+
+
+## True if claim_key currently holds a live delivery reservation in any crate.
+## A job only ever reserves one at a time; scanning all of them is cheap since
+## crates are few (see the file-level note on live-scan cost).
+func has_reservation(claim_key: Variant) -> bool:
+	for crate in _crates():
+		var inv := inventory_of(crate)
+		if inv != null and inv.has_reservation(claim_key):
+			return true
+	return false
+
+
+## Releases claim_key's reservation from whichever crate holds it (delivered,
+## aborted, or the job otherwise ended). No-op if none is held.
+func release_reservation(claim_key: Variant) -> void:
+	for crate in _crates():
+		var inv := inventory_of(crate)
+		if inv != null:
+			inv.release_reservation(claim_key)
+
+
 ## Finds the closest item ID in storage matching item_id or any tag in tags.
 ## Returns "" if no matching item is available in storage.
 func find_closest_item_matching(item_id: String, tags: Array[StringName], near: Vector3) -> String:
@@ -375,3 +419,78 @@ func _is_edible_item(item_id: String) -> bool:
 	if def == null:
 		return false
 	return def.is_food() or def.has_tag("food")
+
+
+## Diagnostic-only breakdown of where the colony's edible food currently sits
+## (crate contents, ground, or colonist pockets). find_best_food_source only
+## ever searches crates and ground, so this exists to tell a genuine "colony
+## has zero food" scarcity apart from food that exists but is unreachable by
+## that search (e.g. locked inside a colonist's own pockets, or sitting in a
+## reserved/forbidden WorldItem). Never used by gameplay logic.
+func describe_food_supply() -> Dictionary:
+	var crates := _crates()
+	var crate_items: Array[String] = []
+	var crate_food := 0
+	for crate: Furniture in crates:
+		# 1. Per-Crate Tally: Add this crate's edible contents to the running total.
+		crate_food += _describe_crate_food(crate, crate_items)
+
+	return {
+		"crate_count": crates.size(),
+		"crate_food": crate_food,
+		"crate_items": crate_items,
+		"ground_food": _sum_edible_on_ground(),
+		"pocket_food": _sum_edible_in_pockets(),
+	}
+
+
+func _describe_crate_food(crate: Furniture, out_items: Array[String]) -> int:
+	## Auxiliary: Sums one crate's edible items, appending "item_id:count" labels for logging.
+	var inv: StorageInventory = inventory_of(crate)
+	if inv == null or not (inv.items is Dictionary):
+		return 0
+	var total := 0
+	for key in inv.items.keys():
+		var item_id := str(key)
+		var count: int = inv.get_item_count(item_id)
+		if count > 0 and _is_edible_item(item_id):
+			total += count
+			out_items.append("%s:%d" % [item_id, count])
+	return total
+
+
+func _sum_edible_on_ground() -> int:
+	## Auxiliary: Sums edible WorldItems a colonist could actually walk up and take (unforbidden, unreserved).
+	var tree := _get_tree_context()
+	if tree == null:
+		return 0
+	var total := 0
+	for node in tree.get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item == null or not is_instance_valid(item) or not item.is_inside_tree():
+			continue
+		if item.is_forbidden() or item.is_reserved():
+			continue
+		if _is_edible_item(item.item_id):
+			total += item.count
+	return total
+
+
+func _sum_edible_in_pockets() -> int:
+	## Auxiliary: Sums edible items carried in colonists' own inventories — a
+	## target only each carrying colonist can resolve for itself, never a shared one.
+	var tree := _get_tree_context()
+	if tree == null:
+		return 0
+	var total := 0
+	for node in tree.get_nodes_in_group("colonists"):
+		var colonist := node as Colonist
+		if colonist == null or not is_instance_valid(colonist) or colonist.inventory == null:
+			continue
+		if not (colonist.inventory.items is Dictionary):
+			continue
+		for key in colonist.inventory.items.keys():
+			var item_id := str(key)
+			if _is_edible_item(item_id):
+				total += colonist.inventory.get_item_count(item_id)
+	return total
