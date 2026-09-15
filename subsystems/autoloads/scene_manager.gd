@@ -216,6 +216,7 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 	MapWiring.wire_mining(m)
 	MapWiring.wire_day_night(m)
 	var flora_spawner: PlantSpawner = MapWiring.wire_flora(m, map_def, furniture_layer)
+	MapWiring.wire_harvest_box(m, furniture_layer)
 
 	# Read spawns once — used for both furniture replay and player positioning.
 	var spawns: Dictionary = SpawnHelpers.read_spawns(m)

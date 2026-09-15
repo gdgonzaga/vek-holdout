@@ -53,6 +53,17 @@ func toggle_mark() -> void:
 	set_marked(not is_marked_for_harvest())
 
 
+## Whether this Harvestable is currently claimable by HarvestJobDef: marked,
+## and — for wild flora — still at a chop-eligible growth stage. A stage
+## change after marking (can_chop flipping false) self-closes the job here
+## instead of a claim silently no-oping at completion.
+func is_claimable() -> bool:
+	if not is_marked_for_harvest():
+		return false
+	var flora := _furniture as WildFlora
+	return flora.can_be_felled() if flora != null else true
+
+
 ## Accumulated work on this node in seconds.
 func work_done() -> float:
 	return _harvest_state().get("work_done", 0.0)
@@ -78,6 +89,10 @@ func effective_work_time() -> float:
 		# 3.0 matches FarmManualAction's fallback for the same degenerate
 		# marked-but-cropless-plot case.
 		return cdef.base_harvest_time if cdef != null else 3.0
+	var flora := _furniture as WildFlora
+	if flora != null:
+		var flora_def := flora.def as WildFloraDef
+		return flora_def.chop_work_time if flora_def != null else 0.0
 	var p := params()
 	return p.work_time if p != null else 0.0
 
@@ -97,6 +112,15 @@ func complete(actor: Node) -> bool:
 		growable.on_harvested(actor)
 		EventBus.harvest_mark_toggled.emit(_furniture, anchor_cell(), false)
 		return true
+
+	# 1b. Wild Flora Chop/Removal: job-driven felling deals a direct lethal
+	# hit to the HealthComponent, bypassing take_damage's weapon-tag damage
+	# scaling (a real-time combat concern) since the job's own work_time and
+	# required_tool_tag already model effort and equipment. Reuses the
+	# existing entity_died -> _on_felled yields+destroy pipeline unchanged.
+	var flora := _furniture as WildFlora
+	if flora != null:
+		return _fell_wild_flora(flora, actor)
 
 	var p := params()
 	if p == null:
@@ -181,6 +205,18 @@ func _spawn_drop(item_id: String, count: int, pos: Vector3, impulse_dir: Vector3
 		WorldItem.spawn_at(tree, item_id, count, pos, impulse_dir, 2.0)
 	elif _furniture != null and _furniture.get_parent() != null:
 		WorldItem.spawn_at(_furniture.get_parent(), item_id, count, pos, impulse_dir, 2.0)
+
+
+func _fell_wild_flora(flora: WildFlora, actor: Node) -> bool:
+	## Auxiliary: Kills the flora's HealthComponent directly so its existing
+	## entity_died -> _on_felled pipeline handles yields and removal.
+	if not flora.can_be_felled():
+		return false
+	var hc := flora.health_component
+	if hc == null or hc.is_dead:
+		return false
+	hc.take_damage(hc.current_hp, actor)
+	return true
 
 
 func _pocket_of(actor: Node) -> Inventory:

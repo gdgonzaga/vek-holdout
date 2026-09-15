@@ -71,4 +71,6 @@ id = "apple_tree"
 display_name = "apple tree"
 hp = 150
 tags = Array[String](["live_flora", "tree", "timber", "wood", "fruit_bearing"])
+required_tool_tag = "axe"
+chop_work_time = 8.0
 metadata/_custom_type_script = "uid://bixq35rllmek5"

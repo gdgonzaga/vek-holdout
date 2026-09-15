@@ -26,7 +26,7 @@ func complete(actor: Node, job: Variant) -> void:
 ## Claimable while the target is a live, still-marked Harvestable.
 func is_available(job: Variant) -> bool:
 	var harvestable := _harvestable_of_job(job)
-	return harvestable != null and harvestable.is_marked_for_harvest()
+	return harvestable != null and harvestable.is_claimable()
 
 
 ## Leaves the board when the target is gone or unmarked (Harvestable.complete

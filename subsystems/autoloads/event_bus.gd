@@ -37,6 +37,7 @@ signal dig_box_dimensions_changed(width: int, height: int, depth: int) # DigBoxC
 signal dig_box_mode_changed(mode_name: String) # DigBoxController -> HUD
 signal dig_box_designated(voxels: Array) # DigBoxController -> Colony / JobBoard
 signal dig_job_completed(cell: Vector3i) # DigJobDef -> DigBoxController
+signal harvest_box_toggled(active: bool) # player -> HarvestBoxController, HUD
 signal build_menu_toggled(open: bool) # player -> HUD (build menu visibility for the Instructions label)
 signal buildable_selected(id: String) # player -> BuildController (sets selected_id)
 signal furniture_placed(def_id: String, anchor: Vector3i) # FurnitureLayer -> Colony (Functional Rooms, later)

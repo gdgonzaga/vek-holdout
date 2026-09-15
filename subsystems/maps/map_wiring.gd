@@ -82,6 +82,18 @@ static func wire_mining(map: Map) -> void:
 	dig_ctrl.grid_adapter = adapter
 
 
+## Wire HarvestBoxController: player area-designation tool for wild flora
+## (ARCH "Wild Flora"). Needs only the FurnitureLayer (get_wild_flora_in_box) —
+## no VoxelGridAdapter, unlike DigBoxController's voxel-terrain designation.
+static func wire_harvest_box(map: Map, furniture_layer: FurnitureLayer) -> void:
+	var ctrl := map.find_child("HarvestBoxController", true, false) as HarvestBoxController
+	if ctrl == null:
+		ctrl = HarvestBoxController.new()
+		ctrl.name = "HarvestBoxController"
+		map.add_child(ctrl)
+	ctrl.furniture_layer = furniture_layer
+
+
 ## Wire dynamic day/night celestial lighting into the map.
 ## Replaces legacy static DirectionalLight3D with an instanced DayNightCycle.
 static func wire_day_night(map: Map) -> void:
@@ -147,6 +159,10 @@ static func wire_player(map: Map, player: Player) -> void:
 	if dig_ctrl != null:
 		dig_ctrl.set_camera(player.get_camera())
 		dig_ctrl.add_exclude_body(player)
+	var harvest_box_ctrl := map.find_child("HarvestBoxController", true, false) as HarvestBoxController
+	if harvest_box_ctrl != null:
+		harvest_box_ctrl.set_camera(player.get_camera())
+		harvest_box_ctrl.add_exclude_body(player)
 
 
 ## Hand the map's ColonistContainer + authored ColonistSpawn* positions to Colony

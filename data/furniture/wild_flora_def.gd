@@ -39,6 +39,17 @@ class_name WildFloraDef
 ## Audio event triggered on weapon impact (e.g. "wood_chop", "foliage_rustle").
 @export var impact_audio_event: String = "wood_chop"
 
+## Equipped item tag a colonist must hold to claim the chop/removal job on this
+## flora (e.g. "axe" for timber). Empty = no tool required — plain plant
+## removal. Per-def rather than per-stage: JobDef tool requirements resolve
+## off the job template resource (data/jobs/chop.tres vs harvest.tres), not
+## the specific target, so a plant can't switch tool requirements as it grows.
+@export var required_tool_tag: String = ""
+
+## Unskilled seconds of colonist work to fell/remove this flora via the
+## harvest labor job (harvest.tres/chop.tres), mirroring HarvestParams.work_time.
+@export var chop_work_time: float = 6.0
+
 ## Tint color for weapon hit sparks/splinters.
 @export var hit_particles_color: Color = Color(0.65, 0.45, 0.25)
 

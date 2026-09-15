@@ -10,6 +10,7 @@ extends GdUnitTestSuite
 ## - Cleanup on furniture removal
 
 const HARVEST_DEF: JobDef = preload("res://data/jobs/harvest.tres")
+const CHOP_DEF: JobDef = preload("res://data/jobs/chop.tres")
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
 var _sandbox: ColonySandbox
@@ -164,3 +165,108 @@ func test_furniture_removal_cleans_up_job() -> void:
 
 	_furniture_layer.remove_at(anchor)
 	assert_int(Colony.job_board.get_jobs().size()).is_equal(0)
+
+
+# --- Wild Flora chop/removal (ARCH "Wild Flora") -----------------------------
+
+func _make_wild_flora_def(p_id: String, p_required_tool_tag: String = "", p_can_chop: bool = true) -> WildFloraDef:
+	var def := WildFloraDef.new()
+	def.id = p_id
+	def.display_name = "Test Flora"
+	def.hp = 50
+	def.growth_time_hours = 0.0
+	def.required_tool_tag = p_required_tool_tag
+	def.chop_work_time = 5.0
+
+	var item_amount := ItemAmount.new()
+	var item_def := ItemDef.new()
+	item_def.id = "test_flora_drop"
+	item_def.weight = 1.0
+	ItemDB._defs_by_id["test_flora_drop"] = item_def
+	item_amount.item_def = item_def
+	item_amount.count = 2
+
+	var stage := WildFloraStage.new()
+	stage.max_hp = 50
+	stage.can_chop = p_can_chop
+	stage.fell_yields = [item_amount]
+	def.stages = [stage]
+	return def
+
+
+func test_wild_flora_marked_routes_to_chop_def_when_tool_required() -> void:
+	var def := _make_wild_flora_def("test_chop_route", "axe")
+	var anchor := Vector3i(20, 0, 20)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
+
+	harvestable.set_marked(true)
+	var jobs := Colony.job_board.get_jobs()
+	assert_int(jobs.size()).is_equal(1)
+	assert_str(jobs[0].def.id).is_equal("chop")
+
+
+func test_wild_flora_marked_routes_to_harvest_def_when_no_tool_required() -> void:
+	var def := _make_wild_flora_def("test_removal_route", "")
+	var anchor := Vector3i(22, 0, 22)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
+
+	harvestable.set_marked(true)
+	var jobs := Colony.job_board.get_jobs()
+	assert_int(jobs.size()).is_equal(1)
+	assert_str(jobs[0].def.id).is_equal("harvest")
+
+
+func test_wild_flora_effective_work_time_uses_chop_work_time() -> void:
+	var def := _make_wild_flora_def("test_flora_work_time")
+	var anchor := Vector3i(24, 0, 24)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
+
+	assert_float(harvestable.effective_work_time()).is_equal_approx(def.chop_work_time, 0.01)
+
+
+func test_harvestable_complete_fells_wild_flora_and_grants_yields() -> void:
+	var def := _make_wild_flora_def("test_flora_complete")
+	var anchor := Vector3i(26, 0, 26)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var flora := node as WildFlora
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
+
+	var result := harvestable.complete(null)
+	assert_bool(result).is_true()
+	assert_bool(flora.health_component.is_dead).is_true()
+	assert_bool(_furniture_layer.has_at(anchor)).is_false()
+
+	var items := get_tree().get_nodes_in_group("world_items")
+	var found := false
+	for it in items:
+		var wi := it as WorldItem
+		if wi != null and is_instance_valid(wi) and wi.item_id == "test_flora_drop":
+			found = true
+			break
+	assert_bool(found).is_true()
+
+
+func test_wild_flora_unmark_cleans_up_job() -> void:
+	var def := _make_wild_flora_def("test_flora_unmark", "axe")
+	var anchor := Vector3i(28, 0, 28)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
+
+	harvestable.set_marked(true)
+	assert_int(Colony.job_board.get_jobs().size()).is_equal(1)
+	harvestable.set_marked(false)
+	assert_int(Colony.job_board.get_jobs().size()).is_equal(0)
+
+
+func test_is_claimable_false_when_stage_not_choppable() -> void:
+	var def := _make_wild_flora_def("test_flora_unclaimable", "", false)
+	var anchor := Vector3i(30, 0, 30)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
+
+	harvestable.set_marked(true)
+	assert_bool(harvestable.is_marked_for_harvest()).is_true()
+	assert_bool(harvestable.is_claimable()).is_false()

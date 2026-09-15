@@ -9,6 +9,7 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 - **Independent Life-cycle**: Wild flora simulation advances via real-time frame deltas scaled to in-game hours (`TimeSystem`), independent of colonist labor or watering.
 - **Progressive Stage Synchronization**: Growth progress (0.0 to 1.0) maps dynamically to `WildFloraStage` definitions, scaling HP, updating 3D visual scene instances, and toggling interaction capabilities.
 - **Physical Damage & Tool Effectiveness**: Damage resolution routes through `HealthComponent`. Tool and weapon tags modulate damage dealt to solid timber (axes deal 100%, swords 25%, pickaxes 15%, bare hands 20%).
+- **Colonist Chop/Removal Job**: A `Harvestable` capability component is attached to every `WildFlora` instance (mirroring domestic furniture harvesting, [Jobs & Fractional Work System](job-extensions.md#harvesting-furniture-nodes-marking-and-manual-chop)). Marking (via the area-designation tool below, or programmatically) registers a `harvest`/`chop` `JobDef` on the colony job board — `chop.tres` (requires `WildFloraDef.required_tool_tag`, e.g. an axe for timber) or `harvest.tres` (no tool, for plant removal), chosen per-def. Completion deals a direct lethal `HealthComponent` hit, reusing the real-time felling pipeline below unchanged.
 
 ## Files
 
@@ -17,8 +18,12 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 | `data/furniture/wild_flora_def.gd` | Script (Resource) | Data schema for `WildFloraDef` (growth timing, collision policy, stage list, regrowth configuration). |
 | `data/capability_params/wild_flora_stage.gd` | Script (Resource) | Data schema for `WildFloraStage` (HP thresholds, stage visual scenes/scale, fell yields, harvest yields). |
 | `data/actions/forage_action.gd` | Script | Player context action for foraging ripe fruit via the E menu. |
-| `data/furniture/tree1.tres` | Data | Mature harvestable timber tree definition. |
-| `data/furniture/wild_berry_bush.tres` | Data | Perennial fruit bush definition with multi-stage growth and regrowth. |
+| `data/furniture/tree1.tres` | Data | Mature harvestable timber tree definition (`required_tool_tag = "axe"`). |
+| `data/furniture/apple.tres` | Data | Fruit-bearing timber tree — both choppable (`required_tool_tag = "axe"`) and forageable. |
+| `data/furniture/wild_berry_bush.tres` | Data | Perennial fruit bush definition with multi-stage growth and regrowth (no tool required to remove). |
+| `subsystems/harvesting/harvestable.gd` | Script | Capability component (shared with domestic furniture harvesting) tracking the harvest mark and driving `HarvestJobDef`; its `WildFlora` branch resolves work time from `chop_work_time` and fells via a direct `HealthComponent` hit on completion. |
+| `data/jobs/chop.tres` / `data/jobs/harvest.tres` | Data | `HarvestJobDef` instances on the `harvesting` labor — `chop.tres` requires an equipped `axe` tag, `harvest.tres` requires no tool. `Colony._harvest_job_def_for` picks between them per `WildFloraDef.required_tool_tag`. |
+| `subsystems/harvesting/harvest_box_controller.gd` | Script | Player area-designation tool (key **T**): raycasts the ground, resizes a flat footprint with the scroll wheel, and marks/unmarks every `WildFlora` in it via `FurnitureLayer.get_wild_flora_in_box` + `Harvestable.set_marked`. |
 | `subsystems/environment/wild_flora.gd` | Script | Runtime node managing growth progress, dynamic stage visual instantiation, tool damage scaling, felling, and the `IStatProvider` implementation feeding its moodlets. |
 | `subsystems/environment/wild_flora_moodlet_visualizer.gd` | Script | In-world 3D billboard visualizer displaying active moodlet icons above a `WildFlora` entity. |
 | `subsystems/environment/plant_spawner.gd` | Script | Map initialization node scattering wild flora across smooth terrain via Poisson-disc sampling. |
@@ -65,12 +70,23 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 
 **End state:** Fruit items are dropped, the bush remains alive in the defruited state, and growth simulation resumes toward the next harvest.
 
+## Flow Trace: Colonist Chop/Removal Job
+
+**Trigger:** Player designates an area with `HarvestBoxController` (key **T**), or marks a single flora's `Harvestable` directly.
+
+1. **Area Designation**: LMB raycasts the ground to a cell, sizes a flat width x depth footprint (scroll wheel; Shift+scroll for depth) around it, and calls `FurnitureLayer.get_wild_flora_in_box` for every `WildFlora` whose footprint falls inside. Each result's `Harvestable.set_marked(true)` fires `EventBus.harvest_mark_toggled`, the same signal single-tree E-menu marking uses. RMB un-marks the footprint instead.
+2. **Job Routing**: `Colony._on_harvest_mark_toggled` -> `_spawn_harvest_job` -> `_harvest_job_def_for` picks `chop.tres` when the flora's `WildFloraDef.required_tool_tag` is set (e.g. `"axe"` for timber), else `harvest.tres` (no tool — plant removal). Both are `HarvestJobDef` on the `harvesting` labor; only the tool requirement and job `id` differ.
+3. **Claim & Work**: `BTActionClaimJob` claims the job (equipping the required tool first, if any); `begin()` reads `Harvestable.effective_work_time()`, which for a `WildFlora` target returns `WildFloraDef.chop_work_time` (skill-scaled like any other harvest job). `is_available`/`should_close` additionally gate on `Harvestable.is_claimable()`, which requires the flora's *current* growth stage to have `can_chop == true` — a stage change after marking (e.g. growing into/out of a non-choppable stage) self-closes the job instead of a claim silently no-oping.
+4. **Completion**: `HarvestJobDef.complete()` -> `Harvestable.complete()`'s `WildFlora` branch deals a direct lethal hit to `health_component` (bypassing the real-time weapon-tag damage scaling in `_calculate_effective_damage` — the job's own duration and tool-gate already model effort/equipment), reusing the `entity_died` -> `_on_felled()` pipeline from the real-time chopping flow above unchanged: stage `fell_yields` (+ ripe `harvest_yields` if fruiting) spawn as world items and the node is removed via `FurnitureLayer`.
+
+**End state:** Same as real-time felling — the flora is removed and its stage-authored yields land on the ground — but driven by the colonist job system instead of a weapon swing.
+
 ## Moodlet System
 
 `WildFlora` implements `IStatProvider` (`subsystems/core/i_stat_provider.gd` — see [Colonists](colonists.md) "Moodlet System" for the full contract), so trees and plants can display the same kind of status billboard colonists and enemies do:
 
 - **`get_stat_ratio`/`get_stat_value`**: `&"hp"`/`&"health"` reads the entity's own `HealthComponent`; `&"work_progress"` delegates to the sibling `Harvestable` capability component (`Harvestable.get_stat_ratio`/`get_stat_value`) rather than duplicating its ratio math — `Harvestable` is the single source of truth, `WildFlora` is the only call surface the moodlet pipeline actually reaches (`MoodletDef.evaluate_icon_index` is always called with the entity node, never a child component).
-- **`get_current_activity`** (repurposed as interaction state): a priority chain, first match wins — `&"marked_for_harvest"` (currently inert; nothing can toggle a `WildFlora`'s harvest mark today since no tree content sets `harvest_params` — forward-looking scaffolding for the job-based chop flow `job-extensions.md` describes as not yet wired), `&"forageable"` (`can_forage()`), `&"depleted"` (sitting at the def's `regrowth_stage_index` stage and not currently ripe — covers both "just picked, regrowing" and a young plant naturally passing through its mature-unfruited stage), `&"choppable"` (tagged `"tree"`/`"timber"`/`"wood"` and not dead), else `&""`.
+- **`get_current_activity`** (repurposed as interaction state): a priority chain, first match wins — `&"marked_for_harvest"` (`Harvestable.is_marked_for_harvest()` — set by the area-designation tool or a single-tree toggle, see "Flow Trace: Colonist Chop/Removal Job" above), `&"forageable"` (`can_forage()`), `&"depleted"` (sitting at the def's `regrowth_stage_index` stage and not currently ripe — covers both "just picked, regrowing" and a young plant naturally passing through its mature-unfruited stage), `&"choppable"` (`WildFlora.can_be_felled()` — the current `WildFloraStage.can_chop` flag and not dead; the parallel eligibility check to `can_forage()`'s `can_harvest_fruit`, independent of the `"tree"`/`"timber"`/`"wood"` tags which only drive `_calculate_effective_damage`'s axe-vs-bare-hands scaling), else `&""`.
 - **`WildFloraDef.moodlet_defs`**: per-def list of `MoodletDef` resources, same shape and authoring pattern as `ColonistDef.moodlet_defs`. Shipped content (`flora_hp_moodlet.tres`, `flora_interaction_moodlet.tres` in `data/moodlets/`) ships with empty icon arrays pending art — the code/data pipeline is wired end-to-end, icon textures are a separate follow-up.
 - **`WildFloraMoodletVisualizer`**: structurally identical to `ColonistMoodletVisualizer`/`EnemyMoodletVisualizer`, delegating row grouping/capping to the shared `MoodletLayoutResolver`. Declared in `new_wild_flora_template.tscn`; `WildFlora._setup_moodlet_visualizer()` self-heals a missing node for any future alternate template.
 
@@ -96,6 +112,8 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 | `initial_growth_max` | `float` | Maximum randomized starting growth progress (0.0 to 1.0). |
 | `impact_audio_event` | `String` | Audio event string on weapon impact. |
 | `hit_particles_color` | `Color` | Color of particle burst on weapon strike. |
+| `required_tool_tag` | `String` | Equipped item tag a colonist must hold to claim the chop/removal job (e.g. `"axe"`); empty = no tool required, plain plant removal. Routes the marked job to `chop.tres` vs `harvest.tres` (see "Flow Trace: Colonist Chop/Removal Job"). |
+| `chop_work_time` | `float` | Unskilled seconds of colonist work to fell/remove via the harvest labor job, mirroring `HarvestParams.work_time`. |
 | `stages` | `Array[WildFloraStage]` | Ordered growth milestones and per-stage configurations. |
 | `moodlet_defs` | `Array[MoodletDef]` | Configured status/interaction moodlets to evaluate and display, in order (see "Moodlet System" above). |
 
@@ -129,7 +147,8 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 | `set_growth_progress(val: float) -> void` | Sets growth progress and triggers visual/HP stage synchronization if threshold crossed. |
 | `can_forage() -> bool` | Returns whether the active stage has ripe fruit available for harvest. |
 | `forage(actor: Node) -> bool` | Gathers ripe fruit, drops items, and resets progress to `regrowth_stage_index`. |
-| `take_damage(raw_amount: int, source: Node = null) -> void` | Applies tool-scaled damage to the plant's `HealthComponent`. |
+| `can_be_felled() -> bool` | Returns whether the current growth stage allows felling/removal (`WildFloraStage.can_chop`) and the plant isn't already dead — gates both real-time `take_damage` and the colonist chop/removal job uniformly. |
+| `take_damage(raw_amount: int, source: Node = null) -> void` | No-ops if `can_be_felled()` is false; otherwise applies tool-scaled damage to the plant's `HealthComponent`. |
 | `get_current_stage() -> WildFloraStage` | Returns the currently active growth stage definition. |
 | `get_stat_ratio(stat_name: StringName) -> float` | `IStatProvider`: normalized ratio for `&"hp"`/`&"health"` or delegated `&"work_progress"`, else -1.0. |
 | `get_stat_value(stat_name: StringName) -> float` | `IStatProvider`: raw value for `&"hp"`/`&"health"` or delegated `&"work_progress"`, else -1.0. |
