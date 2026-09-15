@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ActivityMoodletDef" format=3]
+
+[ext_resource type="Script" uid="uid://cp0mwaskg47xi" path="res://data/moodlets/activity_moodlet_def.gd" id="1_act"]
+
+[resource]
+script = ExtResource("1_act")
+activity_icon_map = {
+&"marked_for_harvest": 0,
+&"forageable": 1,
+&"depleted": 2,
+&"choppable": 3
+}
+id = &"flora_interaction"
+display_name = "Flora Interaction State"
+line_number = 2
+metadata/_custom_type_script = "uid://cp0mwaskg47xi"

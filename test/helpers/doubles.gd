@@ -71,6 +71,27 @@ class RecordingSmoothGrid extends SmoothGrid:
 		return material_def
 
 
+## Minimal IStatProvider double (subsystems/core/i_stat_provider.gd) — extends
+## Node (not RefCounted) because MoodletDef.evaluate_icon_index(entity: Node)
+## and its has_method() checks require a real Node, mirroring
+## PathRecordingAgent's approach below. Lets StatThresholdMoodletDef/
+## ActivityMoodletDef/MoodletLayoutResolver be tested off plain dictionaries,
+## with zero real game content.
+class FakeStatProvider extends Node:
+	var stat_ratios: Dictionary = {}
+	var stat_values: Dictionary = {}
+	var current_activity: StringName = &""
+
+	func get_stat_ratio(stat_name: StringName) -> float:
+		return stat_ratios.get(stat_name, -1.0)
+
+	func get_stat_value(stat_name: StringName) -> float:
+		return stat_values.get(stat_name, -1.0)
+
+	func get_current_activity() -> StringName:
+		return current_activity
+
+
 ## Duck-typed BTActionWander/BTActionNavigateTo agent double (pathfinder,
 ## global_position, set_path, has_arrived) that records every path handed to
 ## set_path() so tests can assert on the planned path without a full Colonist

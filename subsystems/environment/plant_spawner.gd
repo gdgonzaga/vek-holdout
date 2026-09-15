@@ -6,6 +6,14 @@ extends Node
 ## in-game day based on MapDef flora parameters. Spawns are spaced evenly
 ## across the day cycle, capped at flora_spawn_cap, and checked against terrain
 ## slope, player proximity, and tree-to-tree spacing invariants.
+##
+## Every spawn is fully matured until live flora count first reaches
+## flora_spawn_cap (see _reached_target_population) — populate_initial_flora()
+## covers most of that on a fresh map load, but its one-shot attempt budget
+## can fall short over a large/constrained area, so later attempt_spawn()
+## ticks keep dressing the map at full maturity until the target density is
+## actually reached. After that, spawns only happen via felling freeing a
+## slot, so they regrow at the def's natural randomized growth stage.
 
 const DEFAULT_MAX_SLOPE_DEG := 25.0
 const DEFAULT_LOOP_LENGTH_SEC := 1800.0 # 30 real minutes
@@ -20,6 +28,15 @@ var _spawn_timer: float = 0.0
 var _spawn_interval: float = 0.0
 var _target_tag: String = "live_flora"
 var _rng := RandomNumberGenerator.new()
+
+## Latches true the first time live flora count reaches flora_spawn_cap, and
+## never resets. Distinguishes "still filling the map up to its initial
+## target density" (force full maturity — populate_initial_flora()'s one-shot
+## attempt budget may not reach the cap in a single pass, so attempt_spawn()
+## ticks keep filling the gap and should look the same as the initial burst)
+## from "post-felling regrowth" (count dips below cap again after the target
+## was already reached once — that should look like natural young growth).
+var _reached_target_population: bool = false
 
 
 func _ready() -> void:
@@ -56,6 +73,10 @@ func setup(map: Map, map_def: MapDef, furniture_layer: FurnitureLayer) -> void:
 	_sync_flora_count()
 	# 2. Interval Calculation: Derives timer cadence based on day length and daily quota.
 	_recalculate_spawn_interval()
+	# 3. Target Population Latch: A resumed save already at/above cap should
+	# treat any future spawn as post-felling regrowth, not initial dressing.
+	if _map_def != null and _cached_flora_count >= _map_def.flora_spawn_cap:
+		_reached_target_population = true
 
 
 ## Populates initial flora on a fresh map load up to flora_spawn_cap.
@@ -73,11 +94,22 @@ func populate_initial_flora() -> int:
 
 	while get_live_flora_count() < _map_def.flora_spawn_cap and total_attempts < max_total_attempts:
 		total_attempts += 1
-		# 1. Single Coordinate Attempt: Probes one random coordinate for placement.
-		var spawned := _try_spawn_at_random_location()
+		# 1. Single Coordinate Attempt: Probes one random coordinate for
+		# placement, fully matured so a fresh map starts with an established
+		# forest rather than a scatter of saplings.
+		var spawned := _try_spawn_at_random_location(true)
 		if spawned:
 			initial_placed += 1
 
+	# 2. Target Population Latch: This one-shot budget may not reach the cap
+	# (placement rejections over a large area) — if it fell short, later
+	# attempt_spawn() ticks keep dressing the map, not growing it, until the
+	# cap is actually reached.
+	_update_target_population_latch()
+	print("[FLORA_DEBUG] populate_initial_flora: placed=%d cap=%d attempts=%d/%d reached_target=%s live_count=%d" % [
+		initial_placed, _map_def.flora_spawn_cap, total_attempts, max_total_attempts,
+		_reached_target_population, get_live_flora_count()
+	])
 	return initial_placed
 
 
@@ -98,9 +130,15 @@ func attempt_spawn() -> bool:
 
 	while attempts < max_attempts:
 		attempts += 1
-		# 2. Single Coordinate Attempt: Probes one random coordinate for placement.
-		var spawned := _try_spawn_at_random_location()
+		# 2. Single Coordinate Attempt: Probes one random coordinate for
+		# placement. Still fully matured while the map hasn't reached its
+		# target density yet (this tick may be finishing what
+		# populate_initial_flora()'s attempt budget didn't); once that target
+		# has been reached at least once, later spawns are post-felling
+		# regrowth and should look like natural young growth instead.
+		var spawned := _try_spawn_at_random_location(not _reached_target_population)
 		if spawned:
+			_update_target_population_latch()
 			return true
 
 	return false
@@ -124,8 +162,19 @@ func get_live_flora_count() -> int:
 # Auxiliary Functions
 # ===================
 
-func _try_spawn_at_random_location() -> bool:
-	## Auxiliary: Samples a random coordinate, validates constraints, and places flora if valid.
+func _update_target_population_latch() -> void:
+	## Auxiliary: Permanently marks the target population reached once live
+	## flora count first hits flora_spawn_cap — never unset, so a later dip
+	## from felling is recognized as regrowth rather than initial dressing.
+	if not _reached_target_population and get_live_flora_count() >= _map_def.flora_spawn_cap:
+		_reached_target_population = true
+
+
+func _try_spawn_at_random_location(force_mature: bool = false) -> bool:
+	## Auxiliary: Samples a random coordinate, validates constraints, and
+	## places flora if valid. force_mature overrides the def's randomized
+	## initial_growth_min/max range to full maturity (1.0) — used for the
+	## initial map-population pass only, see populate_initial_flora().
 	if _map == null or _map_def == null or _furniture_layer == null:
 		return false
 	var bounds: AABB = _map_def.world_bounds if _map_def != null else _map.get_world_bounds()
@@ -165,8 +214,15 @@ func _try_spawn_at_random_location() -> bool:
 	var spawned_node: Node3D = _furniture_layer.spawn(chosen_def, anchor, yaw)
 	if spawned_node != null:
 		_cached_flora_count += 1
+		print("[FLORA_DEBUG] _try_spawn_at_random_location: def_id=%s force_mature=%s is_wild_flora=%s node_class=%s" % [
+			chosen_def.id, force_mature, spawned_node is WildFlora, spawned_node.get_class()
+		])
+		# 8. Initial Maturity Override: Force full growth when populating a
+		# fresh map, overriding whatever random progress _ready() just picked.
+		if force_mature and spawned_node is WildFlora:
+			(spawned_node as WildFlora).set_growth_progress(1.0)
 		return true
-	
+
 	return false
 
 

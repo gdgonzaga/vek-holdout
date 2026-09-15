@@ -1,10 +1,11 @@
-## Subsystem: Combat / Visuals
-## In-world 3D billboard visualizer for displaying active moodlet icons over an enemy's head (ARCH combat.md).
-class_name EnemyMoodletVisualizer
+## Subsystem: Environment / Visuals
+## In-world 3D billboard visualizer for displaying active moodlet icons over
+## a wild flora entity (ARCH wild-flora.md "Moodlet System").
+class_name WildFloraMoodletVisualizer
 extends Node3D
 
 @export var enabled: bool = true
-@export var height_offset: float = 2.0
+@export var height_offset: float = 2.5
 @export var line_spacing: float = 0.35
 @export var update_interval: float = 0.25
 @export var visibility_range_end: float = 35.0
@@ -13,7 +14,7 @@ extends Node3D
 @export var max_icons: int = 4
 @export var frame_fps: float = 6.0
 
-var _enemy: EnemyBase
+var _flora: WildFlora
 var _sprites: Array[Sprite3D] = []
 var _timer: float = 0.0
 var _anim_timer: float = 0.0
@@ -24,33 +25,33 @@ var _anim_timer: float = 0.0
 # =================
 
 func _ready() -> void:
-	# 1. Parent Resolution: Resolve the parent EnemyBase entity node.
-	_enemy = get_parent() as EnemyBase
-	if _enemy == null:
-		push_warning("EnemyMoodletVisualizer must be a child of an EnemyBase entity.")
+	# 1. Parent Resolution: Resolve the parent WildFlora entity node.
+	_flora = get_parent() as WildFlora
+	if _flora == null:
+		push_warning("WildFloraMoodletVisualizer must be a child of a WildFlora entity.")
 		set_process(false)
 		return
-	
+
 	# 2. Initial Setup: Allocate initial billboard sprite in the pool.
 	_ensure_sprite_capacity(1)
-	
+
 	# 3. Camera Alignment: Orient the visualizer node to the active camera.
 	_align_to_camera()
-	
+
 	# 4. Initial Evaluation: Immediately refresh active moodlets display.
 	_update_moodlet_display()
 
 
 func _process(delta: float) -> void:
-	if not enabled or _enemy == null:
+	if not enabled or _flora == null:
 		return
-	
+
 	# 1. Camera Alignment: Orient the visualizer node so the icon row always aligns with the camera view plane.
 	_align_to_camera()
-	
+
 	# 2. Animation Tick: Advance spritesheet frame timers for animated sprites.
 	_tick_spritesheet_animation(delta)
-	
+
 	_timer += delta
 	if _timer >= update_interval:
 		_timer = 0.0
@@ -70,7 +71,7 @@ func _align_to_camera() -> void:
 	var cam := vp.get_camera_3d()
 	if cam == null:
 		return
-	
+
 	global_rotation.y = cam.global_rotation.y
 
 
@@ -86,29 +87,29 @@ func _tick_spritesheet_animation(delta: float) -> void:
 
 
 func _update_moodlet_display() -> void:
-	## Auxiliary: Queries active moodlets from the enemy and positions billboard sprites in a row.
-	if _enemy == null:
+	## Auxiliary: Queries active moodlets from the flora and positions billboard sprites in a row.
+	if _flora == null:
 		return
-	
+
 	# 1. Active Moodlet Query: Collect all valid moodlets with non-null textures.
 	var valid_moodlets: Array[Dictionary] = _collect_valid_moodlets()
-	
+
 	# 2. Sprite Synchronization: Synchronize billboard Sprite3D instances to match the active count.
 	_sync_sprites(valid_moodlets)
 
 
 func _collect_valid_moodlets() -> Array[Dictionary]:
-	## Auxiliary: Retrieves active moodlets from the enemy (already
+	## Auxiliary: Retrieves active moodlets from the flora (already
 	## texture-filtered by MoodletLayoutResolver inside get_active_moodlets()).
-	return _enemy.get_active_moodlets()
+	return _flora.get_active_moodlets()
 
 
 func _sync_sprites(valid_moodlets: Array[Dictionary]) -> void:
 	## Auxiliary: Updates positions, textures, and visibility for all sprite billboard instances.
 	# 1. Line Grouping: Group by row first and cap each row independently, so a
-	# crowded status row can never starve out an unrelated row's icon the way
-	# slicing the flat pre-grouped list used to (ARCH colonists.md — the same
-	# fix ColonistMoodletVisualizer applies via the shared resolver).
+	# crowded status row can never starve out an unrelated row's icon (ARCH
+	# colonists.md — the same fix ColonistMoodletVisualizer/EnemyMoodletVisualizer
+	# apply via the shared resolver).
 	var grouped_lines: Dictionary = _group_moodlets_by_line(valid_moodlets, max_icons)
 	var active_lines: Array[int] = _get_sorted_active_lines(grouped_lines)
 	var count: int = _count_grouped_sprites(grouped_lines, active_lines)
@@ -161,7 +162,7 @@ func _position_grouped_sprites(grouped_lines: Dictionary, active_lines: Array[in
 		var line_moodlets: Array = grouped_lines[line_num]
 		var line_count: int = line_moodlets.size()
 		var row_y: float = height_offset + float(row_index) * line_spacing
-		
+
 		for col_index in range(line_count):
 			var sprite: Sprite3D = _sprites[sprite_index]
 			var moodlet_data: Dictionary = line_moodlets[col_index]
@@ -174,13 +175,13 @@ func _apply_sprite_moodlet_data(sprite: Sprite3D, moodlet_data: Dictionary, col_
 	## Auxiliary: Sets sprite texture, frame properties, and centered position.
 	var tex: Texture2D = moodlet_data["texture"]
 	var m_def: MoodletDef = moodlet_data.get("def", null) as MoodletDef
-	
+
 	var hframes: int = 1
 	var fps: float = frame_fps
 	if m_def != null:
-		hframes = m_def.get_hframes(_enemy)
-		fps = m_def.get_fps(_enemy)
-		
+		hframes = m_def.get_hframes(_flora)
+		fps = m_def.get_fps(_flora)
+
 	var offset_x: float = (float(col_index) - float(line_count - 1) * 0.5) * icon_spacing
 	sprite.position = Vector3(offset_x, row_y, 0.0)
 	sprite.pixel_size = pixel_size

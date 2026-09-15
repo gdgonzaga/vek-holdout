@@ -156,6 +156,23 @@ func complete(actor: Node) -> bool:
 	return true
 
 
+## Implements the IStatProvider contract's stat methods
+## (subsystems/core/i_stat_provider.gd) for &"work_progress" only. Composed
+## into WildFlora.get_stat_ratio rather than queried directly — MoodletDef
+## always evaluates the entity node, never a child capability component.
+func get_stat_ratio(stat_name: StringName) -> float:
+	if stat_name != &"work_progress":
+		return -1.0
+	var total := effective_work_time()
+	if total <= 0.0:
+		return 0.0
+	return clampf(work_done() / total, 0.0, 1.0)
+
+
+func get_stat_value(stat_name: StringName) -> float:
+	return work_done() if stat_name == &"work_progress" else -1.0
+
+
 func _spawn_harvest_entries(amounts: Array[ItemAmount], actor: Node) -> void:
 	## Auxiliary: Spawns item amounts with positions and impulses calculated relative to harvester.
 	var total_entries := amounts.size()

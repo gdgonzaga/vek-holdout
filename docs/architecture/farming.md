@@ -233,6 +233,8 @@ sequenceDiagram
     end
 ```
 
+`Harvestable` also implements the `IStatProvider` contract (`subsystems/core/i_stat_provider.gd`, see [Colonists](colonists.md) "Moodlet System") for `&"work_progress"` — `get_stat_ratio` returns `work_done() / effective_work_time()` clamped to 0.0-1.0. No moodlet visualizer is wired to plain `Furniture` yet, so this isn't currently rendered anywhere; it's available for a future farm-plot status display.
+
 ---
 
 ## Player UI & Interaction

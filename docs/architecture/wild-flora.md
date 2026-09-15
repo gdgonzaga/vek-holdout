@@ -19,9 +19,10 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 | `data/actions/forage_action.gd` | Script | Player context action for foraging ripe fruit via the E menu. |
 | `data/furniture/tree1.tres` | Data | Mature harvestable timber tree definition. |
 | `data/furniture/wild_berry_bush.tres` | Data | Perennial fruit bush definition with multi-stage growth and regrowth. |
-| `subsystems/environment/wild_flora.gd` | Script | Runtime node managing growth progress, dynamic stage visual instantiation, tool damage scaling, and felling. |
+| `subsystems/environment/wild_flora.gd` | Script | Runtime node managing growth progress, dynamic stage visual instantiation, tool damage scaling, felling, and the `IStatProvider` implementation feeding its moodlets. |
+| `subsystems/environment/wild_flora_moodlet_visualizer.gd` | Script | In-world 3D billboard visualizer displaying active moodlet icons above a `WildFlora` entity. |
 | `subsystems/environment/plant_spawner.gd` | Script | Map initialization node scattering wild flora across smooth terrain via Poisson-disc sampling. |
-| `subsystems/environment/new_wild_flora_template.tscn` | Scene | Base scene template for wild flora visual instances. |
+| `subsystems/environment/new_wild_flora_template.tscn` | Scene | Base scene template for wild flora visual instances (mounts `WildFloraMoodletVisualizer`). |
 | `subsystems/map_authoring/tree_scatterer.gd` | Script | Editor utility for procedural tree scattering across map terrain. |
 
 ## Signals
@@ -64,6 +65,15 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 
 **End state:** Fruit items are dropped, the bush remains alive in the defruited state, and growth simulation resumes toward the next harvest.
 
+## Moodlet System
+
+`WildFlora` implements `IStatProvider` (`subsystems/core/i_stat_provider.gd` — see [Colonists](colonists.md) "Moodlet System" for the full contract), so trees and plants can display the same kind of status billboard colonists and enemies do:
+
+- **`get_stat_ratio`/`get_stat_value`**: `&"hp"`/`&"health"` reads the entity's own `HealthComponent`; `&"work_progress"` delegates to the sibling `Harvestable` capability component (`Harvestable.get_stat_ratio`/`get_stat_value`) rather than duplicating its ratio math — `Harvestable` is the single source of truth, `WildFlora` is the only call surface the moodlet pipeline actually reaches (`MoodletDef.evaluate_icon_index` is always called with the entity node, never a child component).
+- **`get_current_activity`** (repurposed as interaction state): a priority chain, first match wins — `&"marked_for_harvest"` (currently inert; nothing can toggle a `WildFlora`'s harvest mark today since no tree content sets `harvest_params` — forward-looking scaffolding for the job-based chop flow `job-extensions.md` describes as not yet wired), `&"forageable"` (`can_forage()`), `&"depleted"` (sitting at the def's `regrowth_stage_index` stage and not currently ripe — covers both "just picked, regrowing" and a young plant naturally passing through its mature-unfruited stage), `&"choppable"` (tagged `"tree"`/`"timber"`/`"wood"` and not dead), else `&""`.
+- **`WildFloraDef.moodlet_defs`**: per-def list of `MoodletDef` resources, same shape and authoring pattern as `ColonistDef.moodlet_defs`. Shipped content (`flora_hp_moodlet.tres`, `flora_interaction_moodlet.tres` in `data/moodlets/`) ships with empty icon arrays pending art — the code/data pipeline is wired end-to-end, icon textures are a separate follow-up.
+- **`WildFloraMoodletVisualizer`**: structurally identical to `ColonistMoodletVisualizer`/`EnemyMoodletVisualizer`, delegating row grouping/capping to the shared `MoodletLayoutResolver`. Declared in `new_wild_flora_template.tscn`; `WildFlora._setup_moodlet_visualizer()` self-heals a missing node for any future alternate template.
+
 ## Class Reference
 
 ### Class: `WildFloraDef`
@@ -87,6 +97,7 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 | `impact_audio_event` | `String` | Audio event string on weapon impact. |
 | `hit_particles_color` | `Color` | Color of particle burst on weapon strike. |
 | `stages` | `Array[WildFloraStage]` | Ordered growth milestones and per-stage configurations. |
+| `moodlet_defs` | `Array[MoodletDef]` | Configured status/interaction moodlets to evaluate and display, in order (see "Moodlet System" above). |
 
 **Functions:**
 
@@ -120,3 +131,7 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 | `forage(actor: Node) -> bool` | Gathers ripe fruit, drops items, and resets progress to `regrowth_stage_index`. |
 | `take_damage(raw_amount: int, source: Node = null) -> void` | Applies tool-scaled damage to the plant's `HealthComponent`. |
 | `get_current_stage() -> WildFloraStage` | Returns the currently active growth stage definition. |
+| `get_stat_ratio(stat_name: StringName) -> float` | `IStatProvider`: normalized ratio for `&"hp"`/`&"health"` or delegated `&"work_progress"`, else -1.0. |
+| `get_stat_value(stat_name: StringName) -> float` | `IStatProvider`: raw value for `&"hp"`/`&"health"` or delegated `&"work_progress"`, else -1.0. |
+| `get_current_activity() -> StringName` | `IStatProvider`: current interaction-state identifier (see "Moodlet System" above). |
+| `get_active_moodlets() -> Array[Dictionary]` | Evaluates `moodlet_defs` via `MoodletLayoutResolver`, returning the active, texture-bearing list. |

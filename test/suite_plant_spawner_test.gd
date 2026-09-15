@@ -17,6 +17,19 @@ func _create_test_flora_def(id: String = "test_tree") -> FurnitureDef:
 	return def
 
 
+func _create_test_wild_flora_def(id: String = "test_wild_tree") -> WildFloraDef:
+	var def := WildFloraDef.new()
+	def.id = id
+	def.display_name = "Test Wild Tree"
+	def.hp = 100
+	def.tags = ["live_flora", "tree"]
+	# Narrow the randomized range away from 1.0 so a forced-mature spawn
+	# (growth_progress == 1.0) is distinguishable from the natural random draw.
+	def.initial_growth_min = 0.1
+	def.initial_growth_max = 0.2
+	return def
+
+
 func _create_test_non_flora_def(id: String = "test_crate") -> FurnitureDef:
 	var def: FurnitureDef = auto_free(FurnitureDef.new())
 	def.id = id
@@ -218,3 +231,113 @@ func test_populate_initial_flora_respects_total_attempt_budget() -> void:
 	var placed := spawner.populate_initial_flora()
 	assert_int(placed).is_equal(0)
 	assert_int(spawner.get_live_flora_count()).is_equal(0)
+
+
+func test_populate_initial_flora_forces_wild_flora_full_maturity() -> void:
+	var map := _create_test_map()
+	var fl: FurnitureLayer = auto_free(FurnitureLayer.new())
+	fl.set_container(map.get_furniture_container())
+
+	var flora_def := _create_test_wild_flora_def()
+
+	var map_def: MapDef = auto_free(MapDef.new())
+	map_def.id = "test_map_wild_mature"
+	map_def.flora_palette = [flora_def]
+	map_def.flora_spawn_cap = 1
+	map_def.flora_max_spawn_attempts = 20
+	map_def.world_bounds = AABB(Vector3(-20, -10, -20), Vector3(40, 20, 40))
+	map_def.player_spawn = Vector3(100, 0, 100)
+
+	var spawner: PlantSpawner = auto_free(PlantSpawner.new())
+	add_child(spawner)
+	spawner.setup(map, map_def, fl)
+
+	var placed := spawner.populate_initial_flora()
+	assert_int(placed).is_equal(1)
+
+	var flora: WildFlora = null
+	for child in map.get_furniture_container().get_children():
+		if child is WildFlora:
+			flora = child as WildFlora
+			break
+	assert_object(flora).is_not_null()
+	assert_float(flora.growth_progress).is_equal_approx(1.0, 0.001)
+
+
+func test_attempt_spawn_forces_maturity_while_still_filling_toward_cap() -> void:
+	# populate_initial_flora()'s one-shot attempt budget can fall short of the
+	# cap on a large/constrained map; attempt_spawn() ticks that finish
+	# filling toward the target density (cap not yet reached even once)
+	# should still look like initial world dressing, not gradual regrowth.
+	var map := _create_test_map()
+	var fl: FurnitureLayer = auto_free(FurnitureLayer.new())
+	fl.set_container(map.get_furniture_container())
+
+	var flora_def := _create_test_wild_flora_def()
+
+	var map_def: MapDef = auto_free(MapDef.new())
+	map_def.id = "test_map_wild_still_filling"
+	map_def.flora_palette = [flora_def]
+	map_def.flora_spawn_cap = 1
+	map_def.flora_max_spawn_attempts = 20
+	map_def.world_bounds = AABB(Vector3(-20, -10, -20), Vector3(40, 20, 40))
+	map_def.player_spawn = Vector3(100, 0, 100)
+
+	var spawner: PlantSpawner = auto_free(PlantSpawner.new())
+	add_child(spawner)
+	spawner.setup(map, map_def, fl)
+
+	# Called directly (skipping populate_initial_flora) — count is still 0,
+	# below the cap of 1, so the target population has never been reached.
+	var spawned := spawner.attempt_spawn()
+	assert_bool(spawned).is_true()
+
+	var flora: WildFlora = null
+	for child in map.get_furniture_container().get_children():
+		if child is WildFlora:
+			flora = child as WildFlora
+			break
+	assert_object(flora).is_not_null()
+	assert_float(flora.growth_progress).is_equal_approx(1.0, 0.001)
+
+
+func test_attempt_spawn_regrows_naturally_after_cap_first_reached() -> void:
+	var map := _create_test_map()
+	var fl: FurnitureLayer = auto_free(FurnitureLayer.new())
+	fl.set_container(map.get_furniture_container())
+
+	var flora_def := _create_test_wild_flora_def()
+
+	var map_def: MapDef = auto_free(MapDef.new())
+	map_def.id = "test_map_wild_regrowth"
+	map_def.flora_palette = [flora_def]
+	map_def.flora_spawn_cap = 1
+	map_def.flora_max_spawn_attempts = 20
+	map_def.world_bounds = AABB(Vector3(-20, -10, -20), Vector3(40, 20, 40))
+	map_def.player_spawn = Vector3(100, 0, 100)
+
+	var spawner: PlantSpawner = auto_free(PlantSpawner.new())
+	add_child(spawner)
+	spawner.setup(map, map_def, fl)
+
+	# Fill to cap once — this latches _reached_target_population permanently.
+	var placed := spawner.populate_initial_flora()
+	assert_int(placed).is_equal(1)
+
+	# Simulate felling: free the slot so the map is below cap again.
+	for child in map.get_furniture_container().get_children():
+		if child is WildFlora and not child.is_queued_for_deletion():
+			child.queue_free()
+	assert_int(spawner.get_live_flora_count()).is_equal(0)
+
+	var spawned := spawner.attempt_spawn()
+	assert_bool(spawned).is_true()
+
+	var regrown: WildFlora = null
+	for child in map.get_furniture_container().get_children():
+		if child is WildFlora and not child.is_queued_for_deletion():
+			regrown = child as WildFlora
+			break
+	assert_object(regrown).is_not_null()
+	# Post-felling regrowth keeps the def's natural randomized range, not forced maturity.
+	assert_float(regrown.growth_progress).is_between(flora_def.initial_growth_min, flora_def.initial_growth_max)

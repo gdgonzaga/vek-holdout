@@ -6,6 +6,9 @@
 [ext_resource type="Resource" uid="uid://8jbu2jea8m8n" path="res://data/items/log.tres" id="4_log"]
 [ext_resource type="Resource" uid="uid://brxslew51hukd" path="res://data/items/fiber.tres" id="5_fiber"]
 [ext_resource type="PackedScene" path="res://data/furniture/tree1.tscn" id="6_scene"]
+[ext_resource type="Script" uid="uid://s6oulktogq82" path="res://data/moodlets/moodlet_def.gd" id="7_mdef"]
+[ext_resource type="Resource" path="res://data/moodlets/flora_hp_moodlet.tres" id="8_hpmoodlet"]
+[ext_resource type="Resource" path="res://data/moodlets/flora_interaction_moodlet.tres" id="9_actmoodlet"]
 
 [sub_resource type="Resource" id="Resource_yield_sapling"]
 script = ExtResource("3_amount")
@@ -46,6 +49,7 @@ default_scene = ExtResource("6_scene")
 dimensions = Vector3i(1, 4, 1)
 growth_time_hours = 36.0
 stages = Array[ExtResource("2_stage")]([SubResource("Resource_stage_0"), SubResource("Resource_stage_1"), SubResource("Resource_stage_2")])
+moodlet_defs = Array[ExtResource("7_mdef")]([ExtResource("8_hpmoodlet"), ExtResource("9_actmoodlet")])
 id = "tree1"
 display_name = "Tree"
 hp = 200
