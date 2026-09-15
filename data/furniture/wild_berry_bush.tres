@@ -65,3 +65,4 @@ id = "wild_berry_bush"
 display_name = "Wild Berry Bush"
 hp = 30
 tags = Array[String](["live_flora", "bush", "fruit_bearing", "foliage"])
+chop_work_time = 2.5

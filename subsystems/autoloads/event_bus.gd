@@ -41,6 +41,7 @@ signal area_designation_toggled(active: bool) # player -> AreaDesignationControl
 signal area_designation_stage_changed(stage_name: String) # controller -> HUD ("pick corner A" / "pick corner B")
 signal area_designation_tool_changed(tool_id: String, tool_label: String) # controller -> HUD (active designation tool readout)
 signal area_designation_tool_selected(tool_id: String, target_area_id: String) # DesignationMenu -> player, controller
+signal harvest_box_toggled(active: bool) # player -> HarvestBoxController, HUD
 signal build_menu_toggled(open: bool) # player -> HUD (build menu visibility for the Instructions label)
 signal buildable_selected(id: String) # player -> BuildController (sets selected_id)
 signal furniture_placed(def_id: String, anchor: Vector3i) # FurnitureLayer -> Colony (Functional Rooms, later)

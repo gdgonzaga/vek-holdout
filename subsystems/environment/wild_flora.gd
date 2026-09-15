@@ -78,6 +78,14 @@ func can_forage() -> bool:
 	return stage != null and stage.can_harvest_fruit and not stage.harvest_yields.is_empty()
 
 
+## Returns whether this flora can currently be felled/removed — by weapon
+## damage or the colonist chop/removal job (Harvestable/HarvestJobDef). Gates
+## both paths uniformly on the current stage's can_chop flag, the parallel
+## eligibility check to can_forage().
+func can_be_felled() -> bool:
+	return _is_choppable()
+
+
 ## Gathers mature fruit/produce from the flora.
 ## Resets growth to regrowth_stage_index, or destroys plant if destroy_on_fruit_harvest is true.
 func forage(actor: Node) -> bool:
@@ -123,7 +131,9 @@ func refresh_interaction_options() -> void:
 func take_damage(raw_amount: int, source: Node = null) -> void:
 	if health_component == null or health_component.is_dead or raw_amount <= 0:
 		return
-	
+	if not can_be_felled():
+		return
+
 	# 1. Damage Scaling: Calculate weapon-type effectiveness on wood/foliage.
 	var effective_damage: int = _calculate_effective_damage(raw_amount, source)
 	
@@ -503,10 +513,9 @@ func _resolve_stat_value(stat_name: StringName) -> float:
 func _resolve_current_activity() -> StringName:
 	## Auxiliary: Walks the interaction-state priority chain — marked for
 	## colonist harvest, ripe for foraging, recently depleted, or choppable
-	## timber — first match wins. marked_for_harvest is currently inert (no
-	## content sets harvest_params on WildFloraDef yet, so nothing can toggle
-	## it) — forward-looking scaffolding for the tree-chop job flow described
-	## in job-extensions.md, not a bug.
+	## timber — first match wins. Marking is toggled by the area-designation
+	## tool (ARCH "Wild Flora"), which drives Harvestable via
+	## EventBus.harvest_mark_toggled the same way furniture harvesting does.
 	var h := _get_harvestable()
 	if h != null and h.is_marked_for_harvest():
 		return &"marked_for_harvest"
@@ -537,11 +546,15 @@ func _is_depleted_fruit_stage() -> bool:
 
 
 func _is_choppable() -> bool:
-	## Auxiliary: True for solid timber that can still be felled — the same
-	## tags _calculate_effective_damage() already checks for axe scaling.
+	## Auxiliary: True while the current growth stage allows felling/removal —
+	## the eligibility half of the chop parallel to can_forage()'s
+	## can_harvest_fruit check. Independent of the tree/timber/wood tags,
+	## which only drive _calculate_effective_damage()'s axe-vs-bare-hands
+	## scaling, a separate real-time-combat concern.
 	if health_component != null and health_component.is_dead:
 		return false
-	return has_tag("tree") or has_tag("timber") or has_tag("wood")
+	var stage := get_current_stage()
+	return stage != null and stage.can_chop
 
 
 func _get_harvestable() -> Harvestable:

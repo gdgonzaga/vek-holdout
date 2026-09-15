@@ -11,7 +11,7 @@ extends CharacterBody3D
 ## data/characters/player.tres instead of these exports (ARCH: no hardcoded
 ## content values). Exported for now so they're editor-tunable.
 
-enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT, DIG_BOX_DESIGNATION, AREA_DESIGNATION, DESIGNATION_MENU}
+enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT, DIG_BOX_DESIGNATION, AREA_DESIGNATION, DESIGNATION_MENU, HARVEST_BOX_DESIGNATION}
 enum State {IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD}
 
 @export var walk_speed := 3.5
@@ -266,6 +266,7 @@ func _ready() -> void:
 	_input.dig_box_toggle_pressed.connect(_on_dig_box_toggle_pressed)
 	_input.area_designation_toggle_pressed.connect(_on_area_designation_toggle_pressed)
 	EventBus.area_designation_tool_selected.connect(_on_area_designation_tool_selected)
+	_input.harvest_box_toggle_pressed.connect(_on_harvest_box_toggle_pressed)
 
 func _exit_tree() -> void:
 	if GameState.get_local_player() == self:
@@ -356,6 +357,10 @@ func _on_ui_cancel() -> void:
 		get_viewport().set_input_as_handled()
 		mode = Mode.NORMAL
 		EventBus.area_designation_toggled.emit(false)
+	elif mode == Mode.HARVEST_BOX_DESIGNATION:
+		get_viewport().set_input_as_handled()
+		mode = Mode.NORMAL
+		EventBus.harvest_box_toggled.emit(false)
 
 
 ## Leave placement and reopen the build menu (B in placement — quick item swap).
@@ -858,6 +863,17 @@ func _disconnect_designation_menu_closed() -> void:
 	## Auxiliary: Disconnects the designation menu closed listener if currently wired.
 	if _designation_menu != null and _designation_menu.closed.is_connected(_on_designation_menu_closed):
 		_designation_menu.closed.disconnect(_on_designation_menu_closed)
+
+
+func _on_harvest_box_toggle_pressed() -> void:
+	if _busy:
+		return
+	if mode == Mode.HARVEST_BOX_DESIGNATION:
+		mode = Mode.NORMAL
+		EventBus.harvest_box_toggled.emit(false)
+	elif mode == Mode.NORMAL:
+		mode = Mode.HARVEST_BOX_DESIGNATION
+		EventBus.harvest_box_toggled.emit(true)
 
 
 ## Returns true if the player's lower body is submerged in a fluid/water voxel cell.

@@ -54,3 +54,5 @@ id = "tree1"
 display_name = "Tree"
 hp = 200
 tags = Array[String](["live_flora", "tree", "timber", "wood"])
+required_tool_tag = "axe"
+chop_work_time = 6.0

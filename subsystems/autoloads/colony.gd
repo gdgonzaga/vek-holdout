@@ -44,6 +44,7 @@ const CONSTRUCTION_DEF := preload("res://data/jobs/construction.tres")
 const HAULING_DEF := preload("res://data/jobs/hauling.tres")
 const CRAFTING_DEF := preload("res://data/jobs/crafting.tres")
 const HARVEST_DEF := preload("res://data/jobs/harvest.tres")
+const CHOP_DEF := preload("res://data/jobs/chop.tres")
 const SOW_DEF := preload("res://data/jobs/sow.tres")
 const WATER_DEF := preload("res://data/jobs/water.tres")
 const TEND_DEF := preload("res://data/jobs/tend.tres")
@@ -672,10 +673,12 @@ func _on_harvest_mark_toggled(furniture: Node, anchor: Vector3i, is_marked: bool
 		_spawn_harvest_job(furniture, anchor)
 	else:
 		_remove_jobs_at(anchor, HARVEST_DEF)
+		_remove_jobs_at(anchor, CHOP_DEF)
 
 
 func _on_furniture_removed(_def_id: String, anchor: Vector3i) -> void:
 	_remove_jobs_at(anchor, HARVEST_DEF)
+	_remove_jobs_at(anchor, CHOP_DEF)
 	_remove_jobs_at(anchor, SOW_DEF)
 	_remove_jobs_at(anchor, WATER_DEF)
 	_remove_jobs_at(anchor, TEND_DEF)
@@ -742,7 +745,19 @@ func _spawn_harvest_job(furniture: Node, anchor: Vector3i) -> void:
 	var f := furniture as Furniture
 	var title := "Harvest %s" % (f.label if f != null else "resource")
 	var location := f.global_position if f != null else Vector3(anchor)
-	_spawn_job(HARVEST_DEF, title, anchor, location, furniture)
+	_spawn_job(_harvest_job_def_for(furniture), title, anchor, location, furniture)
+
+
+## Wild flora whose def carries a required_tool_tag (e.g. timber needing an
+## axe) route to CHOP_DEF instead of the tool-less HARVEST_DEF so the tool
+## gate lives on the job template rather than being inferred from tags.
+func _harvest_job_def_for(furniture: Node) -> HarvestJobDef:
+	var flora := furniture as WildFlora
+	if flora != null:
+		var flora_def := flora.def as WildFloraDef
+		if flora_def != null and flora_def.required_tool_tag != "":
+			return CHOP_DEF
+	return HARVEST_DEF
 
 
 # --- Mining (GDD §6.10, ARCH "Mining") ----------------------------------------

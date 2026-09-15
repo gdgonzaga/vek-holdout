@@ -207,6 +207,34 @@ func test_wild_flora_foraging_spawns_drops_towards_actor() -> void:
 	actor.free()
 
 
+func test_can_chop_false_stage_blocks_take_damage() -> void:
+	var def := _create_test_flora_def("test_uncoppable_stage")
+	def.stages[2].can_chop = false
+	var anchor := Vector3i(18, 0, 18)
+
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var flora := node as WildFlora
+	flora.set_growth_progress(1.0) # stage 2 -> can_chop false
+
+	assert_bool(flora.can_be_felled()).is_false()
+	flora.take_damage(9999)
+	assert_int(flora.health_component.current_hp).is_equal(100)
+	assert_bool(_furniture_layer.has_at(anchor)).is_true()
+
+
+func test_can_chop_true_stage_allows_felling() -> void:
+	var def := _create_test_flora_def("test_choppable_stage")
+	var anchor := Vector3i(19, 0, 19)
+
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var flora := node as WildFlora
+	flora.set_growth_progress(1.0) # stage 2 -> can_chop true (default)
+
+	assert_bool(flora.can_be_felled()).is_true()
+	flora.take_damage(9999)
+	assert_bool(_furniture_layer.has_at(anchor)).is_false()
+
+
 func test_wild_flora_collider_scaling_and_grounded_position() -> void:
 	var def := _create_test_flora_def("test_tree_collider")
 	def.dimensions = Vector3i(1, 4, 1)
