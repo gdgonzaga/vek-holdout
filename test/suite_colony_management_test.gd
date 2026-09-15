@@ -31,10 +31,10 @@ func test_colony_management_scene_loads() -> void:
 	assert_object(_scene).is_not_null()
 
 
-func test_colony_management_has_all_seven_tabs() -> void:
+func test_colony_management_has_all_tabs() -> void:
 	var tab_container: TabContainer = _scene.get_node("%TabContainer") as TabContainer
 	assert_object(tab_container).is_not_null()
-	assert_int(tab_container.get_tab_count()).is_equal(7)
+	assert_int(tab_container.get_tab_count()).is_equal(8)
 	
 	assert_str(tab_container.get_tab_title(0)).is_equal("Colony Info")
 	assert_str(tab_container.get_tab_title(1)).is_equal("Colonists")
@@ -43,6 +43,7 @@ func test_colony_management_has_all_seven_tabs() -> void:
 	assert_str(tab_container.get_tab_title(4)).is_equal("Crafting")
 	assert_str(tab_container.get_tab_title(5)).is_equal("Storage")
 	assert_str(tab_container.get_tab_title(6)).is_equal("Squads")
+	assert_str(tab_container.get_tab_title(7)).is_equal("Areas")
 
 
 func test_colonist_tab_empty_roster() -> void:
@@ -537,3 +538,22 @@ func test_colonist_equipment_picker_sets_desired_item() -> void:
 	eq_panel.call("_select_desired_item", "test_target_tool")
 	assert_str(colonist.equipment.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("test_target_tool")
 	assert_bool(picker.visible).is_false()
+
+
+func test_areas_tab_empty_and_populated() -> void:
+	Colony.area_manager.reset_for_new_game()
+	_scene.call("_refresh_areas")
+
+	var no_areas: Label = _scene.get_node("%NoAreasLabel") as Label
+	var area_list: VBoxContainer = _scene.get_node("%AreaList") as VBoxContainer
+	assert_object(no_areas).is_not_null()
+	assert_bool(no_areas.visible).is_true()
+	assert_bool(area_list.visible).is_false()
+
+	var _area := Colony.area_manager.create_area(Vector3i(0, 0, 0), Vector3i(5, 2, 5), "Workshop")
+	_scene.call("_refresh_areas")
+
+	assert_bool(no_areas.visible).is_false()
+	assert_bool(area_list.visible).is_true()
+	assert_int(area_list.get_child_count()).is_equal(1)
+

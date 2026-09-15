@@ -45,12 +45,19 @@ Extends `MoodletDef`. Maps `colonist.get_current_activity()` identifiers to icon
 |---|---|---|---|
 | `activity_icon_map` | `Dictionary` | `{}` | Key-value mapping of activity names (`&"idle"`, `&"mining"`, `&"construction"`, `&"crafting"`, `&"hauling"`, `&"eat"`, `&"rest"`) to icon array indices. |
 
+### 4. `PlantOrderMoodletDef` (`data/moodlets/plant_order_moodlet_def.gd`)
+Extends `MoodletDef`. Evaluates `Harvestable` marked status and maps designation orders (`&"chop"`, `&"forage"`, `&"remove"`, `&"harvest"`) to icon array indices.
+
+| Property Name | Type | Default | Description |
+|---|---|---|---|
+| `order_icon_map` | `Dictionary` | `{ &"chop": 0, &"forage": 1, &"remove": 2, &"harvest": 3 }` | Key-value mapping of order identifiers to icon array indices. |
+
 ---
 
 ## Step-by-Step Creation Guide
 
 ### 1. File Location & Naming
-Save moodlet resources inside `res://data/moodlets/` with filenames matching `<id>_moodlet.tres` or `data/moodlets/<id>.tres` (e.g. `data/moodlets/activity_moodlet.tres`, `data/moodlets/hunger_moodlet.tres`).
+Save moodlet resources inside `res://data/moodlets/` with filenames matching `<id>_moodlet.tres` or `data/moodlets/<id>.tres` (e.g. `data/moodlets/activity_moodlet.tres`, `data/moodlets/plant_order_moodlet.tres`, `data/moodlets/hunger_moodlet.tres`).
 
 ### 2. Example Static / Animated Activity Resource (`activity_moodlet.tres`)
 
@@ -79,8 +86,9 @@ activity_icon_map = {
 
 ## Visualizer Layout & Camera Alignment
 
-`ColonistMoodletVisualizer` and `EnemyMoodletVisualizer` handle in-world rendering:
-- **Multi-Line Row Stacking**: Groups active moodlets by `line_number` and stacks rows vertically (`line_spacing = 0.35m`). Skips inactive lines so active rows remain cleanly compacted above the entity's head.
-- **Multi-Sprite Row**: Displays active moodlets side-by-side in centered horizontal rows (`icon_spacing = 0.35m`).
+`ColonistMoodletVisualizer`, `EnemyMoodletVisualizer`, and `PlantMoodletVisualizer` handle in-world rendering:
+- **Multi-Line Row Stacking**: Groups active moodlets by `line_number` and stacks rows vertically (`line_spacing = 0.35m`). Skips inactive lines so active rows remain cleanly compacted above the entity's head or canopy.
+- **Dynamic Bounding Height (`PlantMoodletVisualizer`)**: Plants and harvestables dynamically calculate billboard position based on the parent furniture's `dimensions.y + height_offset` (default 0.4m), ensuring billboards sit cleanly above varying tree canopy heights and crop troughs.
+- **Pure Icon Billboard Rendering**: Displays active moodlets side-by-side in centered horizontal rows (`icon_spacing = 0.4m`) without obstructing text clutter.
 - **Camera Alignment**: Aligns `global_rotation.y` with the active viewport camera so the icon rows always face the player's screen horizontally.
 - **Spritesheet Animation**: Automatically advances `sprite.frame` at `frame_fps` for icons where `hframes > 1`.

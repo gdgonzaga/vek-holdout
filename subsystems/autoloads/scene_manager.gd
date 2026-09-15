@@ -214,6 +214,7 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 		return
 	var furniture_layer: FurnitureLayer = MapWiring.wire_build(m)
 	MapWiring.wire_mining(m)
+	MapWiring.wire_areas(m)
 	MapWiring.wire_day_night(m)
 	var flora_spawner: PlantSpawner = MapWiring.wire_flora(m, map_def, furniture_layer)
 

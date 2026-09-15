@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://area_desig_ctrl_001"]
+
+[ext_resource type="Script" path="res://subsystems/areas/area_designation_controller.gd" id="1_controller"]
+[ext_resource type="Script" path="res://subsystems/core/ghost_preview.gd" id="2_ghost"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ghost"]
+
+[node name="AreaDesignationController" type="Node3D"]
+script = ExtResource("1_controller")
+
+[node name="GhostPreview" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_ghost")
+script = ExtResource("2_ghost")

@@ -82,6 +82,25 @@ static func wire_mining(map: Map) -> void:
 	dig_ctrl.grid_adapter = adapter
 
 
+## Wire player area designation tool (AreaDesignationController).
+## Injects the VoxelGridAdapter into the controller.
+static func wire_areas(map: Map) -> void:
+	var grid: BlockyGrid = map.get_blocky_grid()
+	var adapter := VoxelGridAdapter.new()
+	adapter.set_grid(grid)
+	adapter.set_smooth_grid(_live_smooth_grid(map))
+
+	var area_ctrl := map.find_child("AreaDesignationController", true, false) as AreaDesignationController
+	if area_ctrl == null:
+		area_ctrl = preload("res://subsystems/areas/area_designation_controller.tscn").instantiate()
+		area_ctrl.name = "AreaDesignationController"
+		map.add_child(area_ctrl)
+	area_ctrl.grid_adapter = adapter
+	var build_ctrl := map.find_child("BuildController", true, false) as BuildController
+	if build_ctrl != null:
+		area_ctrl.furniture_layer = build_ctrl.furniture_layer
+
+
 ## Wire dynamic day/night celestial lighting into the map.
 ## Replaces legacy static DirectionalLight3D with an instanced DayNightCycle.
 static func wire_day_night(map: Map) -> void:
@@ -147,6 +166,10 @@ static func wire_player(map: Map, player: Player) -> void:
 	if dig_ctrl != null:
 		dig_ctrl.set_camera(player.get_camera())
 		dig_ctrl.add_exclude_body(player)
+	var area_ctrl := map.find_child("AreaDesignationController", true, false) as AreaDesignationController
+	if area_ctrl != null:
+		area_ctrl.set_camera(player.get_camera())
+		area_ctrl.add_exclude_body(player)
 
 
 ## Hand the map's ColonistContainer + authored ColonistSpawn* positions to Colony

@@ -11,7 +11,7 @@ extends CharacterBody3D
 ## data/characters/player.tres instead of these exports (ARCH: no hardcoded
 ## content values). Exported for now so they're editor-tunable.
 
-enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT, DIG_BOX_DESIGNATION}
+enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT, DIG_BOX_DESIGNATION, AREA_DESIGNATION, DESIGNATION_MENU}
 enum State {IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD}
 
 @export var walk_speed := 3.5
@@ -36,6 +36,7 @@ var _current_interactable: InteractionComponent = null
 ## The currently open BuildMenu (null when no menu is open). Tracked so B can
 ## close it and so we know whether B means "open" or "close".
 var _build_menu: BuildMenu = null
+var _designation_menu: DesignationMenu = null
 
 ## Emitted when _current_interactable changes (target gained or lost).
 signal interactable_changed(component: InteractionComponent)
@@ -263,6 +264,8 @@ func _ready() -> void:
 		command_controller.set_camera(_camera)
 	_input.ui_cancel_pressed.connect(_on_ui_cancel)
 	_input.dig_box_toggle_pressed.connect(_on_dig_box_toggle_pressed)
+	_input.area_designation_toggle_pressed.connect(_on_area_designation_toggle_pressed)
+	EventBus.area_designation_tool_selected.connect(_on_area_designation_tool_selected)
 
 func _exit_tree() -> void:
 	if GameState.get_local_player() == self:
@@ -349,6 +352,10 @@ func _on_ui_cancel() -> void:
 		get_viewport().set_input_as_handled()
 		mode = Mode.NORMAL
 		EventBus.dig_box_toggled.emit(false)
+	elif mode == Mode.AREA_DESIGNATION:
+		get_viewport().set_input_as_handled()
+		mode = Mode.NORMAL
+		EventBus.area_designation_toggled.emit(false)
 
 
 ## Leave placement and reopen the build menu (B in placement — quick item swap).
@@ -799,6 +806,50 @@ func _on_dig_box_toggle_pressed() -> void:
 	elif mode == Mode.NORMAL:
 		mode = Mode.DIG_BOX_DESIGNATION
 		EventBus.dig_box_toggled.emit(true)
+
+
+func _on_area_designation_toggle_pressed() -> void:
+	if _busy:
+		return
+	if mode == Mode.AREA_DESIGNATION:
+		_exit_area_designation_mode()
+		open_designation_menu()
+	elif mode == Mode.NORMAL:
+		open_designation_menu()
+
+
+## Open the designation/orders menu (hotkey T). Selecting a tool closes it and enters
+## Area/Designation 3D placement mode.
+func open_designation_menu() -> void:
+	if _designation_menu != null:
+		return
+	var menu: DesignationMenu = preload("res://ui/designation_menu/designation_menu.tscn").instantiate()
+	var layer := get_tree().get_first_node_in_group("ui_layer") as CanvasLayer
+	if layer == null:
+		layer = CanvasLayer.new()
+		layer.name = "UILayer"
+		layer.layer = 20
+		get_tree().current_scene.add_child(layer)
+	layer.add_child(menu)
+	menu.closed.connect(_on_designation_menu_closed)
+	_designation_menu = menu
+	mode = Mode.DESIGNATION_MENU
+
+
+func _on_area_designation_tool_selected(_tool_id: String, _target_area_id: String) -> void:
+	_designation_menu = null
+	mode = Mode.AREA_DESIGNATION
+	EventBus.area_designation_toggled.emit(true)
+
+
+func _on_designation_menu_closed() -> void:
+	_designation_menu = null
+	mode = Mode.NORMAL
+
+
+func _exit_area_designation_mode() -> void:
+	mode = Mode.NORMAL
+	EventBus.area_designation_toggled.emit(false)
 
 
 ## Returns true if the player's lower body is submerged in a fluid/water voxel cell.

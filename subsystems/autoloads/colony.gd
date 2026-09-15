@@ -26,6 +26,12 @@ var job_board: JobBoard
 ## FurnitureContainer by MapWiring on each map load.
 var storage_registry: StorageRegistry
 
+## Player-designated areas manager. A child Node that persists with the colony.
+var area_manager: AreaManager
+
+## Scratch pathfinder for stand-cell queries (avoids cross-subsystem coupling to colonists).
+var _scratch_pathfinder: VoxelPathfinder
+
 const MVP_CAP := 5  # Roster capacity (ARCH "max 5 in MVP").
 
 # JobDefs: every placed blueprint becomes a Job from one of these. A blueprint
@@ -87,6 +93,12 @@ func _ready() -> void:
 	storage_registry = StorageRegistry.new()
 	storage_registry.name = "StorageRegistry"
 	add_child(storage_registry)
+	area_manager = AreaManager.new()
+	area_manager.name = "AreaManager"
+	add_child(area_manager)
+	_scratch_pathfinder = VoxelPathfinder.new()
+	_scratch_pathfinder.name = "ScratchPathfinder"
+	add_child(_scratch_pathfinder)
 	EventBus.blueprint_placed.connect(_on_blueprint_placed)
 	EventBus.blueprint_removed.connect(_on_blueprint_removed)
 	EventBus.blueprint_materials_ready.connect(_on_blueprint_materials_ready)
@@ -137,20 +149,31 @@ func on_map_wired(container: Node3D, spawn_positions: Array) -> void:
 				register_world_item(item)
 
 
-## Store the active map's walkability predicate and inject it into all current colonists.
+## Store the active map's walkability predicate and inject it into all current colonists and scratch pathfinder.
 func set_walkability_predicate(predicate: Callable) -> void:
 	_walkability_predicate = predicate
+	if _scratch_pathfinder != null:
+		_scratch_pathfinder.set_walkability(predicate)
 	for c in colonists:
 		if is_instance_valid(c) and c.pathfinder != null:
 			c.pathfinder.set_walkability(predicate)
 
 
-## Store the active map's stand-cell hint and inject it into all current colonists.
+## Store the active map's stand-cell hint and inject it into all current colonists and scratch pathfinder.
 func set_stand_cell_hint(hint: Callable) -> void:
 	_stand_cell_hint = hint
+	if _scratch_pathfinder != null:
+		_scratch_pathfinder.set_stand_cell_hint(hint)
 	for c in colonists:
 		if is_instance_valid(c) and c.pathfinder != null:
 			c.pathfinder.set_stand_cell_hint(hint)
+
+
+## Resolve the standable voxel cell at world_pos via the colony's scratch pathfinder.
+func find_stand_cell(world_pos: Vector3) -> Vector3i:
+	if _scratch_pathfinder != null:
+		return _scratch_pathfinder.find_stand_cell(world_pos)
+	return Vector3i(int(floor(world_pos.x)), int(floor(world_pos.y)), int(floor(world_pos.z)))
 
 
 ## Store the active map's cell cost function and inject it into all current colonists.
@@ -291,6 +314,8 @@ func add_colonist(c: Colonist) -> void:
 func remove_colonist(colonist_id: String) -> void:
 	remove_from_squad(colonist_id)
 	cancel_deployments([colonist_id])
+	if area_manager != null:
+		area_manager.remove_member_from_all_areas(colonist_id)
 	for i in range(colonists.size()):
 		if colonists[i].colonist_id == colonist_id:
 			var c: Colonist = colonists[i]
@@ -458,6 +483,7 @@ func serialize() -> Dictionary:
 		"colonists": list,
 		"squads": squads.duplicate(true),
 		"job_board": job_board.serialize() if job_board != null else {},
+		"areas": area_manager.serialize() if area_manager != null else {},
 	}
 
 
@@ -467,6 +493,8 @@ func deserialize(data: Dictionary) -> void:
 	squads = data.get("squads", {}).duplicate(true)
 	if job_board != null and data.has("job_board"):
 		job_board.deserialize(data["job_board"])
+	if area_manager != null and data.has("areas"):
+		area_manager.deserialize(data["areas"])
 
 
 ## Clears active colonists, pending restores, and registered jobs.
@@ -481,6 +509,8 @@ func reset_for_new_game() -> void:
 	squads.clear()
 	if job_board != null:
 		job_board.clear()
+	if area_manager != null:
+		area_manager.reset_for_new_game()
 
 
 # --- Job production plumbing ---------------------------------------------------

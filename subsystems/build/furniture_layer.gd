@@ -168,6 +168,9 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 		var harvestable := Harvestable.new()
 		harvestable.name = "Harvestable"
 		flora_root.add_child(harvestable)
+		var visualizer := PlantMoodletVisualizer.new()
+		visualizer.name = "PlantMoodletVisualizer"
+		flora_root.add_child(visualizer)
 		return flora_root
 
 	# Create a parent Node3D to hold mesh and collision.
@@ -312,14 +315,20 @@ static func _ensure_capability_registry() -> void:
 	_register_capability_factory(HarvestParams, func(_params: HarvestParams, furniture: Furniture) -> void:
 		var s := Harvestable.new()
 		s.name = "Harvestable"
-		furniture.add_child(s))
+		furniture.add_child(s)
+		var v := PlantMoodletVisualizer.new()
+		v.name = "PlantMoodletVisualizer"
+		furniture.add_child(v))
 	_register_capability_factory(FarmPlotParams, func(_params: FarmPlotParams, furniture: Furniture) -> void:
 		var g := Growable.new()
 		g.name = "Growable"
 		furniture.add_child(g)
 		var h := Harvestable.new()
 		h.name = "Harvestable"
-		furniture.add_child(h))
+		furniture.add_child(h)
+		var v := PlantMoodletVisualizer.new()
+		v.name = "PlantMoodletVisualizer"
+		furniture.add_child(v))
 	_register_capability_factory(BedParams, func(_params: BedParams, furniture: Furniture) -> void:
 		var b := BedComponent.new()
 		b.name = "BedComponent"

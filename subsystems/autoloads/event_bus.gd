@@ -37,6 +37,10 @@ signal dig_box_dimensions_changed(width: int, height: int, depth: int) # DigBoxC
 signal dig_box_mode_changed(mode_name: String) # DigBoxController -> HUD
 signal dig_box_designated(voxels: Array) # DigBoxController -> Colony / JobBoard
 signal dig_job_completed(cell: Vector3i) # DigJobDef -> DigBoxController
+signal area_designation_toggled(active: bool) # player -> AreaDesignationController, HUD
+signal area_designation_stage_changed(stage_name: String) # controller -> HUD ("pick corner A" / "pick corner B")
+signal area_designation_tool_changed(tool_id: String, tool_label: String) # controller -> HUD (active designation tool readout)
+signal area_designation_tool_selected(tool_id: String, target_area_id: String) # DesignationMenu -> player, controller
 signal build_menu_toggled(open: bool) # player -> HUD (build menu visibility for the Instructions label)
 signal buildable_selected(id: String) # player -> BuildController (sets selected_id)
 signal furniture_placed(def_id: String, anchor: Vector3i) # FurnitureLayer -> Colony (Functional Rooms, later)

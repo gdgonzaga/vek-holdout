@@ -36,6 +36,9 @@ func _ready() -> void:
 	# Mount the persistent dig box HUD overlay on the HUDLayer.
 	var dig_box_hud: Control = preload("res://ui/dig_box_hud/dig_box_hud.tscn").instantiate()
 	_hud_layer.add_child(dig_box_hud)
+	# Mount the persistent area designation HUD overlay on the HUDLayer.
+	var area_hud: Control = preload("res://ui/area_designation_hud/area_designation_hud.tscn").instantiate()
+	_hud_layer.add_child(area_hud)
 	# No map is loaded here — the Main Menu's New Game button drives the base
 	# load (see ui/main_menu/main_menu.gd). base_colony + POI discovery moved
 	# behind the menu so the menu gates gameplay.

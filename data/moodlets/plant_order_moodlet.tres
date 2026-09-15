@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="PlantOrderMoodletDef" format=3 uid="uid://dj0pvwltlp0jq"]
+
+[ext_resource type="Script" uid="uid://ddm313rnvhdfr" path="res://data/moodlets/plant_order_moodlet_def.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://dyd7ff4kvsipc" path="res://assets/custom/plant_orders/chop.png" id="2_chop"]
+[ext_resource type="Texture2D" uid="uid://cg7dfklowj04k" path="res://assets/custom/plant_orders/forage.png" id="3_forage"]
+[ext_resource type="Texture2D" uid="uid://5soif88ca0yy" path="res://assets/custom/plant_orders/remove.png" id="4_remove"]
+[ext_resource type="Texture2D" uid="uid://jyuuaqqnjslo" path="res://assets/custom/plant_orders/harvest.png" id="5_harvest"]
+
+[resource]
+script = ExtResource("1_script")
+order_icon_map = {
+&"chop": 0,
+&"clear": 2,
+&"forage": 1,
+&"harvest": 3,
+&"remove": 2
+}
+id = &"plant_order"
+display_name = "Plant Order"
+icons = Array[Texture2D]([ExtResource("2_chop"), ExtResource("3_forage"), ExtResource("4_remove"), ExtResource("5_harvest")])
+icon_hframes = Array[int]([1, 1, 1, 1])

@@ -33,6 +33,7 @@ res://
 │   ├── harvesting/     # Harvestable component — work-time + yield resolution
 │   ├── environment/    # WildFlora runtime entity, plant spawner, vegetation lifecycle
 │   ├── mining/         # Dig box designation controller, 3D preview, markers
+│   ├── areas/          # Player-designated rectangular regions: Area data model, AreaManager, designation controller
 │   └── actions/        # Interaction runtime + data: InteractionComponent, GameAction
 ├── ui/                 # HUD + all full-screen UIs
 │   ├── hud/
@@ -103,6 +104,7 @@ has no dedicated folder either; its planned state is meant to live on the `Colon
 | Hunger | `subsystems/colonists/` | Physiological satiety tracking, FoodParams, starvation, and LimboAI feeding. |
 | Recreation | `subsystems/furniture/` | RecreationParams capability, occupancy slot rationing, recreation need satisfaction. |
 | Mining | `subsystems/mining/` | Dig box designation, strata materials, designation markers. |
+| Areas | `subsystems/areas/` | Player-designated rectangular regions, CRUD, membership, persistence. |
 | Combat | `subsystems/combat/` | HealthComponent, EnemyBase, turret defenses, hostile behavior trees. |
 | Equipment | `subsystems/equipment/` | 8-slot gear component, EquipmentVisualizer, EquipmentAudit fulfillment. |
 | Raids | `subsystems/raids/` | NightRaidController, radial enemy spawning, spawn-rate pacing curves. |
@@ -122,7 +124,7 @@ has no dedicated folder either; its planned state is meant to live on the `Colon
 | **GameLog** | `game_log.gd` | Message feed buffer and history log. |
 | **SceneManager** | `scene_manager.gd` | Map swapping and screen layer transitions. |
 | **SaveSystem** | `save_system.gd` | Multi-slot save/load orchestrator. |
-| **Colony** | `colony.gd` | Colony roster and JobBoard singleton owner. |
+| **Colony** | `colony.gd` | Colony roster, JobBoard, and AreaManager singleton owner. |
 | **TimeSystem** | `time_system.gd` | Continuous time advance and day rollover signals. |
 | **RunProgress** | `run_progress.gd` | Run-scoped unlocked content tracking. |
 | **BuildLibrary** | `subsystems/build/build_library.gd` | Buildable catalog index. |

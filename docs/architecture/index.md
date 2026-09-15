@@ -37,6 +37,7 @@ Last updated: 2026-09-12 (multi-leg job completion for hauling/construction, AI 
 | [Hunger](hunger.md) | HungerComponent, FoodParams, starvation, pocket feeding, player food | §6.12 |
 | [Recreation](recreation.md) | RecreationParams capability, occupancy slots, recreation need satisfaction | §6 |
 | [Mining](mining.md) | Voxel digging, strata materials, dig box designation, markers | §7.5 |
+| [Areas](areas.md) | Rectangular world zone designation, CRUD, membership, persistence | — |
 | [Combat](combat.md) | Durability-before-HP, weapons, enemy archetypes, turrets | §6.11 |
 | [Equipment & Loadouts](equipment.md) | 8-slot gear, auto-equip/unequip, EquipmentAudit | §17 |
 | [Raids](raids.md) | Night raid controller, spawn pacing, threat model | §17 |

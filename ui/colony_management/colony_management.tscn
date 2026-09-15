@@ -760,3 +760,55 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
+
+[node name="Areas" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+metadata/_tab_index = 7
+
+[node name="AreasContent" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="AreasHeader" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas/AreasContent"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AreasTitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas/AreasContent/AreasHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 18
+text = "Designated Areas"
+
+[node name="AreasSubtitleLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas/AreasContent/AreasHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Manage designated world areas, rename them, and assign colonist members. Areas are created in the 3D world using the Area Designation tool (T)."
+
+[node name="HSeparator" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas/AreasContent"]
+layout_mode = 2
+
+[node name="NoAreasLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas/AreasContent"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 14
+text = "No areas designated yet. Press T in the world to designate a new area."
+
+[node name="AreasScrollContainer" type="ScrollContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas/AreasContent"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="AreaList" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Areas/AreasContent/AreasScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12

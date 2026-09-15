@@ -31,6 +31,7 @@ nav:
     - Build: architecture/build.md
     - "Actions & Interaction": architecture/actions.md
     - Mining: architecture/mining.md
+    - Areas: architecture/areas.md
     - "Functional Rooms": architecture/functional-rooms.md
     - Colonists: architecture/colonists.md
     - Jobs: architecture/jobs.md

@@ -94,6 +94,9 @@ Extends `MoodletDef`. Evaluates stat ratios (`colonist.get_stat_ratio(stat_id)`)
 ### Subclass: `ActivityMoodletDef`
 Extends `MoodletDef`. Maps `colonist.get_current_activity()` StringNames (`&"idle"`, `&"mining"`, `&"construction"`, `&"crafting"`, `&"hauling"`, `&"eat"`, `&"rest"`) to `icons` array indices via `activity_icon_map`.
 
+### Subclass: `PlantOrderMoodletDef`
+Extends `MoodletDef`. Evaluates `Harvestable` mark status and maps plant designation orders (`&"chop"`, `&"forage"`, `&"remove"`, `&"harvest"`) to `icons` array indices via `order_icon_map`.
+
 ---
 
 ## `data/maps/<id>/map_def.tres` (Resource: `map_def.gd`) — `MapDef`

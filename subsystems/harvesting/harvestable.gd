@@ -9,9 +9,22 @@ extends Node
 ## and either removes the furniture node (trees/rocks) or resets the farm plot (crops).
 
 const STATE_KEY := "harvest"
+const DEFAULT_ORDER_MOODLET_PATH := "res://data/moodlets/plant_order_moodlet.tres"
+
+@export var moodlet_defs: Array[MoodletDef] = []
 
 var _furniture: Furniture:
 	get: return get_parent() as Furniture
+
+
+## Returns all currently active moodlets evaluated from moodlet_defs in order.
+## Each element is a Dictionary: { "def": MoodletDef, "index": int, "texture": Texture2D, "name": String }
+func get_active_moodlets() -> Array[Dictionary]:
+	# 1. Defs Assurance: Ensure default plant order moodlet is loaded if empty.
+	_ensure_default_moodlet_defs()
+
+	# 2. Moodlet Collection: Iterate and collect active moodlets from definitions.
+	return _evaluate_all_moodlets()
 
 
 ## Back-ref to the definition's HarvestParams.
@@ -32,6 +45,22 @@ func is_marked_for_harvest() -> bool:
 	return _harvest_state().get("is_marked", false)
 
 
+## Returns the active flora order type ("chop", "forage", "remove", or default "harvest").
+func get_order_type() -> String:
+	return _harvest_state().get("order_type", "harvest")
+
+
+## Sets the flora order type ("chop", "forage", "remove").
+func set_order_type(type_name: String) -> void:
+	var state := _harvest_state()
+	state["order_type"] = type_name
+	if _furniture != null:
+		_furniture.state[STATE_KEY] = state
+	if is_marked_for_harvest():
+		# 1. Indicator Refresh: Updates moodlet billboard text to reflect modified order type.
+		_update_order_visualizer(true)
+
+
 ## Set or clear the harvest mark. Emits EventBus.harvest_mark_toggled so Colony
 ## can add/remove the job from JobBoard.
 func set_marked(marked: bool) -> void:
@@ -42,9 +71,11 @@ func set_marked(marked: bool) -> void:
 	if _furniture != null:
 		_furniture.state[STATE_KEY] = state
 		if marked:
-			GameLog.info("Marked %s for harvest" % _furniture.label)
+			GameLog.info("Marked %s for %s" % [_furniture.label, get_order_type()])
 		else:
 			GameLog.info("Unmarked %s from harvest" % _furniture.label)
+	# 1. Indicator Refresh: Synchronizes in-world moodlet-style billboard with marked status.
+	_update_order_visualizer(marked)
 	EventBus.harvest_mark_toggled.emit(_furniture, anchor_cell(), marked)
 
 
@@ -85,6 +116,12 @@ func effective_work_time() -> float:
 ## Resolve the harvest: grant yields to actor's inventory and either reset the plot
 ## or remove the furniture node. Returns true if successfully harvested.
 func complete(actor: Node) -> bool:
+	var order := get_order_type()
+	if order == "forage" and _furniture != null and _furniture.has_method("forage"):
+		_furniture.call("forage", actor)
+		set_marked(false)
+		return true
+
 	var growable := _furniture.get_node_or_null("Growable") as Growable if _furniture != null else null
 
 	if growable != null:
@@ -194,3 +231,42 @@ func _harvest_state() -> Dictionary:
 	if not _furniture.state.has(STATE_KEY):
 		_furniture.state[STATE_KEY] = {"is_marked": false, "work_done": 0.0}
 	return _furniture.state[STATE_KEY]
+
+
+func _update_order_visualizer(_marked: bool) -> void:
+	## Auxiliary: Ensures PlantMoodletVisualizer is present on the furniture node and triggers refresh.
+	if _furniture == null or not is_instance_valid(_furniture):
+		return
+	var visualizer := _furniture.get_node_or_null("PlantMoodletVisualizer") as PlantMoodletVisualizer
+	if visualizer == null:
+		visualizer = PlantMoodletVisualizer.new()
+		visualizer.name = "PlantMoodletVisualizer"
+		_furniture.add_child(visualizer)
+	visualizer.refresh()
+
+
+func _ensure_default_moodlet_defs() -> void:
+	## Auxiliary: Populates moodlet_defs with default plant order definition if unconfigured.
+	if moodlet_defs.is_empty() and ResourceLoader.exists(DEFAULT_ORDER_MOODLET_PATH):
+		var default_res := load(DEFAULT_ORDER_MOODLET_PATH) as MoodletDef
+		if default_res != null:
+			moodlet_defs.append(default_res)
+
+
+func _evaluate_all_moodlets() -> Array[Dictionary]:
+	## Auxiliary: Evaluates moodlets in moodlet_defs and constructs the active list.
+	var active: Array[Dictionary] = []
+	for m_def in moodlet_defs:
+		if m_def == null:
+			continue
+		var idx: int = m_def.evaluate_icon_index(self)
+		if idx >= 0:
+			var tex: Texture2D = m_def.get_active_texture(self)
+			if tex != null:
+				active.append({
+					"def": m_def,
+					"index": idx,
+					"texture": tex,
+					"name": m_def.display_name,
+				})
+	return active

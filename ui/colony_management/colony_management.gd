@@ -13,6 +13,8 @@ const LaborCellScript := preload("res://ui/colony_management/labor_cell.gd")
 const StorageContainerRowScript := preload("res://ui/colony_management/storage_container_row.gd")
 const SQUAD_CARD_SCENE := preload("res://ui/colony_management/squad_card.tscn")
 const SquadCardScript := preload("res://ui/colony_management/squad_card.gd")
+const AREA_CARD_SCENE := preload("res://ui/colony_management/area_card.tscn")
+const AreaCardScript := preload("res://ui/colony_management/area_card.gd")
 const JOB_ROW_SCENE := preload("res://ui/colony_management/job_row.tscn")
 const JobRowScript := preload("res://ui/colony_management/job_row.gd")
 
@@ -74,6 +76,9 @@ const JOBS_REFRESH_INTERVAL: float = 0.5
 @onready var _no_squads_label: Label = %NoSquadsLabel
 @onready var _new_squad_line_edit: LineEdit = %NewSquadLineEdit
 @onready var _create_squad_button: Button = %CreateSquadButton
+
+@onready var _area_list: VBoxContainer = %AreaList
+@onready var _no_areas_label: Label = %NoAreasLabel
 
 var _selected_colonist: Colonist = null
 
@@ -141,6 +146,8 @@ func _on_tab_changed(_tab_index: int) -> void:
 		_refresh_storage()
 	elif _tab_index == 6:
 		_refresh_squads()
+	elif _tab_index == 7:
+		_refresh_areas()
 
 
 func _refresh_colonist_roster() -> void:
@@ -872,3 +879,27 @@ func _on_create_squad_pressed() -> void:
 	Colony.create_squad(squad_name)
 	_new_squad_line_edit.text = ""
 	_refresh_squads()
+
+
+func _refresh_areas() -> void:
+	if _area_list == null:
+		return
+
+	for child in _area_list.get_children():
+		child.queue_free()
+
+	if Colony == null or Colony.area_manager == null or Colony.area_manager.get_all_areas().is_empty():
+		if _no_areas_label != null:
+			_no_areas_label.visible = true
+		_area_list.visible = false
+		return
+
+	if _no_areas_label != null:
+		_no_areas_label.visible = false
+	_area_list.visible = true
+
+	for area in Colony.area_manager.get_all_areas():
+		var card: AreaCard = AREA_CARD_SCENE.instantiate() as AreaCard
+		_area_list.add_child(card)
+		card.setup(area.id)
+		card.area_modified.connect(_refresh_areas)

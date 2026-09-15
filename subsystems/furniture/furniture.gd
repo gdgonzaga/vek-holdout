@@ -31,6 +31,11 @@ var state: Dictionary = {}
 	get:
 		return def.display_name if def != null else ""
 
+## 3D voxel footprint dimensions. Sourced from def if present, else default (1, 1, 1).
+var dimensions: Vector3i:
+	get:
+		return def.dimensions if def != null else Vector3i(1, 1, 1)
+
 ## Combat HP (ARCH combat.md, GDD §7.2/§7.7) — null for buildables whose def.hp
 ## is 0 (purely decorative furniture carries no combat HP).
 var health_component: HealthComponent = null
@@ -60,6 +65,27 @@ func get_tags() -> Array[String]:
 	if def == null:
 		return []
 	return def.tags
+
+
+## Returns all currently active moodlets from this furniture and its child capability components.
+## Each element is a Dictionary: { "def": MoodletDef, "index": int, "texture": Texture2D, "name": String }
+func get_active_moodlets() -> Array[Dictionary]:
+	# 1. Component Moodlet Collection: Gather active moodlets from capability child nodes.
+	return _collect_child_moodlets()
+
+
+func _collect_child_moodlets() -> Array[Dictionary]:
+	## Auxiliary: Queries child components implementing get_active_moodlets.
+	var result: Array[Dictionary] = []
+	for child in get_children():
+		if child is PlantMoodletVisualizer:
+			continue
+		if child.has_method("get_active_moodlets"):
+			var child_moodlets: Array = child.call("get_active_moodlets")
+			for m in child_moodlets:
+				if m is Dictionary:
+					result.append(m)
+	return result
 
 
 func _register_tag_groups() -> void:

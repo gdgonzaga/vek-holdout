@@ -395,5 +395,71 @@ func test_colonist_moodlet_visualizer_multi_line_layout_and_skip() -> void:
 	assert_float(visualizer._sprites[2].position.y).is_equal_approx(visualizer.height_offset + 2.0 * visualizer.line_spacing, 0.001)
 
 
+func test_plant_order_moodlet_def_evaluation() -> void:
+	var m_def: PlantOrderMoodletDef = auto_free(PlantOrderMoodletDef.new()) as PlantOrderMoodletDef
+	m_def.icons = [_tex_0, _tex_1]
+	m_def.order_icon_map = { &"chop": 0, &"forage": 1 }
+
+	var furniture := auto_free(Furniture.new()) as Furniture
+	add_child(furniture)
+	var harvestable := Harvestable.new()
+	harvestable.name = "Harvestable"
+	furniture.add_child(harvestable)
+
+	# Inactive when not marked
+	assert_int(m_def.evaluate_icon_index(furniture)).is_equal(-1)
+	assert_int(m_def.evaluate_icon_index(harvestable)).is_equal(-1)
+
+	# Active when marked
+	harvestable.set_order_type("chop")
+	harvestable.set_marked(true)
+	assert_int(m_def.evaluate_icon_index(furniture)).is_equal(0)
+	assert_int(m_def.evaluate_icon_index(harvestable)).is_equal(0)
+
+	harvestable.set_order_type("forage")
+	assert_int(m_def.evaluate_icon_index(furniture)).is_equal(1)
+	assert_int(m_def.evaluate_icon_index(harvestable)).is_equal(1)
+
+	# Unmapped order returns -1
+	harvestable.set_order_type("unknown_order")
+	assert_int(m_def.evaluate_icon_index(furniture)).is_equal(-1)
+
+
+func test_plant_moodlet_visualizer_height_and_refresh() -> void:
+	var furniture := auto_free(Furniture.new()) as Furniture
+	var flora_def := auto_free(WildFloraDef.new()) as WildFloraDef
+	flora_def.dimensions = Vector3i(2, 4, 2)
+	furniture.def = flora_def
+	add_child(furniture)
+
+	var harvestable := Harvestable.new()
+	harvestable.name = "Harvestable"
+	furniture.add_child(harvestable)
+
+	var visualizer := PlantMoodletVisualizer.new()
+	visualizer.height_offset = 0.5
+	furniture.add_child(visualizer)
+
+	# Y position should be based on dimensions.y (4) + height_offset (0.5) = 4.5
+	assert_float(visualizer.position.y).is_equal_approx(4.5, 0.001)
+
+	# Initially no active moodlet
+	assert_bool(visualizer.is_showing_moodlet()).is_false()
+
+	# Mark for chop -> active moodlet displayed
+	harvestable.set_order_type("chop")
+	harvestable.set_marked(true)
+
+	assert_bool(visualizer.is_showing_moodlet()).is_true()
+	assert_int(visualizer.get_active_moodlets().size()).is_equal(1)
+	var sprites := visualizer.get_sprites()
+	assert_bool(sprites[0].visible).is_true()
+
+	# Unmark -> hides
+	harvestable.set_marked(false)
+	assert_bool(visualizer.is_showing_moodlet()).is_false()
+	assert_bool(sprites[0].visible).is_false()
+
+
 
 
