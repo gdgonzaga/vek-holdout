@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://subsystems/environment/wild_flora.gd" id="1_wild_flora"]
+[ext_resource type="Script" path="res://subsystems/environment/wild_flora_moodlet_visualizer.gd" id="2_moodletvis"]
 
 [node name="NewWildFloraTemplate" type="Node3D"]
 script = ExtResource("1_wild_flora")
@@ -12,3 +13,6 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="BuildCollider" type="CollisionShape3D" parent="BuildBody"]
+
+[node name="WildFloraMoodletVisualizer" type="Node3D" parent="."]
+script = ExtResource("2_moodletvis")

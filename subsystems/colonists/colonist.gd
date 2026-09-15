@@ -273,6 +273,8 @@ func _update_debug_billboard_visibility() -> void:
 
 
 # --- Stat & Moodlet queries --------------------------------------------------
+# Implements the IStatProvider contract (subsystems/core/i_stat_provider.gd),
+# consumed by StatThresholdMoodletDef/ActivityMoodletDef via has_method().
 
 ## Returns the normalized (0.0 to 1.0) ratio for a given stat, or -1.0 if not found/uninitialized.
 func get_stat_ratio(stat_name: StringName) -> float:
@@ -381,21 +383,10 @@ func _resolve_work_activity() -> StringName:
 
 
 func _evaluate_all_moodlets() -> Array[Dictionary]:
-	## Auxiliary: Evaluates moodlets in colonist_def and constructs the active list.
-	var active: Array[Dictionary] = []
-	for m_def in colonist_def.moodlet_defs:
-		if m_def == null:
-			continue
-		var idx: int = m_def.evaluate_icon_index(self)
-		if idx >= 0:
-			var tex: Texture2D = m_def.get_active_texture(self)
-			active.append({
-				"def": m_def,
-				"index": idx,
-				"texture": tex,
-				"name": m_def.display_name,
-			})
-	return active
+	## Auxiliary: Delegates moodlet evaluation to the shared layout resolver
+	## (also used by EnemyBase/WildFlora — keeps the active-list shape and the
+	## null-texture filter in one place instead of three drifting copies).
+	return MoodletLayoutResolver.evaluate_active_moodlets(self, colonist_def.moodlet_defs)
 
 
 

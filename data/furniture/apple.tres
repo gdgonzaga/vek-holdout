@@ -7,6 +7,9 @@
 [ext_resource type="Resource" uid="uid://8jbu2jea8m8n" path="res://data/items/log.tres" id="5_fkog7"]
 [ext_resource type="Resource" uid="uid://brxslew51hukd" path="res://data/items/fiber.tres" id="6_63ax1"]
 [ext_resource type="Resource" uid="uid://ixrlb60mm7ce" path="res://data/items/berry.tres" id="7_sgmil"]
+[ext_resource type="Script" uid="uid://s6oulktogq82" path="res://data/moodlets/moodlet_def.gd" id="8_mdef"]
+[ext_resource type="Resource" path="res://data/moodlets/flora_hp_moodlet.tres" id="9_hpmoodlet"]
+[ext_resource type="Resource" path="res://data/moodlets/flora_interaction_moodlet.tres" id="10_actmoodlet"]
 
 [sub_resource type="Resource" id="Resource_u6rff"]
 script = ExtResource("2_0yqul")
@@ -63,6 +66,7 @@ dimensions = Vector3i(1, 4, 1)
 growth_time_hours = 24.0
 regrowth_stage_index = 2
 stages = Array[ExtResource("4_ta1rp")]([SubResource("Resource_ppqfb"), SubResource("Resource_yfx5d"), SubResource("Resource_fmtk7"), SubResource("Resource_kevgp")])
+moodlet_defs = Array[ExtResource("8_mdef")]([ExtResource("9_hpmoodlet"), ExtResource("10_actmoodlet")])
 id = "apple_tree"
 display_name = "apple tree"
 hp = 150

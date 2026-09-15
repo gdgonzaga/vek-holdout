@@ -58,6 +58,10 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+## Implements the IStatProvider contract (subsystems/core/i_stat_provider.gd)
+## for its stat methods only — enemies have no activity moodlets, so
+## get_current_activity is left at the interface's default.
+##
 ## Returns the normalized (0.0 to 1.0) ratio for a given stat, or -1.0 if not found/uninitialized.
 func get_stat_ratio(stat_name: StringName) -> float:
 	# 1. Primary Resolution: Match against health ratio.
@@ -279,20 +283,8 @@ func _resolve_stat_value(stat_name: StringName) -> float:
 
 
 func _evaluate_all_moodlets() -> Array[Dictionary]:
-	## Auxiliary: Evaluates moodlets in moodlet_defs and constructs the active list.
-	var active: Array[Dictionary] = []
-	for m_def in moodlet_defs:
-		if m_def == null:
-			continue
-		var idx: int = m_def.evaluate_icon_index(self)
-		if idx >= 0:
-			var tex: Texture2D = m_def.get_active_texture(self)
-			if tex != null:
-				active.append({
-					"def": m_def,
-					"index": idx,
-					"texture": tex,
-					"name": m_def.display_name,
-				})
-	return active
+	## Auxiliary: Delegates moodlet evaluation to the shared layout resolver
+	## (also used by Colonist/WildFlora — keeps the active-list shape and the
+	## null-texture filter in one place instead of three drifting copies).
+	return MoodletLayoutResolver.evaluate_active_moodlets(self, moodlet_defs)
 

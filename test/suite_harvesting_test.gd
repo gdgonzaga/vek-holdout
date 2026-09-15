@@ -110,6 +110,23 @@ func test_partial_progress_reduces_begin_duration() -> void:
 	assert_float(remaining).is_equal_approx(def.harvest_params.work_time - 1.5, 0.01)
 
 
+func test_harvestable_get_stat_ratio_tracks_work_progress() -> void:
+	var def := _make_harvestable_def("test_stat_ratio")
+	var anchor := Vector3i(12, 0, 12)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
+
+	assert_float(harvestable.get_stat_ratio(&"work_progress")).is_equal_approx(0.0, 0.001)
+
+	harvestable.set_work_done(1.5)
+	var expected: float = 1.5 / def.harvest_params.work_time
+	assert_float(harvestable.get_stat_ratio(&"work_progress")).is_equal_approx(expected, 0.001)
+	assert_float(harvestable.get_stat_value(&"work_progress")).is_equal_approx(1.5, 0.001)
+
+	assert_float(harvestable.get_stat_ratio(&"nonexistent_stat")).is_equal_approx(-1.0, 0.001)
+	assert_float(harvestable.get_stat_value(&"nonexistent_stat")).is_equal_approx(-1.0, 0.001)
+
+
 func test_player_harvest_action_completes() -> void:
 	var def := _make_harvestable_def("test_player_action")
 	var anchor := Vector3i(8, 0, 8)

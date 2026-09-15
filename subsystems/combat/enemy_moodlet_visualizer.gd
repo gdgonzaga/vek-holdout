@@ -98,29 +98,28 @@ func _update_moodlet_display() -> void:
 
 
 func _collect_valid_moodlets() -> Array[Dictionary]:
-	## Auxiliary: Retrieves active moodlets from enemy and filters for those with non-null textures.
-	var result: Array[Dictionary] = []
-	if not _enemy.has_method("get_active_moodlets"):
-		return result
-	var active_moodlets: Array[Dictionary] = _enemy.get_active_moodlets()
-	for moodlet in active_moodlets:
-		var tex: Texture2D = moodlet.get("texture", null)
-		if tex != null:
-			result.append(moodlet)
-	return result
+	## Auxiliary: Retrieves active moodlets from the enemy (already
+	## texture-filtered by MoodletLayoutResolver inside get_active_moodlets()).
+	return _enemy.get_active_moodlets()
 
 
 func _sync_sprites(valid_moodlets: Array[Dictionary]) -> void:
 	## Auxiliary: Updates positions, textures, and visibility for all sprite billboard instances.
-	var count: int = mini(valid_moodlets.size(), max_icons)
-	
-	# 1. Capacity Assurance: Ensure sufficient Sprite3D instances exist in the pool.
+	# 1. Line Grouping: Group by row first and cap each row independently, so a
+	# crowded status row can never starve out an unrelated row's icon the way
+	# slicing the flat pre-grouped list used to (ARCH colonists.md — the same
+	# fix ColonistMoodletVisualizer applies via the shared resolver).
+	var grouped_lines: Dictionary = _group_moodlets_by_line(valid_moodlets, max_icons)
+	var active_lines: Array[int] = _get_sorted_active_lines(grouped_lines)
+	var count: int = _count_grouped_sprites(grouped_lines, active_lines)
+
+	# 2. Capacity Assurance: Ensure sufficient Sprite3D instances exist in the pool.
 	_ensure_sprite_capacity(count)
-	
-	# 2. Active Layout: Position and assign textures to active sprites grouped by line number.
-	_layout_active_sprites(valid_moodlets, count)
-	
-	# 3. Inactive Cleanup: Hide surplus sprite instances beyond the active count.
+
+	# 3. Active Layout: Position and assign textures to active sprites grouped by line number.
+	_position_grouped_sprites(grouped_lines, active_lines)
+
+	# 4. Inactive Cleanup: Hide surplus sprite instances beyond the active count.
 	_hide_surplus_sprites(count)
 
 
@@ -139,39 +138,19 @@ func _ensure_sprite_capacity(required_count: int) -> void:
 		_sprites.append(sprite)
 
 
-func _layout_active_sprites(valid_moodlets: Array[Dictionary], count: int) -> void:
-	## Auxiliary: Configures billboard textures, hframes, and positions sprites across active lines.
-	# 1. Line Grouping: Group the capped active moodlets by line number.
-	var grouped_lines: Dictionary = _group_moodlets_by_line(valid_moodlets, count)
-	
-	# 2. Active Line Sorting: Extract unique active line numbers in ascending order.
-	var active_lines: Array[int] = _get_sorted_active_lines(grouped_lines)
-	
-	# 3. Grid Positioning: Layout sprites in compacted rows above the entity.
-	_position_grouped_sprites(grouped_lines, active_lines)
+func _group_moodlets_by_line(valid_moodlets: Array[Dictionary], per_line_cap: int) -> Dictionary:
+	## Auxiliary: Delegates per-row grouping/capping to the shared layout resolver.
+	return MoodletLayoutResolver.group_moodlets_by_line(valid_moodlets, per_line_cap)
 
 
-func _group_moodlets_by_line(valid_moodlets: Array[Dictionary], count: int) -> Dictionary:
-	## Auxiliary: Buckets active moodlet records by their line_number property.
-	var grouped: Dictionary = {}
-	for i in range(count):
-		var moodlet_data: Dictionary = valid_moodlets[i]
-		var m_def: MoodletDef = moodlet_data.get("def", null) as MoodletDef
-		var line_num: int = m_def.line_number if m_def != null else 0
-		if not grouped.has(line_num):
-			grouped[line_num] = []
-		var line_list: Array = grouped[line_num]
-		line_list.append(moodlet_data)
-	return grouped
+func _count_grouped_sprites(grouped_lines: Dictionary, active_lines: Array[int]) -> int:
+	## Auxiliary: Delegates active-sprite counting to the shared layout resolver.
+	return MoodletLayoutResolver.count_grouped_sprites(grouped_lines, active_lines)
 
 
 func _get_sorted_active_lines(grouped_lines: Dictionary) -> Array[int]:
-	## Auxiliary: Extracts sorted ascending line numbers from grouped dictionary.
-	var keys: Array[int] = []
-	for k in grouped_lines.keys():
-		keys.append(int(k))
-	keys.sort()
-	return keys
+	## Auxiliary: Delegates sorted-line extraction to the shared layout resolver.
+	return MoodletLayoutResolver.get_sorted_active_lines(grouped_lines)
 
 
 func _position_grouped_sprites(grouped_lines: Dictionary, active_lines: Array[int]) -> void:

@@ -27,7 +27,12 @@ class_name WildFloraDef
 ## e.g. 0 = revert to sprout/sapling; 1 = revert to mature defruited bush.
 @export var regrowth_stage_index: int = 0
 
-## Initial growth variance when spawned on fresh map load.
+## Randomized growth range applied when a freshly spawned instance has no
+## saved state — e.g. hand-authored map markers, or PlantSpawner regrowth
+## after felling drops the map below its target flora density. PlantSpawner
+## overrides this to full maturity (1.0) instead while first filling a fresh
+## map up to that target density — see plant_spawner.gd's
+## _reached_target_population.
 @export_range(0.0, 1.0) var initial_growth_min: float = 0.3
 @export_range(0.0, 1.0) var initial_growth_max: float = 1.0
 
@@ -39,6 +44,10 @@ class_name WildFloraDef
 
 ## Ordered list of growth stages. If empty, get_effective_stages() automatically synthesizes a mature stage.
 @export var stages: Array[WildFloraStage] = []
+
+## Configured moodlets to evaluate and display in order of priority (ARCH
+## wild-flora.md "Moodlet System").
+@export var moodlet_defs: Array[MoodletDef] = []
 
 
 ## Returns the active stages list, synthesizing a default mature stage if stages is empty.

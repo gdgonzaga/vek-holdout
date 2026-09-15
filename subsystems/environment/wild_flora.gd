@@ -5,6 +5,7 @@ extends Furniture
 ## real-time axe damage resolution, and perennial fruit foraging cycles.
 
 const STATE_KEY_GROWTH := "growth_progress"
+const _VisualizerScript = preload("res://subsystems/environment/wild_flora_moodlet_visualizer.gd")
 
 @export var growth_progress: float = 0.0: set = set_growth_progress
 
@@ -29,6 +30,11 @@ func _ready() -> void:
 
 	# 3. Stage State Synchronization: Instantiate visual representation and configure HP.
 	_sync_to_current_stage(true)
+
+	# 4. Moodlet Visualizer Setup: Self-heal a missing billboard visualizer node
+	# (declared in new_wild_flora_template.tscn; a future alternate template
+	# that omits it still gets one, mirroring EnemyBase._setup_moodlet_visualizer).
+	_setup_moodlet_visualizer()
 
 
 func _process(delta: float) -> void:
@@ -118,6 +124,35 @@ func get_current_stage() -> WildFloraStage:
 	return flora_def.get_stage_for_progress(growth_progress)
 
 
+## Implements the IStatProvider contract (subsystems/core/i_stat_provider.gd).
+## Returns the normalized (0.0 to 1.0) ratio for a given stat, or -1.0 if unknown.
+func get_stat_ratio(stat_name: StringName) -> float:
+	return _resolve_stat_ratio(stat_name)
+
+
+## Returns the raw scalar value for a given stat, or -1.0 if unknown.
+func get_stat_value(stat_name: StringName) -> float:
+	return _resolve_stat_value(stat_name)
+
+
+## Returns the current interaction-state identifier — &"marked_for_harvest",
+## &"forageable", &"depleted", or &"choppable" (first match wins) — or &""
+## if none apply. Consumed by ActivityMoodletDef the same way a colonist's
+## current labor is.
+func get_current_activity() -> StringName:
+	return _resolve_current_activity()
+
+
+## Returns all currently active moodlets evaluated from the flora def's
+## moodlet_defs in order. Same Dictionary shape as Colonist/EnemyBase:
+## { "def": MoodletDef, "index": int, "texture": Texture2D, "name": String }.
+func get_active_moodlets() -> Array[Dictionary]:
+	var flora_def := _get_flora_def()
+	if flora_def == null or flora_def.moodlet_defs.is_empty():
+		return []
+	return MoodletLayoutResolver.evaluate_active_moodlets(self, flora_def.moodlet_defs)
+
+
 # =============================================================================
 # Auxiliary Functions (Step-down narrative order)
 # =============================================================================
@@ -164,6 +199,15 @@ func _apply_movement_collision_policy() -> void:
 		for child in mesh_node.get_children():
 			if child is StaticBody3D:
 				(child as StaticBody3D).set_collision_layer_value(1, should_block)
+
+
+func _setup_moodlet_visualizer() -> void:
+	## Auxiliary: Instantiates and binds WildFloraMoodletVisualizer if not already attached.
+	var visualizer := get_node_or_null("WildFloraMoodletVisualizer") as WildFloraMoodletVisualizer
+	if not visualizer:
+		visualizer = _VisualizerScript.new() as WildFloraMoodletVisualizer
+		visualizer.name = "WildFloraMoodletVisualizer"
+		add_child(visualizer)
 
 
 func _sync_to_current_stage(is_first_sync: bool) -> void:
@@ -406,6 +450,89 @@ func _spawn_splinter_particles(pos: Vector3, color: Color) -> void:
 	
 	var timer := tree.create_timer(0.35)
 	timer.timeout.connect(particles.queue_free)
+
+
+func _resolve_stat_ratio(stat_name: StringName) -> float:
+	## Auxiliary: Resolves normalized 0.0 to 1.0 ratio for HP, or delegates
+	## &"work_progress" to the sibling Harvestable capability component.
+	match stat_name:
+		&"hp", &"health":
+			if health_component != null and health_component.max_hp > 0:
+				return float(health_component.current_hp) / float(health_component.max_hp)
+			return 0.0
+		&"work_progress":
+			var h := _get_harvestable()
+			return h.get_stat_ratio(stat_name) if h != null else -1.0
+		_:
+			return -1.0
+
+
+func _resolve_stat_value(stat_name: StringName) -> float:
+	## Auxiliary: Resolves raw value for HP, or delegates &"work_progress" to
+	## the sibling Harvestable capability component.
+	match stat_name:
+		&"hp", &"health":
+			return float(health_component.current_hp) if health_component != null else -1.0
+		&"work_progress":
+			var h := _get_harvestable()
+			return h.get_stat_value(stat_name) if h != null else -1.0
+		_:
+			return -1.0
+
+
+func _resolve_current_activity() -> StringName:
+	## Auxiliary: Walks the interaction-state priority chain — marked for
+	## colonist harvest, ripe for foraging, recently depleted, or choppable
+	## timber — first match wins. marked_for_harvest is currently inert (no
+	## content sets harvest_params on WildFloraDef yet, so nothing can toggle
+	## it) — forward-looking scaffolding for the tree-chop job flow described
+	## in job-extensions.md, not a bug.
+	var h := _get_harvestable()
+	if h != null and h.is_marked_for_harvest():
+		return &"marked_for_harvest"
+	if can_forage():
+		return &"forageable"
+	if _is_depleted_fruit_stage():
+		return &"depleted"
+	if _is_choppable():
+		return &"choppable"
+	return &""
+
+
+func _is_depleted_fruit_stage() -> bool:
+	## Auxiliary: True when the flora sits exactly at its configured
+	## regrowth_stage_index — the "mature, defruited" stage forage() resets
+	## to — and that stage isn't currently ripe. Anchoring on the regrowth
+	## stage index (rather than "bears fruit at some stage") avoids
+	## misclassifying a young sapling still growing toward its first harvest
+	## as depleted.
+	var flora_def := _get_flora_def()
+	if flora_def == null:
+		return false
+	var eff_stages := flora_def.get_effective_stages()
+	var idx := flora_def.regrowth_stage_index
+	if idx < 0 or idx >= eff_stages.size():
+		return false
+	return _active_stage_index == idx and not can_forage()
+
+
+func _is_choppable() -> bool:
+	## Auxiliary: True for solid timber that can still be felled — the same
+	## tags _calculate_effective_damage() already checks for axe scaling.
+	if health_component != null and health_component.is_dead:
+		return false
+	return has_tag("tree") or has_tag("timber") or has_tag("wood")
+
+
+func _get_harvestable() -> Harvestable:
+	## Auxiliary: Resolves and caches the sibling Harvestable capability
+	## component, self-healing if queried before _ready() has run —
+	## WildFloraMoodletVisualizer (a child) evaluates moodlets in its own
+	## _ready(), which Godot runs before this node's own _ready() (mirrors
+	## Colonist.get_max_hp()'s health_component guard).
+	if harvestable == null:
+		harvestable = get_node_or_null("Harvestable") as Harvestable
+	return harvestable
 
 
 func _get_flora_def() -> WildFloraDef:
