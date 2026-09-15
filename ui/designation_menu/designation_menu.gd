@@ -140,4 +140,4 @@ func _select_tool(tool_id: String, target_area_id: String = "") -> void:
 	## Auxiliary: Emits tool selected signal and dismisses the menu.
 	EventBus.area_designation_tool_selected.emit(tool_id, target_area_id)
 	tool_selected.emit(tool_id, target_area_id)
-	close()
+	queue_free()

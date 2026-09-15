@@ -837,6 +837,8 @@ func open_designation_menu() -> void:
 
 
 func _on_area_designation_tool_selected(_tool_id: String, _target_area_id: String) -> void:
+	# 1. Listener Teardown: Disconnects closed callback to ensure dismissal does not override active mode.
+	_disconnect_designation_menu_closed()
 	_designation_menu = null
 	mode = Mode.AREA_DESIGNATION
 	EventBus.area_designation_toggled.emit(true)
@@ -850,6 +852,12 @@ func _on_designation_menu_closed() -> void:
 func _exit_area_designation_mode() -> void:
 	mode = Mode.NORMAL
 	EventBus.area_designation_toggled.emit(false)
+
+
+func _disconnect_designation_menu_closed() -> void:
+	## Auxiliary: Disconnects the designation menu closed listener if currently wired.
+	if _designation_menu != null and _designation_menu.closed.is_connected(_on_designation_menu_closed):
+		_designation_menu.closed.disconnect(_on_designation_menu_closed)
 
 
 ## Returns true if the player's lower body is submerged in a fluid/water voxel cell.

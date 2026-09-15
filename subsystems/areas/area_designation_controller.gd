@@ -113,6 +113,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_left_click()
 			get_viewport().set_input_as_handled()
 			return
+		elif btn == MOUSE_BUTTON_RIGHT:
+			if _stage == Stage.CORNER_A_PICKED:
+				# 1. Stage Cancellation: Resets corner A selection and reverts to initial picking stage.
+				_handle_right_click()
+				get_viewport().set_input_as_handled()
+				return
 
 
 func _physics_process(_delta: float) -> void:
@@ -236,6 +242,12 @@ func _handle_left_click() -> void:
 		_commit_tool_action(min_c, max_c)
 		_stage = Stage.IDLE
 		EventBus.area_designation_stage_changed.emit("pick corner A")
+
+
+func _handle_right_click() -> void:
+	## Auxiliary: Cancels locked corner A selection and reverts to stage IDLE.
+	_stage = Stage.IDLE
+	EventBus.area_designation_stage_changed.emit("pick corner A")
 
 
 func _commit_tool_action(min_c: Vector3i, max_c: Vector3i) -> void:
@@ -370,9 +382,9 @@ func _is_tree_flora(flora: WildFlora) -> bool:
 
 
 func _is_forageable_flora(flora: WildFlora) -> bool:
-	## Auxiliary: Evaluates whether the given flora is fruit-bearing or can be foraged.
-	if flora.has_tag("fruit_bearing") or flora.has_tag("bush") or flora.has_tag("forage"):
-		return true
+	## Auxiliary: Evaluates whether the given flora currently has fruit ready to forage.
+	if flora == null or flora.is_queued_for_deletion():
+		return false
 	return flora.can_forage()
 
 

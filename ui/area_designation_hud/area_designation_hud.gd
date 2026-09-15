@@ -79,4 +79,4 @@ func _update_instructions() -> void:
 	if _current_stage == "pick corner A":
 		_instructions_label.text = "LMB: Set First Corner (A)\nT: Menu · Esc: Cancel"
 	else:
-		_instructions_label.text = "LMB: Set Second Corner (B) to Commit\nT: Menu · Esc: Cancel"
+		_instructions_label.text = "LMB: Set Second Corner (B) to Commit\nRMB: Reset Corner · T: Menu · Esc: Cancel"

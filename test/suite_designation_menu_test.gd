@@ -195,3 +195,72 @@ func test_controller_tool_readouts() -> void:
 	assert_str(recorded[3]["label"]).is_equal("Cancel Orders")
 
 	EventBus.area_designation_tool_changed.disconnect(signal_conn)
+
+
+func test_menu_tool_selection_does_not_emit_closed() -> void:
+	var menu: DesignationMenu = auto_free(_DesignationMenuScene.instantiate()) as DesignationMenu
+	add_child(menu)
+
+	var closed_emitted: Array[bool] = []
+	menu.closed.connect(func() -> void: closed_emitted.append(true))
+
+	var forage_btn: Button = menu.get_node("%ForageButton") as Button
+	forage_btn.pressed.emit()
+
+	assert_int(closed_emitted.size()).is_equal(0)
+
+
+func test_menu_escape_emits_closed() -> void:
+	var menu: DesignationMenu = auto_free(_DesignationMenuScene.instantiate()) as DesignationMenu
+	add_child(menu)
+
+	var closed_emitted: Array[bool] = []
+	menu.closed.connect(func() -> void: closed_emitted.append(true))
+
+	var ev_esc := InputEventAction.new()
+	ev_esc.action = "ui_cancel"
+	ev_esc.pressed = true
+	menu._unhandled_input(ev_esc)
+
+	assert_int(closed_emitted.size()).is_equal(1)
+
+
+func test_controller_right_click_resets_corner_a() -> void:
+	var ctrl: AreaDesignationController = auto_free(AreaDesignationController.new()) as AreaDesignationController
+	add_child(ctrl)
+	ctrl.set_active(true)
+
+	ctrl._stage = AreaDesignationController.Stage.CORNER_A_PICKED
+	var stages_emitted: Array[String] = []
+	var cb := func(stage_name: String) -> void: stages_emitted.append(stage_name)
+	EventBus.area_designation_stage_changed.connect(cb)
+
+	var rmb_ev := InputEventMouseButton.new()
+	rmb_ev.button_index = MOUSE_BUTTON_RIGHT
+	rmb_ev.pressed = true
+	ctrl._unhandled_input(rmb_ev)
+
+	assert_int(ctrl._stage).is_equal(AreaDesignationController.Stage.IDLE)
+	assert_int(stages_emitted.size()).is_equal(1)
+	assert_str(stages_emitted[0]).is_equal("pick corner A")
+
+	EventBus.area_designation_stage_changed.disconnect(cb)
+
+
+func test_player_ui_cancel_exits_area_designation_mode() -> void:
+	var player: Player = _sandbox.make_player()
+
+	EventBus.area_designation_tool_selected.emit("forage", "")
+	assert_int(player.mode).is_equal(Player.Mode.AREA_DESIGNATION)
+
+	var toggle_events: Array[bool] = []
+	var toggle_cb := func(active: bool) -> void: toggle_events.append(active)
+	EventBus.area_designation_toggled.connect(toggle_cb)
+
+	player._on_ui_cancel()
+
+	assert_int(player.mode).is_equal(Player.Mode.NORMAL)
+	assert_int(toggle_events.size()).is_equal(1)
+	assert_bool(toggle_events[0]).is_false()
+
+	EventBus.area_designation_toggled.disconnect(toggle_cb)

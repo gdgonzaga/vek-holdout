@@ -45,7 +45,7 @@ The Areas & Orders subsystem provides player-designated persistent regions in th
 7. `AreaDesignationController` sets `active_tool` and `target_area_id`, emits `EventBus.area_designation_tool_changed(tool_id, tool_label)`, and activates. If painting or erasing, it creates translucent highlight box meshes in the world showing the area's current footprint.
 8. `AreaDesignationHud` updates its header to the active tool name and shows stage instructions.
 9. First LMB click locks Corner A (`_stage = Stage.CORNER_A_PICKED`).
-10. Moving the cursor stretches the `GhostPreview` box across X, Y, and Z.
+10. Moving the cursor stretches the `GhostPreview` box across X, Y, and Z (RMB cancels the locked Corner A and reverts to Stage 1).
 11. Second LMB click commits the volume:
     - **New Area:** Calls `Colony.area_manager.create_area(min_cell, max_cell)`.
     - **Paint Area:** Calls `Colony.area_manager.paint_area(target_area_id, min_cell, max_cell)` and updates highlight meshes.
