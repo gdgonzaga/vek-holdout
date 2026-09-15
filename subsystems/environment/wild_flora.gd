@@ -5,6 +5,7 @@ extends Furniture
 ## real-time axe damage resolution, and perennial fruit foraging cycles.
 
 const STATE_KEY_GROWTH := "growth_progress"
+const FORAGE_OPTION_PATH := "res://data/action_options/forage_action_option.tres"
 
 @export var growth_progress: float = 0.0: set = set_growth_progress
 
@@ -96,6 +97,19 @@ func forage(actor: Node) -> bool:
 	if GameLog != null:
 		GameLog.info("Harvested %s" % label)
 	return true
+
+
+## Synchronizes available player interaction options based on fruit maturity.
+func refresh_interaction_options() -> void:
+	var interaction := get_node_or_null("InteractionComponent") as InteractionComponent
+	if interaction == null:
+		return
+	var opts: Array[ActionOption] = []
+	if can_forage():
+		var opt := load(FORAGE_OPTION_PATH) as ActionOption
+		if opt != null:
+			opts.append(opt)
+	interaction.action_options = opts
 
 
 ## Physical damage entry point (weapons, tools, raid attacks, explosions).
@@ -192,6 +206,9 @@ func _sync_to_current_stage(is_first_sync: bool) -> void:
 	
 	# 3. Collision Scaling: Scale BuildCollider based on stage visual scale.
 	_scale_interaction_collider(stage.visual_scale)
+	
+	# 4. Interaction Refresh: Synchronize available interaction options for the active stage.
+	refresh_interaction_options()
 
 
 func _update_stage_visuals(stage: WildFloraStage, flora_def: WildFloraDef) -> void:

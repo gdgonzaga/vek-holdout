@@ -162,12 +162,18 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 			var interaction := InteractionComponent.new()
 			interaction.name = "InteractionComponent"
 			interaction.display_name = def.display_name
-			interaction.action_options = [FORAGE_OPTION]
+			var opts: Array[ActionOption] = []
+			if flora_root.can_forage():
+				var opt := FORAGE_OPTION as ActionOption
+				if opt != null:
+					opts.append(opt)
+			interaction.action_options = opts
 			flora_root.add_child(interaction)
 		
 		var harvestable := Harvestable.new()
 		harvestable.name = "Harvestable"
 		flora_root.add_child(harvestable)
+		flora_root.harvestable = harvestable
 		var visualizer := PlantMoodletVisualizer.new()
 		visualizer.name = "PlantMoodletVisualizer"
 		flora_root.add_child(visualizer)

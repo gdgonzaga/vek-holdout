@@ -118,9 +118,9 @@ func effective_work_time() -> float:
 func complete(actor: Node) -> bool:
 	var order := get_order_type()
 	if order == "forage" and _furniture != null and _furniture.has_method("forage"):
-		_furniture.call("forage", actor)
+		var success: bool = bool(_furniture.call("forage", actor))
 		set_marked(false)
-		return true
+		return success
 
 	var growable := _furniture.get_node_or_null("Growable") as Growable if _furniture != null else null
 

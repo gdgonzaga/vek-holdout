@@ -235,3 +235,48 @@ func test_wild_flora_collider_scaling_and_grounded_position() -> void:
 	assert_float(build_shape.scale.y).is_equal_approx(1.0, 0.01)
 	assert_float(build_shape.position.y).is_equal_approx(2.0, 0.01)
 
+
+func test_wild_flora_interaction_options_sync_with_maturity() -> void:
+	var def := _create_test_flora_def("test_interact_flora")
+	var item_amount := ItemAmount.new()
+	var dummy_item := ItemDef.new()
+	dummy_item.id = "test_fruit"
+	item_amount.item_def = dummy_item
+	item_amount.count = 2
+	def.stages[2].can_harvest_fruit = true
+	def.stages[2].harvest_yields = [item_amount]
+	
+	var anchor := Vector3i(18, 0, 18)
+	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
+	var flora := node as WildFlora
+	var interaction := flora.get_node_or_null("InteractionComponent") as InteractionComponent
+	assert_object(interaction).is_not_null()
+	
+	# Initial unripe progress (0.5) -> action_options should be empty
+	flora.set_growth_progress(0.5)
+	assert_bool(flora.can_forage()).is_false()
+	assert_bool(interaction.action_options.is_empty()).is_true()
+	
+	# Mature progress (1.0) -> action_options has FORAGE_OPTION
+	flora.set_growth_progress(1.0)
+	assert_bool(flora.can_forage()).is_true()
+	assert_int(interaction.action_options.size()).is_equal(1)
+	
+	# Check HarvestJobDef is_available
+	var job_def := HarvestJobDef.new()
+	var job_dict := { "target_node": flora.harvestable }
+	flora.harvestable.set_order_type("forage")
+	flora.harvestable.set_marked(true)
+	assert_bool(job_def.is_available(job_dict)).is_true()
+	
+	# Foraging resets growth back to stage 1 (0.5) -> action_options emptied and job becomes unavailable
+	var success := flora.forage(null)
+	assert_bool(success).is_true()
+	assert_bool(flora.can_forage()).is_false()
+	assert_bool(interaction.action_options.is_empty()).is_true()
+	
+	# Marked job is no longer available because plant cannot be foraged
+	flora.harvestable.set_marked(true)
+	assert_bool(job_def.is_available(job_dict)).is_false()
+	assert_bool(job_def.should_close(job_dict)).is_true()
+

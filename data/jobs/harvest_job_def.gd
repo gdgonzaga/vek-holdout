@@ -23,10 +23,17 @@ func complete(actor: Node, job: Variant) -> void:
 	_finish(actor, job)
 
 
-## Claimable while the target is a live, still-marked Harvestable.
+## Claimable while the target is a live, still-marked Harvestable with valid harvest state.
 func is_available(job: Variant) -> bool:
 	var harvestable := _harvestable_of_job(job)
-	return harvestable != null and harvestable.is_marked_for_harvest()
+	if harvestable == null or not harvestable.is_marked_for_harvest():
+		return false
+	if harvestable.get_order_type() == "forage":
+		var target := harvestable.get_parent()
+		var flora := target as WildFlora
+		if flora != null and not flora.can_forage():
+			return false
+	return true
 
 
 ## Leaves the board when the target is gone or unmarked (Harvestable.complete

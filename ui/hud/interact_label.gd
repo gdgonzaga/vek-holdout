@@ -45,6 +45,8 @@ func update_display(component: InteractionComponent, player: Player) -> void:
 	# Action hint from first option.
 	if component.action_options.is_empty():
 		_action_label.visible = false
+		if component.info_text == "":
+			visible = false
 		return
 
 	var option: ActionOption = component.action_options[0]
