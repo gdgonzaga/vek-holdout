@@ -9,9 +9,8 @@ point_count = 2
 [resource]
 script = ExtResource("1_m8rik")
 id = &"recreation"
-decay_per_game_hour = 1.5
+decay_per_game_hour = 0.08
 response_curve = SubResource("Curve_iekbe")
 emergency_threshold = 0.05
-release_threshold = 0.5
 goal_name = &"recreation"
 target_group = &"recreation_object"
