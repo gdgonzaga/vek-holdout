@@ -148,14 +148,6 @@ func _count_grouped_sprites(grouped_lines: Dictionary, active_lines: Array[int])
 	return MoodletLayoutResolver.count_grouped_sprites(grouped_lines, active_lines)
 
 
-func _count_grouped_sprites(grouped_lines: Dictionary, active_lines: Array[int]) -> int:
-	## Auxiliary: Sums sprite counts across all active lines after per-line capping.
-	var total := 0
-	for line_num in active_lines:
-		total += (grouped_lines[line_num] as Array).size()
-	return total
-
-
 func _get_sorted_active_lines(grouped_lines: Dictionary) -> Array[int]:
 	## Auxiliary: Delegates sorted-line extraction to the shared layout resolver.
 	return MoodletLayoutResolver.get_sorted_active_lines(grouped_lines)
