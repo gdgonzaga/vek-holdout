@@ -106,6 +106,10 @@ func populate_initial_flora() -> int:
 	# attempt_spawn() ticks keep dressing the map, not growing it, until the
 	# cap is actually reached.
 	_update_target_population_latch()
+	print("[FLORA_DEBUG] populate_initial_flora: placed=%d cap=%d attempts=%d/%d reached_target=%s live_count=%d" % [
+		initial_placed, _map_def.flora_spawn_cap, total_attempts, max_total_attempts,
+		_reached_target_population, get_live_flora_count()
+	])
 	return initial_placed
 
 
@@ -210,6 +214,9 @@ func _try_spawn_at_random_location(force_mature: bool = false) -> bool:
 	var spawned_node: Node3D = _furniture_layer.spawn(chosen_def, anchor, yaw)
 	if spawned_node != null:
 		_cached_flora_count += 1
+		print("[FLORA_DEBUG] _try_spawn_at_random_location: def_id=%s force_mature=%s is_wild_flora=%s node_class=%s" % [
+			chosen_def.id, force_mature, spawned_node is WildFlora, spawned_node.get_class()
+		])
 		# 8. Initial Maturity Override: Force full growth when populating a
 		# fresh map, overriding whatever random progress _ready() just picked.
 		if force_mature and spawned_node is WildFlora:

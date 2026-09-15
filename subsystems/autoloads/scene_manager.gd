@@ -225,7 +225,9 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 	# the parked state owns the furniture set (applying authored markers too
 	# would double-spawn every piece).
 	if furniture_layer != null:
-		if SaveSystem.apply_parked_state_if_any(map_def.id, m):
+		var _had_parked_state := SaveSystem.apply_parked_state_if_any(map_def.id, m)
+		print("[FLORA_DEBUG] _wire_map: map_id=%s had_parked_state=%s" % [map_def.id, _had_parked_state])
+		if _had_parked_state:
 			pass  # parked state applied; skip authored replay
 		else:
 			for rec in spawns.get("furniture", []):

@@ -59,6 +59,7 @@ func _process(delta: float) -> void:
 ## Sets the current growth progress (0.0 to 1.0) and updates stage visuals if changed.
 func set_growth_progress(val: float) -> void:
 	var clamped := clampf(val, 0.0, 1.0)
+	print("[FLORA_DEBUG] set_growth_progress: def_id=%s old=%s new=%s" % [def_id, growth_progress, clamped])
 	growth_progress = clamped
 	state[STATE_KEY_GROWTH] = growth_progress
 	
@@ -178,6 +179,7 @@ func _initialize_growth_progress() -> void:
 	## Auxiliary: Restores growth progress from saved state or randomizes initial range.
 	if state.has(STATE_KEY_GROWTH):
 		growth_progress = float(state[STATE_KEY_GROWTH])
+		print("[FLORA_DEBUG] _initialize_growth_progress: def_id=%s restored_from_state=%s" % [def_id, growth_progress])
 	else:
 		var flora_def := _get_flora_def()
 		if flora_def != null:
@@ -187,6 +189,7 @@ func _initialize_growth_progress() -> void:
 		else:
 			growth_progress = 1.0
 		state[STATE_KEY_GROWTH] = growth_progress
+		print("[FLORA_DEBUG] _initialize_growth_progress: def_id=%s randomized=%s" % [def_id, growth_progress])
 
 
 func _apply_movement_collision_policy() -> void:
