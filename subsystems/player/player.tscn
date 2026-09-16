@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://cmyq8fcs7beph" path="res://subsystems/player/player_animation_controller.gd" id="14_animctrl"]
 [ext_resource type="Script" uid="uid://bufhbvdq71j4l" path="res://subsystems/colonists/command_controller.gd" id="15_cmdctrl"]
 [ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="16_health"]
+[ext_resource type="Script" path="res://subsystems/core/look_lean.gd" id="17_looklean"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
@@ -191,6 +192,9 @@ parameters/ActionSelect/current_index = -1
 
 [node name="AnimationController" type="Node" parent="." unique_id=198273645]
 script = ExtResource("14_animctrl")
+
+[node name="LookLean" type="Node" parent="."]
+script = ExtResource("17_looklean")
 
 [node name="GroundSafetyGuard" type="Node" parent="." unique_id=2025990310]
 script = ExtResource("8_ip60t")

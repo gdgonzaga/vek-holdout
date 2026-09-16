@@ -1,6 +1,7 @@
 ## Subsystem: Colonists
 ## Modular animation controller component attached as a child node to Colonist (CharacterBody3D).
-## Automatically binds skeleton, drives AnimationTree parameters, and handles facing orientation.
+## Automatically binds skeleton, drives AnimationTree parameters, and handles facing orientation
+## and looking at the current work or combat target.
 class_name ColonistAnimationController
 extends Node
 
@@ -16,8 +17,21 @@ extends Node
 ## Rotation lerp speed for facing direction
 @export var rotation_speed: float = 15.0
 
+## Look lean component fed the pitch toward the look target each frame; its knobs live on that node (auto-resolves if empty)
+@export var look_lean: LookLean
+
 ## Cached parent Colonist reference
-var _colonist: CharacterBody3D
+var _colonist: Colonist
+
+## Node being looked at (null when looking at a fixed point or at nothing)
+var _look_target: Node3D = null
+
+## _look_target's center mass in its own local space, resolved once when set so a moving target stays tracked
+var _look_target_local_center: Vector3 = Vector3.ZERO
+
+## Fixed world point being looked at, valid while _has_look_point is true
+var _look_point: Vector3 = Vector3.ZERO
+var _has_look_point: bool = false
 
 ## Cached StateMachinePlayback parameter interface
 var _playback: AnimationNodeStateMachinePlayback
@@ -38,7 +52,7 @@ var _warned_missing: Array[StringName] = []
 
 
 func _ready() -> void:
-	_colonist = get_parent() as CharacterBody3D
+	_colonist = get_parent() as Colonist
 	
 	if _colonist:
 		# Ensure old prototype capsule mesh is hidden
@@ -57,11 +71,17 @@ func _ready() -> void:
 			
 		if visuals:
 			visuals.visible = true
+
+		if not look_lean:
+			look_lean = _colonist.get_node_or_null("LookLean") as LookLean
 			
 		# Enable AnimationTree and cache the locomotion StateMachine playback interface
 		if anim_tree:
 			anim_tree.active = true
 			_playback = anim_tree.get("parameters/Locomotion/playback") as AnimationNodeStateMachinePlayback
+			# The look lean composes onto this tree's output, so this node must
+			# process after the tree whatever order the scene lists them in.
+			process_priority = anim_tree.process_priority + 1
 			
 		# 1. Skeleton Re-homing: Ensure the imported skeleton has the unique name 'GeneralSkeleton'.
 		_setup_skeleton()
@@ -71,11 +91,18 @@ func _process(delta: float) -> void:
 	if not _colonist:
 		return
 	
-	# 1. Mesh Facing Direction: Lerp visual container towards horizontal movement vector.
-	_update_mesh_rotation(delta)
+	# 1. Look Point Resolution: Where the colonist looks this frame (null when not working or fighting).
+	var look_point: Variant = _resolve_look_point()
+
+	# 2. Mesh Facing Direction: Lerp visual container towards the look point, else the movement vector.
+	_update_mesh_rotation(delta, look_point)
 	
-	# 2. Animation Parameter Evaluation: Update blend position, jump states, and floor status.
+	# 3. Animation Parameter Evaluation: Update blend position, jump states, and floor status.
 	_update_animation_state()
+
+	# 4. Look Lean: Bend the torso/head toward the look point (level without one), on top of the tree's pose.
+	if anim_tree and look_lean:
+		look_lean.apply(_look_pitch_toward(look_point), delta)
 
 
 ## Triggers an upper-body one-shot action animation (e.g. "Digging", "Interact", "AttackOverhead").
@@ -138,6 +165,33 @@ func face_target(target_pos: Vector3, delta: float = -1.0) -> void:
 		visuals.rotation.y = target_angle
 
 
+## Keeps the colonist facing and leaning toward target's center mass until cleared.
+## Re-setting the current target is a no-op, so callers may set it every tick.
+func set_look_target(target: Node3D) -> void:
+	if target == null:
+		clear_look_target()
+		return
+	if _look_target == target:
+		return
+	_has_look_point = false
+	_look_target = target
+	# 1. Center Resolution: Cache the center mass in target-local space so a moving target stays tracked.
+	_look_target_local_center = target.global_transform.affine_inverse() * VisualBounds.world_center(target)
+
+
+## Keeps the colonist facing and leaning toward a fixed world point until cleared.
+func set_look_point(point: Vector3) -> void:
+	_look_target = null
+	_look_point = point
+	_has_look_point = true
+
+
+## Returns the colonist to movement facing and eases the lean back to level.
+func clear_look_target() -> void:
+	_look_target = null
+	_has_look_point = false
+
+
 ## Auxiliary: Maps incoming generic action or weapon animation names to valid ActionSelect transition names
 func _resolve_action_animation_name(action_name: StringName) -> StringName:
 	var name_str := String(action_name).to_lower()
@@ -155,9 +209,22 @@ func _resolve_action_animation_name(action_name: StringName) -> StringName:
 # Auxiliary Functions (Step-down narrative order)
 # =============================================================================
 
-## Auxiliary: Rotates the visual mesh towards the movement direction of the parent Colonist
-func _update_mesh_rotation(delta: float) -> void:
+## Auxiliary: Current look point, or null with none; a freed or removed target clears itself
+func _resolve_look_point() -> Variant:
+	if _has_look_point:
+		return _look_point
+	if not is_instance_valid(_look_target) or not _look_target.is_inside_tree():
+		_look_target = null
+		return null
+	return _look_target.global_transform * _look_target_local_center
+
+
+## Auxiliary: Rotates the visual mesh towards the look point when there is one, else the movement direction
+func _update_mesh_rotation(delta: float, look_point: Variant) -> void:
 	if not visuals:
+		return
+	if look_point is Vector3:
+		face_target(look_point, delta)
 		return
 	
 	var horiz_vel := Vector3(_colonist.velocity.x, 0.0, _colonist.velocity.z)
@@ -239,6 +306,14 @@ func _fallback_update_animation_player_state() -> void:
 		_play_anim("Idle")
 
 
+## Auxiliary: Pitch (radians, look-up positive) from the colonist's aim origin to the look point; level with none
+func _look_pitch_toward(look_point: Variant) -> float:
+	if not (look_point is Vector3):
+		return 0.0
+	var offset: Vector3 = look_point - _colonist.get_aim_origin()
+	return atan2(offset.y, Vector2(offset.x, offset.z).length())
+
+
 ## Auxiliary: Re-homes the imported model skeleton's unique name into this scene's scope
 func _setup_skeleton() -> void:
 	if not _colonist:
@@ -249,6 +324,10 @@ func _setup_skeleton() -> void:
 		skeleton.owner = _colonist
 		if anim_player:
 			anim_player.clear_caches()
+
+		# 1. Lean Binding: Point the look lean at this skeleton's Chest/Head bones.
+		if look_lean:
+			look_lean.bind(skeleton)
 
 
 ## Auxiliary: Animations live in scene AnimationPlayer's "animations" library, so playback names resolve as "animations/Idle"

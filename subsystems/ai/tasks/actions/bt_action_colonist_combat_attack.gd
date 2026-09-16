@@ -40,7 +40,7 @@ func _tick(delta: float) -> Status:
 	if agent.has_method("set_path"):
 		agent.set_path([])
 
-	# 2. Target Facing: Continuously orient the colonist visual mesh towards the combat target.
+	# 2. Target Facing: Continuously orient the colonist towards the combat target and look at its center mass.
 	_face_target(target, delta)
 
 	if not combat.is_on_cooldown():
@@ -49,10 +49,23 @@ func _tick(delta: float) -> Status:
 	return RUNNING
 
 
+func _exit() -> void:
+	# 1. Look Release: Stop looking at the threat once this task is no longer engaged.
+	var anim_ctrl := _anim_controller()
+	if anim_ctrl != null:
+		anim_ctrl.clear_look_target()
+
+
 func _face_target(target: Node3D, delta: float) -> void:
-	## Auxiliary: Commands the colonist animation controller to face the threat target.
-	if not (agent is Node):
-		return
-	var anim_ctrl: ColonistAnimationController = (agent as Node).get_node_or_null("ColonistAnimationController") as ColonistAnimationController
+	## Auxiliary: Faces the threat target and keeps the colonist looking at its center mass.
+	var anim_ctrl := _anim_controller()
 	if anim_ctrl != null:
 		anim_ctrl.face_target(target.global_position, delta)
+		anim_ctrl.set_look_target(target)
+
+
+func _anim_controller() -> ColonistAnimationController:
+	## Auxiliary: The agent's colonist animation controller, or null when it has none.
+	if not is_instance_valid(agent) or not (agent is Node):
+		return null
+	return (agent as Node).get_node_or_null("ColonistAnimationController") as ColonistAnimationController

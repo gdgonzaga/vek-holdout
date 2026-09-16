@@ -17,6 +17,7 @@
 [ext_resource type="Script" uid="uid://b03c3i0vmdpsg" path="res://subsystems/colonists/colonist_moodlet_visualizer.gd" id="21_moodletvis"]
 [ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="22_health"]
 [ext_resource type="Script" path="res://subsystems/colonists/colonist_combat.gd" id="23_combat"]
+[ext_resource type="Script" path="res://subsystems/core/look_lean.gd" id="24_looklean"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_q70a7"]
 radius = 0.3
@@ -202,6 +203,9 @@ parameters/ActionSelect/current_index = -1
 
 [node name="ColonistAnimationController" type="Node" parent="." unique_id=198273646]
 script = ExtResource("16_animctrl")
+
+[node name="LookLean" type="Node" parent="."]
+script = ExtResource("24_looklean")
 
 [node name="GroundSafetyGuard" type="Node" parent="." unique_id=216402738]
 script = ExtResource("13_jjjcm")

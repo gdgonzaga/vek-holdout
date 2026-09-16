@@ -336,3 +336,23 @@ func test_bt_attack_faces_target_during_tick() -> void:
 		# Should have started rotating towards +X (angle ~1.57)
 		assert_float(anim_ctrl.visuals.rotation.y).is_greater(0.5)
 
+
+## While engaged the colonist keeps looking at the threat's center mass; leaving
+## the task (threat gone, branch aborted) releases the look.
+func test_bt_attack_looks_at_target_until_exit() -> void:
+	var colonist := _sandbox.make_colonist()
+	colonist.equip_item(_make_weapon(_make_melee_action(2.0)))
+	colonist.global_position = Vector3.ZERO
+	var target := _make_target(Vector3(1.0, 0, 0))
+	_blackboard.set_var(&"threat_target", target)
+
+	var task: BTAction = auto_free(BTActionColonistCombatAttackScript.new()) as BTAction
+	task.initialize(colonist, _blackboard, colonist)
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+
+	var anim_ctrl := colonist.get_node("ColonistAnimationController") as ColonistAnimationController
+	assert_object(anim_ctrl._look_target).is_same(target)
+
+	task.abort()
+	assert_that(anim_ctrl._look_target).is_null()
+

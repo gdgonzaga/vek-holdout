@@ -7,11 +7,12 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | File | Type | Responsibility |
 |---|---|---|
 | `player.tscn` / `player.gd` | Scene/Script | CharacterBody3D + camera rig. Owns movement physics (WASD + sprint + jump with mid-air momentum preservation), inline Mode+State enums, build menu interaction (opens `build_menu.tscn` on a CanvasLayer), blueprint mode entry via menu selection + B-driven navigation across three states (Normal → Menu → Placement). Exposes `get_camera()` for BuildController raycasts and `get_look_direction()` / `get_look_pitch()` for the animation controller's facing and look lean. Does NOT own raw input reading (delegates to InputComponent), combat resolution (delegates to Combat), or build UX (delegates to Build when in Blueprint mode). **TODO:** source movement stats from CharacterDef instead of `@export` vars. |
-| `player_animation_controller.gd` | Script (Node component) | Child node on the Player (`AnimationController`). Drives the scene `AnimationTree`: the `Locomotion` state machine (Idle/Walk/Sprint blend keyed by horizontal speed, plus jump states) and the upper-body `ActionOneshot` overlay (`trigger_action`). Turns `Visuals` to face the camera's look direction and leans the Chest/Head bones with camera pitch — see the "Look: Facing and Lean" flow. `_setup_skeleton()` re-homes the imported model skeleton's unique name (`GeneralSkeleton`) to the player scene root so `%GeneralSkeleton:<bone>` tracks bind — see `docs/HOWTO-use-makehuman-mixamo.md`. |
+| `player_animation_controller.gd` | Script (Node component) | Child node on the Player (`AnimationController`). Drives the scene `AnimationTree`: the `Locomotion` state machine (Idle/Walk/Sprint blend keyed by horizontal speed, plus jump states) and the upper-body `ActionOneshot` overlay (`trigger_action`). Turns `Visuals` to face the camera's look direction and feeds camera pitch to the `LookLean` node, which leans the Chest/Head bones — see the "Look: Facing and Lean" flow. `_setup_skeleton()` re-homes the imported model skeleton's unique name (`GeneralSkeleton`) to the player scene root so `%GeneralSkeleton:<bone>` tracks bind — see `docs/HOWTO-use-makehuman-mixamo.md`. |
 | `input_component.gd` | Script (Node) | Child node on the Player. Reads all raw player input and exposes it via signals (discrete actions: build toggle, primary action (LMB), interact press/release, mouse recapture, ui cancel) and per-frame query methods (`get_movement_input()`, `wants_jump()`, `wants_sprint()`). Does NOT own mouse-motion (CameraRig handles that) or mouse-mode management (Player owns that as a game-state concern). |
 | `camera_rig.gd` | Script | Programmatically constructs its own SpringArm3D + Camera3D children in `_ready()`. Mouse look (yaw on rig, pitch on spring arm) via its own `_unhandled_input` — InputComponent does not absorb mouse-motion. Zoom via spring length, collision on spring arm (layer 1). **Over-the-shoulder framing** via `Camera3D.h_offset`/`v_offset` (export `h_offset`/`v_offset`): the frustum shifts so the body sits screen-left/bottom while the aim direction stays along the spring-arm axis (no camera rotation). LMB/RMB reserved for item actions, not consumed here. |
 | `player_state_machine.gd` | Script *(planned — not yet implemented)* | Mode + State logic (Normal/Build Menu/Build Placement × Idle/Walk/Sprint/Attack/Interact/Sleep/Dead). Currently inline in `player.gd`; will be extracted as Mode+State grow. |
 | `../core/step_climber.gd` | Script (component) | Shared stair-step / hop assist, added as a `StepClimber` child of both `player.tscn` and `colonist.tscn` (lives in core — the AGENTS ambiguous-ownership rule). Ticks after the body's `move_and_slide()` and walks the player over low lips/risers up to `step_height` (0.5); `hop_height` stays 0 on the player (the Space jump remains manual). See the class reference below. |
+| `../core/look_lean.gd` | Script (component) | Shared torso/head look lean, added as a `LookLean` child of both `player.tscn` and `colonist.tscn` (lives in core — the AGENTS ambiguous-ownership rule). Holds the lean knobs and bends Chest/Head by whatever pitch its owner's animation controller feeds it each frame. See the class reference below. |
 | `Inventory` (scene child) | Scene node | `CharacterInventory`, scene-placed under `player.tscn`. Carry inventory backing `add_item`/`remove_item`/`drop_item`/`has_item`/`can_carry`. See [Inventory](inventory.md). |
 | *(code-created in `_ready`)* | — | `HungerComponent` (via `HungerComponent.ensure_on(self)`, see [Hunger](hunger.md)), `SkillSet` (unseeded — every skill reads L1 until trained by use), and `Equipment` + `EquipmentVisualizer` (via `Equipment.ensure_on(self, equipment)`, see [Equipment](equipment.md)). |
 | `command_controller.gd` | Script (Node, optional) | Child node (`CommandController`), present only when authored in the scene (`get_node_or_null`). Given the active camera in `_ready` for issuing world-space commands (e.g. colonist orders). |
@@ -103,12 +104,12 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 
 1. `_update_mesh_rotation` reads `Player.get_look_direction()` (the rig's forward, flattened to horizontal) and eases `Visuals.rotation.y` toward it at `rotation_speed`. Facing follows the camera, not the travel direction, so holding back (S) or strafing moves the body without turning it. There are no directional locomotion clips yet, so walking backward plays the forward walk cycle.
 2. `_update_animation_state` sets the `Grounded` blend position and jump transitions; the `AnimationTree` writes the resulting pose to the skeleton in its own process pass.
-3. `_apply_look_lean` reads `Player.get_look_pitch()` (radians, look-up positive), clamps it with `_clamp_look_pitch` to `look_lean_max_up_deg` / `look_lean_max_down_deg`, and eases toward it at `look_lean_smoothing` (frame-rate independent). The lean is split between the `Chest` bone (`look_lean_chest_share`) and the `Head` bone (the rest), each composed onto the pose the tree just wrote as an extra local-X rotation. This rig bends forward on positive local-X rotation, so the applied lean is the negated pitch: looking up leans back, looking down leans forward.
+3. The controller passes `Player.get_look_pitch()` (radians, look-up positive) to `LookLean.apply`, which clamps it to `max_up_deg` / `max_down_deg` and eases toward it at `smoothing` (frame-rate independent). The lean is split between the `Chest` bone (`chest_share`) and the `Head` bone (the rest), each composed onto the pose the tree just wrote as an extra local-X rotation. This rig bends forward on positive local-X rotation, so the applied lean is the negated pitch: looking up leans back, looking down leans forward.
 4. Ordering: `_ready` sets the controller's `process_priority` to the tree's plus one, so step 3 always runs after the tree's pose write regardless of scene node order. The tree re-poses Chest and Head every frame, so the additive lean never accumulates. `Skeleton3D`'s deferred update then skins the mesh with the leaned pose.
 
 **End state:** The avatar faces where the camera looks, and its torso/head lean with camera pitch while the legs keep the locomotion pose.
 
-> **Why bones, and why it's subtle from the player's camera.** Pitching the whole `Visuals` node would tip the character over as camera pitch approaches straight up/down; bending two upper-body bones keeps the feet planted. From the default over-the-shoulder camera the lean reads weakly: the camera sits behind the avatar and pitches with it, so a forward/back bend runs mostly along the line of sight. It shows clearly from side angles. Tune it with the `look_lean_*` properties (Inspector group "Look Lean" on the `AnimationController` node).
+> **Why bones, and why it's subtle from the player's camera.** Pitching the whole `Visuals` node would tip the character over as camera pitch approaches straight up/down; bending two upper-body bones keeps the feet planted. From the default over-the-shoulder camera the lean reads weakly: the camera sits behind the avatar and pitches with it, so a forward/back bend runs mostly along the line of sight. It shows clearly from side angles. Tune it on the `LookLean` node in `player.tscn` (colonists have their own `LookLean` node — see [Colonists](colonists.md)).
 
 ## Class Reference
 
@@ -247,7 +248,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 **Script:** `subsystems/player/player_animation_controller.gd`  
 **Description:** Modular animation component attached as an `AnimationController` child of `player.tscn`. Drives the scene `AnimationTree`: the `Locomotion` state machine (a `Grounded` Idle/Walk/Sprint blend space keyed by horizontal speed, plus `JumpUp`/`JumpLoop`/`JumpDown`) and the upper-body `ActionSelect` + `ActionOneshot` overlay for tool and attack animations. Turns `Visuals` to face the camera and applies the look lean (see the "Look: Facing and Lean" flow). `_setup_skeleton()` re-homes the BoneMap-retargeted model skeleton's unique name (`GeneralSkeleton`) to the player scene root so library tracks like `%GeneralSkeleton:Hips` bind at runtime. Asset pipeline: `docs/HOWTO-use-makehuman-mixamo.md`.
 **Used by:** `Player` (`_trigger_animation_action` calls `trigger_action` for interaction, tool, and attack animations).
-**Lifecycle:** `_ready` resolves `anim_tree` / `anim_player` / `visuals` from sibling nodes when unset, hides the legacy capsule mesh, activates the tree, sets `process_priority` to the tree's plus one, and resolves the lean bones.
+**Lifecycle:** `_ready` resolves `anim_tree` / `anim_player` / `visuals` / `look_lean` from sibling nodes when unset, hides the legacy capsule mesh, activates the tree, sets `process_priority` to the tree's plus one, and binds the look lean to the skeleton.
 
 **Properties:**
 
@@ -255,11 +256,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 |---|---|---|
 | `anim_tree` / `anim_player` / `visuals` | `AnimationTree` / `AnimationPlayer` / `Node3D` | `[export]` Auto-resolve to the sibling `AnimationTree`, `AnimationPlayer`, and `Visuals` nodes when left empty. |
 | `rotation_speed` | `float` | `[export default 15.0]` How fast `Visuals` turns toward the look direction. |
-| `look_lean_enabled` | `bool` | `[export default true]` Inspector group "Look Lean". Turns the look lean on or off. |
-| `look_lean_max_up_deg` | `float` | `[export default 40.0, range 0..90]` Furthest the upper body leans back when looking up (Chest + Head combined). |
-| `look_lean_max_down_deg` | `float` | `[export default 40.0, range 0..90]` Furthest the upper body leans forward when looking down (Chest + Head combined). |
-| `look_lean_chest_share` | `float` | `[export default 0.6, range 0..1]` Share of the lean bent into the `Chest` bone; `Head` takes the rest. |
-| `look_lean_smoothing` | `float` | `[export default 12.0, range 0..60]` How quickly the lean catches up to camera pitch (exponential ease; higher is snappier, 0 freezes it). |
+| `look_lean` | `LookLean` | `[export]` Auto-resolves to the sibling `LookLean` node. Receives the camera pitch each frame; the lean knobs live on that node. |
 
 **Functions:**
 
@@ -269,9 +266,33 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `cancel_action() -> void` | Aborts the active one-shot overlay. |
 | `_update_mesh_rotation(delta: float) -> void` | Eases `Visuals.rotation.y` toward `Player.get_look_direction()`. |
 | `_update_animation_state() -> void` | Sets the `Grounded` blend position from horizontal speed and travels the jump states. |
-| `_apply_look_lean(delta: float) -> void` | Clamps and eases camera pitch, then composes the lean onto the `Chest` / `Head` poses the tree wrote this frame. |
-| `_clamp_look_pitch(pitch: float) -> float` | Pure clamp of a pitch (radians) to `-look_lean_max_down_deg .. look_lean_max_up_deg`. |
-| `_setup_skeleton() -> void` | Re-homes the skeleton's owner so `%GeneralSkeleton` tracks bind, then `_cache_lean_bones` resolves the `Chest` / `Head` indices (warns and skips the lean if either is missing). |
+| `_setup_skeleton() -> void` | Re-homes the skeleton's owner so `%GeneralSkeleton` tracks bind, then binds `look_lean` to that skeleton. |
+
+### Class: LookLean
+
+**Extends:** Node
+**Script:** `../core/look_lean.gd` (shared with [Colonists](colonists.md) — ambiguous ownership → core)
+**Description:** Torso/head look lean, added as a `LookLean` child of both `player.tscn` and `colonist.tscn`. Bends the humanoid `Chest` and `Head` bones by a look pitch so looking up or down reads on the avatar without tipping the whole body. It has no `_process` of its own: the owning animation controller decides the pitch (camera pitch for the player, the look target for colonists) and calls `apply` every frame after its AnimationTree has posed the skeleton, which is why both controllers run at the tree's `process_priority` plus one. The lean is composed onto that pose and never accumulates, because the tree re-poses both bones every frame.
+**Used by:** `PlayerAnimationController`, `ColonistAnimationController`.
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `enabled` | `bool` | `[export default true]` Turns the lean on or off. |
+| `max_up_deg` | `float` | `[export default 40.0, range 0..90]` Furthest the upper body leans back when looking up (Chest + Head combined). |
+| `max_down_deg` | `float` | `[export default 40.0, range 0..90]` Furthest the upper body leans forward when looking down (Chest + Head combined). |
+| `chest_share` | `float` | `[export default 0.6, range 0..1]` Share of the lean bent into the `Chest` bone; `Head` takes the rest. |
+| `smoothing` | `float` | `[export default 12.0, range 0..60]` How quickly the lean catches up to its target pitch (exponential ease; higher is snappier, 0 freezes it). |
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `bind(skeleton: Skeleton3D) -> void` | Resolves the `Chest` / `Head` bone indices; warns and leaves the lean disabled if either is missing. |
+| `is_bound() -> bool` | Whether both bones were resolved. |
+| `apply(target_pitch: float, delta: float) -> void` | Clamps and eases toward `target_pitch` (radians, look-up positive), then composes the lean onto the current Chest/Head poses. Call once per frame, after the AnimationTree. |
+| `clamp_pitch(pitch: float) -> float` | Pure clamp of a pitch (radians) to `-max_down_deg .. max_up_deg`. |
 
 ### Class: StepClimber
 

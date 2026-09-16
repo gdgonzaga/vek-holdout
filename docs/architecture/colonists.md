@@ -26,7 +26,7 @@ The **Colonists** subsystem (`subsystems/colonists/`) manages colonist entity in
                                                                         (4-Way, 8-Way,
                                                                          Smoothed, Theta*)
 
-(Scene also mounts: ColonistAnimationController + AnimationPlayer [mixamo library] —
+(Scene also mounts: ColonistAnimationController + AnimationTree + LookLean —
 see the class reference below and docs/HOWTO-use-makehuman-mixamo.md. Also code-created in _ready:
 CharacterInventory, HungerComponent, Equipment, and EquipmentVisualizer — see
 docs/architecture/hunger.md and docs/architecture/equipment.md. Carry-inventory hygiene and
@@ -71,13 +71,53 @@ equipment fulfillment are BT-task-driven, not a dedicated component — see belo
 
 **Extends:** Node  
 **Script:** `subsystems/colonists/colonist_animation_controller.gd`  
-**Description:** Manages animation playback, blending locomotion states with interaction loops. Supports behavior tree animation overrides via `play_animation_override(anim_name)` and `clear_override()`. Animations resolve through the scene AnimationPlayer's `mixamo` library (`assets/mixamo/mixamo.res`); missing keys fall back (Sprint to Walk, otherwise Idle) with a one-time warning. `_setup_skeleton()` re-homes the BoneMap-retargeted model skeleton's unique name (`GeneralSkeleton`) to the colonist scene root so library tracks like `%GeneralSkeleton:Hips` bind at runtime.
+**Description:** Drives the scene `AnimationTree` (`Locomotion` Idle/Walk/Sprint blend + jump states, upper-body `ActionOneshot` overlay via `trigger_action`/`play_animation_override`/`clear_override`), same layout as `PlayerAnimationController` — see [Player](player.md). Falls back to driving `AnimationPlayer`'s `animations` library directly when no `AnimationTree` is present (`_fallback_update_animation_player_state`; missing keys fall back Sprint to Walk, otherwise Idle, with a one-time warning) — only bare `Colonist.new()` test doubles hit this path, `colonist.tscn` always has a tree. `_setup_skeleton()` re-homes the BoneMap-retargeted model skeleton's unique name (`GeneralSkeleton`) to the colonist scene root and binds the sibling `LookLean` node (see [Player](player.md)'s Class: LookLean) to it. Owns the look-target state consumed by the "Look at Work and Combat Targets" flow below.
+
+**Look-target functions:**
+
+| Function | Description |
+|---|---|
+| `set_look_target(target: Node3D) -> void` | Faces and leans toward `target`'s center mass (`VisualBounds.world_center`, cached in `target`'s local space so a moving target stays tracked) every frame until changed or cleared. Re-setting the current target is a no-op, so callers may call this every tick. |
+| `set_look_point(point: Vector3) -> void` | Faces and leans toward a fixed world point instead of a node. |
+| `clear_look_target() -> void` | Returns to movement facing and eases the lean back to level. |
+| `face_target(target_pos: Vector3, delta: float = -1.0) -> void` | One-off yaw write toward `target_pos` (snaps if `delta <= 0`, eases otherwise); does not touch the lean or remember a target. Combat calls this directly alongside `set_look_target` for an instant initial snap. |
 
 ### Class: ColonistMoodletVisualizer
 
 **Extends:** Node3D  
 **Script:** `subsystems/colonists/colonist_moodlet_visualizer.gd`  
 **Description:** In-world 3D billboard visualizer mounted on `Colonist` (`colonist.tscn`). Periodically (every 0.25s) evaluates `colonist.get_active_moodlets()` and displays the highest-priority active status icon on a `Sprite3D` billboard with distance culling (`visibility_range_end = 35.0`).
+
+---
+
+## Flow Trace: Look at Work and Combat Targets
+
+**Trigger:** `BTActionPerformWork._enter` (a work cycle starts) or `BTActionColonistCombatAttack._tick` (each tick while a threat is engaged). Colonists have no camera, so their look pitch comes from whatever they're doing instead — the colonist equivalent of the Player's "Look: Facing and Lean" flow (see [Player](player.md)).
+
+1. **Combat:** `BTActionColonistCombatAttack._face_target` calls both `ColonistAnimationController.face_target` (instant snap, unchanged) and `set_look_target(target)` every tick the task runs. `_exit` calls `clear_look_target()`, so the look releases the moment the branch is no longer engaged (threat gone, out of range, or preempted by a higher-priority need).
+2. **Work:** `BTActionPerformWork._enter` resolves what this cycle acts on and looks at it:
+   - `JobDef.work_site(actor, job)` returning a `Vector3` (hauling, fetch-equipment, deploy — a re-queried leg, not a fixed target) → `set_look_point` at that position leveled to the colonist's aim height, so a floor-level walk target adds no lean.
+   - Otherwise `Job.target_node`, when it's a `Node3D` (furniture, a blueprint, a `WorldItem`) or a plain `Node` whose parent is one (e.g. `CraftingStation`, whose furniture parent has the mesh) → `set_look_target(node)`.
+   - Otherwise a nonzero `Job.location` (e.g. a dig job's voxel cell center) → `set_look_point(location)`.
+   - Otherwise (a `Dictionary` job, or a def exposing none of these) no look target is set.
+   `_exit` always calls `clear_look_target()`, whether the cycle finished or was preempted.
+3. Every frame, `ColonistAnimationController._process` resolves the current look point (re-reading a node target's world position so a moving target stays tracked; clearing itself if the node was freed), faces it instead of the movement direction when one is set, and feeds the pitch from `Colonist.get_aim_origin()` to it into `LookLean.apply` — level (0.0) when there's no look target, so the lean eases back down.
+4. Bed, recreation, and eating tasks are unchanged — they don't set a look target.
+
+**End state:** A colonist fighting or working looks at what it's doing; anything else leaves it facing its movement direction with no lean, as before.
+
+### Class: VisualBounds
+
+**Extends:** RefCounted (static helpers only)
+**Script:** `../core/visual_bounds.gd`
+**Description:** Pure geometry helper used to find a target's center mass for the look-target flow above. Deliberately does not use collision shapes: furniture lists its mesh's trimesh collider (floor-level origin) ahead of its footprint box, so "first collision shape" — the approach `TurretComponent.get_target_aim_position` uses for combat aim (see [Combat](combat.md)) — lands on the floor, not the center.
+**Used by:** `ColonistAnimationController.set_look_target`.
+
+**Functions:**
+
+| Function | Description |
+|---|---|
+| `static world_center(root: Node3D) -> Vector3` | World-space center of the merged bounds of every visible `MeshInstance3D` in `root`'s subtree (root included; hidden meshes — e.g. other WildFlora growth stages, the hidden prototype capsule — are skipped). Falls back to `root.global_position` when nothing is visible. |
 
 ---
 
