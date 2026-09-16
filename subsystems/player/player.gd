@@ -85,6 +85,12 @@ func get_look_direction() -> Vector3:
 	return _camera_forward_horizontal()
 
 
+## Camera pitch (radians, look-up positive per CameraRig's convention). Drives
+## the torso/head look lean in PlayerAnimationController.
+func get_look_pitch() -> float:
+	return _rig.get_pitch()
+
+
 ## Whether the player is currently locked by a timed action (e.g. a build).
 func is_busy() -> bool:
 	return _busy
