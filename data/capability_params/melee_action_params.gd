@@ -100,11 +100,13 @@ func _evaluate_hitbox_and_damage(actor: Node, aim_origin: Vector3, dir: Vector3,
 	shape_query.shape = box
 
 	var center_pos := aim_origin + dir * (range_dist * 0.5)
-	var xform := Transform3D()
-	if dir != Vector3.ZERO and not dir.is_equal_approx(Vector3.UP) and not dir.is_equal_approx(Vector3.DOWN):
-		xform = xform.looking_at(center_pos + dir, Vector3.UP)
-	xform.origin = center_pos
-	shape_query.transform = xform
+	# 1. Box Orientation: Build the sweep box's rotation from the aim direction
+	# alone (never from world position) -- Transform3D.looking_at(target, ...)
+	# treats its argument as an absolute point, so passing center_pos + dir
+	# previously let the actor's distance from world-origin corrupt the
+	# hitbox facing (the box drifted off-aim everywhere except near 0,0,0).
+	var box_basis: Basis = _direction_to_basis(dir)
+	shape_query.transform = Transform3D(box_basis, center_pos)
 
 	shape_query.collide_with_bodies = true
 	shape_query.collide_with_areas = true
@@ -136,6 +138,14 @@ func _evaluate_hitbox_and_damage(actor: Node, aim_origin: Vector3, dir: Vector3,
 
 			# 2. Damage Application: Deliver damage payload to the target.
 			_apply_damage_to_target(actor, target, damage)
+
+
+## Auxiliary: Safe direction-to-basis conversion for the hitbox sweep transform;
+## falls back to identity for the degenerate up/down cases Basis.looking_at() rejects
+func _direction_to_basis(dir: Vector3) -> Basis:
+	if dir == Vector3.ZERO or dir.is_equal_approx(Vector3.UP) or dir.is_equal_approx(Vector3.DOWN):
+		return Basis()
+	return Basis.looking_at(dir, Vector3.UP)
 
 
 ## Auxiliary: Walks up node parent hierarchy to resolve a valid damage recipient

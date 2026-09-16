@@ -410,6 +410,59 @@ func test_ranged_action_params_spawns_projectile_when_not_hitscan() -> void:
 	assert_float(found.speed).is_equal(15.0)
 
 
+## Regression: the melee hitbox's sweep-box orientation must track the
+## resolved aim direction alone. It previously derived rotation from
+## Transform3D.looking_at(center_pos + dir, ...), which folds the actor's
+## absolute world position into the direction -- correct only near
+## world-origin. Placing the actor far from origin reproduces the bug.
+func test_melee_hitbox_tracks_aim_direction_away_from_world_origin() -> void:
+	var actor := Node3D.new()
+	auto_free(actor)
+	add_child(actor)
+	actor.global_position = Vector3(40.0, 0.0, 40.0)
+	# Node3D fallback in _resolve_aim reads dir from -basis.z, matching look_at's convention.
+	actor.look_at(actor.global_position + Vector3(1.0, 0.0, 0.0), Vector3.UP)
+
+	var hit_dummy := _make_damage_dummy(Vector3(42.5, 1.0, 40.0)) # 2.5 m along the true +X aim
+	var missed_dummy := _make_damage_dummy(Vector3(40.0, 1.0, 43.0)) # same distance, perpendicular
+
+	for _i in range(3):
+		await get_tree().physics_frame
+
+	var action := MeleeActionParams.new()
+	auto_free(action)
+	action.windup_seconds = 0.0
+	action.active_seconds = 0.0 # single hitbox evaluation, no timer wait
+	action.range_meters = 3.0
+	action.damage = 10.0
+
+	await action.execute(actor)
+
+	var hit_health := hit_dummy.get_node("HealthComponent") as HealthComponent
+	var missed_health := missed_dummy.get_node("HealthComponent") as HealthComponent
+	assert_int(hit_health.current_hp).is_equal(90)
+	assert_int(missed_health.current_hp).is_equal(100)
+
+
+## Auxiliary: A static body with a HealthComponent child, positioned to act as
+## a melee hitbox target in the world-origin-distance regression test above.
+func _make_damage_dummy(pos: Vector3) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	auto_free(body)
+	var shape_node := CollisionShape3D.new()
+	var shape := SphereShape3D.new()
+	shape.radius = 0.4
+	shape_node.shape = shape
+	body.add_child(shape_node)
+	var health := HealthCompScript.new() as HealthComponent
+	health.name = "HealthComponent"
+	health.max_hp = 100
+	body.add_child(health)
+	add_child(body)
+	body.global_position = pos
+	return body
+
+
 func test_enemy_ai_behavior_with_colonist() -> void:
 	var colonist := CharacterBody3D.new()
 	colonist.name = "TestColonist"
