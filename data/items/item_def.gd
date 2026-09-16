@@ -27,6 +27,10 @@ extends Resource
 ## Nullable food capability. If set, this item can be consumed to restore hunger.
 @export var food: FoodParams = null
 
+## Nullable wearable capability. If set, this item can be worn as visual gear
+## (armor, clothing, headwear, footwear) via rigid parts or skinned meshes.
+@export var wearable: WearableParams = null
+
 
 func is_equippable() -> bool:
 	return equippable != null
@@ -34,6 +38,10 @@ func is_equippable() -> bool:
 
 func is_food() -> bool:
 	return food != null
+
+
+func is_wearable() -> bool:
+	return wearable != null
 
 
 ## Returns true if this item carries the given tag. Used by Equipment to

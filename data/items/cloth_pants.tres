@@ -1,0 +1,70 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://data/capability_params/wearable_params.gd" id="2_wearable"]
+[ext_resource type="Script" path="res://data/capability_params/wearable_part.gd" id="3_part"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pants"]
+albedo_color = Color(0.3, 0.3, 0.32, 1.0)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_up_leg_l"]
+radius = 0.085
+height = 0.38
+
+[sub_resource type="Resource" id="Resource_up_leg_l"]
+script = ExtResource("3_part")
+bone = &"LeftUpperLeg"
+mesh = SubResource("CapsuleMesh_up_leg_l")
+material = SubResource("StandardMaterial3D_pants")
+offset = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.16, 0)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_up_leg_r"]
+radius = 0.085
+height = 0.38
+
+[sub_resource type="Resource" id="Resource_up_leg_r"]
+script = ExtResource("3_part")
+bone = &"RightUpperLeg"
+mesh = SubResource("CapsuleMesh_up_leg_r")
+material = SubResource("StandardMaterial3D_pants")
+offset = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.16, 0)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_low_leg_l"]
+radius = 0.075
+height = 0.36
+
+[sub_resource type="Resource" id="Resource_low_leg_l"]
+script = ExtResource("3_part")
+bone = &"LeftLowerLeg"
+mesh = SubResource("CapsuleMesh_low_leg_l")
+material = SubResource("StandardMaterial3D_pants")
+offset = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, 0)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_low_leg_r"]
+radius = 0.075
+height = 0.36
+
+[sub_resource type="Resource" id="Resource_low_leg_r"]
+script = ExtResource("3_part")
+bone = &"RightLowerLeg"
+mesh = SubResource("CapsuleMesh_low_leg_r")
+material = SubResource("StandardMaterial3D_pants")
+offset = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, 0)
+
+[sub_resource type="Resource" id="Resource_wearable"]
+script = ExtResource("2_wearable")
+rigid_parts = Array[ExtResource("3_part")]([SubResource("Resource_up_leg_l"), SubResource("Resource_up_leg_r"), SubResource("Resource_low_leg_l"), SubResource("Resource_low_leg_r")])
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ground"]
+radius = 0.1
+height = 0.3
+
+[resource]
+resource_name = "Cloth Pants"
+script = ExtResource("1_def")
+id = "cloth_pants"
+weight = 0.5
+mesh = SubResource("CapsuleMesh_ground")
+material = SubResource("StandardMaterial3D_pants")
+tags = Array[String](["equip_legs"])
+wearable = SubResource("Resource_wearable")

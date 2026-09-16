@@ -51,13 +51,19 @@ Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `C
 
 ## Visual Socket Architecture
 
-`EquipmentVisualizer` resolves one `BoneAttachment3D` socket per slot from the parent's `Skeleton3D`. Resolution order:
+`EquipmentVisualizer` manages visual attachment across two pipelines depending on whether the equipped `ItemDef` carries a `WearableParams` capability (`item.is_wearable()`):
 
+### 1. Traditional Held Items (Tools, Weapons)
+For non-wearable items, `EquipmentVisualizer` resolves one `BoneAttachment3D` socket per slot from the parent's `Skeleton3D`:
 1. **Scene-authored socket** — looks for a child named `EquipSocket_<slot_id>` on the skeleton (e.g. `EquipSocket_main_hand`). Author these in `colonist.tscn` / `player.tscn` for precise placement.
 2. **Auto-created socket** — if not found, tries bone names from `SLOT_BONE_HINTS[slot_id]` (e.g. `["socket_hand_r", "RightHand", "mixamorig:RightHand"]` for `main_hand`). Creates a `BoneAttachment3D` named `EquipSocket_<slot_id>` on the first match.
 3. **Skip** — if no bone hint matches (e.g. `holster` with no authored socket), the slot has no visual and is silently ignored.
 
-Armor slots (`head`, `torso`, `legs`, `feet`, `back`) are scaffolded but fire no visuals until art assets and scene sockets are added.
+### 2. Wearable Items (Armor, Clothing, Headgear, Footwear)
+When `item.is_wearable()` is true, visuals mount dynamically across multi-bone attachments or skinned mesh bindings, tracked in `_slot_visuals[slot_id]` (`Array[Node]`):
+- **Rigid Parts (`rigid_parts: Array[WearablePart]`)**: For helmets, pauldrons, boots, and primitive clothing shapes. For each part, resolves or creates a `BoneAttachment3D` named `WearBone_<bone>` on the character's `Skeleton3D` on first use (silently skipping if the bone does not exist in the rig). Mounts a `MeshInstance3D` with the part's mesh, material, and offset. Two slots sharing the same bone attach separate child meshes and do not delete each other's visuals on unequip.
+- **Skinned Garments (`skinned_scene: PackedScene`)**: For deformable shirts and pants. Instantiates the garment scene, extracts all `MeshInstance3D` nodes carrying an active `skin`, reparents them directly under the character's `Skeleton3D` with `skeleton = NodePath("..")`, and frees the scene root remnant. Bone mapping binds through glTF `bind_names` matching the humanoid `SkeletonProfileHumanoid` bone map.
+- **Unequip & Switch Cleanup**: When a slot changes or unequips (`item == null`), `_clear_slot_visuals(slot_id)` iterates and frees all tracked nodes in `_slot_visuals[slot_id]` and empties any traditional socket children, leaving zero leftovers.
 
 ---
 
@@ -210,3 +216,4 @@ Static audit and loadout fulfillment coordinator. Evaluates colonist equipment, 
 - **`DiscoveredGear`** (child of Colony autoload) — tracks item_def_ids ever possessed; gates loadout-slot picker UI.
 - **Armor + shield items** — `data/armor/` and `data/shields/` schemas (C9 in TODO.md).
 - **Durability sum** — `Equipment.get_total_durability() -> int` for HealthComponent once armor items ship.
+- **`hides_body_regions`** — optional array on `WearableParams` to selectively hide body sub-meshes (`head`, `torso`, `arms`, `legs`, `feet`) on modular characters to eliminate joint skin clipping under complex clothing.

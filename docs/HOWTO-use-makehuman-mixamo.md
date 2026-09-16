@@ -80,6 +80,19 @@ JobDefs pick work animations via `work_animation` on the JobDef `.tres` (default
 
 ---
 
+## Authoring Garments (Wearable Skinned Garments)
+
+To produce clothing (shirts, jackets, pants) that naturally deforms with character animations across all bones:
+
+1. **Model on the Same Armature**: Open the character's `.blend` file containing the Mixamo armature.
+2. **Duplicate & Inflate**: Select the relevant body geometry (e.g. torso, arms, or legs) in Edit Mode, duplicate (`Shift + D`), separate to a new object (`P -> Selection`), and slightly inflate along normals (`Alt + S`) so the garment rests just outside the skin.
+3. **Weight Transfer**: Because the mesh was duplicated from the rigged body, vertex groups and bone weights are already perfectly matched.
+4. **Export Garment Only**: Select the `Armature` and the garment mesh(es). Export as glTF 2.0 (`.glb`), with **Include -> Selected Objects**, Skinning enabled, Animation disabled. Do not export the character's underlying body mesh.
+5. **Godot Import with BoneMap**: In Godot's Advanced Import Settings, set the `Skeleton3D` Retarget Bone Map to **New SkeletonProfileHumanoid** (the exact same profile used for the character model).
+6. **Wire into ItemDef**: In the garment's `ItemDef` resource, set `wearable = WearableParams.new()` and assign the reimported garment `.glb` scene to `skinned_scene`. `EquipmentVisualizer` will automatically reparent the skinned mesh under the character's `GeneralSkeleton` at runtime.
+
+---
+
 ## Verification
 
 Run a scene with the character visible. **No `couldn't resolve track` warnings in the console means the whole pipeline is healthy.** That warning is the T-pose signature: the library's tracks do not match the scene's skeleton.

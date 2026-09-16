@@ -308,5 +308,24 @@ Configures physiological nutrition, healing, and consumption properties for edib
 | `mood_modifier` | `StringName` | Optional moodlet applied to colonist after eating. |
 | `spoilage_hours` | `float` | Reserved shelf-life hours for future perishability system. |
 
+### `WearableParams` (Resource: `wearable_params.gd`)
+Configures visual representation for wearable equipment (armor, clothing, headwear, footwear) attached via `ItemDef.wearable`. Managed by `EquipmentVisualizer`.
+
+| Field | Type | Description |
+|---|---|---|
+| `skinned_scene` | `PackedScene` | Deformable garment `.glb` exported on the humanoid armature and retargeted with `SkeletonProfileHumanoid`. Meshes carrying an active `skin` are reparented directly under the character's `Skeleton3D`. |
+| `rigid_parts` | `Array[WearablePart]` | Array of rigid mesh parts attached to individual skeleton bones via auto-created `WearBone_<bone>` sockets. |
+
+### Sub-Resource: `WearablePart` (Resource: `wearable_part.gd`)
+Defines a single rigid mesh component of a wearable item.
+
+| Field | Type | Description |
+|---|---|---|
+| `bone` | `StringName` | Target humanoid bone name matching `SkeletonProfileHumanoid` (e.g. `&"Head"`, `&"Chest"`, `&"LeftUpperLeg"`). |
+| `mesh` | `Mesh` | 3D visual mesh rendered for this part. |
+| `material` | `Material` | Optional material override applied to the part mesh. |
+| `offset` | `Transform3D` | Local transform offset relative to the bone attachment origin. |
+
+
 
 

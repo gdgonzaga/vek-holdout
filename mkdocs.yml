@@ -80,6 +80,9 @@ nav:
     - "Authoring Defensive Turrets": HOWTO-author-turrets.md
     - "Authoring Furniture & Capabilities": HOWTO-author-furniture.md
     - "Authoring Mixamo Animations": HOWTO-author-mixamo-animations.md
+    - "Authoring Melee Weapons": HOWTO-author-melee-weapons.md
+    - "Authoring Wearable Gear Models": HOWTO-author-gear-models.md
+    - "MakeHuman & Mixamo Pipeline": HOWTO-use-makehuman-mixamo.md
   - About:
     - "Adding a page": architecture/contributing.md
 
