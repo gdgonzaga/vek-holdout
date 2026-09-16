@@ -16,8 +16,8 @@ extends Node
 ## Rotation lerp speed for facing direction
 @export var rotation_speed: float = 15.0
 
-## Cached parent CharacterBody3D reference
-var _player: CharacterBody3D
+## Cached parent Player reference
+var _player: Player
 
 ## Cached StateMachinePlayback parameter interface
 var _playback: AnimationNodeStateMachinePlayback
@@ -27,7 +27,7 @@ var _was_on_floor: bool = true
 
 
 func _ready() -> void:
-	_player = get_parent() as CharacterBody3D
+	_player = get_parent() as Player
 	
 	if _player:
 		# Hide old prototype capsule mesh if present
@@ -60,7 +60,7 @@ func _process(delta: float) -> void:
 	if not _player or not anim_tree:
 		return
 	
-	# 1. Mesh Facing Direction: Lerp visual container towards horizontal movement vector.
+	# 1. Mesh Facing Direction: Lerp visual container towards the camera's look direction.
 	_update_mesh_rotation(delta)
 	
 	# 2. Animation Parameter Evaluation: Update blend position, jump states, and floor status.
@@ -105,15 +105,16 @@ func _resolve_action_animation_name(action_name: StringName) -> StringName:
 # Auxiliary Functions (Step-down narrative order)
 # =============================================================================
 
-## Auxiliary: Rotates the visual mesh towards the movement direction of the parent CharacterBody3D
+## Auxiliary: Rotates the visual mesh towards the camera's look direction, so the
+## avatar always faces where the player is looking rather than where it's walking
+## (holding back/strafe moves the body without spinning it to face travel direction).
 func _update_mesh_rotation(delta: float) -> void:
 	if not visuals:
 		return
 	
-	var horiz_vel := Vector3(_player.velocity.x, 0.0, _player.velocity.z)
-	if horiz_vel.length() > 0.1:
-		var dir := horiz_vel.normalized()
-		# For models (+Z forward), atan2(dir.x, dir.z) faces the travel direction
+	var dir: Vector3 = _player.get_look_direction()
+	if dir.length_squared() > 0.0001:
+		# For models (+Z forward), atan2(dir.x, dir.z) faces the look direction
 		var target_angle := atan2(dir.x, dir.z)
 		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, rotation_speed * delta)
 

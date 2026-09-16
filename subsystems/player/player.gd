@@ -43,7 +43,6 @@ signal interactable_changed(component: InteractionComponent)
 
 @onready var _input: InputComponent = $InputComponent
 @onready var _rig: CameraRig = $CameraRig
-@onready var _mesh: MeshInstance3D = $MeshInstance3D
 @onready var _camera: Camera3D = _rig.get_camera()
 @onready var inventory: CharacterInventory = $Inventory
 @onready var command_controller: CommandController = get_node_or_null("CommandController") as CommandController
@@ -77,6 +76,13 @@ var skill_set: SkillSet
 ## screen-center raycast (ARCH line 335).
 func get_camera() -> Camera3D:
 	return _rig.get_camera()
+
+
+## Horizontal direction the camera is looking, independent of movement state.
+## Drives visual body-facing (PlayerAnimationController) so the avatar always
+## faces where the player looks instead of where they last walked.
+func get_look_direction() -> Vector3:
+	return _camera_forward_horizontal()
 
 
 ## Whether the player is currently locked by a timed action (e.g. a build).
@@ -551,9 +557,7 @@ func _handle_move_keys(delta: float) -> void:
 			# (W = away from where you look now); momentum stays world-locked, so
 			# rotating the camera mid-air can't curve movement.
 			var basis := _rig.global_transform.basis
-			var cam_fwd := (-basis.z)
-			cam_fwd.y = 0.0
-			cam_fwd = cam_fwd.normalized()
+			var cam_fwd := _camera_forward_horizontal()
 			var cam_right := basis.x
 			cam_right.y = 0.0
 			cam_right = cam_right.normalized()
@@ -590,15 +594,15 @@ func _handle_move_keys(delta: float) -> void:
 
 	move_and_slide()
 
-	# Movement state + visual facing (CharacterBody3D itself never rotates, so the
-	# camera rig's orbit is decoupled from where the avatar looks).
+	# Movement state (CharacterBody3D itself never rotates, so the camera
+	# rig's orbit is decoupled from where the avatar looks; visual facing is
+	# driven separately by PlayerAnimationController from get_look_direction()).
 	if wish.length_squared() > 0.001:
 		# SPRINT only while grounded + sprinting; mid-air carries momentum but
 		# isn't "sprinting" (state reflects what the avatar is doing, not what it
 		# did at takeoff).
 		var sprinting := is_on_floor() and _input.wants_sprint()
 		state = State.SPRINT if sprinting else State.WALK
-		_mesh.look_at(_mesh.global_position + wish, Vector3.UP)
 	else:
 		state = State.IDLE
 
@@ -632,14 +636,21 @@ func _handle_jump() -> void:
 ## Sign convention (from the Vector2 gathering above):
 ##   input.y < 0 = forward, input.y > 0 = backward, input.x = strafe (right +).
 func _camera_relative_wish(input: Vector2) -> Vector3:
-	var basis := _rig.global_transform.basis
-	var forward := (-basis.z)
-	forward.y = 0.0
-	forward = forward.normalized()
-	var right := basis.x
+	var forward := _camera_forward_horizontal()
+	var right := _rig.global_transform.basis.x
 	right.y = 0.0
 	right = right.normalized()
 	return forward * -input.y + right * input.x
+
+
+## Auxiliary: The camera rig's forward vector, flattened to horizontal and
+## normalized. Shared by movement (grounded + mid-air wish vectors) and
+## get_look_direction() (visual body-facing) so all three read one source of
+## truth for "which way is the avatar looking."
+func _camera_forward_horizontal() -> Vector3:
+	var forward := (-_rig.global_transform.basis.z)
+	forward.y = 0.0
+	return forward.normalized()
 
 
 ## Resolve ONE mid-air cardinal axis to a signed scalar.
