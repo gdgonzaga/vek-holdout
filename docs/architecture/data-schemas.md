@@ -61,6 +61,25 @@ The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef ex
 
 ---
 
+## `data/enemies/<id>.tres` (Resource: `enemy_def.gd`) — `EnemyDef`
+
+Data-driven definition for one hostile enemy archetype (GDD §5: Swarmer prototype, Brawler, Shooter). `EnemyDef extends Resource`, indexed by `id` in the `EnemyLibrary` autoload (`subsystems/combat/enemy_library.gd`) the same way `ItemDB` indexes `ItemDef`. Backs `EnemyBase.enemy_def` (`subsystems/combat/enemy_base.gd`), applied at `_ready()`: `HealthComponent.setup(max_hp, max_durability)`, movement speed, the `BTPlayer`'s loaded tree, and `moodlet_defs`.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Identity string `EnemyLibrary` indexes by — never the filename. |
+| `display_name` | `String` | `[export default "Enemy"]` UI label. |
+| `max_hp` | `int` | `[export default 100]` |
+| `max_durability` | `int` | `[export default 0]` Durability-before-HP per GDD §6.11 (shared damage resolution with Player/Colonist). |
+| `base_move_speed` | `float` | `[export default 5.0]` |
+| `detect_range` | `float` | `[export default 16.0]` Not yet consumed by any AI task — both the melee and ranged-kiter trees' scan nodes still author their own `radius` directly. |
+| `los_loss_timeout` | `float` | `[export default 5.0]` Seconds without line of sight before a chasing enemy should give up (GDD Brawler table). Not consumed by any AI task yet — no LOS-tracking state exists. |
+| `behavior_tree` | `BehaviorTree` | The LimboAI tree this archetype runs. `EnemyBase._setup_ai_components()` creates the `BTPlayer` and loads this tree only when the scene doesn't already pre-place its own `BTPlayer` node — none of the shipped enemy scenes do, so this is the live source of truth for all three. |
+| `attack_params` | `CombatActionParams` | Polymorphic — assign a `MeleeActionParams` or `RangedActionParams` instance (`data/capability_params/`). Null means this archetype never attacks. Resolved via the `ICombatSource` duck-typed contract (`subsystems/core/i_combat_source.gd`, implemented by `EnemyBase.get_combat_action()`/`get_attack_range()`), consumed by `BTActionMeleeAttack.use_agent_attack_params`, `BTActionRangedAttack`, and `BTActionNavigateTo.arrival_distance_from_agent_attack_range`. |
+| `moodlet_defs` | `Array[MoodletDef]` | `[export]` Same shape as `ColonistDef.moodlet_defs`, evaluated by `EnemyMoodletVisualizer`. |
+
+---
+
 ## `data/labors/<id>.tres` (Resource: `labor_def.gd`) — `LaborDef`
 
 The canonical declaration of which labor ids exist. `LaborDef extends Resource`.

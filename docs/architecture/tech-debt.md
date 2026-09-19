@@ -28,6 +28,7 @@ remains genuinely unimplemented:
 3. **Loot Subsystem** — `subsystems/loot/` and `data/loot/` don't exist; no LootTable/LootRoller/KeyItemPool. See [Loot](loot.md).
 4. **Functional Rooms** — no `functional_counts` state or listeners on `Colony`. See [Functional Rooms](functional-rooms.md).
 5. **Debug Console** — `debug/` is empty; no console autoload or commands exist. See [Debug Console](debug-console.md).
+6. **Enemy Spawn Selection** — `EnemyBrawler`/`EnemyShooter` (GDD §5) are fully implemented and instantiable (see [Combat](combat.md)) but unreachable through any spawner: `subsystems/raids/night_raid_controller.gd` and `subsystems/maps/map_wiring.gd` each hold a single hardcoded `PackedScene` reference to the swarmer, not a table. Wiring the other archetypes in means designing an actual selection mechanism (random pick, a weighted table per GDD's encounter templates like "2× Brawler + 1× Shooter", or wave-based composition) — a real feature, not a mechanical swap.
 
 ---
 
@@ -39,3 +40,40 @@ remains genuinely unimplemented:
 - `ICapabilityComponent` protocol established for automatic per-component state serialization/deserialization.
 - `TestParams` removed. `BedParams` added, introducing `BedComponent` and `colonist_bed.tres`.
 - Farm plot capability expanded with `FarmPlotParams` (`crop_slots`, `growth_rate_multiplier`, `hydration_mode`).
+
+---
+
+## EnemyBase / BT Combat Task Backward-Compatibility Shims (2026-09-19)
+
+**Status: Deliberately kept for now — real current callers, but should be removed once those callers are migrated.**
+
+The EnemyDef/EnemyLibrary data-driven enemy work (see [Combat](combat.md))
+introduced two dual-path "old standalone value vs. new EnemyDef-driven
+value" branches, each kept only because a specific existing test constructs
+an actor without an `EnemyDef` and depends on the old standalone behavior.
+Per this repo's no-backward-compat default (pre-release, `main`-only), these
+should not become permanent — they're tracked here so they get cut instead
+of quietly calcifying:
+
+1. **`EnemyBase.enemy_def` is nullable, not mandatory.** `_setup_health_component`,
+   `_setup_ai_components`, `_follow_path`, and `get_active_moodlets` all branch
+   on `enemy_def != null`, falling back to whatever was configured directly on
+   child nodes (or a bare `5.0` move-speed constant) when it's unset. Exists
+   solely because `test_melee_action_params_windup_and_active_hitbox`,
+   `test_player_gun_fire_damages_enemy`, and
+   `test_enemy_lethal_damage_triggers_death_and_free`
+   (`test/suite_equippable_schema_test.gd`) construct a bare `EnemyBase.new()`
+   with a hand-configured `HealthComponent`, independent of any archetype.
+2. **`BTActionMeleeAttack.use_agent_attack_params`** (`subsystems/ai/tasks/actions/bt_action_melee_attack.gd`)
+   is an opt-in flag; when `false` (the default) the task falls back to its
+   own `damage`/`attack_range`/`windup_duration`/`cooldown_duration` exports
+   instead of the agent's `EnemyDef.attack_params`. Exists solely because
+   `test_melee_attack_damages_target` (`test/suite_ai_tasks_test.gd`) drives
+   the task with a bare `CharacterBody3D` agent and asserts against those
+   exports directly.
+
+**To remove:** migrate the tests above to construct their actors with a real
+(or minimal in-memory) `EnemyDef`/`attack_params` instead of hand-configuring
+`HealthComponent`/task exports directly, then delete the null/false branches
+— making `enemy_def` mandatory on `EnemyBase` and `use_agent_attack_params`
+implicit (always-on) — collapsing each pair back down to a single path.
