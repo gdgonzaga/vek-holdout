@@ -21,7 +21,7 @@ Per-character 8-slot gear system. `Equipment` (Node component) holds concrete `I
 
 Slot routing is **tag-based**: items declare eligibility via `ItemDef.tags`. `EquippableParams` no longer has a `SlotType` enum — it owns only animation and action parameters.
 
-In the Colony Management UI, `holster` is labeled as **"Sidearm"** via `EquipmentSlotRow.SLOT_DISPLAY_NAMES`.
+In the Colony Management UI, `holster` is labeled as **"Sidearm"** via `GearText.SLOT_DISPLAY_NAMES` (see [Colony Management Gear UI](#colony-management-gear-ui)).
 
 ---
 
@@ -44,8 +44,8 @@ Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `C
 
 | Signal | Emitted by | Listeners | Via EventBus? |
 |---|---|---|---|
-| `slot_changed(slot_id, item)` | `Equipment` | `EquipmentVisualizer` (direct ref), HUD (direct ref) | No |
-| `desired_slot_changed(slot_id, item_id)` | `Equipment` | `ColonistEquipmentPanel`, UI rows (direct ref) | No |
+| `slot_changed(slot_id, item)` | `Equipment` | `EquipmentVisualizer` (direct ref), HUD (direct ref), `ColonistEquipmentPanel` (direct ref) | No |
+| `desired_slot_changed(slot_id, item_id)` | `Equipment` | `ColonistEquipmentPanel` (direct ref; it refreshes the slot rows) | No |
 
 ---
 
@@ -89,7 +89,7 @@ When `item.is_wearable()` is true, visuals mount dynamically across multi-bone a
 
 ## Desired Loadout & Equipment Fulfillment
 
-Colonists maintain a desired item ID for each slot in `Equipment._desired_slots`. The colony management UI allows players to configure these targets per colonist.
+Colonists maintain a desired item ID for each slot in `Equipment._desired_slots`. The colony management UI's **Gear** sub-tab lets players configure these targets per colonist (the UI calls them *targets*).
 
 ### Audit Trigger Points
 
@@ -115,6 +115,20 @@ Colonists maintain a desired item ID for each slot in `Equipment._desired_slots`
 - **Defensive Completion**: In `complete()`, the item is equipped to the slot *before* removing it from the storage crate to ensure no items are destroyed if equip validation fails.
 - **Labor Intercept Mode**: Jobs created via `JobBoard._create_and_post_intercept_fetch_job` set `is_labor_intercept = true`. These bypass the colonist `_desired_slots` requirement in `is_available_for()` and `should_close()`, and call `stow_and_equip()` on completion to cleanly stow the held weapon/tool.
 - **Stale Invalidation**: Standard loadout fetch jobs check if the desired item for the slot was modified while the job was in flight, retiring stale jobs cleanly.
+
+---
+
+## Colony Management Gear UI
+
+The **Gear** sub-tab (Tab, Colonists, Gear) edits each colonist's desired loadout. Scenes and helpers live in `ui/colony_management/`:
+
+- **`colonist_equipment_panel`** - left: eight one-line `equipment_slot_row` tiles (slot, equipped item, a pending `-> target`, status pip); right: an always-visible picker for the selected slot (equipped/target box with **Unequip** and **Clear target**, search, **In colony only** toggle, grouped list of `equipment_picker_row`s).
+- **Refresh model.** Rows and the slot-state box follow `Equipment.slot_changed` / `desired_slot_changed` (no polling). Status reasons and picker stock have no change signal, so the owning `colonist_details_panel` re-evaluates them on a 1.0 s tick while the Gear sub-tab is visible. The picker list itself is rebuilt only on slot select, search, toggle, or a change to the selected slot.
+- **Picker list.** `GearPickerModel.build_entries` groups eligible items by the slot's first accepted tag (`SLOT_ACCEPTED_TAGS` order), sorts stocked items first and then by name, and, with **In colony only** on (the default), hides items with no crate stock except the slot's current target and equipped item. Stock is `StorageRegistry.crate_stock` (crates only: that is all a `FetchEquipmentJob` can take). Items without an authored `icon` show a first-letter fallback.
+- **Status reasons.** `GearStatus.evaluate` reports why a target is unmet, in the order `EquipmentAudit` fulfils it: in the partner slot (will swap), in pockets (will equip), fetch queued (a `FetchEquipmentJob` for that colonist, slot and item is on the board), in storage (a fetch is posted at the next audit), otherwise none in storage. Its swap-partner pairs mirror `EquipmentAudit._audit_hand_pair` / `_audit_shield_pair`; keep them in sync.
+- **Unequip is disabled while the slot has a target**, because the audit would re-equip the item from pockets. Clear the target first.
+- **Esc** closes the picker before it closes the screen (`ColonistEquipmentPanel.handle_cancel`, called from its `_unhandled_input`; descendants receive unhandled input before their ancestors and `Main`).
+- **Names.** `GearText.item_display_name` (resource name, else id) and `GearText.slot_display_name` are the only naming paths; `holster` is labeled **Sidearm** through `GearText.SLOT_DISPLAY_NAMES`.
 
 ---
 

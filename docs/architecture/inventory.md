@@ -105,6 +105,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `find_closest_item_matching(item_id, tags, near) -> String` | Nearest item_id (by tag or exact id) across crates, for tool/tag-driven fetch. |
 | `find_best_food_source(near, blacklisted_sources = []) -> Dictionary` | Nearest edible item across crates and ground `WorldItem`s, skipping blacklisted sources. Used by `BTActionFindFood` ([Hunger](hunger.md)). |
 | `colony_food_count() -> int` | Total edible item count across crates and ground. |
+| `crate_stock(item_id) -> int` | Total held across all crates only (ignores ground items and pockets, unlike `colony_stock`). This is what a `FetchEquipmentJob` can actually withdraw; the Gear picker shows it next to each item. |
 | `colony_stock(item_id, near_pos = null, radius = 50.0, include_reserved = false) -> int` | Colony-wide stock of one item: storage crates + unforbidden WorldItems (filtered within `radius` of `near_pos`) + carried items on colonists and player. Reserved WorldItems are excluded unless `include_reserved` is true. |
 | `inventory_of(crate: Furniture) -> StorageInventory` | The crate's `StorageInventory` (or null if the crate is null/freed or has no such child). Shared resolution path so haul legs don't each re-fetch the child node. |
 | `get_all_crates() -> Array[Furniture]` | All live crate `Furniture` nodes in the current map. |
