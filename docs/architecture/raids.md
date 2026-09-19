@@ -21,6 +21,20 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 | `raid_started(raid_data)` | `night_raid_controller.gd` | HUD, Colony, colonists, GameLog | Yes | Raid Begins |
 | `raid_ended(outcome)` | `night_raid_controller.gd` | HUD, Colony, SaveSystem, GameLog | Yes | Raid Resolves |
 
+## Configuration
+
+All night raid tunables live in the `@export_group("Night Raid Spawning")` block of `GameConfig` (`data/game_config.gd`), authored in `data/game_config.tres`. Retuning pacing or adding a new enemy type to the pool is a data edit, not a code change.
+
+| Field | Default (`data/game_config.tres`) | Description |
+|---|---|---|
+| `spawn_distance_min` | `10.0` | Minimum spawn distance from the player (meters). |
+| `spawn_distance_max` | `20.0` | Maximum spawn distance from the player (meters). |
+| `spawn_start_hour` | `18.0` | 24h-clock hour raids begin. |
+| `spawn_end_hour` | `6.0` | 24h-clock hour raids end. Crosses midnight; handled by `_is_hour_in_night_window`. |
+| `spawns_per_minute` | `10.0` | Base enemies spawned per real-time minute, before curve modulation. |
+| `spawn_rate_curve` | 3-point curve (0.3 -> 1.0 -> 0.3) | Distribution curve modulating spawn intensity across the night. Sampled and mean-normalized (`_calculate_curve_mean`) so total nightly spawn count stays close to the flat `spawns_per_minute` baseline regardless of curve shape. |
+| `enemy_pool` | swarmer (weight `5.0`), brawler (weight `2.0`), shooter (weight `1.0`) | `Array[RaidSpawnEntry]` — weighted enemy scenes eligible to spawn. See [Class: RaidSpawnEntry](#class-raidspawnentry). |
+
 ## Flow Trace: Nightly raid begins
 
 **Trigger:** In-game clock reaches `spawn_start_hour` (e.g. 21:00).
