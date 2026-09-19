@@ -196,7 +196,7 @@ func test_job_should_close_waits_for_last_assignee() -> void:
 func test_producer_spawns_haul_job_with_zero_stock() -> void:
 	# A material'd blueprint spawns a haul job even when NO crate stocks the
 	# needed material — the job drought-waits on the board instead of building
-	# without materials. workbench costs 15 planks (data/furniture/workbench.tres).
+	# without materials. workbench costs 15 planks (data/furniture/crafting_stations/workbench.tres).
 	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
 	bp.target_def_id = "workbench"
 	_sandbox.make_crate("plank", 0)

@@ -6,7 +6,7 @@
 > bundle uses, and the per-furniture fix.
 >
 > **Prerequisites:** a `FurnitureDef` resource under `res://data/furniture/`
-> referencing the model's extracted `.mesh` (see `data/furniture/workbench.tres`
+> referencing the model's extracted `.mesh` (see `data/furniture/crafting_stations/workbench.tres`
 > as the canonical example).
 
 ---
@@ -49,7 +49,7 @@ The runtime (`subsystems/build/furniture_layer.gd`) and the editor preview
 
 ## How to fix a furniture def (the repeatable step)
 
-Open the furniture's `.tres` (e.g. `data/furniture/workbench.tres`) and add the
+Open the furniture's `.tres` (e.g. `data/furniture/crafting_stations/workbench.tres`) and add the
 atlas as an `ext_resource`, then assign it to `texture`:
 
 ```
@@ -165,8 +165,8 @@ The uid `cvn2otun3im08` is stable for `MainTexture.png` as long as the
 |---|---|
 | Atlas texture (the fix) | `res://assets/animpic-mega-survival-construction/MainTexture.png` |
 | Ready-made material (optional) | `res://assets/animpic-mega-survival-construction/MainMaterial.material` |
-| Example furniture def (canonical) | `res://data/furniture/workbench.tres` |
-| Example furniture def (non-atlas texture) | `res://data/furniture/storage_crate.tres` |
+| Example furniture def (canonical) | `res://data/furniture/crafting_stations/workbench.tres` |
+| Example furniture def (non-atlas texture) | `res://data/furniture/storage/storage_crate.tres` |
 | Runtime material builder | `subsystems/build/furniture_layer.gd` (`_create_furniture_node`) |
 | Editor preview material builder | `addons/voxel_paint/furniture_authoring.gd` (`place`) |
 | Bundle source (reference only) | `tmp/Polygon-Mega Survival Construction/` |

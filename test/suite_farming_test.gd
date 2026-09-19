@@ -11,7 +11,7 @@ extends GdUnitTestSuite
 ## - Player manual context-sensitive farming (FarmManualAction)
 ## - Persistence round-trip for farm plots and crops
 
-const TROUGH_DEF: FurnitureDef = preload("res://data/furniture/growing_trough.tres")
+const TROUGH_DEF: FurnitureDef = preload("res://data/furniture/farming/growing_trough.tres")
 const SOW_JOB_DEF: JobDef = preload("res://data/jobs/sow.tres")
 const WATER_JOB_DEF: JobDef = preload("res://data/jobs/water.tres")
 const TEND_JOB_DEF: JobDef = preload("res://data/jobs/tend.tres")

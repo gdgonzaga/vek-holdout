@@ -46,7 +46,7 @@ func bind(map_root: Node) -> bool:
             var anchor: Vector3i = child.get_meta("anchor", Vector3i())
             var yaw: int = child.get_meta("yaw_quarters", 0)
             var def_id: String = child.get_meta("def_id", "")
-            var def_res = load("res://data/furniture/%s.tres" % def_id)
+            var def_res = _load_furniture_def_by_id(def_id)
             var dims := Vector3i.ONE
             if def_res is BuildableDef:
                 dims = FurnitureLayer.dimensions_of(def_res as BuildableDef)
@@ -143,7 +143,7 @@ func rotate_selected(marker: Marker3D) -> bool:
     # (BuildLibrary autoload unreachable in @tool context).
     var def_id: String = marker.get_meta("def_id", "")
     var dims := Vector3i.ONE
-    var def_res = load("res://data/furniture/%s.tres" % def_id)
+    var def_res = _load_furniture_def_by_id(def_id)
     if def_res is BuildableDef:
         dims = FurnitureLayer.dimensions_of(def_res as BuildableDef)
 
@@ -208,3 +208,14 @@ func export_records() -> Array[Dictionary]:
             }
             records.append(record)
     return records
+
+
+## Resolves a FurnitureDef by id without assuming a flat data/furniture/
+## layout (it's split into category subfolders — see data-schemas.md) and
+## without BuildLibrary (autoloads aren't reliably reachable from @tool
+## context, same constraint as VoxelPaintPanel._load_furniture_defs).
+func _load_furniture_def_by_id(def_id: String) -> Resource:
+    for path: String in ContentDirLoader.find_resource_paths("res://data/furniture/"):
+        if path.get_file() == "%s.tres" % def_id:
+            return load(path)
+    return null

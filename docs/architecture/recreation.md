@@ -22,8 +22,8 @@ Colonists carry a `recreation` need alongside hunger and rest. Recreation furnit
 | `subsystems/ai/tasks/actions/bt_action_use_recreation.gd` | Script | `BTActionUseRecreation`. Session lifecycle and per-second need accrual. |
 | `subsystems/ai/tasks/conditions/bt_condition_goal_is.gd` | Script | `BTConditionGoalIs`. Generic goal gate for need branches. |
 | `../data/needs/need_recreation.tres` | Data | `NeedDef` for the need. `goal_name = &"recreation"`, `target_group = &"recreation_object"`. See [Data Schemas](data-schemas.md). |
-| `../data/furniture/game_table.tres` | Data | Sample exclusive object: `capacity = 1`, adjacent, fast. |
-| `../data/furniture/stone_statue.tres` | Data | Sample shared object: `capacity = -1`, `use_radius = 4.0`, slow. |
+| `../data/furniture/recreation/game_table.tres` | Data | Sample exclusive object: `capacity = 1`, adjacent, fast. |
+| `../data/furniture/recreation/stone_statue.tres` | Data | Sample shared object: `capacity = -1`, `use_radius = 4.0`, slow. |
 | `../data/moodlets/recreation_moodlet.tres` | Data | `StatThresholdMoodletDef` on `stat_id = &"recreation"`. Art pending. |
 
 ## Signals

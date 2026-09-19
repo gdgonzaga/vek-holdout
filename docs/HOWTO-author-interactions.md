@@ -16,7 +16,7 @@
 A furniture interaction is four `.tres` resources layered together:
 
 ```
-FurnitureDef (e.g. data/furniture/workbench.tres)
+FurnitureDef (e.g. data/furniture/crafting_stations/workbench.tres)
 └── action_options: Array[ActionOption]
     └── ActionOption        (data/action_options/<id>.tres)
         ├── action:    GameAction     (data/actions/<id>.tres)  ← what happens
@@ -120,7 +120,7 @@ Leave `Conditions` empty for an always-available option.
 ## Step 4: Wire it into a FurnitureDef
 
 1. Open the furniture's `FurnitureDef.tres` (e.g.
-   `data/furniture/workbench.tres`). Currently its `action_options` is empty,
+   `data/furniture/crafting_stations/workbench.tres`). Currently its `action_options` is empty,
    so it is non-interactable.
 2. Drag your `ActionOption.tres` from Step 3 into the **Action Options** array.
    Add as many options as the furniture should offer (one button each).

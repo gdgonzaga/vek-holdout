@@ -407,26 +407,17 @@ func _populate_blocks() -> void:
 	_block_select.selected = selected  # default: wood
 
 
-## Scan res://data/furniture/ directly for .tres FurnitureDef resources.
+## Scan res://data/furniture/ (recursively — it's split into category
+## subfolders, see data-schemas.md) directly for .tres FurnitureDef resources.
 ## Editor-side loader, independent of the runtime BuildLibrary autoload —
 ## autoloads aren't reliably reachable from @tool context (the panel lives in
 ## the editor UI tree, not the game scene tree). Mirrors how _populate_blocks
 ## loads voxel_library.tres directly rather than via BuildLibrary.
 func _load_furniture_defs() -> Array:
 	var out: Array = []
-	var dir_path := "res://data/furniture/"
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		push_warning("VoxelPaintPanel: could not open %s" % dir_path)
-		return out
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			var res = load(dir_path + fname)
-			if res is FurnitureDef:
-				out.append(res)
-		fname = dir.get_next()
+	var loaded := ContentDirLoader.load_by_id("res://data/furniture/", func(res: Variant) -> bool: return res is FurnitureDef)
+	for def in loaded.values():
+		out.append(def)
 	return out
 
 

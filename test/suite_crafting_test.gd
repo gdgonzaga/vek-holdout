@@ -8,7 +8,7 @@ extends GdUnitTestSuite
 
 const CRAFTING_DEF: JobDef = preload("res://data/jobs/crafting.tres")
 const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
-const WORKBENCH_DEF: FurnitureDef = preload("res://data/furniture/workbench.tres")
+const WORKBENCH_DEF: FurnitureDef = preload("res://data/furniture/crafting_stations/workbench.tres")
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 const Doubles = preload("res://test/helpers/doubles.gd")

@@ -11,7 +11,7 @@
 In *Xeno Frontier: Colony Defense*, free-standing structures that occupy space in the world are defined as **`FurnitureDef`** resources. Rather than creating subclasses for every distinct furniture archetype (e.g., `BedDef`, `StorageDef`, `TurretDef`), the game uses a **pluggable composition architecture**:
 
 ```
-FurnitureDef (e.g. data/furniture/colonist_bed.tres)
+FurnitureDef (e.g. data/furniture/recreation/colonist_bed.tres)
 ├── id: "colonist_bed"
 ├── dimensions: Vector3i(1, 1, 2)
 ├── mesh / scene / texture / hp / material_cost
@@ -54,7 +54,7 @@ When `FurnitureLayer.spawn(def, anchor, yaw_quarters)` creates a furniture insta
 
 ### Example A: Authoring a Colonist Bed (`colonist_bed.tres`)
 
-1. Create a new `.tres` in `res://data/furniture/colonist_bed.tres`.
+1. Create a new `.tres` in `res://data/furniture/recreation/colonist_bed.tres`.
 2. Set `script = ExtResource("res://data/furniture/furniture_def.gd")`.
 3. Configure dimensions, mesh, and tags:
    - `id`: `"colonist_bed"`
@@ -97,7 +97,7 @@ build_time = 6.0
 
 ### Example B: Authoring a Storage Container (`shelf.tres`)
 
-1. Create `res://data/furniture/shelf1.tres`.
+1. Create `res://data/furniture/storage/shelf1.tres`.
 2. Configure `action_options` with storage actions:
    - `open_storage_action_option.tres`
    - `configure_storage_action_option.tres`
@@ -111,7 +111,7 @@ build_time = 6.0
 
 ### Example C: Authoring a Farm Plot (`growing_trough.tres`)
 
-1. Create `res://data/furniture/growing_trough.tres`.
+1. Create `res://data/furniture/farming/growing_trough.tres`.
 2. Attach `FarmPlotParams`:
    - `allowed_crops`: `[]` (empty = accept all crops from `CropLibrary`)
    - `crop_slots`: `1`
