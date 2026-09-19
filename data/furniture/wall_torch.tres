@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://dk5knrbxo7emy" path="res://assets/custom/wall_torch/wall_torch/wall_torch.png" id="2_1ut87"]
 [ext_resource type="Script" uid="uid://den5pq0a8mmnl" path="res://data/capability_params/light_params.gd" id="3_rphq3"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="4_c0x3t"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="5_76ocg"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="5_76ocg"]
 [ext_resource type="Texture2D" uid="uid://ljihkd23l153" path="res://assets/custom/torch_stand/torch_stand_Wood051_1K-JPG_NormalGL.jpg" id="6_nuqrt"]
 [ext_resource type="Texture2D" uid="uid://bipgy18101u01" path="res://assets/custom/torch_stand/torch_stand_Wood051_1K-JPG_Roughness.png" id="7_gido5"]
 [ext_resource type="PackedScene" uid="uid://ddgrp7174qooy" path="res://assets/custom/wall_torch/wall_torch/wall_torch.glb" id="8_5154f"]

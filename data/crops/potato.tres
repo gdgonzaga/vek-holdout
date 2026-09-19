@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_amount"]
 [ext_resource type="PackedScene" uid="uid://ixwig310tjsr" path="res://assets/custom/plant1/plant1.glb" id="3_eej0l"]
 [ext_resource type="PackedScene" uid="uid://blordhqeorkg7" path="res://assets/custom/potato/potato2.glb" id="4_gpmvr"]
-[ext_resource type="Resource" path="res://data/items/potato.tres" id="4_potato"]
+[ext_resource type="Resource" path="res://data/items/food/potato.tres" id="4_potato"]
 [ext_resource type="PackedScene" uid="uid://0dten2vvslwm" path="res://assets/custom/potato/potato3.glb" id="5_8jkxd"]
 [ext_resource type="PackedScene" uid="uid://cmijf2b4w0huh" path="res://assets/custom/potato/potato4.glb" id="6_51d3y"]
 

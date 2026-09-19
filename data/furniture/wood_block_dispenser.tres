@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_ujahw"]
 [ext_resource type="ArrayMesh" uid="uid://chsj43w3ufgoo" path="res://assets/pole/pole.obj" id="3_ujahw"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="4_01fko"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="5_hd7xb"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="5_hd7xb"]
 
 [sub_resource type="Resource" id="Resource_rbi5t"]
 script = ExtResource("2_ujahw")

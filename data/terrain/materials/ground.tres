@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://c1kw4ya8qt8v5" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground/normal.PNG" id="2_jwpom"]
 [ext_resource type="Texture2D" uid="uid://bt5ooliukkird" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground/roughness.PNG" id="3_272kr"]
 [ext_resource type="Texture2D" uid="uid://dski467bdj4bq" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground/orme.PNG" id="3_a65v2"]
-[ext_resource type="Resource" uid="uid://cjt4sw4frgw7o" path="res://data/items/dirt.tres" id="3_dirt"]
+[ext_resource type="Resource" uid="uid://cjt4sw4frgw7o" path="res://data/items/materials/dirt.tres" id="3_dirt"]
 [ext_resource type="Texture2D" uid="uid://hwdw331xed34" path="res://assets/item_icons/dirt_block.png" id="4_icon"]
 [ext_resource type="Texture2D" uid="uid://kbvoem8l34m8" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground/basecolor.PNG" id="5_a65v2"]
 

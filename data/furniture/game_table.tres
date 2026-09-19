@@ -4,8 +4,8 @@
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
 [ext_resource type="Script" uid="uid://vilkg15a5al5" path="res://data/capability_params/recreation_params.gd" id="2_rparams"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_amt"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="4_plank"]
-[ext_resource type="Resource" uid="uid://o01mho678say" path="res://data/items/clockwork_mechanism.tres" id="5_mech"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="4_plank"]
+[ext_resource type="Resource" uid="uid://o01mho678say" path="res://data/items/materials/clockwork_mechanism.tres" id="5_mech"]
 
 [sub_resource type="Resource" id="Resource_cost_plank"]
 script = ExtResource("3_amt")

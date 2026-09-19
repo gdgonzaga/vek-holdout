@@ -12,7 +12,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `storage_registry.gd` | Script (`class_name StorageRegistry`, on Colony) | Live index of storage crates, so hauling jobs can find a source for a blueprint's still-needed materials. Scans the current map's `FurnitureContainer` each call — no registration. See class reference. |
 | `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Recursively scans `data/items/` at startup via `ContentDirLoader` (see [Overview](overview.md#content-directory-loading)); keyed by `ItemDef.id` (the canonical item identity, e.g. `"wood_block"`). Read-only after `_ready`. |
 | `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `id: String` (canonical item identity — what `ItemDB` keys by and inventories store), `weight: float`, `icon: Texture2D`, `mesh: Mesh` (world item visual shape — authoring guide: [`docs/HOWTO-author-worlditems.md`](../HOWTO-author-worlditems.md)), `material: Material` (optional material override), `visual_scale: Vector3` (world item scale), `tags: Array[String]` (categorization — the `"tool"` tag protects carried tools from dirt-floor drops during in-field job transitions while allowing crate storage during hygiene), `equippable: EquippableParams` (nullable capability). |
-| `../data/items/` | Data | Item definition `.tres` files (one per item type). |
+| `../data/items/` | Data | Item definition `.tres` files (one per item type), grouped into `materials/`, `weapons/`, `ammo/`, `tools/`, `apparel/`, `food/` subfolders by category. |
 
 ## Autoloads
 

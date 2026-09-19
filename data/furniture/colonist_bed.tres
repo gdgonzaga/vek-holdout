@@ -4,8 +4,8 @@
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="2_fdef"]
 [ext_resource type="Texture2D" uid="uid://cvn2otun3im08" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="3_tex"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="4_amt"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="5_plank"]
-[ext_resource type="Resource" uid="uid://brxslew51hukd" path="res://data/items/fiber.tres" id="6_fiber"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="5_plank"]
+[ext_resource type="Resource" uid="uid://brxslew51hukd" path="res://data/items/materials/fiber.tres" id="6_fiber"]
 [ext_resource type="Script" path="res://data/capability_params/bed_params.gd" id="7_bparams"]
 
 [sub_resource type="Resource" id="Resource_bed_params"]

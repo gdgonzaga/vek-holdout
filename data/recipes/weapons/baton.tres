@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3 uid="uid://b0jl56r65qcq5"]
+
+[ext_resource type="Script" uid="uid://brquurfm77a7s" path="res://subsystems/actions/condition.gd" id="1_86cnl"]
+[ext_resource type="Script" uid="uid://chb6k11elxm16" path="res://data/crafting/recipe_def.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_amount"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="3_n8vgs"]
+[ext_resource type="Resource" uid="uid://biavynt6iwbqc" path="res://data/items/weapons/baton.tres" id="5_baton"]
+
+[sub_resource type="Resource" id="Resource_in_2"]
+script = ExtResource("2_amount")
+item_def = ExtResource("3_n8vgs")
+count = 2
+
+[sub_resource type="Resource" id="Resource_out_1"]
+script = ExtResource("2_amount")
+item_def = ExtResource("5_baton")
+
+[resource]
+resource_name = "Baton"
+script = ExtResource("1_script")
+id = "baton"
+display_name = "baton"
+inputs = Array[ExtResource("2_amount")]([SubResource("Resource_in_2")])
+outputs = Array[ExtResource("2_amount")]([SubResource("Resource_out_1")])
+base_time = 6.0

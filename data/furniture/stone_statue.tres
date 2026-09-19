@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
 [ext_resource type="Script" path="res://data/capability_params/recreation_params.gd" id="2_rparams"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="3_amt"]
-[ext_resource type="Resource" path="res://data/items/stone_block.tres" id="4_stone"]
+[ext_resource type="Resource" path="res://data/items/materials/stone_block.tres" id="4_stone"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_stone_statue"]
 size = Vector3(1, 2, 1)

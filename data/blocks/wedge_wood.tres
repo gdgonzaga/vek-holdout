@@ -2,7 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://b13tp5wbm62wb" path="res://assets/custom_images/wedge_wood.png" id="1_1qfrd"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_o8qwh"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_lf1uc"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="3_lf1uc"]
 [ext_resource type="ArrayMesh" uid="uid://bbik1ek726qyg" path="res://assets/custom_meshes/wedge.obj" id="4_o8qwh"]
 [ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="5_w7o73"]
 [ext_resource type="Texture2D" uid="uid://dbsuwwh1rn4ca" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_tm23v"]

@@ -2,7 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://6hiebo0qqmyh" path="res://assets/custom_images/quarter_block_wood.png" id="1_xnwso"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_ulo7w"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_db84w"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="3_db84w"]
 [ext_resource type="ArrayMesh" uid="uid://b2bj01adumvn2" path="res://assets/custom_meshes/quarter-block.obj" id="4_ulo7w"]
 [ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="5_sasm5"]
 [ext_resource type="Texture2D" uid="uid://dbsuwwh1rn4ca" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_rd1dm"]

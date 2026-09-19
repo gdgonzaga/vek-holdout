@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_loxmd"]
 [ext_resource type="Script" uid="uid://bx8eopmw77d7s" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_xdcw4"]
-[ext_resource type="Resource" uid="uid://c6xv3n3w8eydg" path="res://data/items/bullet.tres" id="3_ammo"]
+[ext_resource type="Resource" uid="uid://c6xv3n3w8eydg" path="res://data/items/ammo/bullet.tres" id="3_ammo"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_rifle_turret"]
 

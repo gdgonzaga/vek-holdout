@@ -2,7 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://ctfu7l4dp8752" path="res://assets/custom_images/stairs_corner_right_wood.png" id="1_r51ej"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_doc0h"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="3_3qoqk"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="3_3qoqk"]
 [ext_resource type="ArrayMesh" uid="uid://bk4qdt316sq45" path="res://assets/custom_meshes/stairs-corner-right.obj" id="4_doc0h"]
 [ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="5_52yvr"]
 [ext_resource type="Texture2D" uid="uid://dbsuwwh1rn4ca" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_4pxrg"]

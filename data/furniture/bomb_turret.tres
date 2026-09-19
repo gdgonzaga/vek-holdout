@@ -4,11 +4,11 @@
 [ext_resource type="Resource" uid="uid://dwnu8etf4kv16" path="res://data/action_options/open_storage_action_option.tres" id="2_rd3ei"]
 [ext_resource type="Texture2D" uid="uid://vvmdstrmy750" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.png" id="3_653rx"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="4_fp3fb"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/plank.tres" id="5_14ejb"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="5_14ejb"]
 [ext_resource type="PackedScene" uid="uid://cavmbwfcd3yyd" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb" id="6_8tans"]
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="7_apec6"]
 [ext_resource type="Script" uid="uid://cqa8ehd6p5jke" path="res://data/capability_params/storage_params.gd" id="8_ciw6t"]
-[ext_resource type="Resource" uid="uid://dyoa05atjswxr" path="res://data/items/wooden_stake.tres" id="9_l0a15"]
+[ext_resource type="Resource" uid="uid://dyoa05atjswxr" path="res://data/items/ammo/wooden_stake.tres" id="9_l0a15"]
 [ext_resource type="ArrayMesh" uid="uid://b4qew1tqywb0s" path="res://assets/animpic-mega-survival-construction/SM_Stone_01.SM_Stone_01.mesh" id="10_7lhua"]
 [ext_resource type="Script" uid="uid://bx8eopmw77d7s" path="res://data/capability_params/turret_params.gd" id="11_gex5s"]
 

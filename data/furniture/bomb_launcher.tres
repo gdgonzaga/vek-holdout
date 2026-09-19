@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
 [ext_resource type="Script" uid="uid://cbp17b2pknl22" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
-[ext_resource type="Resource" path="res://data/items/bomb.tres" id="3_ammo"]
+[ext_resource type="Resource" path="res://data/items/ammo/bomb.tres" id="3_ammo"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_bomb_launcher"]
 size = Vector3(2, 1, 2)

@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://blxnfr58pouh0" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Metalness.png" id="2_f8vvc"]
 [ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Texture2D" uid="uid://baxj4pwbe1xpj" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_NormalGL.png" id="3_4t5kh"]
-[ext_resource type="Resource" uid="uid://banad48tku228" path="res://data/items/copper_ore.tres" id="3_copper"]
+[ext_resource type="Resource" uid="uid://banad48tku228" path="res://data/items/materials/copper_ore.tres" id="3_copper"]
 [ext_resource type="Texture2D" uid="uid://bgehgqlxjqn3a" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Roughness.png" id="4_lhouu"]
 [ext_resource type="Texture2D" uid="uid://ckdhr7jdxy3y7" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Color.png" id="6_jtwes"]
 

@@ -16,7 +16,7 @@ const SOW_JOB_DEF: JobDef = preload("res://data/jobs/sow.tres")
 const WATER_JOB_DEF: JobDef = preload("res://data/jobs/water.tres")
 const TEND_JOB_DEF: JobDef = preload("res://data/jobs/tend.tres")
 const HARVEST_JOB_DEF: JobDef = preload("res://data/jobs/harvest.tres")
-const PRUNING_KIT_DEF: ItemDef = preload("res://data/items/pruning_kit.tres")
+const PRUNING_KIT_DEF: ItemDef = preload("res://data/items/tools/pruning_kit.tres")
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 

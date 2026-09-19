@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://data/crops/crop_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://data/crops/crop_yield_tier.gd" id="2_tier"]
 [ext_resource type="Script" path="res://data/items/item_amount.gd" id="3_amount"]
-[ext_resource type="Resource" path="res://data/items/holdout_wheat.tres" id="4_wheat"]
+[ext_resource type="Resource" path="res://data/items/materials/holdout_wheat.tres" id="4_wheat"]
 
 [sub_resource type="Resource" id="Resource_wheat_half_item"]
 script = ExtResource("3_amount")

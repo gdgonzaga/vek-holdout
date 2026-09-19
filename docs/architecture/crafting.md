@@ -2,7 +2,7 @@
 
 Recipe-driven conversion of materials into items at crafting stations (GDD §7.9). The station is a **furniture component** (`CraftingStation`, the `StorageInventory` pattern — not a `Furniture` subclass), its order is a **MaterialSink** hauling can feed like a blueprint's, and crafting itself is **dual-mode**: a colonist craft Job or the player personally at the bench — one order, two possible workers, the same pattern blueprints already use (player `BuildAction` vs `ConstructionJobDef`).
 
-> **Status: built (2026-08-15, `test/suite_crafting_test.gd`).** Workbench ships with `wooden_board` (3 planks → 1, authored in `data/crafting/`) and `axe` (2 planks + 1 stone block → 1, `data/recipes/axe.tres`) in its `CraftingParams.recipes`. `planks` (1 wood block → 4) is authored in `data/recipes/planks.tres` but referenced by no station yet. Forge + smelting deferred (no forge FurnitureDef, no smelting skill in the catalog) — the shared component/def make it data-only work later.
+> **Status: built (2026-08-15, `test/suite_crafting_test.gd`).** Workbench ships with `wooden_board` (3 planks → 1, authored in `data/crafting/`) and `axe` (2 planks + 1 stone block → 1, `data/recipes/tools/axe.tres`) in its `CraftingParams.recipes`. `planks` (1 wood block → 4) is authored in `data/recipes/materials/planks.tres` but referenced by no station yet. Forge + smelting deferred (no forge FurnitureDef, no smelting skill in the catalog) — the shared component/def make it data-only work later.
 
 **Design notes:**
 - **One unified `Recipe` shape** for all craftable output (`RecipeDef`: furniture, armor, weapons, ammo, smelting). Same fields regardless of output type.
@@ -24,7 +24,7 @@ Recipe-driven conversion of materials into items at crafting stations (GDD §7.9
 | `data/jobs/crafting_job_def.gd` + `crafting.tres` | Script + data | Colonist craft Job: WORK leg at the station, skill-scaled duration, claim handshake, calls `station.produce()` for output drop, `complete_order` resolution. |
 | `data/actions/craft_action.gd` | Script (GameAction) | The player's personal craft: claim, ActionProgress gauge (Esc persists `work_done`, restart resumes), pocket-first production, player XP. Invoked by the panel (no ActionOption wiring). |
 | `data/actions/open_crafting_action.gd` + `ui/crafting/craft_panel.tscn` | Action + UI | E on the workbench → the craft panel: per-recipe Queue (with "until stock" SpinBox) / Craft buttons, order section with Craft now / Cancel. |
-| `data/recipes/*.tres` | Data | Recipe resources referenced from the station def's CraftingParams. |
+| `data/recipes/` | Data | Recipe resources, grouped into `materials/`, `weapons/`, `ammo/`, `tools/` subfolders by output category. Referenced individually by path from each station def's `CraftingParams` — not directory-scanned, unlike the `ContentDirLoader`-backed registries (see [Overview](overview.md#content-directory-loading)). |
 
 ## Signals
 
