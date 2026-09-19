@@ -14,6 +14,7 @@ class_name GameConfig
 @export var spawn_end_hour: float = 4.5                # 24h clock: 4:30 AM raid end.
 @export var spawns_per_minute: float = 4.0             # Base enemies spawned per real-time minute.
 @export var spawn_rate_curve: Curve                    # Distribution curve modulating spawn intensity across the night.
+@export var enemy_pool: Array[RaidSpawnEntry] = []     # Weighted enemy scenes eligible to spawn during raids.
 
 @export_group("Day/Night Celestial Lighting")
 @export var sun_energy: float = 1.2

@@ -1,10 +1,29 @@
 [gd_resource type="Resource" script_class="GameConfig" format=3 uid="uid://b1okhw1kceny6"]
 
 [ext_resource type="Script" uid="uid://tjhotagm10rq" path="res://data/game_config.gd" id="1_script"]
+[ext_resource type="Script" path="res://data/raids/raid_spawn_entry.gd" id="2_entry"]
+[ext_resource type="PackedScene" path="res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn" id="3_swarmer"]
+[ext_resource type="PackedScene" path="res://subsystems/combat/enemies/enemy_brawler/enemy_brawler.tscn" id="4_brawler"]
+[ext_resource type="PackedScene" path="res://subsystems/combat/enemies/enemy_shooter/enemy_shooter.tscn" id="5_shooter"]
 
 [sub_resource type="Curve" id="Curve_night_raid"]
 _data = [Vector2(0, 0.3), 0.0, 0.0, 0, 0, Vector2(0.5, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.3), 0.0, 0.0, 0, 0]
 point_count = 3
+
+[sub_resource type="Resource" id="Resource_pool_swarmer"]
+script = ExtResource("2_entry")
+enemy_scene = ExtResource("3_swarmer")
+weight = 5.0
+
+[sub_resource type="Resource" id="Resource_pool_brawler"]
+script = ExtResource("2_entry")
+enemy_scene = ExtResource("4_brawler")
+weight = 2.0
+
+[sub_resource type="Resource" id="Resource_pool_shooter"]
+script = ExtResource("2_entry")
+enemy_scene = ExtResource("5_shooter")
+weight = 1.0
 
 [resource]
 script = ExtResource("1_script")
@@ -14,6 +33,7 @@ spawn_start_hour = 18.0
 spawn_end_hour = 6.0
 spawns_per_minute = 10.0
 spawn_rate_curve = SubResource("Curve_night_raid")
+enemy_pool = Array[ExtResource("2_entry")]([SubResource("Resource_pool_swarmer"), SubResource("Resource_pool_brawler"), SubResource("Resource_pool_shooter")])
 sun_energy = 1.0
 sun_direct_light_energy = 1.0
 moon_energy = 1.0

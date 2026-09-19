@@ -2,7 +2,9 @@ class_name NightRaidController
 extends Node
 ## Night raid orchestrator and spawner (ARCH raids.md).
 ## Manages night raid timing, evaluates dynamic spawn pacing via GameConfig curves,
-## and spawns hostile entities radially around the active player on the terrain surface.
+## and spawns hostile entities radially around the active player on the terrain
+## surface, picking an enemy type per spawn via weighted random selection over
+## GameConfig.enemy_pool.
 
 const _DEFAULT_CONFIG_PATH: String = "res://data/game_config.tres"
 const _MAX_SPAWN_ATTEMPTS: int = 5
@@ -12,7 +14,6 @@ const _SECONDS_PER_MINUTE: float = 60.0
 const _ELEVATION_SPAWN_OFFSET: float = 1.0
 
 @export var config_path: String = _DEFAULT_CONFIG_PATH
-@export var enemy_scene: PackedScene = preload("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
 
 var map: Map = null
 var config: GameConfig = null
@@ -217,9 +218,15 @@ func _sample_radial_offset(min_dist: float, max_dist: float) -> Vector2:
 func _instantiate_enemy(pos: Vector3) -> EnemyBase:
 	## Auxiliary: Instantiates enemy prototype and parents it under map enemy container.
 	var container := map.get_enemy_container()
-	if container == null or enemy_scene == null:
+	if container == null:
 		return null
-	var node: Node = enemy_scene.instantiate()
+
+	# 1. Enemy Type Selection: Weighted-random pick over the configured raid spawn pool.
+	var scene: PackedScene = _select_weighted_enemy_scene(config.enemy_pool, _rng)
+	if scene == null:
+		return null
+
+	var node: Node = scene.instantiate()
 	var enemy := node as EnemyBase
 	if enemy == null:
 		node.queue_free()
@@ -227,6 +234,38 @@ func _instantiate_enemy(pos: Vector3) -> EnemyBase:
 	enemy.global_position = pos
 	container.add_child(enemy)
 	return enemy
+
+
+func _select_weighted_enemy_scene(pool: Array[RaidSpawnEntry], rng: RandomNumberGenerator) -> PackedScene:
+	## Auxiliary: Resolves a pool entry's scene via weighted random index selection.
+	if pool.is_empty():
+		return null
+	var weights: Array[float] = []
+	for entry in pool:
+		weights.append(entry.weight)
+
+	# 1. Index Roll: Rolls a cumulative-weight index across the pool's weights.
+	var index: int = _pick_weighted_index(weights, rng)
+	if index < 0:
+		return null
+	return pool[index].enemy_scene
+
+
+func _pick_weighted_index(weights: Array[float], rng: RandomNumberGenerator) -> int:
+	## Auxiliary: Rolls a cumulative-weight index; returns -1 when total weight is non-positive.
+	var total: float = 0.0
+	for w in weights:
+		total += w
+	if total <= 0.0:
+		return -1
+
+	var roll: float = rng.randf_range(0.0, total)
+	var cumulative: float = 0.0
+	for i in range(weights.size()):
+		cumulative += weights[i]
+		if roll < cumulative:
+			return i
+	return weights.size() - 1
 
 
 func _wire_enemy(enemy: EnemyBase) -> void:

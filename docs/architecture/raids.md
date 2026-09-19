@@ -30,7 +30,7 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 3. Evaluates real-time night duration from `GameConfig.loop_length_minutes`.
 4. Evaluates instantaneous spawn frequency scaled by `spawn_rate_curve`.
 5. Raycasts downward from Y = 512.0 to find terrain elevation around the player.
-6. Instantiates enemy entities into the map's `EnemyContainer` and wires pathfinding.
+6. Picks an enemy type via weighted random selection over `GameConfig.enemy_pool`, instantiates it into the map's `EnemyContainer`, and wires pathfinding.
 7. On reaching `spawn_end_hour` (e.g. 04:30), emits `raid_ended` via `EventBus`.
 
 **End state:** Raid in progress; colonists in stance; enemies spawning.
@@ -41,16 +41,15 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 
 **Extends:** Node  
 **Script:** `subsystems/raids/night_raid_controller.gd`  
-**Description:** Manages nocturnal raid timing, evaluates dynamic spawn pacing via `GameConfig` distribution curves, and spawns hostile entities radially around the active player on the terrain surface. Mounted on the active map via `MapWiring.wire_raids(m)`.  
+**Description:** Manages nocturnal raid timing, evaluates dynamic spawn pacing via `GameConfig` distribution curves, and spawns hostile entities radially around the active player on the terrain surface, picking an enemy type per spawn via weighted random selection over `GameConfig.enemy_pool`. Mounted on the active map via `MapWiring.wire_raids(m)`.  
 
 **Properties:**
 
 | Property | Type | Description |
 |---|---|---|
 | `config_path` | `String` | Path to `GameConfig` resource (`res://data/game_config.tres`). |
-| `enemy_scene` | `PackedScene` | Hostile prototype scene to instantiate (`enemy_swarmer.tscn`). |
 | `map` | `Map` | Active map instance owning voxel grid, player, and enemy container. |
-| `config` | `GameConfig` | Loaded game config reference containing raid tunables. |
+| `config` | `GameConfig` | Loaded game config reference containing raid tunables, including `enemy_pool`. |
 | `raid_active` | `bool` | True when in-game clock is within the raid window (`spawn_start_hour` to `spawn_end_hour`). |
 
 **Functions:**
@@ -64,6 +63,22 @@ Raid scheduler, threat-direction weights, spawn manager. GDD §17 Raids subsyste
 | `_calculate_curve_mean(curve: Curve) -> float` | Samples curve across [0.0, 1.0] to compute its mean value for quota-preserving rate normalization. |
 | `_find_valid_spawn_position(player_pos: Vector3) -> Vector3` | Samples radial polar coordinates around player and queries terrain height via `map.ground_height_at(x, z)`. |
 | `_spawn_raid_enemy() -> bool` | Instantiates enemy at valid surface coordinate and wires pathfinder walkability via `MapWiring.wire_enemy_pathfinder()`. |
+| `_select_weighted_enemy_scene(pool: Array[RaidSpawnEntry], rng: RandomNumberGenerator) -> PackedScene` | Picks one pool entry's scene via weighted random index selection; returns `null` (spawn skipped) for an empty pool. |
+| `_pick_weighted_index(weights: Array[float], rng: RandomNumberGenerator) -> int` | Pure cumulative-weight roll over a weights array; returns `-1` when total weight is non-positive. |
+
+
+### Class: RaidSpawnEntry
+
+**Extends:** Resource
+**Script:** `data/raids/raid_spawn_entry.gd`
+**Description:** One weighted enemy option in a night raid's spawn pool. `GameConfig.enemy_pool` holds an `Array[RaidSpawnEntry]`; adding a new enemy archetype to raids means adding an entry here that points at its scene (e.g. `enemy_brawler.tscn`), not editing `NightRaidController` — closes tech-debt item 6's "hardcoded PackedScene" half for this spawn path (`map_wiring.gd`'s static spawn-marker path is untouched, still hardcoded).
+
+**Properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `enemy_scene` | `PackedScene` | The archetype scene to instantiate when this entry is selected (e.g. `enemy_swarmer.tscn`, `enemy_brawler.tscn`, `enemy_shooter.tscn`). |
+| `weight` | `float` | Relative selection weight; higher spawns more often. `data/game_config.tres` currently authors 5 / 2 / 1 for swarmer / brawler / shooter. |
 
 
 ### Class: ThreatModel

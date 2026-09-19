@@ -143,3 +143,45 @@ func test_raid_lifecycle_emits_event_bus_signals() -> void:
 
 	EventBus.raid_started.disconnect(on_started)
 	EventBus.raid_ended.disconnect(on_ended)
+
+
+func test_pick_weighted_index_selects_sole_nonzero_weight() -> void:
+	var controller: NightRaidController = auto_free(NightRaidController.new())
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+
+	for i in range(20):
+		var index: int = controller._pick_weighted_index([0.0, 1.0, 0.0], rng)
+		assert_int(index).is_equal(1)
+
+
+func test_pick_weighted_index_returns_negative_one_for_non_positive_weights() -> void:
+	var controller: NightRaidController = auto_free(NightRaidController.new())
+	var rng := RandomNumberGenerator.new()
+
+	assert_int(controller._pick_weighted_index([], rng)).is_equal(-1)
+	assert_int(controller._pick_weighted_index([0.0, 0.0], rng)).is_equal(-1)
+
+
+func test_select_weighted_enemy_scene_returns_null_for_empty_pool() -> void:
+	var controller: NightRaidController = auto_free(NightRaidController.new())
+	var rng := RandomNumberGenerator.new()
+	var pool: Array[RaidSpawnEntry] = []
+
+	assert_that(controller._select_weighted_enemy_scene(pool, rng)).is_null()
+
+
+func test_select_weighted_enemy_scene_returns_single_entry_scene() -> void:
+	var controller: NightRaidController = auto_free(NightRaidController.new())
+	var rng := RandomNumberGenerator.new()
+
+	var dummy_node: Node = auto_free(Node.new())
+	var dummy_scene := PackedScene.new()
+	dummy_scene.pack(dummy_node)
+
+	var entry := RaidSpawnEntry.new()
+	entry.enemy_scene = dummy_scene
+	entry.weight = 1.0
+	var pool: Array[RaidSpawnEntry] = [entry]
+
+	assert_that(controller._select_weighted_enemy_scene(pool, rng)).is_equal(dummy_scene)
