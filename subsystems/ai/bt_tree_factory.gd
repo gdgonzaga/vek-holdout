@@ -21,6 +21,7 @@ const BTConditionGoalIsScript = preload("res://subsystems/ai/tasks/conditions/bt
 
 const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd")
 const BTActionMeleeAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd")
+const BTActionRangedAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_ranged_attack.gd")
 const BTActionBreachVoxelScript = preload("res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd")
 const BTConditionPathBlockedScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd")
 const BTActionColonistCombatAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_colonist_combat_attack.gd")
@@ -197,10 +198,14 @@ static func create_colonist_root_tree(work_tree: BehaviorTree = null) -> Behavio
 	return tree
 
 
-## Builds the enemy swarmer behavior tree
-static func create_enemy_swarmer_tree() -> BehaviorTree:
+## Builds the generic melee-enemy behavior tree: closest target scan,
+## voxel-breach-if-blocked, chase, and attack. Archetype-agnostic -- combat
+## numbers (damage/range/timing) come from the agent's EnemyDef.attack_params
+## (BTActionMeleeAttack.use_agent_attack_params), so this one tree serves any
+## melee archetype (Swarmer, Brawler) rather than needing a per-archetype copy.
+static func create_enemy_melee_tree() -> BehaviorTree:
 	var tree := BehaviorTree.new()
-	tree.description = "Enemy swarmer tree with closest target scan, approach, attack, and breach"
+	tree.description = "Melee enemy tree with closest target scan, approach, attack, and breach"
 	
 	var root := BTSequence.new()
 	
@@ -235,13 +240,67 @@ static func create_enemy_swarmer_tree() -> BehaviorTree:
 	
 	var attack_action = BTActionMeleeAttackScript.new()
 	attack_action.target_var = &"threat_target"
-	attack_action.attack_range = 1.5
-	attack_action.windup_duration = 0.2
-	attack_action.cooldown_duration = 0.4
+	# EnemyDef.attack_params-driven (data/enemies/*.tres) instead of hardcoded
+	# here, so this same tree serves any melee archetype (swarmer, brawler).
+	attack_action.use_agent_attack_params = true
 	attack_seq.add_child(attack_action)
 	
 	engage_selector.add_child(attack_seq)
 	root.add_child(engage_selector)
-	
+
+	tree.root_task = root
+	return tree
+
+
+## Builds the ranged/kiting enemy tree (Shooter archetype, GDD S5): scans for
+## the closest target, fires whenever within its authored holding range
+## (RangedActionParams.range_meters), and otherwise closes distance to reach
+## that range -- reusing BTActionNavigateTo's arrival_distance_from_agent_attack_range
+## mode (same mechanism the melee tree uses for chasing) so the "close enough
+## to fire" distance stays in sync with attack_params.range_meters instead of
+## being a second, independently-authored number.
+##
+## Known MVP simplification vs. the full GDD Reposition/MeleeFallback state
+## machine: this never backs away once a target closes inside holding range.
+## The GDD's own "never advances... only holds or back-pedals" note has no
+## corresponding RangedAttack-state transition for a target that closes
+## further (Reposition -> MeleeFallback is only reachable from Reposition,
+## not from an active RangedAttack), and the design intent explicitly wants
+## an aggressive push to end the threat -- "reaching it ends the ranged
+## threat immediately, rewarding aggressive play" -- so a Shooter that just
+## keeps firing at point-blank range until killed matches intent, not an
+## oversight. Back-pedaling/melee-fallback deliberately deferred; see
+## docs/architecture/tech-debt.md if it turns out to be needed later.
+static func create_enemy_ranged_kiter_tree() -> BehaviorTree:
+	var tree := BehaviorTree.new()
+	tree.description = "Ranged/kiter enemy tree: closest target scan, hold-range fire, close distance to reach range"
+
+	var root := BTSequence.new()
+
+	# 1. Target Acquisition: Scan for nearest target (player or colonist)
+	var scan_threats = BTActionScanThreatsScript.new()
+	var target_groups: Array[StringName] = [&"player", &"players", &"colonists"]
+	scan_threats.threat_groups = target_groups
+	scan_threats.radius = 16.0
+	scan_threats.result_var = &"threat_target"
+	root.add_child(scan_threats)
+
+	# 2. Fire-or-Close-Distance Selector
+	var engage_selector := BTSelector.new()
+
+	# 2a. Fire whenever within the agent's authored holding range (fails,
+	# falling through to 2b, when the target is currently out of range).
+	var ranged_attack = BTActionRangedAttackScript.new()
+	ranged_attack.target_var = &"threat_target"
+	engage_selector.add_child(ranged_attack)
+
+	# 2b. Close distance to reach holding range.
+	var reposition_nav = BTActionNavigateToScript.new()
+	reposition_nav.target_var = &"threat_target"
+	reposition_nav.arrival_distance_from_agent_attack_range = true
+	engage_selector.add_child(reposition_nav)
+
+	root.add_child(engage_selector)
+
 	tree.root_task = root
 	return tree

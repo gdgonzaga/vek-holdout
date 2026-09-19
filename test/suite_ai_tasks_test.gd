@@ -16,6 +16,7 @@ const BTConditionInGroupScript = preload("res://subsystems/ai/tasks/conditions/b
 
 const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd")
 const BTActionMeleeAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd")
+const BTActionRangedAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_ranged_attack.gd")
 const BTActionBreachVoxelScript = preload("res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd")
 const BTConditionPathBlockedScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd")
 
@@ -1048,6 +1049,154 @@ func test_melee_attack_damages_target() -> void:
 	assert_int(task.execute(0.2)).is_equal(BTAction.SUCCESS)
 
 
+## use_agent_attack_params must source damage/range/timing from the agent's
+## EnemyDef.attack_params instead of the task's own exports -- the exports
+## below are deliberately left at defaults that would otherwise fail this
+## scenario (attack_range=1.8 default is too short for the 5m distance used
+## here) to prove the override actually took effect, not just the damage.
+func test_melee_attack_uses_agent_attack_params_when_enabled() -> void:
+	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var enemy_def := EnemyDef.new()
+	var melee := MeleeActionParams.new()
+	melee.damage = 40.0
+	melee.range_meters = 6.0
+	melee.windup_seconds = 0.1
+	melee.active_seconds = 0.0
+	melee.cooldown_seconds = 0.1
+	enemy_def.attack_params = melee
+	enemy.enemy_def = enemy_def
+	var enemy_health := HealthComponent.new()
+	enemy_health.name = "HealthComponent"
+	enemy.add_child(enemy_health)
+	add_child(enemy)
+	enemy.global_position = Vector3.ZERO
+
+	var task: BTAction = auto_free(BTActionMeleeAttackScript.new()) as BTAction
+	task.use_agent_attack_params = true
+
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(5, 0, 0)
+	var initial_hp: int = colonist.get_hp()
+
+	_blackboard.set_var(&"threat_target", colonist)
+	task.initialize(enemy, _blackboard, enemy)
+
+	assert_int(task.execute(0.05)).is_equal(BTAction.RUNNING)
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+	assert_int(colonist.get_hp()).is_equal(initial_hp - 40)
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+
+
+## use_weapon_range must resolve an effective radius from an EnemyBase agent
+## directly (no sibling ColonistCombat node), not just from a Colonist.
+func test_scan_threats_use_weapon_range_resolves_enemy_base_agent() -> void:
+	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var enemy_def := EnemyDef.new()
+	var melee := MeleeActionParams.new()
+	melee.range_meters = 3.0
+	enemy_def.attack_params = melee
+	enemy.enemy_def = enemy_def
+	var enemy_health := HealthComponent.new()
+	enemy_health.name = "HealthComponent"
+	enemy.add_child(enemy_health)
+	add_child(enemy)
+	enemy.global_position = Vector3.ZERO
+
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(2.0, 0, 0)
+
+	var task: BTAction = auto_free(BTActionScanThreatsScript.new()) as BTAction
+	task.use_weapon_range = true
+	task.initialize(enemy, _blackboard, enemy)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+	assert_object(_blackboard.get_var(&"threat_target")).is_equal(colonist)
+
+
+# ── BTActionRangedAttack ─────────────────────────────────────────────────────
+
+## Fires immediately (no windup -- RangedActionParams has none), applies
+## damage once, then holds RUNNING for the rest of the authored cooldown
+## before a fresh cycle can fire again.
+func test_ranged_attack_damages_target_and_respects_cooldown() -> void:
+	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var enemy_def := EnemyDef.new()
+	var ranged := RangedActionParams.new()
+	ranged.damage = 12.0
+	ranged.range_meters = 10.0
+	ranged.cooldown_seconds = 0.3
+	enemy_def.attack_params = ranged
+	enemy.enemy_def = enemy_def
+	var enemy_health := HealthComponent.new()
+	enemy_health.name = "HealthComponent"
+	enemy.add_child(enemy_health)
+	add_child(enemy)
+	enemy.global_position = Vector3.ZERO
+
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(8, 0, 0)
+	var initial_hp: int = colonist.get_hp()
+
+	_blackboard.set_var(&"threat_target", colonist)
+	var task: BTAction = auto_free(BTActionRangedAttackScript.new()) as BTAction
+	task.initialize(enemy, _blackboard, enemy)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+	assert_int(colonist.get_hp()).is_equal(initial_hp - 12)
+	assert_int(task.execute(0.1)).is_equal(BTAction.RUNNING)
+	assert_int(colonist.get_hp()).is_equal(initial_hp - 12) # no second shot mid-cooldown
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
+
+
+func test_ranged_attack_fails_when_target_out_of_range() -> void:
+	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var enemy_def := EnemyDef.new()
+	var ranged := RangedActionParams.new()
+	ranged.damage = 12.0
+	ranged.range_meters = 5.0
+	enemy_def.attack_params = ranged
+	enemy.enemy_def = enemy_def
+	var enemy_health := HealthComponent.new()
+	enemy_health.name = "HealthComponent"
+	enemy.add_child(enemy_health)
+	add_child(enemy)
+	enemy.global_position = Vector3.ZERO
+
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(20, 0, 0)
+
+	_blackboard.set_var(&"threat_target", colonist)
+	var task: BTAction = auto_free(BTActionRangedAttackScript.new()) as BTAction
+	task.initialize(enemy, _blackboard, enemy)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+
+
+## No standalone-export fallback exists on this task (unlike
+## BTActionMeleeAttack's use_agent_attack_params) -- an agent with no
+## RangedActionParams authored (or the wrong CombatActionParams subtype)
+## must fail cleanly rather than fire with zeroed numbers.
+func test_ranged_attack_fails_without_ranged_attack_params() -> void:
+	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var enemy_def := EnemyDef.new()
+	enemy_def.attack_params = MeleeActionParams.new()
+	enemy.enemy_def = enemy_def
+	var enemy_health := HealthComponent.new()
+	enemy_health.name = "HealthComponent"
+	enemy.add_child(enemy_health)
+	add_child(enemy)
+	enemy.global_position = Vector3.ZERO
+
+	var colonist: Colonist = _sandbox.make_colonist()
+	colonist.global_position = Vector3(1, 0, 0)
+
+	_blackboard.set_var(&"threat_target", colonist)
+	var task: BTAction = auto_free(BTActionRangedAttackScript.new()) as BTAction
+	task.initialize(enemy, _blackboard, enemy)
+
+	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
+
+
 # ── BTActionBreachVoxel ──────────────────────────────────────────────────────
 
 func test_breach_voxel_applies_real_hp_damage_via_apply_damage() -> void:
@@ -1106,20 +1255,26 @@ func test_tree_factory_generates_and_saves_trees() -> void:
 	assert_object(colonist_tree).is_not_null()
 	assert_object(colonist_tree.root_task).is_not_null()
 	
-	var enemy_tree: BehaviorTree = BTTreeFactoryScript.create_enemy_swarmer_tree()
-	assert_object(enemy_tree).is_not_null()
-	assert_object(enemy_tree.root_task).is_not_null()
-	
+	var melee_tree: BehaviorTree = BTTreeFactoryScript.create_enemy_melee_tree()
+	assert_object(melee_tree).is_not_null()
+	assert_object(melee_tree.root_task).is_not_null()
+
+	var ranged_tree: BehaviorTree = BTTreeFactoryScript.create_enemy_ranged_kiter_tree()
+	assert_object(ranged_tree).is_not_null()
+	assert_object(ranged_tree.root_task).is_not_null()
+
 	# Save .tres resources
 	var err1: int = ResourceSaver.save(work_tree, "res://data/ai/trees/bt_generic_work.tres")
 	var err2: int = ResourceSaver.save(haul_tree, "res://data/ai/trees/bt_haul_single_trip.tres")
 	var err3: int = ResourceSaver.save(colonist_tree, "res://data/ai/trees/colonist_root.tres")
-	var err4: int = ResourceSaver.save(enemy_tree, "res://data/ai/trees/enemy_swarmer.tres")
-	
+	var err4: int = ResourceSaver.save(melee_tree, "res://data/ai/trees/enemy_melee.tres")
+	var err5: int = ResourceSaver.save(ranged_tree, "res://data/ai/trees/enemy_ranged_kiter.tres")
+
 	assert_int(err1).is_equal(OK)
 	assert_int(err2).is_equal(OK)
 	assert_int(err3).is_equal(OK)
 	assert_int(err4).is_equal(OK)
+	assert_int(err5).is_equal(OK)
 
 
 # ── Phase 5: Hardening, Persistence & Verification Tests ─────────────────────

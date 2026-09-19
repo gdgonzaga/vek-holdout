@@ -1,0 +1,26 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="1_mr5x2"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_ranged_attack.gd" id="2_dt6b5"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="3_a0nny"]
+
+[sub_resource type="BTAction" id="BTAction_mr5x2"]
+script = ExtResource("1_mr5x2")
+
+[sub_resource type="BTAction" id="BTAction_dt6b5"]
+script = ExtResource("2_dt6b5")
+
+[sub_resource type="BTAction" id="BTAction_a0nny"]
+script = ExtResource("3_a0nny")
+target_var = &"threat_target"
+arrival_distance_from_agent_attack_range = true
+
+[sub_resource type="BTSelector" id="BTSelector_uk0et"]
+children = [SubResource("BTAction_dt6b5"), SubResource("BTAction_a0nny")]
+
+[sub_resource type="BTSequence" id="BTSequence_xv7du"]
+children = [SubResource("BTAction_mr5x2"), SubResource("BTSelector_uk0et")]
+
+[resource]
+description = "Ranged/kiter enemy tree: closest target scan, hold-range fire, close distance to reach range"
+root_task = SubResource("BTSequence_xv7du")

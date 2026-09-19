@@ -56,10 +56,12 @@ func _tick(_delta: float) -> Status:
 
 
 func _resolve_weapon_range(agent_node: Node3D) -> float:
-	## Auxiliary: Queries the attack range from the agent's ColonistCombat component.
-	var combat: ColonistCombat = agent_node.get_node_or_null("ColonistCombat") as ColonistCombat
-	if combat != null:
-		return combat.get_attack_range()
+	## Auxiliary: Queries the attack range from the agent's resolved combat
+	## source (ColonistCombat sibling, or the agent itself for EnemyBase --
+	## see AIUtils.resolve_combat_source / ICombatSource).
+	var source: Node = AIUtils.resolve_combat_source(agent_node)
+	if source != null and source.has_method("get_attack_range"):
+		return source.get_attack_range()
 	return 0.0
 
 

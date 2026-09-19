@@ -10,6 +10,17 @@ extends BTAction
 ## Distance to target required to consider arrival successful
 @export var arrival_distance: float = 1.8
 
+## When true, resolves arrival_distance from the agent's resolved combat
+## source's attack range (EnemyDef.attack_params.range_meters via
+## AIUtils.resolve_combat_source, mirroring
+## BTActionScanThreats.use_weapon_range) instead of the export above --
+## keeps a ranged-kiting tree's "close enough to fire" distance in sync with
+## the same range its BTActionRangedAttack sibling node fires at, with one
+## source of truth. Falls back to the export if the agent has no resolvable
+## attack range (e.g. unarmed).
+@export var arrival_distance_from_agent_attack_range: bool = false
+
+var _effective_arrival_distance: float = 0.0
 var _target_world_pos: Vector3 = Vector3.ZERO
 var _has_target_pos: bool = false
 var _has_valid_target: bool = false
@@ -45,6 +56,7 @@ func _enter() -> void:
 	_no_target = false
 	_target_node_ref = null
 	_repath_cooldown = _DYNAMIC_REPATH_INTERVAL
+	_resolve_effective_arrival_distance()
 
 	if not agent or not blackboard:
 		return
@@ -97,7 +109,7 @@ func _enter() -> void:
 	# Check if already within arrival distance
 	if _has_target_pos and agent is Node3D:
 		var curr_pos: Vector3 = (agent as Node3D).global_position
-		var threshold: float = arrival_distance if _requires_adjacent else 0.45
+		var threshold: float = _effective_arrival_distance if _requires_adjacent else 0.45
 		if curr_pos.distance_to(_target_world_pos) <= threshold:
 			_has_valid_target = true
 			return
@@ -123,6 +135,21 @@ func _resolve_requires_adjacent(job_candidate: Variant) -> bool:
 	return true
 
 
+func _resolve_effective_arrival_distance() -> void:
+	## Auxiliary: Resolves arrival_distance from the agent's resolved combat
+	## source's attack range when opted in (see
+	## arrival_distance_from_agent_attack_range doc comment above), else uses
+	## the export as authored.
+	if arrival_distance_from_agent_attack_range:
+		var source: Node = AIUtils.resolve_combat_source(agent)
+		if source != null and source.has_method("get_attack_range"):
+			var resolved: float = source.get_attack_range()
+			if resolved > 0.0:
+				_effective_arrival_distance = resolved
+				return
+	_effective_arrival_distance = arrival_distance
+
+
 func _tick(delta: float) -> Status:
 	if not agent or not _has_valid_target:
 		## Only treat this as a real nav failure (and clean up job state) when we
@@ -141,7 +168,7 @@ func _tick(delta: float) -> Status:
 	if _has_target_pos and agent is Node3D:
 		var curr_pos: Vector3 = (agent as Node3D).global_position
 		var dist: float = curr_pos.distance_to(_target_world_pos)
-		var threshold: float = arrival_distance if _requires_adjacent else 0.45
+		var threshold: float = _effective_arrival_distance if _requires_adjacent else 0.45
 		if dist <= threshold:
 			return SUCCESS
 			

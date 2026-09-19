@@ -3,9 +3,12 @@ extends CharacterBody3D
 ## Base class for all hostile entities (ARCH combat.md).
 ## Requires a HealthComponent child node.
 
-@export var speed: float = 5.0
+## Null is supported (some combat-mechanics tests construct a bare EnemyBase
+## with a hand-configured HealthComponent, independent of any archetype) --
+## def-driven setup below is skipped entirely when unset, leaving whatever
+## the caller configured directly on the child nodes untouched.
+@export var enemy_def: EnemyDef = null
 @export var gravity: float = 9.8
-@export var moodlet_defs: Array[MoodletDef] = []
 
 @onready var health_component: HealthComponent = $HealthComponent
 
@@ -74,10 +77,10 @@ func get_stat_value(stat_name: StringName) -> float:
 	return _resolve_stat_value(stat_name)
 
 
-## Returns all currently active moodlets evaluated from moodlet_defs in order.
+## Returns all currently active moodlets evaluated from enemy_def.moodlet_defs in order.
 ## Each element is a Dictionary: { "def": MoodletDef, "index": int, "texture": Texture2D, "name": String }
 func get_active_moodlets() -> Array[Dictionary]:
-	if moodlet_defs.is_empty():
+	if enemy_def == null or enemy_def.moodlet_defs.is_empty():
 		return []
 	
 	# 1. Moodlet Collection: Iterate and collect active moodlets from definitions.
@@ -103,6 +106,22 @@ func take_damage(amount: int, source: Node = null) -> void:
 		health_component = get_node_or_null("HealthComponent") as HealthComponent
 	if health_component:
 		health_component.take_damage(amount, source)
+
+
+## ICombatSource contract (subsystems/core/i_combat_source.gd) -- this
+## archetype's authored attack data, or null if it never attacks (no
+## attack_params authored, or no enemy_def at all).
+func get_combat_action() -> CombatActionParams:
+	return enemy_def.attack_params if enemy_def != null else null
+
+
+## ICombatSource contract -- effective attack range in meters, mirroring
+## ColonistCombat.get_attack_range()'s fallback-to-2.0-if-unset shape.
+func get_attack_range() -> float:
+	var action := get_combat_action()
+	if action == null:
+		return 0.0
+	return action.range_meters if action.range_meters > 0.0 else 2.0
 
 
 func _on_entity_died(_entity: Node) -> void:
@@ -146,10 +165,12 @@ func deserialize(data: Dictionary) -> void:
 # =============================================================================
 
 func _setup_health_component() -> void:
-	## Auxiliary: Resolves HealthComponent and connects entity_died signal.
+	## Auxiliary: Resolves HealthComponent, applies EnemyDef's HP/Durability, and connects entity_died signal.
 	if not health_component:
 		health_component = get_node_or_null("HealthComponent") as HealthComponent
 	if health_component:
+		if enemy_def != null:
+			health_component.setup(enemy_def.max_hp, enemy_def.max_durability)
 		if not health_component.entity_died.is_connected(_on_entity_died):
 			health_component.entity_died.connect(_on_entity_died)
 	else:
@@ -178,9 +199,8 @@ func _setup_ai_components() -> void:
 		bt_player.name = "BTPlayer"
 		bt_player.set_scene_root_hint(self)
 		bt_player.agent_node = NodePath("..")
-		var tree_res: BehaviorTree = load("res://data/ai/trees/enemy_swarmer.tres") as BehaviorTree
-		if tree_res:
-			bt_player.behavior_tree = tree_res
+		if enemy_def != null and enemy_def.behavior_tree:
+			bt_player.behavior_tree = enemy_def.behavior_tree
 		add_child(bt_player)
 
 
@@ -202,16 +222,17 @@ func _follow_path(delta: float) -> void:
 		_wiggle_timer = 0.0
 		return
 		
+	var move_speed: float = enemy_def.base_move_speed if enemy_def != null else 5.0
 	var to_target: Vector3 = _path[_path_index] - global_position
 	to_target.y = 0.0
-	
+
 	var threshold := _ARRIVAL_THRESHOLD
 	var has_prev_step := _path_index > 0 and absf(_path[_path_index].y - _path[_path_index - 1].y) > 0.2
 	var has_next_step := _path_index + 1 < _path.size() and absf(_path[_path_index + 1].y - _path[_path_index].y) > 0.2
 	if has_prev_step or has_next_step:
 		threshold = _STEP_ARRIVAL_THRESHOLD
-		
-	threshold = maxf(threshold, speed * delta * 1.2)
+
+	threshold = maxf(threshold, move_speed * delta * 1.2)
 		
 	if to_target.length() <= threshold:
 		_path_index += 1
@@ -232,7 +253,7 @@ func _follow_path(delta: float) -> void:
 		dir = _wiggle_dir
 	else:
 		var horiz_vel := Vector2(velocity.x, velocity.z)
-		if is_on_wall() and horiz_vel.length_squared() < (speed * 0.1) ** 2:
+		if is_on_wall() and horiz_vel.length_squared() < (move_speed * 0.1) ** 2:
 			_stuck_timer += delta
 			if _stuck_timer > 0.3:
 				_stuck_timer = 0.0
@@ -246,8 +267,8 @@ func _follow_path(delta: float) -> void:
 				else:
 					_wiggle_dir = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)).normalized()
 
-	velocity.x = dir.x * speed
-	velocity.z = dir.z * speed
+	velocity.x = dir.x * move_speed
+	velocity.z = dir.z * move_speed
 
 
 func _resolve_stat_ratio(stat_name: StringName) -> float:
@@ -286,5 +307,5 @@ func _evaluate_all_moodlets() -> Array[Dictionary]:
 	## Auxiliary: Delegates moodlet evaluation to the shared layout resolver
 	## (also used by Colonist/WildFlora — keeps the active-list shape and the
 	## null-texture filter in one place instead of three drifting copies).
-	return MoodletLayoutResolver.evaluate_active_moodlets(self, moodlet_defs)
+	return MoodletLayoutResolver.evaluate_active_moodlets(self, enemy_def.moodlet_defs)
 

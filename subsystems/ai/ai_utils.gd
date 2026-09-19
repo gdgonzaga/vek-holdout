@@ -123,6 +123,24 @@ static func resolve_character_inventory(actor: Node, allow_node_fallback: bool =
 	return null
 
 
+## Resolves agent_node's combat-source object per the ICombatSource duck-typed
+## contract (subsystems/core/i_combat_source.gd): a sibling "ColonistCombat"
+## node when present (Colonist), else agent_node itself when it implements
+## get_attack_range() directly (EnemyBase), else null. Lets combat-facing BT
+## tasks (BTActionScanThreats's use_weapon_range mode, BTActionMeleeAttack's
+## use_agent_attack_params mode) stay agnostic to which subsystem the agent
+## belongs to.
+static func resolve_combat_source(agent_node: Node) -> Node:
+	if agent_node == null:
+		return null
+	var sibling: Node = agent_node.get_node_or_null("ColonistCombat")
+	if sibling != null:
+		return sibling
+	if agent_node.has_method("get_attack_range"):
+		return agent_node
+	return null
+
+
 ## Returns current_controller if still valid, otherwise looks up agent's
 ## ColonistAnimationController child (direct name lookup, then a deep find_child
 ## fallback for controllers nested under a model/rig subtree).

@@ -45,9 +45,10 @@ func test_enemy_moodlet_threshold_evaluation() -> void:
 	
 	var enemy_scene: PackedScene = load("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
 	var enemy: EnemyBase = auto_free(enemy_scene.instantiate() as EnemyBase)
-	enemy.moodlet_defs = [moodlet]
+	enemy.enemy_def = enemy.enemy_def.duplicate()
+	enemy.enemy_def.moodlet_defs = [moodlet]
 	add_child(enemy)
-	
+
 	# Case 1: Full health (1.0 > 0.60) -> Inactive
 	assert_int(moodlet.evaluate_icon_index(enemy)).is_equal(-1)
 	assert_object(moodlet.get_active_texture(enemy)).is_null()
@@ -86,9 +87,10 @@ func test_enemy_moodlet_visualizer_billboard_updates() -> void:
 	
 	var enemy_scene: PackedScene = load("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
 	var enemy: EnemyBase = auto_free(enemy_scene.instantiate() as EnemyBase)
-	enemy.moodlet_defs = [moodlet]
+	enemy.enemy_def = enemy.enemy_def.duplicate()
+	enemy.enemy_def.moodlet_defs = [moodlet]
 	add_child(enemy)
-	
+
 	var visualizer: EnemyMoodletVisualizer = enemy.get_node_or_null("EnemyMoodletVisualizer") as EnemyMoodletVisualizer
 	assert_object(visualizer).is_not_null()
 	
@@ -129,7 +131,8 @@ func test_enemy_moodlet_visualizer_multi_line_layout_and_skip() -> void:
 	
 	var enemy_scene: PackedScene = load("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
 	var enemy: EnemyBase = auto_free(enemy_scene.instantiate() as EnemyBase)
-	enemy.moodlet_defs = [def_line0, def_line1, def_line2]
+	enemy.enemy_def = enemy.enemy_def.duplicate()
+	enemy.enemy_def.moodlet_defs = [def_line0, def_line1, def_line2]
 	add_child(enemy)
 	
 	var visualizer: EnemyMoodletVisualizer = enemy.get_node_or_null("EnemyMoodletVisualizer") as EnemyMoodletVisualizer

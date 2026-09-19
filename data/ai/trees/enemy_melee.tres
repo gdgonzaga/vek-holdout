@@ -1,0 +1,42 @@
+[gd_resource type="BehaviorTree" format=3]
+
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="1_u6rff"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd" id="2_12841"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd" id="3_6h6l7"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="4_l4ix2"]
+[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd" id="5_wr5rf"]
+
+[sub_resource type="BTAction" id="BTAction_3uhne"]
+script = ExtResource("1_u6rff")
+radius = 128.0
+
+[sub_resource type="BTCondition" id="BTCondition_dbxw1"]
+script = ExtResource("2_12841")
+
+[sub_resource type="BTAction" id="BTAction_qjsqy"]
+script = ExtResource("3_6h6l7")
+
+[sub_resource type="BTSequence" id="BTSequence_gn1wo"]
+children = [SubResource("BTCondition_dbxw1"), SubResource("BTAction_qjsqy")]
+
+[sub_resource type="BTAction" id="BTAction_46726"]
+script = ExtResource("4_l4ix2")
+target_var = &"threat_target"
+arrival_distance = 1.2
+
+[sub_resource type="BTAction" id="BTAction_cyn4e"]
+script = ExtResource("5_wr5rf")
+use_agent_attack_params = true
+
+[sub_resource type="BTSequence" id="BTSequence_omod2"]
+children = [SubResource("BTAction_46726"), SubResource("BTAction_cyn4e")]
+
+[sub_resource type="BTSelector" id="BTSelector_dnyi8"]
+children = [SubResource("BTSequence_gn1wo"), SubResource("BTSequence_omod2")]
+
+[sub_resource type="BTSequence" id="BTSequence_ubr37"]
+children = [SubResource("BTAction_3uhne"), SubResource("BTSelector_dnyi8")]
+
+[resource]
+description = "Melee enemy tree with closest target scan, approach, attack, and breach"
+root_task = SubResource("BTSequence_ubr37")
