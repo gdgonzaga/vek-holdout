@@ -45,6 +45,7 @@ equipment fulfillment are BT-task-driven, not a dedicated component — see belo
 
 **Key Properties & Components:**
 - `colonist_id`: Unique identifier (`String`), generated in `_ready`.
+- `display_name`: Player-facing name. Rolled from `colonist_def.name_pool` by `Colony.spawn_colonist` when the def has one (see [Random Colonist Names](#random-colonist-names)); otherwise `_ready` copies `colonist_def.display_name`. Saved and restored by `serialize()`/`deserialize()`.
 - `colonist_def`: `ColonistDef` resource configuring base stats (`@export`, defaults to `default_colonist.tres`).
 - `labor_priorities`: Dictionary mapping `labor_id` -> priority weight (`0..5`).
 - `inventory`: `CharacterInventory`, code-created in `_ready` (mirrors Player's scene-placed inventory).
@@ -118,6 +119,18 @@ equipment fulfillment are BT-task-driven, not a dedicated component — see belo
 | Function | Description |
 |---|---|
 | `static world_center(root: Node3D) -> Vector3` | World-space center of the merged bounds of every visible `MeshInstance3D` in `root`'s subtree (root included; hidden meshes — e.g. other WildFlora growth stages, the hidden prototype capsule — are skipped). Falls back to `root.global_position` when nothing is visible. |
+
+---
+
+## Random Colonist Names
+
+Generic colonists get a random, roster-unique "First Last" name; colonists with a fixed identity keep an authored one (GDD 6.5 named vs unnamed; the `is_named` flag itself is still a TODO). The mechanism is data-driven and lives in three pieces:
+
+- **`NamePool`** (`data/naming/`, see [Data Schemas](data-schemas.md)) - authored male first, female first and last name lists. `ColonistDef.name_pool` points at one; `default_colonist.tres` uses `names.tres`.
+- **`ColonistNamer.pick(pool, rng, taken)`** (`subsystems/colonists/colonist_namer.gd`) - pure static helper: picks the male or female first-name list with equal probability, draws a first and last name, re-rolls up to `MAX_ROLL_ATTEMPTS` (20) while the full name is in `taken`, then falls back to the last roll plus the smallest free number ("Ann Day 2"). Returns `""` for a null or empty pool so callers fall back to the def's `display_name`. Blank list entries are ignored.
+- **`Colony._assign_random_name`** - called from `Colony.spawn_colonist` *before* `add_child`, because `Colonist._ready` only fills `display_name` when it is still empty. `taken` is `Colony._roster_names()` (every colonist on the roster; dead colonists stay on it today). The RNG is Colony's `_name_rng`, seeded from entropy once in `_ready`.
+
+Only `spawn_colonist` rolls. Restored colonists take their saved `display_name` through `Colonist.deserialize`, and a later spawn avoids their names because they are on the roster. When the planned Memorial (see [Permadeath & Memorial](permadeath-memorial.md)) starts removing dead colonists from the roster, its names should be added to `taken` so a fallen colonist's name is not reissued.
 
 ---
 

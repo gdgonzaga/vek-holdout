@@ -48,7 +48,8 @@ The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef ex
 
 | Field | Type | Description |
 |---|---|---|
-| `display_name` | `String` | `[export default "Colonist"]` UI label. |
+| `display_name` | `String` | `[export default "Colonist"]` UI label. The colonist's fixed name when `name_pool` is null or has no usable names. |
+| `name_pool` | `NamePool` | `[export, nullable]` When set, `Colony.spawn_colonist` rolls a roster-unique random name from it (see `NamePool` below). Leave null for a fixed (named) colonist. |
 | `max_hp` | `int` | `[export default 100]` |
 | `default_raid_stance` | `int` | `[export default 0]` Stored as int (`RaidStance` enum deferred). |
 | `base_move_speed` | `float` | `[export default 3.5]` |
@@ -58,6 +59,23 @@ The implemented actor definition (e.g. `default_colonist.tres`). `ColonistDef ex
 | `starting_skills` | `Dictionary` | `[export]` Starting skill xp/level per labor (default mining + farming at L1). |
 | `default_labor_priorities` | `Dictionary` | `[export]` Default labor-priority weights per labor (ships `construction`/`crafting`/`hauling`/`harvesting` at 1). |
 | `moodlet_defs` | `Array[MoodletDef]` | `[export]` The moodlet catalog this colonist's `ColonistMoodletVisualizer` evaluates (see Moodlets below). |
+
+---
+
+## `data/naming/<id>.tres` (Resource: `name_pool.gd`) — `NamePool`
+
+Authored pool of names for randomly naming generic (unnamed) colonists, referenced by `ColonistDef.name_pool`. `NamePool extends Resource`; filename matches `id` (e.g. `names.tres`).
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | `[export]` Identity; matches the filename. |
+| `male_first_names` | `PackedStringArray` | `[export]` First names in the male list. |
+| `female_first_names` | `PackedStringArray` | `[export]` First names in the female list. A name may appear in both lists. |
+| `last_names` | `PackedStringArray` | `[export]` Surnames. |
+
+`ColonistNamer` flips a fair coin between the non-empty first-name lists (so the mix does not depend on list length), then picks uniformly. Colonists store no gender; the split only shapes which names appear. Any list may be empty (a pool with only `last_names` gives single-name colonists). Blank or whitespace-only entries are ignored, and a list that is entirely blank counts as empty. A pool with every list empty behaves as "no pool".
+
+**`names.tres` provenance.** Generated once from two US federal datasets (public domain): the SSA national baby-names file for first names (names with at least 500 births per sex, male and female kept separate; 587 male, 586 female, 33 in both) and the Census top-1,000 surnames (all caps in the source, title-cased). The 40 surnames whose plain title-case would be wrong (`McX`, `O'X` written without the apostrophe, `DeX`, `MacDonald`, `LeBlanc`) were dropped, leaving 960. The year of the SSA file is not recorded in it. The generator script is not in the repo; names are ranked by frequency in the file but picked uniformly.
 
 ---
 
