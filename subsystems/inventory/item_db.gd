@@ -26,8 +26,8 @@ func _load_dir(dir_path: String) -> void:
 			if res is ItemDef:
 				if res.id == "":
 					push_warning("ItemDef at %s has empty id; skipping" % (dir_path + fname))
-					continue
-				_defs_by_id[res.id] = res
+				else:
+					_defs_by_id[res.id] = res
 		fname = dir.get_next()
 
 
