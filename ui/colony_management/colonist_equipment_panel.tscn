@@ -2,68 +2,145 @@
 
 [ext_resource type="Script" path="res://ui/colony_management/colonist_equipment_panel.gd" id="1_script"]
 
-[node name="ColonistEquipmentPanel" type="VBoxContainer"]
-offset_right = 500.0
-offset_bottom = 300.0
+[node name="ColonistEquipmentPanel" type="HBoxContainer"]
 size_flags_horizontal = 3
-theme_override_constants/separation = 8
+size_flags_vertical = 3
+theme_override_constants/separation = 12
 script = ExtResource("1_script")
 
-[node name="EquipmentHeader" type="Label" parent="."]
+[node name="SlotsColumn" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "EQUIPMENT & LOADOUT"
+theme_override_constants/separation = 6
 
-[node name="SlotsContainer" type="VBoxContainer" parent="."]
+[node name="SlotsContainer" type="VBoxContainer" parent="SlotsColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="DesiredPickerSection" type="PanelContainer" parent="."]
+[node name="PickerPane" type="PanelContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="PickerPane"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="PickerPlaceholder" type="Label" parent="PickerPane/MarginContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 15
+text = "Select a slot to choose its target item."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="PickerContent" type="VBoxContainer" parent="PickerPane/MarginContainer"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="MarginContainer" type="MarginContainer" parent="DesiredPickerSection"]
+[node name="PickerTitle" type="Label" parent="PickerPane/MarginContainer/PickerContent"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
+theme_override_colors/font_color = Color(0.9, 0.85, 0.6, 1)
+theme_override_font_sizes/font_size = 16
+text = "Slot"
 
-[node name="VBoxContainer" type="VBoxContainer" parent="DesiredPickerSection/MarginContainer"]
+[node name="SlotStateGrid" type="GridContainer" parent="PickerPane/MarginContainer/PickerContent"]
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 4
+columns = 3
 
-[node name="PickerHeaderHBox" type="HBoxContainer" parent="DesiredPickerSection/MarginContainer/VBoxContainer"]
+[node name="EquippedPrefix" type="Label" parent="PickerPane/MarginContainer/PickerContent/SlotStateGrid"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Equipped"
 
-[node name="PickerTitle" type="Label" parent="DesiredPickerSection/MarginContainer/VBoxContainer/PickerHeaderHBox"]
+[node name="EquippedValueLabel" type="Label" parent="PickerPane/MarginContainer/PickerContent/SlotStateGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.9, 0.85, 0.6, 1)
-theme_override_font_sizes/font_size = 14
-text = "Set Desired Item"
+theme_override_font_sizes/font_size = 13
+text = "(empty)"
+text_overrun_behavior = 3
 
-[node name="ClosePickerButton" type="Button" parent="DesiredPickerSection/MarginContainer/VBoxContainer/PickerHeaderHBox"]
+[node name="UnequipButton" type="Button" parent="PickerPane/MarginContainer/PickerContent/SlotStateGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "✕ Close"
+text = "Unequip"
 
-[node name="SearchInput" type="LineEdit" parent="DesiredPickerSection/MarginContainer/VBoxContainer"]
+[node name="TargetPrefix" type="Label" parent="PickerPane/MarginContainer/PickerContent/SlotStateGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Target"
+
+[node name="TargetValueLabel" type="Label" parent="PickerPane/MarginContainer/PickerContent/SlotStateGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "(none)"
+text_overrun_behavior = 3
+
+[node name="ClearTargetButton" type="Button" parent="PickerPane/MarginContainer/PickerContent/SlotStateGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Clear target"
+
+[node name="StatusReasonLabel" type="Label" parent="PickerPane/MarginContainer/PickerContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text_overrun_behavior = 3
+
+[node name="HSeparator" type="HSeparator" parent="PickerPane/MarginContainer/PickerContent"]
+layout_mode = 2
+
+[node name="FilterRow" type="HBoxContainer" parent="PickerPane/MarginContainer/PickerContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SearchInput" type="LineEdit" parent="PickerPane/MarginContainer/PickerContent/FilterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 placeholder_text = "Filter items..."
 clear_button_enabled = true
 
-[node name="ScrollContainer" type="ScrollContainer" parent="DesiredPickerSection/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 160)
+[node name="InColonyToggle" type="CheckButton" parent="PickerPane/MarginContainer/PickerContent/FilterRow"]
+unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 13
+button_pressed = true
+text = "In colony only"
 
-[node name="ItemsContainer" type="VBoxContainer" parent="DesiredPickerSection/MarginContainer/VBoxContainer/ScrollContainer"]
+[node name="ItemsScroll" type="ScrollContainer" parent="PickerPane/MarginContainer/PickerContent"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ItemsContainer" type="VBoxContainer" parent="PickerPane/MarginContainer/PickerContent/ItemsScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
+
+[node name="EmptyListLabel" type="Label" parent="PickerPane/MarginContainer/PickerContent"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3

@@ -58,19 +58,19 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 10
 
-[node name="StaminaLabel" type="Label" parent="MarginContainer/VBoxContainer/SubStatsRow"]
+[node name="RestLabel" type="Label" parent="MarginContainer/VBoxContainer/SubStatsRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
 theme_override_font_sizes/font_size = 11
-text = "Stam: 100 (Stub)"
+text = "Rest: 100%"
 
-[node name="MoodLabel" type="Label" parent="MarginContainer/VBoxContainer/SubStatsRow"]
+[node name="HungerLabel" type="Label" parent="MarginContainer/VBoxContainer/SubStatsRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
 theme_override_font_sizes/font_size = 11
-text = "Mood: Neutral (Stub)"
+text = "Hunger: 100%"
 
 [node name="ActivityLabel" type="Label" parent="MarginContainer/VBoxContainer"]
 unique_name_in_owner = true

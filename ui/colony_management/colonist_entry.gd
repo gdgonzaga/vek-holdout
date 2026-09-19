@@ -9,8 +9,8 @@ var _colonist: Colonist = null
 
 @onready var _name_label: Label = %NameLabel
 @onready var _hp_label: Label = %HpLabel
-@onready var _stamina_label: Label = %StaminaLabel
-@onready var _mood_label: Label = %MoodLabel
+@onready var _rest_label: Label = %RestLabel
+@onready var _hunger_label: Label = %HungerLabel
 @onready var _activity_label: Label = %ActivityLabel
 @onready var _moodlet_container: HBoxContainer = %MoodletContainer
 
@@ -19,14 +19,15 @@ func setup(colonist: Colonist) -> void:
 	_colonist = colonist
 	if not is_node_ready():
 		await ready
-	_update_display()
+	refresh()
 
 
 func get_colonist() -> Colonist:
 	return _colonist
 
 
-func _update_display() -> void:
+## Re-renders name, health, needs, moodlets and activity from live colonist state.
+func refresh() -> void:
 	if _colonist == null or not is_instance_valid(_colonist):
 		return
 	_name_label.text = _colonist.display_name
@@ -34,11 +35,11 @@ func _update_display() -> void:
 	if _colonist.needs != null:
 		var hunger: int = int(round(_colonist.needs.get_need(&"hunger") * 100.0))
 		var rest: int = int(round(_colonist.needs.get_need(&"rest") * 100.0))
-		_stamina_label.text = "Rest: %d%%" % rest
-		_mood_label.text = "Hunger: %d%%" % hunger
+		_rest_label.text = "Rest: %d%%" % rest
+		_hunger_label.text = "Hunger: %d%%" % hunger
 	else:
-		_stamina_label.text = "Stam: 100/100"
-		_mood_label.text = "Mood: Neutral"
+		_rest_label.text = "Rest: n/a"
+		_hunger_label.text = "Hunger: n/a"
 	
 	# 1. Moodlet Display: Populate active moodlet icon indicators.
 	_update_moodlets()

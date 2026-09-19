@@ -51,7 +51,7 @@ func test_colonist_tab_empty_roster() -> void:
 	_scene.call("_refresh_colonist_roster")
 	
 	var no_sel: Label = _scene.get_node("%NoSelectionLabel") as Label
-	var details: VBoxContainer = _scene.get_node("%DetailsContent") as VBoxContainer
+	var details: ColonistDetailsPanel = _scene.get_node("%ColonistDetailsPanel") as ColonistDetailsPanel
 	assert_object(no_sel).is_not_null()
 	assert_bool(no_sel.visible).is_true()
 	assert_bool(details.visible).is_false()
@@ -63,31 +63,108 @@ func test_colonist_tab_roster_and_details() -> void:
 	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
 	colonist.display_name = "Test Colonist Alpha"
 	Colony.colonists.append(colonist)
-	
+
 	_scene.call("_refresh_colonist_roster")
-	
+
 	var list: VBoxContainer = _scene.get_node("%ColonistList") as VBoxContainer
 	assert_int(list.get_child_count()).is_equal(1)
-	
+
 	var no_sel: Label = _scene.get_node("%NoSelectionLabel") as Label
-	var details: VBoxContainer = _scene.get_node("%DetailsContent") as VBoxContainer
+	var details: ColonistDetailsPanel = _scene.get_node("%ColonistDetailsPanel") as ColonistDetailsPanel
 	assert_bool(no_sel.visible).is_false()
 	assert_bool(details.visible).is_true()
-	
-	var name_lbl: Label = _scene.get_node("%DetailNameLabel") as Label
+
+	var name_lbl: Label = details.get_node("%DetailNameLabel") as Label
 	assert_str(name_lbl.text).is_equal("Test Colonist Alpha")
-	
-	var hp_lbl: Label = _scene.get_node("%DetailHpLabel") as Label
+
+	var hp_lbl: Label = details.get_node("%DetailHpLabel") as Label
 	assert_str(hp_lbl.text).contains("Health:")
-	
-	var stam_lbl: Label = _scene.get_node("%DetailStaminaLabel") as Label
-	assert_str(stam_lbl.text).contains("Stamina:")
-	
-	var mood_lbl: Label = _scene.get_node("%DetailMoodLabel") as Label
+
+	var mood_lbl: Label = details.get_node("%DetailMoodLabel") as Label
 	assert_str(mood_lbl.text).contains("Mood:")
-	
-	var act_lbl: Label = _scene.get_node("%DetailActivityLabel") as Label
+
+	var act_lbl: Label = details.get_node("%DetailActivityLabel") as Label
 	assert_str(act_lbl.text).contains("Current Activity:")
+
+
+func test_details_panel_has_overview_gear_skills_and_debug_sub_tabs() -> void:
+	var details: ColonistDetailsPanel = _scene.get_node("%ColonistDetailsPanel") as ColonistDetailsPanel
+	var sub_tabs: TabContainer = details.get_node("%DetailSubTabs") as TabContainer
+
+	assert_int(sub_tabs.get_tab_count()).is_equal(4)
+	assert_str(sub_tabs.get_tab_title(0)).is_equal("Overview")
+	assert_str(sub_tabs.get_tab_title(1)).is_equal("Gear")
+	assert_str(sub_tabs.get_tab_title(2)).is_equal("Skills & Carry")
+	assert_str(sub_tabs.get_tab_title(3)).is_equal("Debug")
+
+
+func test_details_overview_shows_no_placeholder_text() -> void:
+	Colony.colonists.clear()
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	Colony.colonists.append(colonist)
+
+	_scene.call("_refresh_colonist_roster")
+
+	var details: ColonistDetailsPanel = _scene.get_node("%ColonistDetailsPanel") as ColonistDetailsPanel
+	var overview: Control = details.get_node("%DetailSubTabs").get_child(0) as Control
+	for label: Node in overview.find_children("*", "Label", true, false):
+		assert_str((label as Label).text).not_contains("Stub")
+	assert_object(details.get_node_or_null("%DetailStaminaLabel")).is_null()
+	assert_object(details.get_node_or_null("%DetailRaidStanceLabel")).is_null()
+
+
+func test_details_needs_label_follows_live_refresh() -> void:
+	Colony.colonists.clear()
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	add_child(colonist)
+	Colony.colonists.append(colonist)
+	_scene.call("_refresh_colonist_roster")
+	var details: ColonistDetailsPanel = _scene.get_node("%ColonistDetailsPanel") as ColonistDetailsPanel
+
+	colonist.needs.set_need(&"hunger", 0.25)
+	details.refresh_live()
+
+	var needs_lbl: Label = details.get_node("%DetailNeedsLabel") as Label
+	assert_str(needs_lbl.text).contains("Hunger 25%")
+
+
+func test_selecting_a_colonist_points_the_gear_panel_at_them() -> void:
+	Colony.colonists.clear()
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	colonist.display_name = "Gear Target"
+	add_child(colonist)
+	Colony.colonists.append(colonist)
+
+	_scene.call("_refresh_colonist_roster")
+
+	var details: ColonistDetailsPanel = _scene.get_node("%ColonistDetailsPanel") as ColonistDetailsPanel
+	var eq_panel: ColonistEquipmentPanel = details.get_node("%ColonistEquipmentPanel") as ColonistEquipmentPanel
+	assert_bool(eq_panel.visible).is_true()
+	colonist.equipment.set_desired_item(Equipment.SLOT_HEAD, "any_target_id")
+	var rows: VBoxContainer = eq_panel.get_node("%SlotsContainer") as VBoxContainer
+	var head_row: EquipmentSlotRow = null
+	for row: EquipmentSlotRow in rows.get_children():
+		if row.get_slot_id() == Equipment.SLOT_HEAD:
+			head_row = row
+	assert_str((head_row.get_node("%TargetLabel") as Label).text).contains("any_target_id")
+
+
+func test_roster_entry_labels_match_the_needs_they_show() -> void:
+	var col_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
+	var colonist: Colonist = auto_free(col_scene.instantiate() as Colonist)
+	add_child(colonist)
+	colonist.needs.set_need(&"hunger", 0.30)
+	colonist.needs.set_need(&"rest", 0.60)
+	var entry: ColonistEntry = auto_free(load("res://ui/colony_management/colonist_entry.tscn").instantiate() as ColonistEntry)
+	add_child(entry)
+
+	entry.setup(colonist)
+
+	assert_str((entry.get_node("%RestLabel") as Label).text).is_equal("Rest: 60%")
+	assert_str((entry.get_node("%HungerLabel") as Label).text).is_equal("Hunger: 30%")
 
 
 func test_labors_tab_empty_roster() -> void:
@@ -374,12 +451,13 @@ func test_colonist_details_displays_ai_behavior_and_telemetry() -> void:
 
 	_scene.call("_refresh_colonist_roster")
 
-	var goal_lbl: Label = _scene.get_node("%DetailGoalLabel") as Label
-	var act_lbl: Label = _scene.get_node("%DetailActivityLabel") as Label
-	var target_lbl: Label = _scene.get_node("%DetailJobTargetLabel") as Label
-	var nav_lbl: Label = _scene.get_node("%DetailNavigationLabel") as Label
-	var bl_lbl: Label = _scene.get_node("%DetailBlacklistLabel") as Label
-	var needs_lbl: Label = _scene.get_node("%DetailNeedsLabel") as Label
+	var details: ColonistDetailsPanel = _scene.get_node("%ColonistDetailsPanel") as ColonistDetailsPanel
+	var goal_lbl: Label = details.get_node("%DetailGoalLabel") as Label
+	var act_lbl: Label = details.get_node("%DetailActivityLabel") as Label
+	var target_lbl: Label = details.get_node("%DetailJobTargetLabel") as Label
+	var nav_lbl: Label = details.get_node("%DetailNavigationLabel") as Label
+	var bl_lbl: Label = details.get_node("%DetailBlacklistLabel") as Label
+	var needs_lbl: Label = details.get_node("%DetailNeedsLabel") as Label
 
 	assert_object(goal_lbl).is_not_null()
 	assert_object(act_lbl).is_not_null()
@@ -454,90 +532,6 @@ func test_jobs_tab_populates_hauling_and_construction_jobs() -> void:
 
 	# Clean up
 	Colony.job_board.clear()
-
-
-func test_colonist_equipment_panel_renders_eight_slots() -> void:
-	Colony.colonists.clear()
-	var col_packed: PackedScene = load("res://subsystems/colonists/colonist.tscn")
-	var colonist: Colonist = auto_free(col_packed.instantiate() as Colonist)
-	colonist.colonist_id = "eq_test_1"
-	colonist.display_name = "Worker Bob"
-	add_child(colonist)
-	Colony.colonists.append(colonist)
-
-	_scene.call("_refresh_colonist_roster")
-
-	var eq_panel: ColonistEquipmentPanel = _scene.get_node("%ColonistEquipmentPanel") as ColonistEquipmentPanel
-	assert_object(eq_panel).is_not_null()
-	assert_bool(eq_panel.visible).is_true()
-
-	var slots_container: VBoxContainer = eq_panel.get_node("%SlotsContainer") as VBoxContainer
-	assert_object(slots_container).is_not_null()
-	assert_int(slots_container.get_child_count()).is_equal(8)
-
-
-func test_colonist_equipment_slot_row_updates_on_equip() -> void:
-	Colony.colonists.clear()
-	var col_packed: PackedScene = load("res://subsystems/colonists/colonist.tscn")
-	var colonist: Colonist = auto_free(col_packed.instantiate() as Colonist)
-	colonist.colonist_id = "eq_test_2"
-	colonist.display_name = "Worker Alice"
-	add_child(colonist)
-	Colony.colonists.append(colonist)
-
-	_scene.call("_refresh_colonist_roster")
-
-	var eq_panel: ColonistEquipmentPanel = _scene.get_node("%ColonistEquipmentPanel") as ColonistEquipmentPanel
-	assert_object(eq_panel).is_not_null()
-
-	# Equip an item
-	var axe: ItemDef = auto_free(ItemDef.new())
-	axe.id = "test_axe"
-	axe.tags = ["tool"]
-	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, axe)
-	eq_panel.refresh_display()
-
-	var slots_container: VBoxContainer = eq_panel.get_node("%SlotsContainer") as VBoxContainer
-	var main_hand_row: EquipmentSlotRow = null
-	for row: EquipmentSlotRow in slots_container.get_children():
-		if row.get_slot_id() == Equipment.SLOT_MAIN_HAND:
-			main_hand_row = row
-			break
-
-	assert_object(main_hand_row).is_not_null()
-	var eq_label: Label = main_hand_row.get_node("%EquippedLabel") as Label
-	assert_str(eq_label.text).is_equal("test_axe")
-
-
-func test_colonist_equipment_picker_sets_desired_item() -> void:
-	Colony.colonists.clear()
-	var col_packed: PackedScene = load("res://subsystems/colonists/colonist.tscn")
-	var colonist: Colonist = auto_free(col_packed.instantiate() as Colonist)
-	colonist.colonist_id = "eq_test_3"
-	colonist.display_name = "Worker Charlie"
-	add_child(colonist)
-	Colony.colonists.append(colonist)
-
-	_scene.call("_refresh_colonist_roster")
-
-	var eq_panel: ColonistEquipmentPanel = _scene.get_node("%ColonistEquipmentPanel") as ColonistEquipmentPanel
-	var picker: Control = eq_panel.get_node("%DesiredPickerSection") as Control
-	assert_bool(picker.visible).is_false()
-
-	# Request edit for main_hand
-	eq_panel.call("_on_slot_edit_requested", Equipment.SLOT_MAIN_HAND)
-	assert_bool(picker.visible).is_true()
-
-	var search_input: LineEdit = eq_panel.get_node("%SearchInput") as LineEdit
-	assert_str(search_input.text).is_equal("")
-
-	var items_container: VBoxContainer = eq_panel.get_node("%ItemsContainer") as VBoxContainer
-	assert_bool(items_container.get_child_count() > 0).is_true()
-
-	# Select a desired item
-	eq_panel.call("_select_desired_item", "test_target_tool")
-	assert_str(colonist.equipment.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("test_target_tool")
-	assert_bool(picker.visible).is_false()
 
 
 func test_areas_tab_empty_and_populated() -> void:

@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://ui/colony_management/colony_management.gd" id="1_script"]
-[ext_resource type="PackedScene" path="res://ui/colony_management/colonist_equipment_panel.tscn" id="2_equipment_panel"]
+[ext_resource type="PackedScene" path="res://ui/colony_management/colonist_details_panel.tscn" id="2_details_panel"]
 
 [node name="ColonyManagement" type="Control"]
 layout_mode = 3
@@ -253,13 +253,10 @@ metadata/_tab_index = 1
 
 [node name="HSplitContainer" type="HSplitContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists"]
 layout_mode = 2
-split_offset = 260
 
 [node name="RosterPanel" type="PanelContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer"]
-custom_minimum_size = Vector2(240, 0)
+custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 0.35
 
 [node name="MarginContainer" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/RosterPanel"]
 layout_mode = 2
@@ -293,7 +290,6 @@ theme_override_constants/separation = 6
 [node name="DetailsPanel" type="PanelContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 0.65
 
 [node name="MarginContainer" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel"]
 layout_mode = 2
@@ -302,18 +298,13 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="ScrollContainer" type="ScrollContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="ColonistDetailsContainer" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer"]
+[node name="ColonistDetailsContainer" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_constants/separation = 14
 
-[node name="NoSelectionLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer"]
+[node name="NoSelectionLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ColonistDetailsContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
@@ -322,148 +313,11 @@ theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 16
 text = "Select a colonist from the roster to view details"
 
-[node name="DetailsContent" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer"]
+[node name="ColonistDetailsPanel" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ColonistDetailsContainer" instance=ExtResource("2_details_panel")]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 12
 
-[node name="HeaderSection" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-
-[node name="DetailNameLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/HeaderSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "Colonist Name"
-
-[node name="DetailIdLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/HeaderSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
-theme_override_font_sizes/font_size = 12
-text = "ID: uuid"
-
-[node name="HSeparator" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/HeaderSection"]
-layout_mode = 2
-
-[node name="StatsSection" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="DetailHpLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/StatsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Health: 100 / 100"
-
-[node name="DetailStaminaLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/StatsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Stamina: 100 / 100 (Stub)"
-
-[node name="DetailMoodLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/StatsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Mood: Neutral / 100% (Stub)"
-
-[node name="DetailNeedsLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/StatsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.9, 0.6, 1)
-text = "Needs: Hunger 100% | Rest 100% | Rec 100%"
-
-[node name="DetailRaidStanceLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/StatsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Raid Stance: Default"
-
-[node name="HSeparatorAI" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-
-[node name="AiBehaviorSection" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="AiBehaviorHeader" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/AiBehaviorSection"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.8, 1, 1)
-theme_override_font_sizes/font_size = 16
-text = "CURRENT BEHAVIOR & AI"
-
-[node name="DetailGoalLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/AiBehaviorSection"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Brain Goal: None"
-
-[node name="DetailActivityLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/AiBehaviorSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.85, 1, 1)
-text = "Current Activity: Idle"
-
-[node name="DetailJobTargetLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/AiBehaviorSection"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Job Target: None"
-
-[node name="DetailNavigationLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/AiBehaviorSection"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Navigation: Stationary"
-
-[node name="DetailBlacklistLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/AiBehaviorSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
-text = "Job Cooldowns: None"
-
-[node name="HSeparator1" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-
-[node name="SkillsSection" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="SkillsHeader" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/SkillsSection"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "SKILLS & PROFICIENCIES"
-
-[node name="SkillsGrid" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/SkillsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="HSeparator2" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-
-[node name="InventorySection" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="InventoryHeader" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/InventorySection"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "CARRIED ITEMS"
-
-[node name="DetailInventoryWeightLabel" type="Label" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/InventorySection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
-theme_override_font_sizes/font_size = 13
-text = "Carry Capacity: 0.0 / 50.0 kg"
-
-[node name="DetailItemList" type="VBoxContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent/InventorySection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="HSeparatorEquipment" type="HSeparator" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent"]
-layout_mode = 2
-
-[node name="ColonistEquipmentPanel" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer/Colonists/HSplitContainer/DetailsPanel/MarginContainer/ScrollContainer/ColonistDetailsContainer/DetailsContent" instance=ExtResource("2_equipment_panel")]
-unique_name_in_owner = true
-layout_mode = 2
 
 [node name="Labors" type="MarginContainer" parent="MainPanel/MarginContainer/VBoxContainer/TabContainer"]
 unique_name_in_owner = true

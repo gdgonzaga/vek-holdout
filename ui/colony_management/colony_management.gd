@@ -33,23 +33,7 @@ const JobRowScript := preload("res://ui/colony_management/job_row.gd")
 
 @onready var _colonist_list: VBoxContainer = %ColonistList
 @onready var _no_selection_label: Label = %NoSelectionLabel
-@onready var _details_content: VBoxContainer = %DetailsContent
-@onready var _detail_name_label: Label = %DetailNameLabel
-@onready var _detail_id_label: Label = %DetailIdLabel
-@onready var _detail_hp_label: Label = %DetailHpLabel
-@onready var _detail_stamina_label: Label = %DetailStaminaLabel
-@onready var _detail_mood_label: Label = %DetailMoodLabel
-@onready var _detail_activity_label: Label = %DetailActivityLabel
-@onready var _detail_needs_label: Label = %DetailNeedsLabel
-@onready var _detail_goal_label: Label = %DetailGoalLabel
-@onready var _detail_job_target_label: Label = %DetailJobTargetLabel
-@onready var _detail_navigation_label: Label = %DetailNavigationLabel
-@onready var _detail_blacklist_label: Label = %DetailBlacklistLabel
-@onready var _detail_raid_stance_label: Label = %DetailRaidStanceLabel
-@onready var _skills_grid: VBoxContainer = %SkillsGrid
-@onready var _detail_inventory_weight_label: Label = %DetailInventoryWeightLabel
-@onready var _detail_item_list: VBoxContainer = %DetailItemList
-@onready var _equipment_panel: ColonistEquipmentPanel = %ColonistEquipmentPanel
+@onready var _details_panel: ColonistDetailsPanel = %ColonistDetailsPanel
 
 var _colonist_refresh_timer: float = 0.0
 const COLONIST_REFRESH_INTERVAL: float = 0.25
@@ -186,313 +170,37 @@ func _on_colonist_selected(colonist: Colonist) -> void:
 
 
 func _update_details_view() -> void:
-	if _no_selection_label == null or _details_content == null:
+	if _no_selection_label == null or _details_panel == null:
 		return
 
-	if _selected_colonist == null or not is_instance_valid(_selected_colonist):
-		_no_selection_label.visible = true
-		_details_content.visible = false
-		if _equipment_panel != null:
-			_equipment_panel.set_colonist(null)
-		return
+	# 1. Selection Visibility: the details pane replaces the hint whenever a live colonist is selected.
+	var has_selection: bool = _selected_colonist != null and is_instance_valid(_selected_colonist)
+	_no_selection_label.visible = not has_selection
+	_details_panel.visible = has_selection
 
-	_no_selection_label.visible = false
-	_details_content.visible = true
-
-	_detail_name_label.text = _selected_colonist.display_name
-	_detail_id_label.text = "ID: %s" % _selected_colonist.colonist_id
-	_detail_hp_label.text = "Health: %d / %d" % [_selected_colonist.get_hp(), _selected_colonist.get_max_hp()]
-	_detail_stamina_label.text = "Stamina: 100 / 100 (Stub)"
-	_detail_mood_label.text = "Mood: Neutral / 100% (Stub)"
-
-	_refresh_live_colonist_details()
-
-	_detail_raid_stance_label.text = "Raid Stance: Default (%d)" % _selected_colonist.raid_stance
-
-	_populate_skills()
-	_populate_carried_items()
-	if _equipment_panel != null:
-		_equipment_panel.set_colonist(_selected_colonist)
+	# 2. Details Binding: hand the selection to the pane, which fills its sub-tabs.
+	_details_panel.set_colonist(_selected_colonist if has_selection else null)
 
 
 func _refresh_live_colonist_details() -> void:
 	if _selected_colonist == null or not is_instance_valid(_selected_colonist):
 		return
-	if _details_content == null or not _details_content.visible:
+
+	# 1. Details Pane: refresh only the sub-tab the player is looking at.
+	_details_panel.refresh_live()
+
+	# 2. Roster Cards: keep every card's stats current.
+	_refresh_roster_entries()
+
+
+func _refresh_roster_entries() -> void:
+	if _colonist_list == null:
 		return
+	for child in _colonist_list.get_children():
+		var entry := child as ColonistEntry
+		if entry != null:
+			entry.refresh()
 
-	if _detail_hp_label != null:
-		_detail_hp_label.text = "Health: %d / %d" % [_selected_colonist.get_hp(), _selected_colonist.get_max_hp()]
-
-	if _detail_needs_label != null:
-		var needs_comp: ColonistNeeds = _selected_colonist.get_node_or_null("ColonistNeeds") as ColonistNeeds
-		if needs_comp != null:
-			var hunger_pct := int(round(needs_comp.get_need(&"hunger") * 100.0))
-			var rest_pct := int(round(needs_comp.get_need(&"rest") * 100.0))
-			var rec_pct := int(round(needs_comp.get_need(&"recreation") * 100.0))
-			_detail_needs_label.text = "Needs: Hunger %d%% | Rest %d%% | Recreation %d%%" % [hunger_pct, rest_pct, rec_pct]
-		else:
-			_detail_needs_label.text = "Needs: Hunger 100% | Rest 100% | Recreation 100%"
-
-	var goal: StringName = _get_colonist_goal(_selected_colonist)
-	if _detail_goal_label != null:
-		var goal_text := "None"
-		if goal != &"none":
-			goal_text = String(goal).capitalize()
-		_detail_goal_label.text = "Brain Goal: %s" % goal_text
-
-	if _detail_activity_label != null:
-		_detail_activity_label.text = "Current Activity: %s" % _resolve_colonist_activity(_selected_colonist)
-
-	if _detail_job_target_label != null:
-		_detail_job_target_label.text = _resolve_job_target_info(_selected_colonist)
-
-	if _detail_navigation_label != null:
-		_detail_navigation_label.text = _resolve_navigation_info(_selected_colonist)
-
-	if _detail_blacklist_label != null:
-		_detail_blacklist_label.text = _resolve_blacklist_info(_selected_colonist)
-
-	_populate_carried_items()
-
-	if _equipment_panel != null:
-		_equipment_panel.refresh_display()
-
-	if _colonist_list != null:
-		for child in _colonist_list.get_children():
-			if child.has_method("_update_display"):
-				child.call("_update_display")
-
-
-func _resolve_colonist_activity(colonist: Colonist) -> String:
-	if colonist == null or not is_instance_valid(colonist):
-		return "Idle"
-
-	var path: Array = colonist.get("_path") if "_path" in colonist else []
-	var path_idx: int = int(colonist.get("_path_index")) if "_path_index" in colonist else 0
-	var is_moving: bool = not path.is_empty() and path_idx < path.size()
-
-	var job_obj = _get_colonist_job_obj(colonist)
-	var goal: StringName = _get_colonist_goal(colonist)
-
-	if is_moving:
-		if job_obj != null:
-			return "Moving to %s" % _get_job_title(job_obj)
-		elif goal == &"rest":
-			return "Moving to Rest Area"
-		elif goal == &"hunger":
-			return "Moving to Food"
-		elif goal == &"recreation":
-			return "Moving to Recreation"
-		return "Moving (Waypoint %d/%d)" % [path_idx + 1, path.size()]
-
-	if job_obj != null:
-		var title: String = _get_job_title(job_obj)
-		if "completed_units" in job_obj and "total_units" in job_obj and int(job_obj.total_units) > 0:
-			return "Working: %s (%d/%d units)" % [title, int(job_obj.completed_units), int(job_obj.total_units)]
-		return "Working: %s" % title
-
-	if goal != &"none" and goal != &"work":
-		return "Satisfying %s" % String(goal).capitalize()
-
-	return "Idle"
-
-
-func _get_colonist_job_obj(colonist: Colonist) -> Variant:
-	if colonist == null or not is_instance_valid(colonist):
-		return null
-	var bt: BTPlayer = colonist.get_node_or_null("BTPlayer") as BTPlayer
-	if bt != null and bt.blackboard != null and bt.blackboard.has_var(&"active_job"):
-		var j = bt.blackboard.get_var(&"active_job")
-		if j != null:
-			return j
-	if colonist.current_job != null and is_instance_valid(colonist.current_job):
-		return colonist.current_job
-	return null
-
-
-func _get_job_title(job_obj: Variant) -> String:
-	if job_obj == null:
-		return "Job"
-	if "title" in job_obj and not str(job_obj.title).is_empty():
-		return str(job_obj.title)
-	elif "labor_id" in job_obj and not str(job_obj.labor_id).is_empty():
-		return str(job_obj.labor_id).capitalize()
-	elif "def" in job_obj and job_obj.def != null and "display_name" in job_obj.def:
-		return str(job_obj.def.display_name)
-	return "Job"
-
-
-func _get_colonist_goal(colonist: Colonist) -> StringName:
-	if colonist == null or not is_instance_valid(colonist):
-		return &"none"
-	var bt: BTPlayer = colonist.get_node_or_null("BTPlayer") as BTPlayer
-	if bt != null and bt.blackboard != null and bt.blackboard.has_var(&"current_goal"):
-		return bt.blackboard.get_var(&"current_goal")
-	return &"none"
-
-
-func _resolve_job_target_info(colonist: Colonist) -> String:
-	if colonist == null or not is_instance_valid(colonist):
-		return "Job Target: None"
-	var job_obj = _get_colonist_job_obj(colonist)
-	var target_str: String = ""
-	var pos_str: String = ""
-	var target_pos: Vector3 = Vector3.ZERO
-	var has_target_pos := false
-
-	if job_obj != null:
-		var title := _get_job_title(job_obj)
-		if "anchor_cell" in job_obj and job_obj.anchor_cell != Vector3i.ZERO:
-			pos_str = "@ %s" % str(job_obj.anchor_cell)
-			target_pos = Vector3(job_obj.anchor_cell) + Vector3(0.5, 0.0, 0.5)
-			has_target_pos = true
-		elif "target_node" in job_obj and job_obj.target_node != null and is_instance_valid(job_obj.target_node):
-			pos_str = "-> %s" % job_obj.target_node.name
-			target_pos = job_obj.target_node.global_position
-			has_target_pos = true
-		elif "world_position" in job_obj and job_obj.world_position != Vector3.ZERO:
-			pos_str = "@ (%.1f, %.1f, %.1f)" % [job_obj.world_position.x, job_obj.world_position.y, job_obj.world_position.z]
-			target_pos = job_obj.world_position
-			has_target_pos = true
-		elif "location" in job_obj and job_obj.location != Vector3.ZERO:
-			pos_str = "@ (%.1f, %.1f, %.1f)" % [job_obj.location.x, job_obj.location.y, job_obj.location.z]
-			target_pos = job_obj.location
-			has_target_pos = true
-
-		target_str = "%s %s" % [title, pos_str]
-	else:
-		var bt: BTPlayer = colonist.get_node_or_null("BTPlayer") as BTPlayer
-		if bt != null and bt.blackboard != null and bt.blackboard.has_var(&"target_smart_object"):
-			var obj = bt.blackboard.get_var(&"target_smart_object")
-			if is_instance_valid(obj) and obj is Node3D:
-				target_str = "Smart Object -> %s" % obj.name
-				target_pos = obj.global_position
-				has_target_pos = true
-
-	if target_str.is_empty():
-		return "Job Target: None"
-
-	if has_target_pos:
-		var dist: float = colonist.global_position.distance_to(target_pos)
-		return "Job Target: %s (Dist: %.1fm)" % [target_str.strip_edges(), dist]
-	return "Job Target: %s" % target_str.strip_edges()
-
-
-func _resolve_navigation_info(colonist: Colonist) -> String:
-	if colonist == null or not is_instance_valid(colonist):
-		return "Navigation: None"
-
-	var pathfinder: VoxelPathfinder = colonist.get_node_or_null("VoxelPathfinder") as VoxelPathfinder
-	var pf_status: String = pathfinder.last_status if pathfinder != null and not pathfinder.last_status.is_empty() else "OK"
-
-	var path: Array = colonist.get("_path") if "_path" in colonist else []
-	var path_idx: int = int(colonist.get("_path_index")) if "_path_index" in colonist else 0
-
-	if not path.is_empty() and path_idx < path.size():
-		var curr_wp: Vector3 = path[path_idx]
-		var final_wp: Vector3 = path[-1]
-		var dist_wp: float = colonist.global_position.distance_to(curr_wp)
-		var dist_final: float = colonist.global_position.distance_to(final_wp)
-		return "Navigation: Moving (Wp %d/%d, %.1fm | Dest: %.1fm) [A*: %s]" % [path_idx + 1, path.size(), dist_wp, dist_final, pf_status]
-	elif not path.is_empty() and path_idx >= path.size():
-		return "Navigation: Arrived [A*: %s]" % pf_status
-
-	return "Navigation: Stationary [A*: %s]" % pf_status
-
-
-func _resolve_blacklist_info(colonist: Colonist) -> String:
-	if colonist == null or not is_instance_valid(colonist):
-		return "Job Cooldowns: None"
-	if Colony == null or Colony.job_board == null:
-		return "Job Cooldowns: None"
-
-	var bl_count := 0
-	if "_colonist_blacklists" in Colony.job_board:
-		var bl_dict: Dictionary = Colony.job_board._colonist_blacklists
-		var now: int = Time.get_ticks_msec()
-		for jid in bl_dict:
-			var per_col: Dictionary = bl_dict[jid]
-			if per_col.has(colonist.colonist_id) and int(per_col[colonist.colonist_id]) > now:
-				bl_count += 1
-
-	if bl_count > 0:
-		return "Job Cooldowns: %d unreachable job(s) temporarily blacklisted" % bl_count
-	return "Job Cooldowns: None"
-
-
-func _populate_skills() -> void:
-	if _skills_grid == null:
-		return
-	for child in _skills_grid.get_children():
-		child.queue_free()
-
-	if _selected_colonist.skill_set == null or _selected_colonist.skill_set.skill_defs == null:
-		return
-
-	for def in _selected_colonist.skill_set.skill_defs.skills:
-		if def == null:
-			continue
-		var level: int = _selected_colonist.skill_set.get_level(def.skill_id)
-		var mult: float = _selected_colonist.skill_set.get_multiplier(def.labor if def.labor != "" else def.skill_id)
-		var label := Label.new()
-		var sname: String = def.display_name if def.display_name != "" else def.skill_id.capitalize()
-		label.text = "• %s: Level %d (Speed: %.1fx)" % [sname, level, mult]
-		label.add_theme_font_size_override("font_size", 13)
-		_skills_grid.add_child(label)
-
-
-var _last_inventory_snapshot: Dictionary = {}
-
-
-func _populate_carried_items(force: bool = false) -> void:
-	if _detail_item_list == null or _detail_inventory_weight_label == null:
-		return
-
-	var inv: CharacterInventory = _selected_colonist.inventory if _selected_colonist != null else null
-	if inv == null:
-		_detail_inventory_weight_label.text = "Carry Capacity: 0.0 / 50.0 kg"
-		if not force and _last_inventory_snapshot.is_empty() and _detail_item_list.get_child_count() > 0:
-			return
-		_last_inventory_snapshot.clear()
-		for child in _detail_item_list.get_children():
-			child.queue_free()
-		var empty_lbl := Label.new()
-		empty_lbl.text = "No carried items"
-		empty_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
-		empty_lbl.add_theme_font_size_override("font_size", 13)
-		_detail_item_list.add_child(empty_lbl)
-		return
-
-	_detail_inventory_weight_label.text = "Carry Weight: %.1f / %.1f kg" % [inv.current_weight(), inv.capacity]
-
-	if not force and inv.items.hash() == _last_inventory_snapshot.hash():
-		return
-
-	_last_inventory_snapshot = inv.items.duplicate()
-	for child in _detail_item_list.get_children():
-		child.queue_free()
-
-	var has_items := false
-	for item_id in inv.items:
-		var count: int = int(inv.items[item_id])
-		if count <= 0:
-			continue
-		has_items = true
-		var def: ItemDef = ItemDB.get_def(item_id)
-		var iname: String = def.resource_name if (def != null and def.resource_name != "") else str(item_id)
-		var weight: float = (def.weight * count) if def != null else 0.0
-		var lbl := Label.new()
-		lbl.text = "• %s  x%d  (%.1f kg)" % [iname, count, weight]
-		lbl.add_theme_font_size_override("font_size", 13)
-		_detail_item_list.add_child(lbl)
-
-	if not has_items:
-		var empty_lbl := Label.new()
-		empty_lbl.text = "No carried items"
-		empty_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
-		empty_lbl.add_theme_font_size_override("font_size", 13)
-		_detail_item_list.add_child(empty_lbl)
 
 
 func _get_available_labors() -> Array[LaborDef]:
