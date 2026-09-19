@@ -31,7 +31,7 @@ Authoring guide for creating new crops: `docs/HOWTO-author-crops.md`.
 | `data/jobs/sow_job_def.gd` / `sow.tres` | Script/Data | Sowing job for empty farm plots (`_needs`: EMPTY + crop selected; `_apply`: `plant`). Also gates on the crop's `plant_conditions`. |
 | `data/jobs/water_job_def.gd` / `water.tres` | Script/Data | Watering job for thirsty crops (`_needs`: `needs_water()`; `_apply`: `water`). |
 | `data/jobs/tend_job_def.gd` / `tend.tres` | Script/Data | Tending job for crops needing maintenance (`_needs`: `needs_tending()`; `_apply`: `tend`). Also gates on the crop's `tend_conditions`. |
-| `subsystems/farming/crop_library.gd` | Script | Static catalog loader for all crop definitions in `res://data/crops/`. |
+| `subsystems/farming/crop_library.gd` | Script | Static catalog loader for all crop definitions, recursively scanned from `res://data/crops/` via `ContentDirLoader` (see [Overview](overview.md#content-directory-loading)). |
 | `subsystems/farming/growable.gd` | Script | Node component managing growth simulation, hydration, tending, and visuals. |
 | `subsystems/harvesting/harvestable.gd` | Script | Extended to query `Growable` dynamic yields and reset plots on harvest. |
 | `data/actions/farm_manual_action.gd` | Script | Context-sensitive player LMB action. |

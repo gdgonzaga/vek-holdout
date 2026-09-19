@@ -152,18 +152,10 @@ func _bake_variants() -> void:
 			_defs_by_index[variant] = def
 
 func _scan_block_defs() -> PackedStringArray:
-	var dir := DirAccess.open(_blocks_dir)
-	if dir == null:
+	if DirAccess.open(_blocks_dir) == null:
 		push_error("BlockLibrary: cannot open %s" % _blocks_dir)
 		return PackedStringArray()
-	var out := PackedStringArray()
-	dir.list_dir_begin()
-	var name := dir.get_next()
-	while name != "":
-		if not dir.current_is_dir() and name.ends_with(".tres") and name != "block_def.gd":
-			out.append(_blocks_dir + name)
-		name = dir.get_next()
-	return out
+	return ContentDirLoader.find_resource_paths(_blocks_dir)
 
 # --- query surface ---
 

@@ -131,9 +131,27 @@ has no dedicated folder either; its planned state is meant to live on the `Colon
 | **Tools** | `subsystems/autoloads/tools.gd` | Cross-subsystem utility helpers (e.g. UUID generation). |
 | **MapLibrary** | `subsystems/maps/map_library.gd` | `id → MapDef` map catalog registry. |
 | **ItemDB** | `subsystems/inventory/item_db.gd` | `id → ItemDef` item catalog registry. |
+| **EnemyLibrary** | `subsystems/combat/enemy_library.gd` | `id → EnemyDef` enemy archetype catalog registry. |
 | **ExpeditionManager** | `subsystems/expeditions/expedition_manager.gd` | POI discovery and expedition lifecycle. |
 
 Order above matches `project.godot`'s `[autoload]` section — later autoloads may depend on earlier ones being ready.
+
+---
+
+## Content Directory Loading
+
+`subsystems/core/content_dir_loader.gd` (`class_name ContentDirLoader`, static-only,
+mirrors `AIUtils`'s pattern) is the shared scan behind every `id → def` content
+registry: `ItemDB`, `EnemyLibrary`, `CropLibrary`, `ColonistNeeds`, `BuildLibrary`,
+and `BlockLibrary`. `ContentDirLoader.load_by_id(dir_path, is_valid_type)` recurses
+into subdirectories, `load()`s each matching file, and indexes it by its `id` field
+(skipping — with a warning, never silently or in a loop — any resource whose `id` is
+empty). Because content identity is always the `id` field and never the filename or
+path (see Data Conventions below), a category's `data/<category>/` folder can be
+split into nested subfolders as it grows without any loader code changes.
+`MapLibrary` is the one exception: its `data/maps/<id>/map_def.tres` shape (fixed
+filename per id-subfolder, not "scan every `.tres` in a dir") doesn't fit this
+helper and is scanned directly instead.
 
 ---
 

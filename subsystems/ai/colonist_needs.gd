@@ -36,18 +36,8 @@ static func _ensure_need_defs_loaded() -> void:
 	if _defs_loaded:
 		return
 	_defs_loaded = true
-	var dir_path := "res://data/needs/"
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			var res := load(dir_path + fname)
-			if res != null and "id" in res and res.id != &"":
-				_cached_need_defs[res.id] = res
-		fname = dir.get_next()
+	var loaded := ContentDirLoader.load_by_id("res://data/needs/", func(res: Variant) -> bool: return res is NeedDef)
+	_cached_need_defs.merge(loaded, true)
 
 
 static func get_need_defs() -> Dictionary:

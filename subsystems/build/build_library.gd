@@ -62,20 +62,11 @@ func _ready() -> void:
 
 ## Load every .tres in a directory as a BuildableDef, keyed by id.
 func _load_dir(dir_path: String) -> void:
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		return   # not all folders exist yet (e.g. furniture); fine
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			# Untyped load + `is` check: data/blocks/ also holds non-def resources
-			# (the baked VoxelBlockyLibrary from bake_voxel_library.gd). A typed
-			# assignment would throw on those, so filter by actual runtime type.
-			var res = load(dir_path + fname)
-			if res is BuildableDef and res.id != "":
-				_defs_by_id[res.id] = res
-		fname = dir.get_next()
+	# Untyped `is` check: data/blocks/ also holds non-def resources (the baked
+	# VoxelBlockyLibrary from bake_voxel_library.gd). A typed assignment would
+	# throw on those, so filter by actual runtime type.
+	var loaded := ContentDirLoader.load_by_id(dir_path, func(res: Variant) -> bool: return res is BuildableDef)
+	_defs_by_id.merge(loaded, true)
 
 
 ## Push every unlocked_by_default def into RunProgress. No disk re-read — walks
@@ -129,18 +120,8 @@ func get_all_defs() -> Array[BuildableDef]:
 ## natural materials are ambient content like the tool sentinels — the palette
 ## lists them unconditionally (there is no RunProgress entry to gate on).
 func _load_materials() -> void:
-	var dir := DirAccess.open(_DIR_MATERIALS)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			var res = load(_DIR_MATERIALS + fname)
-			if res is TerrainMaterialDef and res.id != "":
-				_materials_by_id[res.id] = res
-		fname = dir.get_next()
-	dir.list_dir_end()
+	var loaded := ContentDirLoader.load_by_id(_DIR_MATERIALS, func(res: Variant) -> bool: return res is TerrainMaterialDef)
+	_materials_by_id.merge(loaded, true)
 
 
 ## True for a terrain material id (the smooth-placement palette entries).

@@ -15,20 +15,8 @@ func _ready() -> void:
 
 
 func _load_dir(dir_path: String) -> void:
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			var res = load(dir_path + fname)
-			if res is ItemDef:
-				if res.id == "":
-					push_warning("ItemDef at %s has empty id; skipping" % (dir_path + fname))
-				else:
-					_defs_by_id[res.id] = res
-		fname = dir.get_next()
+	var loaded := ContentDirLoader.load_by_id(dir_path, func(res: Variant) -> bool: return res is ItemDef)
+	_defs_by_id.merge(loaded, true)
 
 
 func get_def(item_id: String) -> ItemDef:

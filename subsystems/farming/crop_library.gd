@@ -13,17 +13,8 @@ static func _ensure_loaded() -> void:
 	if _loaded:
 		return
 	_loaded = true
-	var dir := DirAccess.open(_DIR)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			var res = load(_DIR + fname)
-			if res is CropDef and res.id != "":
-				_crops_by_id[res.id] = res
-		fname = dir.get_next()
+	var loaded := ContentDirLoader.load_by_id(_DIR, func(res: Variant) -> bool: return res is CropDef)
+	_crops_by_id.merge(loaded, true)
 
 
 static func get_crop(id: String) -> CropDef:
