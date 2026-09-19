@@ -6,6 +6,8 @@ const Doubles = preload("res://test/helpers/doubles.gd")
 const HealthCompScript = preload("res://subsystems/combat/components/health_component.gd")
 const EnemyBaseScript = preload("res://subsystems/combat/enemy_base.gd")
 const SwarmerScene = preload("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
+const BrawlerScene = preload("res://subsystems/combat/enemies/enemy_brawler/enemy_brawler.tscn")
+const ShooterScene = preload("res://subsystems/combat/enemies/enemy_shooter/enemy_shooter.tscn")
 const PlayerScene = preload("res://subsystems/player/player.tscn")
 const ColonySandboxScript = preload("res://test/helpers/colony_sandbox.gd")
 
@@ -151,6 +153,46 @@ func test_enemy_swarmer_instantiation() -> void:
 	swarmer.take_damage(20)
 	assert_int(swarmer.health_component.current_durability).is_equal(0)
 	assert_int(swarmer.health_component.current_hp).is_equal(40)
+
+
+func test_enemy_brawler_instantiation() -> void:
+	var brawler := BrawlerScene.instantiate() as EnemyBase
+	auto_free(brawler)
+	brawler._ready()
+
+	assert_that(brawler).is_not_null()
+	assert_that(brawler.health_component).is_not_null()
+	assert_int(brawler.health_component.max_hp).is_equal(140)
+	assert_int(brawler.health_component.max_durability).is_equal(0)
+	assert_that(brawler.bt_player).is_not_null()
+	assert_that(brawler.bt_player.behavior_tree).is_not_null()
+	assert_str(brawler.bt_player.behavior_tree.resource_path).contains("enemy_melee")
+
+	var combat_action: CombatActionParams = brawler.get_combat_action()
+	assert_object(combat_action).is_instanceof(MeleeActionParams)
+
+	brawler.take_damage(30)
+	assert_int(brawler.health_component.current_hp).is_equal(110)
+
+
+func test_enemy_shooter_instantiation() -> void:
+	var shooter := ShooterScene.instantiate() as EnemyBase
+	auto_free(shooter)
+	shooter._ready()
+
+	assert_that(shooter).is_not_null()
+	assert_that(shooter.health_component).is_not_null()
+	assert_int(shooter.health_component.max_hp).is_equal(60)
+	assert_int(shooter.health_component.max_durability).is_equal(0)
+	assert_that(shooter.bt_player).is_not_null()
+	assert_that(shooter.bt_player.behavior_tree).is_not_null()
+	assert_str(shooter.bt_player.behavior_tree.resource_path).contains("enemy_ranged_kiter")
+
+	var combat_action: CombatActionParams = shooter.get_combat_action()
+	assert_object(combat_action).is_instanceof(RangedActionParams)
+
+	shooter.take_damage(25)
+	assert_int(shooter.health_component.current_hp).is_equal(35)
 
 
 func test_enemy_base_serialize_deserialize() -> void:

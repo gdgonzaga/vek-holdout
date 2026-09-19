@@ -1,0 +1,41 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://subsystems/combat/enemies/enemy_shooter/enemy_shooter.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="2_health"]
+[ext_resource type="Resource" path="res://data/enemies/enemy_shooter.tres" id="2_def"]
+[ext_resource type="Script" uid="uid://b0iy3iwbh347j" path="res://subsystems/core/ground_safety_guard.gd" id="3_s35gj"]
+[ext_resource type="Script" uid="uid://j636hju7ndhi" path="res://subsystems/colonists/voxel_pathfinder.gd" id="4_pathfinder"]
+[ext_resource type="Script" uid="uid://dq3pcl1mb3r01" path="res://subsystems/core/step_climber.gd" id="6_step"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_shape"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_mesh"]
+
+[node name="EnemyShooter" type="CharacterBody3D"]
+collision_layer = 64
+collision_mask = 7
+floor_snap_length = 0.5
+script = ExtResource("1_script")
+enemy_def = ExtResource("2_def")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("CapsuleShape3D_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("CapsuleMesh_mesh")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("2_health")
+
+[node name="GroundSafetyGuard" type="Node" parent="."]
+script = ExtResource("3_s35gj")
+metadata/_custom_type_script = "uid://b0iy3iwbh347j"
+
+[node name="VoxelPathfinder" type="Node" parent="."]
+script = ExtResource("4_pathfinder")
+
+[node name="StepClimber" type="Node" parent="."]
+script = ExtResource("6_step")
+hop_height = 1.3
