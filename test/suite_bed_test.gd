@@ -1,7 +1,7 @@
 extends GdUnitTestSuite
 
 ## Unit tests for the bed subsystem (ARCH bed.md): BedParams
-## capacity math, BedComponent slot rationing, the availability-filtered
+## session-timing math, BedComponent single-slot occupancy, the availability-filtered
 ## smart-object search, ColonistBrain reservation handover, and the
 ## BTActionUseBed session lifecycle.
 ##
@@ -43,32 +43,14 @@ func after_test() -> void:
 
 
 # ── BedParams ─────────────────────────────────────────────────────────
-
-func test_effective_capacity_without_offsets_is_the_authored_capacity() -> void:
-	var params := _make_params(1)
-	assert_int(params.effective_capacity()).is_equal(1)
-
-	params.capacity = -1
-	assert_int(params.effective_capacity()).is_equal(-1)
-
-
-func test_authored_offsets_cap_the_effective_capacity() -> void:
-	var params := _make_params(4)
-	params.use_offsets = [Vector3(0, 0, 1), Vector3(1, 0, 1)]
-	assert_int(params.effective_capacity()).is_equal(2)
-
-
-func test_offsets_bound_an_otherwise_unlimited_capacity() -> void:
-	var params := _make_params(-1)
-	params.use_offsets = [Vector3(0, 0, 1)]
-	assert_int(params.effective_capacity()).is_equal(1)
-
+# No capacity/use_offsets math here (unlike RecreationParams) — a bed is always
+# exactly one slot, per BedComponent's single reserved_by/occupied_by pair.
 
 func test_session_ceiling_never_falls_below_the_floor() -> void:
-	var params := _make_params(1)
+	var params := _make_params()
 	params.min_session_game_hours = 8.0
 	params.max_session_game_hours = 2.0
-	assert_float(params.session_ceiling_seconds()).is_equal_approx(8.0, 0.001)
+	assert_float(params.session_ceiling_game_hours()).is_equal_approx(8.0, 0.001)
 
 
 # ── FurnitureLayer capability wiring ─────────────────────────────────────────
@@ -77,20 +59,19 @@ func test_furniture_layer_attaches_bed_component_when_params_present() -> void:
 	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
 	layer.set_container(_sandbox.container)
 
-	var params := _make_params(2)
+	var params := _make_params()
 	var def := _make_def(params)
 	var node: Furniture = layer.spawn(def, Vector3i(0, 0, 0), 0)
 
 	var comp := node.get_node_or_null("BedComponent") as BedComponent
 	assert_object(comp).is_not_null()
 	assert_object(comp.params()).is_equal(params)
-	assert_int(comp.capacity()).is_equal(2)
 
 
 # ── BedComponent occupancy ────────────────────────────────────────────
 
 func test_exclusive_object_admits_one_colonist_and_rejects_the_next() -> void:
-	var comp := _make_bed_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params())
 	var first := _make_user()
 	var second := _make_user()
 
@@ -103,7 +84,7 @@ func test_holder_still_sees_the_object_as_usable() -> void:
 	# Load-bearing: ColonistBrain re-scores its own current target every cycle. A
 	# component that reported "full" to its own occupant would zero that goal's
 	# score and make the colonist thrash between goals.
-	var comp := _make_bed_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params())
 	var user := _make_user()
 
 	assert_bool(comp.reserve(user)).is_true()
@@ -111,14 +92,8 @@ func test_holder_still_sees_the_object_as_usable() -> void:
 	assert_bool(comp.reserve(user)).is_true()
 
 
-func test_unlimited_capacity_never_rejects() -> void:
-	var comp := _make_bed_furniture(_make_params(-1))
-	for i in range(5):
-		assert_bool(comp.reserve(_make_user())).is_true()
-
-
 func test_release_frees_a_slot_for_another_colonist() -> void:
-	var comp := _make_bed_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params())
 	var first := _make_user()
 	var second := _make_user()
 
@@ -130,7 +105,7 @@ func test_release_frees_a_slot_for_another_colonist() -> void:
 
 
 func test_begin_use_promotes_a_reservation_and_end_use_frees_it() -> void:
-	var comp := _make_bed_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params())
 	var user := _make_user()
 
 	comp.reserve(user)
@@ -142,7 +117,7 @@ func test_begin_use_promotes_a_reservation_and_end_use_frees_it() -> void:
 
 
 func test_arrival_cannot_overfill_an_object_whose_slots_were_taken() -> void:
-	var comp := _make_bed_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params())
 	var walker := _make_user()
 	var squatter := _make_user()
 
@@ -153,7 +128,7 @@ func test_arrival_cannot_overfill_an_object_whose_slots_were_taken() -> void:
 
 
 func test_use_position_defaults_to_the_furniture_origin() -> void:
-	var comp := _make_bed_furniture(_make_params(1))
+	var comp := _make_bed_furniture(_make_params())
 	var furniture := comp.get_parent() as Node3D
 	furniture.global_position = Vector3(3.0, 1.0, 4.0)
 
@@ -161,8 +136,8 @@ func test_use_position_defaults_to_the_furniture_origin() -> void:
 
 
 func test_authored_offset_is_rotated_by_the_furniture_transform() -> void:
-	var params := _make_params(1)
-	params.use_offsets = [Vector3(0, 0, 1)]
+	var params := _make_params()
+	params.sleep_offset = Vector3(0, 0, 1)
 	var comp := _make_bed_furniture(params)
 	var furniture := comp.get_parent() as Node3D
 	furniture.global_position = Vector3(2.0, 0.0, 2.0)
@@ -178,10 +153,12 @@ func test_group_search_skips_objects_that_refuse_the_colonist() -> void:
 	var group: StringName = &"test_occupiable_group"
 	var user := _make_user()
 
-	# A capacity-0 object refuses everyone; the far one is the only valid answer.
-	var near := _make_bed_furniture(_make_params(0), group)
+	# An already-occupied bed refuses everyone else; the far one is the only
+	# valid answer.
+	var near := _make_bed_furniture(_make_params(), group)
 	(near.get_parent() as Node3D).global_position = Vector3(1.0, 0.0, 0.0)
-	var far := _make_bed_furniture(_make_params(1), group)
+	near.reserve(_make_user())
+	var far := _make_bed_furniture(_make_params(), group)
 	(far.get_parent() as Node3D).global_position = Vector3(20.0, 0.0, 0.0)
 
 	var found: Node3D = AIUtils.find_nearest_in_group_where(
@@ -206,7 +183,7 @@ func test_group_search_still_returns_plain_nodes_without_occupancy() -> void:
 
 func test_brain_skips_a_fully_occupied_bed_object() -> void:
 	var group := BedComponent.REQUIRED_GROUP
-	var occupied := _make_bed_furniture(_make_params(1), group)
+	var occupied := _make_bed_furniture(_make_params(), group)
 	(occupied.get_parent() as Node3D).global_position = Vector3(2.0, 0.0, 0.0)
 	occupied.reserve(_make_user())
 
@@ -221,7 +198,7 @@ func test_brain_skips_a_fully_occupied_bed_object() -> void:
 
 func test_brain_reserves_the_winning_target_and_publishes_a_stand_position() -> void:
 	var group := BedComponent.REQUIRED_GROUP
-	var comp := _make_bed_furniture(_make_params(1), group)
+	var comp := _make_bed_furniture(_make_params(), group)
 	var furniture := comp.get_parent() as Node3D
 	furniture.global_position = Vector3(2.0, 0.0, 0.0)
 
@@ -239,7 +216,7 @@ func test_brain_reserves_the_winning_target_and_publishes_a_stand_position() -> 
 
 func test_brain_releases_its_claim_when_it_leaves_the_tree() -> void:
 	var group := BedComponent.REQUIRED_GROUP
-	var comp := _make_bed_furniture(_make_params(1), group)
+	var comp := _make_bed_furniture(_make_params(), group)
 	(comp.get_parent() as Node3D).global_position = Vector3(2.0, 0.0, 0.0)
 
 	var brain := _install_brain_with_need(group)
@@ -270,8 +247,8 @@ func test_goal_condition_succeeds_on_match_and_fails_otherwise() -> void:
 # ── BTActionUseBed ────────────────────────────────────────────────────
 
 func test_session_accrues_the_need_at_the_authored_rate() -> void:
-	var params := _make_params(1)
-	params.bed_per_game_hour = 0.1
+	var params := _make_params()
+	params.rest_per_game_hour = 0.1
 	params.min_session_game_hours = 10.0
 	var ctx := _make_session(params, 0.0)
 
@@ -283,8 +260,8 @@ func test_session_accrues_the_need_at_the_authored_rate() -> void:
 
 
 func test_session_holds_the_colonist_for_the_authored_minimum() -> void:
-	var params := _make_params(1)
-	params.bed_per_game_hour = 1.0
+	var params := _make_params()
+	params.rest_per_game_hour = 1.0
 	params.min_session_game_hours = 3.0
 	var ctx := _make_session(params, 0.9)
 
@@ -297,8 +274,8 @@ func test_session_holds_the_colonist_for_the_authored_minimum() -> void:
 
 
 func test_session_hard_stops_at_the_ceiling_with_the_need_unfilled() -> void:
-	var params := _make_params(1)
-	params.bed_per_game_hour = 0.01
+	var params := _make_params()
+	params.rest_per_game_hour = 0.01
 	params.min_session_game_hours = 1.0
 	params.max_session_game_hours = 3.0
 	var ctx := _make_session(params, 0.0)
@@ -309,8 +286,8 @@ func test_session_hard_stops_at_the_ceiling_with_the_need_unfilled() -> void:
 
 
 func test_successful_session_clears_the_goal_for_re_arbitration() -> void:
-	var params := _make_params(1)
-	params.bed_per_game_hour = 1.0
+	var params := _make_params()
+	params.rest_per_game_hour = 1.0
 	params.min_session_game_hours = 0.5
 	var ctx := _make_session(params, 0.0)
 
@@ -320,29 +297,23 @@ func test_successful_session_clears_the_goal_for_re_arbitration() -> void:
 	assert_object(_blackboard.get_var(&"target_stand_pos")).is_null()
 
 
-func test_session_fails_when_the_colonist_is_outside_the_use_radius() -> void:
-	var params := _make_params(1)
-	params.use_radius = 1.5
-	var ctx := _make_session(params, 0.0)
-	ctx.colonist.global_position = Vector3(20.0, 0.0, 0.0)
-
-	assert_int(ctx.task.execute(0.1)).is_equal(BTAction.FAILURE)
-
-
-func test_interrupted_session_releases_the_slot() -> void:
-	# A leaked slot would permanently shrink the colony's usable furniture, so
-	# _exit must free it on the failure path too, not just on success.
-	var params := _make_params(1)
-	params.bed_per_game_hour = 0.01
+func test_interrupted_session_fails_cleanly_when_the_furniture_disappears() -> void:
+	# Unlike BTActionUseRecreation, BTActionUseBed has no per-tick distance gate —
+	# the only thing that can interrupt a session mid-flight is the furniture
+	# itself going away (e.g. destroyed in a raid). _exit's is_instance_valid
+	# guard on _component is what stops that from crashing the task instead of
+	# just failing it; freeing the furniture also frees its BedComponent child,
+	# so there is no live component left afterward to assert a released slot on.
+	var params := _make_params()
+	params.rest_per_game_hour = 0.01
 	params.min_session_game_hours = 60.0
 	var ctx := _make_session(params, 0.0)
 
 	assert_int(ctx.task.execute(0.5)).is_equal(BTAction.RUNNING)
 	assert_bool(ctx.component.holds_slot(ctx.colonist)).is_true()
 
-	ctx.colonist.global_position = Vector3(20.0, 0.0, 0.0)
+	ctx.component.get_parent().free()
 	assert_int(ctx.task.execute(0.1)).is_equal(BTAction.FAILURE)
-	assert_bool(ctx.component.holds_slot(ctx.colonist)).is_false()
 
 
 # ── Tree wiring parity ───────────────────────────────────────────────────────
@@ -355,10 +326,13 @@ func test_tree_factory_emits_goal_gated_sleep_and_bed_branches() -> void:
 	var root: BTDynamicSelector = tree.root_task as BTDynamicSelector
 	assert_object(root).is_not_null()
 
-	assert_object(_find_goal_gated_branch(root, &"sleep")).is_not_null()
-	var rec_branch := _find_goal_gated_branch(root, TEST_NEED)
-	assert_object(rec_branch).is_not_null()
-	assert_bool(rec_branch.children[2] is BTActionUseBed).is_true()
+	# The sleep-gated branch is the bed branch — BTActionUseBed lives inside the
+	# same sequence as the "sleep" goal guard, not a separately-gated "bed" one
+	# (TEST_NEED here is this file's synthetic mock-need goal name, unrelated to
+	# the real tree's goal naming).
+	var sleep_branch := _find_goal_gated_branch(root, &"sleep")
+	assert_object(sleep_branch).is_not_null()
+	assert_bool(sleep_branch.children[2] is BTActionUseBed).is_true()
 
 
 func test_shipped_colonist_tree_carries_the_bed_branch() -> void:
@@ -366,21 +340,18 @@ func test_shipped_colonist_tree_carries_the_bed_branch() -> void:
 	var root: BTDynamicSelector = tree.root_task as BTDynamicSelector
 	assert_object(root).is_not_null()
 	assert_object(_find_goal_gated_branch(root, &"sleep")).is_not_null()
-	assert_object(_find_goal_gated_branch(root, TEST_NEED)).is_not_null()
 
 
 # ===================
 # Auxiliary Functions
 # ===================
 
-func _make_params(capacity: int) -> BedParams:
+func _make_params() -> BedParams:
 	## Auxiliary: In-memory capability params with predictable timings.
 	var params: BedParams = auto_free(BedParams.new())
-	params.capacity = capacity
-	params.bed_per_game_hour = 0.1
+	params.rest_per_game_hour = 0.1
 	params.min_session_game_hours = 1.0
 	params.max_session_game_hours = 5.0
-	params.use_radius = 1.5
 	return params
 
 
@@ -442,7 +413,7 @@ func _install_brain_with_need(target_group: StringName) -> ColonistBrain:
 	mock_def.id = TEST_NEED
 	mock_def.goal_name = TEST_NEED
 	mock_def.target_group = target_group
-	mock_def.decay_per_second = 0.0
+	mock_def.decay_per_game_hour = 0.0
 	var curve: Curve = Curve.new()
 	curve.add_point(Vector2(0, 0))
 	curve.add_point(Vector2(1, 1))
