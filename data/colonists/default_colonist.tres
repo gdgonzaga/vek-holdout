@@ -8,8 +8,11 @@
 [ext_resource type="Resource" uid="uid://crx1cepk43gdq" path="res://data/moodlets/rest_moodlet.tres" id="4_xl6pl"]
 [ext_resource type="Resource" uid="uid://c3ajfg7aj7nyy" path="res://data/moodlets/recreation_moodlet.tres" id="5_e1mhw"]
 
+[ext_resource type="Resource" path="res://data/naming/names.tres" id="9_names"]
+
 [resource]
 script = ExtResource("1_34um5")
+name_pool = ExtResource("9_names")
 default_labor_priorities = {
 "construction": 1,
 "crafting": 1,

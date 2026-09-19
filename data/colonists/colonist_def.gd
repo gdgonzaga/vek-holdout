@@ -2,6 +2,9 @@ extends Resource
 class_name ColonistDef
 
 @export var display_name: String = "Colonist"
+## Optional pool for random names. When set, Colony.spawn_colonist rolls a roster-unique name
+## from it and display_name is only the fallback; leave null for a fixed (named) colonist.
+@export var name_pool: NamePool = null
 @export var max_hp: int = 100
 # Raid behavior during raids (value maps to a future Colonist.RaidStance enum,
 # exercised when raids land). Kept as int so this pure-data Resource stays

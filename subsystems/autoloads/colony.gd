@@ -83,11 +83,15 @@ var _world_bounds: AABB = AABB()
 ## surface (hill or plate) instead of trusting authored Y.
 var _ground_query: Callable = Callable()
 
+## Rolls random colonist names (ColonistNamer); seeded from entropy once, like other spawners.
+var _name_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
 ## Cached terrain presence predicate from the active map (VoxelGridAdapter.is_terrain_at).
 var _is_terrain_at: Callable = Callable()
 
 
 func _ready() -> void:
+	_name_rng.randomize()
 	job_board = JobBoard.new()
 	job_board.name = "JobBoard"
 	add_child(job_board)
@@ -270,6 +274,9 @@ func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZER
 	if colonist_def != null:
 		c.colonist_def = colonist_def
 
+	# Name BEFORE add_child: Colonist._ready only fills display_name when it is still empty.
+	_assign_random_name(c)
+
 	# Add to tree BEFORE setting global_position — it only resolves in-tree.
 	_container.add_child(c)
 	# Marker/def Y is a hint, not truth: where hills overlap the blocky plate,
@@ -293,6 +300,27 @@ func spawn_colonist(colonist_def: ColonistDef = null, pos: Vector3 = Vector3.ZER
 
 	colonists.append(c)
 	return c
+
+
+## Gives a new colonist a random roster-unique name when its def carries a name pool. Defs
+## without one (or with an unusable one) keep their authored display_name, which
+## Colonist._ready applies. Only spawn_colonist rolls: restored colonists take their saved name.
+func _assign_random_name(c: Colonist) -> void:
+	var def: ColonistDef = c.colonist_def
+	if def == null or def.name_pool == null:
+		return
+	var rolled: String = ColonistNamer.pick(def.name_pool, _name_rng, _roster_names())
+	if not rolled.is_empty():
+		c.display_name = rolled
+
+
+## Display names of every colonist currently on the roster (dead colonists stay on it today).
+func _roster_names() -> Array[String]:
+	var names: Array[String] = []
+	for c in colonists:
+		if is_instance_valid(c) and not c.display_name.is_empty():
+			names.append(c.display_name)
+	return names
 
 
 ## Recruit a colonist (random world event / radio, post-MVP). Respects the cap.
