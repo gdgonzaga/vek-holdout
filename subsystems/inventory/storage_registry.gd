@@ -125,6 +125,18 @@ func has_source_for(item_ids: Array[String]) -> bool:
 	return false
 
 
+## Total `item_id` held across all crates. Unlike colony_stock, ignores ground items and
+## pockets: this is what a FetchEquipmentJob (crate withdrawal) can actually take, which is
+## the number the Gear picker shows next to each item.
+func crate_stock(item_id: String) -> int:
+	var total: int = 0
+	for crate in _crates():
+		var inv := inventory_of(crate)
+		if inv != null:
+			total += inv.get_item_count(item_id)
+	return total
+
+
 ## Nearest crate to `near` regardless of contents — for returning surplus
 ## carried items to storage on haul abort/finish. Returns null if no crate exists.
 func nearest_crate(near: Vector3) -> Furniture:
