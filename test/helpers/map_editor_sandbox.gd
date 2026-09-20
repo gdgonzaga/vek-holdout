@@ -28,7 +28,7 @@ static func heightmap_payload(id: String) -> Dictionary:
 	image.fill(Color(0.75, 0.75, 0.75))
 	return {
 		"map_id": id,
-		"map_type": MapDef.MapType.POI,
+		"map_type": MapDef.MapType.BASE,
 		"terrain_mode": EditorLauncherClass.TerrainMode.HEIGHTMAP,
 		"noise_def_path": "",
 		"image": image,
@@ -40,7 +40,7 @@ static func heightmap_payload(id: String) -> Dictionary:
 static func blocky_only_payload(id: String) -> Dictionary:
 	return {
 		"map_id": id,
-		"map_type": MapDef.MapType.POI,
+		"map_type": MapDef.MapType.BASE,
 		"terrain_mode": EditorLauncherClass.TerrainMode.NONE,
 	}
 

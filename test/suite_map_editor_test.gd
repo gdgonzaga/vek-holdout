@@ -2085,3 +2085,231 @@ func test_editor_hud_focus_inside_any_spinbox_counts_as_input_focus() -> void:
 	hud._meta_flora_cap_spin.get_line_edit().release_focus()
 	assert_bool(hud.is_any_input_focused()).is_false()
 
+
+func test_editor_hud_metadata_edits_omit_unchanged_bounds_and_flora() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+	# 200 is not on the 16 m spinner step and 62 is not on the 5 step: the spinners round what they display.
+	var off_grid := AABB(Vector3(-100.0, -40.0, -100.0), Vector3(200.0, 60.0, 200.0))
+	hud.set_metadata("Name", "Desc", 0, 1, off_grid, 3, 62, 15)
+
+	var edits := hud.get_metadata_edits()
+
+	assert_bool(edits.has("world_bounds")).is_false()
+	assert_bool(edits.has("flora_spawn_cap")).is_false()
+	assert_bool(edits.has("display_name")).is_false()
+
+
+func test_editor_hud_metadata_edits_report_changed_fields_only() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	add_child(hud)
+	hud.setup()
+	hud.set_metadata("Name", "Desc", 0, 1, AABB(Vector3(-96, -48, -96), Vector3(192, 64, 192)), 3, 60, 15)
+
+	hud._meta_bounds_xz_spin.value = 224.0
+	hud._meta_display_name_input.text = "Renamed"
+
+	var edits := hud.get_metadata_edits()
+	assert_bool(edits.has("world_bounds")).is_true()
+	assert_str(edits.get("display_name", "")).is_equal("Renamed")
+	assert_bool(edits.has("flora_spawn_cap")).is_false()
+
+
+func test_editor_hud_metadata_edited_signal_fires_on_user_edit_not_on_load() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	add_child(hud)
+	hud.setup()
+	var counter := Doubles.SignalCounter.new(hud.metadata_edited)
+
+	hud.set_metadata("Name", "Desc", 0, 1)
+	assert_int(counter.count).is_equal(0)
+
+	hud._meta_difficulty_spin.value = 5.0
+	assert_int(counter.count).is_greater(0)
+
+
+func test_save_map_failure_keeps_the_map_dirty() -> void:
+	var id := Sandbox.map_id("save_fail")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.blocky_only_payload(id))
+	editor._mark_dirty()
+	# A scene path inside a folder that does not exist makes ResourceSaver.save fail.
+	editor._map_scene_path = "res://data/maps/%s/no_such_dir/map.tscn" % id
+
+	var ok: bool = editor.save_map()
+
+	assert_bool(ok).is_false()
+	assert_bool(editor._dirty).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_save_map_success_returns_true_and_clears_dirty() -> void:
+	var id := Sandbox.map_id("save_ok")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.blocky_only_payload(id))
+	editor._mark_dirty()
+
+	assert_bool(editor.save_map()).is_true()
+	assert_bool(editor._dirty).is_false()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_save_map_keeps_off_grid_values_the_author_did_not_touch() -> void:
+	var id := Sandbox.map_id("bounds")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.blocky_only_payload(id))
+	# 200 is off the 16 m spinner step and 62 is off the 5 step.
+	var off_grid := AABB(Vector3(-100.0, -40.0, -100.0), Vector3(200.0, 60.0, 200.0))
+	editor._map_def.world_bounds = off_grid
+	editor._map_def.flora_spawn_cap = 62
+	editor._hud.set_metadata("N", "D", 0, 1, off_grid, 0, 62, 15)
+
+	editor.save_map()
+
+	assert_bool(editor._map_def.world_bounds == off_grid).is_true()
+	assert_int(editor._map_def.flora_spawn_cap).is_equal(62)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func _spawn_hit() -> Dictionary:
+	return {"hit": true, "position": Vector3i.ZERO, "normal": Vector3i.UP, "surface": "blocky"}
+
+
+func _dirty_sandbox_editor(id: String) -> MapEditor:
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	editor._do_spawn_place("enemy", _spawn_hit())
+	return editor
+
+
+func test_apply_on_dirty_map_asks_before_reloading() -> void:
+	var id := Sandbox.map_id("guard_ask")
+	var editor := _dirty_sandbox_editor(id)
+	var root_before: Map = editor._map_root
+
+	editor._on_terrain_apply()
+
+	assert_bool(editor._unsaved_dialog.visible).is_true()
+	assert_object(editor._map_root).is_same(root_before)
+	editor._on_unsaved_canceled()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_save_and_continue_keeps_unsaved_markers_across_the_reload() -> void:
+	var id := Sandbox.map_id("guard_save")
+	var editor := _dirty_sandbox_editor(id)
+	var root_before: Map = editor._map_root
+	editor._on_terrain_apply()
+
+	editor._on_unsaved_save_confirmed()
+
+	assert_object(editor._map_root).is_not_same(root_before)
+	assert_int((editor._spawn_markers["enemies"] as Array).size()).is_equal(1)
+	assert_bool(editor._dirty).is_false()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_discard_and_continue_reloads_without_the_markers() -> void:
+	var id := Sandbox.map_id("guard_discard")
+	var editor := _dirty_sandbox_editor(id)
+	editor._on_terrain_apply()
+
+	editor._on_unsaved_custom_action(&"discard")
+
+	assert_int((editor._spawn_markers["enemies"] as Array).size()).is_equal(0)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_cancel_keeps_the_map_and_clears_the_pending_action() -> void:
+	var id := Sandbox.map_id("guard_cancel")
+	var editor := _dirty_sandbox_editor(id)
+	var root_before: Map = editor._map_root
+	editor._on_terrain_apply()
+
+	editor._on_unsaved_canceled()
+
+	assert_object(editor._map_root).is_same(root_before)
+	assert_bool(editor._pending_after_guard.is_valid()).is_false()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_failed_save_does_not_continue_into_the_reload() -> void:
+	var id := Sandbox.map_id("guard_fail")
+	var editor := _dirty_sandbox_editor(id)
+	var root_before: Map = editor._map_root
+	editor._map_scene_path = "res://data/maps/%s/no_such_dir/map.tscn" % id
+	editor._on_terrain_apply()
+
+	editor._on_unsaved_save_confirmed()
+
+	assert_object(editor._map_root).is_same(root_before)
+	assert_bool(editor._dirty).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_apply_on_clean_map_reloads_without_asking() -> void:
+	var id := Sandbox.map_id("guard_clean")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	var root_before: Map = editor._map_root
+
+	editor._on_terrain_apply()
+
+	assert_bool(editor._unsaved_dialog.visible).is_false()
+	assert_object(editor._map_root).is_not_same(root_before)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_panel_triggered_reload_keeps_the_cursor_free() -> void:
+	var id := Sandbox.map_id("cursor")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+	editor._on_terrain_apply()
+
+	assert_int(Input.mouse_mode).is_equal(Input.MOUSE_MODE_VISIBLE)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_map_id_rules_accept_snake_case_only() -> void:
+	assert_str(MapIdRules.validate("outpost_alpha2")).is_empty()
+	for bad in ["", "Has Space", "UPPER", "9lives", "../evil", "a/b", "dash-name", "trailing.dot"]:
+		assert_str(MapIdRules.validate(bad)).is_not_empty()
+
+
+func test_create_new_map_rejects_path_traversal_and_writes_nothing() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var payload := Sandbox.blocky_only_payload("../zz_sandbox_escape")
+
+	assert_str(editor.create_new_map(payload)).is_empty()
+	assert_bool(DirAccess.dir_exists_absolute("res://data/zz_sandbox_escape")).is_false()
+
+
+func test_blocky_only_map_has_no_smooth_grid_and_shows_the_terrain_warning() -> void:
+	var id := Sandbox.map_id("no_terrain")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.blocky_only_payload(id))
+
+	assert_object(editor._smooth_grid).is_null()
+	assert_bool(editor._hud._terrain_warning_label.visible).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+
+

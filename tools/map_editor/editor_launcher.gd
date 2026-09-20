@@ -534,11 +534,9 @@ func _selected_noise_def_path() -> String:
 
 func _on_create_pressed() -> void:
 	var name_text := _new_name_input.text.strip_edges()
-	if name_text.is_empty():
-		_show_error("Map name cannot be empty")
-		return
-	if " " in name_text:
-		_show_error("Map name cannot contain spaces (use snake_case)")
+	var id_error := MapIdRules.validate(name_text)
+	if not id_error.is_empty():
+		_show_error(id_error)
 		return
 	var terrain_mode := _terrain_mode_select.selected
 	if terrain_mode == TerrainMode.HEIGHTMAP and _heightmap_image == null:

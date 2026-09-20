@@ -21,6 +21,8 @@ signal terrain_apply_requested()
 signal terrain_pick_image_requested()
 signal spawn_type_selected(type: String)
 signal flood_water_requested(water_level: float)
+signal metadata_edited()
+
 
 var _mode_badge: PanelContainer
 var _mode_label: Label
@@ -98,6 +100,10 @@ var _drawer_has_terrain := false
 var _drawer_touched: Dictionary = {}
 ## True while set_* methods fill the controls programmatically (not author edits).
 var _drawer_loading: bool = false
+## Control values captured right after set_metadata: the baseline get_metadata_edits diffs against.
+var _meta_loaded: Dictionary = {}
+var _meta_loading: bool = false
+
 
 var _drawer_water_enabled_check: CheckBox
 var _drawer_water_level_spin: SpinBox
@@ -619,7 +625,14 @@ func _build_ui() -> void:
 	_meta_flora_attempts_spin.tooltip_text = "Max random placement attempts per spawn cycle"
 	flora_grid.add_child(_meta_flora_attempts_spin)
 
+	_meta_display_name_input.text_changed.connect(func(_t: String) -> void: _emit_metadata_edited())
+	_meta_desc_input.text_changed.connect(_emit_metadata_edited)
+	_meta_type_option.item_selected.connect(func(_i: int) -> void: _emit_metadata_edited())
+	for spin: SpinBox in [_meta_difficulty_spin, _meta_bounds_xz_spin, _meta_bounds_min_y_spin, _meta_bounds_max_y_spin, _meta_flora_spawns_spin, _meta_flora_cap_spin, _meta_flora_attempts_spin]:
+		spin.value_changed.connect(func(_v: float) -> void: _emit_metadata_edited())
+
 	root.add_child(_metadata_panel)
+
 
 	# --- Terrain Drawer (Top Right; mutually exclusive with the Metadata panel) ---
 	_terrain_drawer = PanelContainer.new()
@@ -1196,6 +1209,7 @@ func set_metadata(
 	flora_spawn_cap: int = 60,
 	flora_max_spawn_attempts: int = 15
 ) -> void:
+	_meta_loading = true
 	if _meta_display_name_input != null:
 		_meta_display_name_input.text = display_name
 	if _meta_desc_input != null:
@@ -1216,10 +1230,31 @@ func set_metadata(
 		_meta_flora_cap_spin.value = float(flora_spawn_cap)
 	if _meta_flora_attempts_spin != null:
 		_meta_flora_attempts_spin.value = float(flora_max_spawn_attempts)
+	# 1. Snapshot: Capture loaded baseline to diff future edits against.
+	_meta_loaded = _read_metadata_controls()
+	_meta_loading = false
 
 
 func get_metadata_edits() -> Dictionary:
-	var out := {}
+	# 1. Current State: Read current values from all metadata controls.
+	var current := _read_metadata_controls()
+	var changed: Dictionary = {}
+	for key: String in current:
+		# A key is reported only when it differs from what set_metadata loaded, so spinner rounding of untouched fields never reaches the MapDef.
+		if not _meta_loaded.has(key) or _meta_loaded[key] != current[key]:
+			changed[key] = current[key]
+	return changed
+
+
+func _emit_metadata_edited() -> void:
+	## Auxiliary: Emits metadata_edited signal if not currently loading programmatically.
+	if not _meta_loading:
+		metadata_edited.emit()
+
+
+func _read_metadata_controls() -> Dictionary:
+	## Auxiliary: every metadata field as the controls currently show it (the old get_metadata_edits body).
+	var out: Dictionary = {}
 	if _meta_display_name_input != null:
 		out["display_name"] = _meta_display_name_input.text
 	if _meta_desc_input != null:

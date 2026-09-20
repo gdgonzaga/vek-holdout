@@ -31,6 +31,13 @@ const MAX_BRUSH_DIAMETER: int = 11
 const MIN_SCULPT_RADIUS: float = 0.5
 const MAX_SCULPT_RADIUS: float = 5.0
 
+## MapDef properties whose HUD metadata key has the same name.
+const METADATA_KEYS: Array[String] = [
+	"display_name", "description", "map_type", "difficulty",
+	"flora_spawns_per_day", "flora_spawn_cap", "flora_max_spawn_attempts",
+]
+
+
 enum Mode {
 	NAVIGATE,
 	BLOCK,
@@ -52,6 +59,9 @@ var _launcher: EditorLauncher = null
 var _grid_overlay: MeshInstance3D = null
 var _exit_dialog: ConfirmationDialog = null
 var _delete_dialog: ConfirmationDialog = null
+var _unsaved_dialog: ConfirmationDialog = null
+## The reload action waiting on the unsaved-changes dialog; invalid when none is.
+var _pending_after_guard: Callable = Callable()
 var _pending_delete_map_id: String = ""
 var _drawer_file_dialog: FileDialog = null
 var _dirty: bool = false
@@ -125,6 +135,7 @@ func _ready() -> void:
 	_hud.terrain_apply_requested.connect(_on_terrain_apply)
 	_hud.terrain_pick_image_requested.connect(_on_terrain_pick_image)
 	_hud.flood_water_requested.connect(_on_flood_water_requested)
+	_hud.metadata_edited.connect(_mark_dirty)
 	_hud.set_mode(_mode)
 	_hud.hide()
 
@@ -141,6 +152,20 @@ func _ready() -> void:
 
 	_setup_exit_dialog()
 	_setup_delete_dialog()
+	_setup_unsaved_dialog()
+
+
+func _mark_dirty() -> void:
+	_dirty = true
+	# 1. Map Info: Refreshing HUD status to reflect modified unsaved changes state.
+	_refresh_map_info()
+
+
+func _refresh_map_info() -> void:
+	## Auxiliary: Updates map title and dirty state in the HUD.
+	if _hud != null and _map_def != null:
+		_hud.set_map_info(_map_def.id, _dirty)
+
 
 
 ## Default palette selection: first base block when present, else air (0).
@@ -185,9 +210,7 @@ func _undo_last() -> void:
 			var terrain := _map_root.get_blocky_terrain()
 			if terrain != null:
 				terrain.save_modified_blocks()
-			_dirty = true
-			if _hud != null and _map_def != null:
-				_hud.set_map_info(_map_def.id, _dirty)
+			_mark_dirty()
 
 	elif entry_type == "terrain":
 		if _smooth_grid != null:
@@ -201,9 +224,7 @@ func _undo_last() -> void:
 			var terrain := _map_root.get_smooth_terrain()
 			if terrain != null:
 				terrain.save_modified_blocks()
-			_dirty = true
-			if _hud != null and _map_def != null:
-				_hud.set_map_info(_map_def.id, _dirty)
+			_mark_dirty()
 
 	elif entry_type == "structure":
 		var ops: Array = entry.get("ops", [])
@@ -225,9 +246,7 @@ func _undo_last() -> void:
 		var smooth_terrain := _map_root.get_smooth_terrain()
 		if smooth_terrain != null:
 			smooth_terrain.save_modified_blocks()
-		_dirty = true
-		if _hud != null and _map_def != null:
-			_hud.set_map_info(_map_def.id, _dirty)
+		_mark_dirty()
 
 
 func _input(event: InputEvent) -> void:
@@ -235,12 +254,8 @@ func _input(event: InputEvent) -> void:
 	if _launcher != null and _launcher.visible:
 		return
 
-	# If exit confirmation dialog is open, ignore camera/edit input
-	if _exit_dialog != null and _exit_dialog.visible:
-		return
-
-	# If delete confirmation dialog is open, ignore camera/edit input
-	if _delete_dialog != null and _delete_dialog.visible:
+	# If any confirmation dialog is open, ignore camera/edit input
+	if _modal_dialog_open():
 		return
 
 	# If search input or metadata in HUD is focused, handle Esc/Enter/Tab and let typing pass through
@@ -553,7 +568,7 @@ func _process(delta: float) -> void:
 		_camera.global_position += move.normalized() * speed * delta
 
 
-func load_map(map_id: String) -> void:
+func load_map(map_id: String, recapture_mouse: bool = true) -> void:
 	var def_path := MAPS_DIR + map_id + "/map_def.tres"
 	if not ResourceLoader.exists(def_path):
 		push_error("MapEditor: map_def not found at '%s'" % def_path)
@@ -594,7 +609,8 @@ func load_map(map_id: String) -> void:
 		_block_vt = _blocky_grid.get_voxel_tool()
 		_block_vt.mode = VoxelTool.MODE_SET
 
-	_smooth_grid = _map_root.get_smooth_grid()
+	# 1. Smooth Grid: Resolving active live smooth grid to confirm valid terrain generator exists.
+	_smooth_grid = _resolve_live_smooth_grid()
 	if _smooth_grid != null:
 		_smooth_vt = _smooth_grid.get_voxel_tool()
 		if _smooth_grid.default_material != null and not _smooth_grid.default_material.id.is_empty():
@@ -635,18 +651,26 @@ func load_map(map_id: String) -> void:
 	if _launcher != null:
 		_launcher.hide_launcher()
 
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if recapture_mouse:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## A SmoothGrid without terrain_gen has queued itself for deletion but is still a
+## valid node on the load frame, so "exists" is not "will build terrain".
+func _resolve_live_smooth_grid() -> SmoothGrid:
+	var grid := _map_root.get_smooth_grid()
+	if grid == null or not is_instance_valid(grid) or grid.terrain_gen == null:
+		return null
+	return grid
 
 
 ## Create + open a new map under data/maps/<map_id>/. `payload` is the
 ## launcher's create-form Dictionary (shape: EditorLauncher.new_map_requested).
 func create_new_map(payload: Dictionary) -> String:
 	var map_name := payload.get("map_id", "") as String
-	if map_name.is_empty():
-		push_warning("MapEditor: empty map name")
-		return ""
-	if " " in map_name:
-		push_warning("MapEditor: map name must not contain spaces")
+	var id_error := MapIdRules.validate(map_name)
+	if not id_error.is_empty():
+		push_warning("MapEditor: " + id_error)
 		return ""
 
 	var folder_path := MAPS_DIR + map_name + "/"
@@ -677,6 +701,8 @@ func unload_map() -> void:
 		_exit_dialog.hide()
 	if _delete_dialog != null and _delete_dialog.visible:
 		_delete_dialog.hide()
+	if _unsaved_dialog != null and _unsaved_dialog.visible:
+		_unsaved_dialog.hide()
 
 	if _dirty:
 		push_warning("MapEditor: unloading with unsaved changes")
@@ -762,6 +788,67 @@ func _on_delete_confirmed() -> void:
 	_delete_map(map_id)
 	if _launcher != null:
 		_launcher.setup(_scan_maps())
+
+
+func _setup_unsaved_dialog() -> void:
+	_unsaved_dialog = ConfirmationDialog.new()
+	_unsaved_dialog.name = "UnsavedChangesDialog"
+	_unsaved_dialog.title = "Unsaved Changes"
+	_unsaved_dialog.dialog_text = "This action reloads the map from disk.\nSave your changes first?"
+	_unsaved_dialog.ok_button_text = "Save and Continue"
+	_unsaved_dialog.cancel_button_text = "Cancel"
+	_unsaved_dialog.add_button("Discard and Continue", true, "discard")
+	_unsaved_dialog.confirmed.connect(_on_unsaved_save_confirmed)
+	_unsaved_dialog.canceled.connect(_on_unsaved_canceled)
+	_unsaved_dialog.custom_action.connect(_on_unsaved_custom_action)
+	add_child(_unsaved_dialog)
+
+
+## Runs action now on a clean map; on a dirty one it asks first, because a reload
+## rebuilds the scene from disk and unsaved markers and metadata would vanish.
+func _guard_unsaved(action: Callable) -> void:
+	if not _dirty:
+		action.call()
+		return
+	_pending_after_guard = action
+	_unsaved_dialog.popup_centered()
+
+
+func _on_unsaved_save_confirmed() -> void:
+	# A failed save must not continue into a reload that would discard the work.
+	if not save_map():
+		_pending_after_guard = Callable()
+		return
+	# 1. Action: Proceed with guarded action after successful save.
+	_run_pending_guarded_action()
+
+
+func _on_unsaved_custom_action(action: StringName) -> void:
+	if action != &"discard":
+		return
+	_unsaved_dialog.hide()
+	# 1. Action: Proceed with guarded action, discarding unsaved changes.
+	_run_pending_guarded_action()
+
+
+func _on_unsaved_canceled() -> void:
+	_pending_after_guard = Callable()
+
+
+func _run_pending_guarded_action() -> void:
+	## Auxiliary: Executes the saved guarded callable and clears the pending reference.
+	var action := _pending_after_guard
+	_pending_after_guard = Callable()
+	if action.is_valid():
+		action.call()
+
+
+func _modal_dialog_open() -> bool:
+	## Auxiliary: Returns whether any confirmation dialog is currently open.
+	for dialog: ConfirmationDialog in [_exit_dialog, _delete_dialog, _unsaved_dialog]:
+		if dialog != null and dialog.visible:
+			return true
+	return false
 
 
 ## Remove the map directory and all its contents from disk. Returns false
@@ -1032,6 +1119,13 @@ func _scan_noise_defs() -> Array[Dictionary]:
 func _on_terrain_apply() -> void:
 	if _map_def == null or _hud == null:
 		return
+	# The apply rewrites defs and reloads the map, so unsaved scene edits get a chance to be saved first.
+	_guard_unsaved(_apply_terrain_now)
+
+
+func _apply_terrain_now() -> void:
+	if _map_def == null or _hud == null:
+		return
 	var edits: Dictionary = _hud.get_terrain_drawer_edits()
 
 	# 1. Terrain def: remove, replace image, or edit the map-owned def in memory, so a shared baseline is never mutated.
@@ -1107,21 +1201,13 @@ func _on_drawer_image_selected(path: String) -> void:
 	_hud.set_pending_heightmap_image(image)
 
 
-func _save_map_def() -> void:
-	if _map_def == null:
-		return
-	var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
-	var err := ResourceSaver.save(_map_def, def_path)
-	if err != OK:
-		push_warning("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err])
-
-
 func _reload_current_map() -> void:
 	if _map_def == null:
 		return
 	if _map_root != null:
 		_map_root.flush_voxel_streams()
-	load_map(_map_def.id)
+	# The reload came from an open panel, so the cursor stays free.
+	load_map(_map_def.id, false)
 
 
 ## The def on MapDef is the single source of truth: assigning null over a stale
@@ -1403,9 +1489,7 @@ func _apply_block_brush(cell: Vector3i, value: int) -> void:
 		_block_vt.do_box(bounds[0], bounds[1])
 		if _block_vt.get_voxel(cell) == value:
 			_map_root.get_blocky_terrain().save_modified_blocks()
-			_dirty = true
-			if _hud != null and _map_def != null:
-				_hud.set_map_info(_map_def.id, _dirty)
+			_mark_dirty()
 			return
 		await Engine.get_main_loop().create_timer(RETRY_DELAY).timeout
 
@@ -1464,9 +1548,7 @@ func _do_terrain_add(hit: Dictionary) -> void:
 	var terrain := _map_root.get_smooth_terrain()
 	if terrain != null:
 		terrain.save_modified_blocks()
-	_dirty = true
-	if _hud != null and _map_def != null:
-		_hud.set_map_info(_map_def.id, _dirty)
+	_mark_dirty()
 
 
 func _do_terrain_carve(hit: Dictionary) -> void:
@@ -1478,9 +1560,7 @@ func _do_terrain_carve(hit: Dictionary) -> void:
 	var terrain := _map_root.get_smooth_terrain()
 	if terrain != null:
 		terrain.save_modified_blocks()
-	_dirty = true
-	if _hud != null and _map_def != null:
-		_hud.set_map_info(_map_def.id, _dirty)
+	_mark_dirty()
 
 
 func _do_furniture_place(hit: Dictionary) -> void:
@@ -1496,9 +1576,7 @@ func _do_furniture_place(hit: Dictionary) -> void:
 		return
 	var marker := _furniture_auth.place(def, cell, _yaw)
 	if marker != null:
-		_dirty = true
-		if _hud != null and _map_def != null:
-			_hud.set_map_info(_map_def.id, _dirty)
+		_mark_dirty()
 
 
 func _do_furniture_remove(hit: Dictionary) -> void:
@@ -1513,9 +1591,7 @@ func _do_furniture_remove(hit: Dictionary) -> void:
 		if solid_cell != Vector3i.MIN:
 			removed = _furniture_auth.remove_at(solid_cell)
 	if removed:
-		_dirty = true
-		if _hud != null and _map_def != null:
-			_hud.set_map_info(_map_def.id, _dirty)
+		_mark_dirty()
 
 
 func _do_furniture_rotate_step(dir: int = 1) -> void:
@@ -1599,7 +1675,6 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 		_visualize_spawn(player_marker, Color(0.2, 1.0, 0.2, 0.5))
 		if _map_def != null:
 			_map_def.player_spawn = target_pos
-		_dirty = true
 
 	elif type == "colonist":
 		var next_idx := 1
@@ -1619,7 +1694,6 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 		var col_list: Array = _spawn_markers.get("colonists", [])
 		col_list.append(marker)
 		_spawn_markers["colonists"] = col_list
-		_dirty = true
 
 	elif type == "enemy":
 		var next_idx := 1
@@ -1639,11 +1713,9 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 		var enemy_list: Array = _spawn_markers.get("enemies", [])
 		enemy_list.append(marker)
 		_spawn_markers["enemies"] = enemy_list
-		_dirty = true
 
 	_update_spawn_hud_counts()
-	if _hud != null and _map_def != null:
-		_hud.set_map_info(_map_def.id, _dirty)
+	_mark_dirty()
 
 
 func _do_spawn_remove(hit: Dictionary) -> void:
@@ -1679,10 +1751,8 @@ func _do_spawn_remove(hit: Dictionary) -> void:
 			enemy_list.erase(closest_marker)
 			_spawn_markers["enemies"] = enemy_list
 		closest_marker.queue_free()
-		_dirty = true
 		_update_spawn_hud_counts()
-		if _hud != null and _map_def != null:
-			_hud.set_map_info(_map_def.id, _dirty)
+		_mark_dirty()
 
 
 func _on_spawn_type_selected(type: String) -> void:
@@ -1745,9 +1815,7 @@ func _do_structure_stamp(hit: Dictionary) -> void:
 	if smooth_terrain != null:
 		smooth_terrain.save_modified_blocks()
 
-	_dirty = true
-	if _hud != null and _map_def != null:
-		_hud.set_map_info(_map_def.id, _dirty)
+	_mark_dirty()
 
 
 func _load_furniture_defs() -> Array[FurnitureDef]:
@@ -1919,58 +1987,81 @@ func _update_hud_info() -> void:
 		_hud.set_furniture_info("None", _yaw, Vector3i.ONE, "", axis_name)
 
 
-func save_map() -> void:
-	if _map_root != null:
-		_map_root.flush_voxel_streams()
-
-		if _map_def != null:
-			if _spawn_markers.get("player") != null and is_instance_valid(_spawn_markers["player"]):
-				var ppos: Vector3 = (_spawn_markers["player"] as Marker3D).global_position
-				_map_def.player_spawn = ppos
-
-			var enemy_list: Array = _spawn_markers.get("enemies", [])
-			var enemy_spawns_data: Array[Dictionary] = []
-			for emarker in enemy_list:
-				if emarker != null and is_instance_valid(emarker):
-					enemy_spawns_data.append({"pos": (emarker as Marker3D).global_position, "count": 1})
-			_map_def.enemy_spawns = enemy_spawns_data
-			if _hud != null:
-				var meta_edits := _hud.get_metadata_edits()
-				if meta_edits.has("display_name"):
-					_map_def.display_name = meta_edits["display_name"]
-				if meta_edits.has("description"):
-					_map_def.description = meta_edits["description"]
-				if meta_edits.has("map_type"):
-					_map_def.map_type = meta_edits["map_type"]
-				if meta_edits.has("difficulty"):
-					_map_def.difficulty = meta_edits["difficulty"]
-				if meta_edits.has("flora_spawns_per_day"):
-					_map_def.flora_spawns_per_day = meta_edits["flora_spawns_per_day"]
-				if meta_edits.has("flora_spawn_cap"):
-					_map_def.flora_spawn_cap = meta_edits["flora_spawn_cap"]
-				if meta_edits.has("flora_max_spawn_attempts"):
-					_map_def.flora_max_spawn_attempts = meta_edits["flora_max_spawn_attempts"]
-				if meta_edits.has("world_bounds") and meta_edits["world_bounds"] is AABB:
-					_map_def.world_bounds = meta_edits["world_bounds"]
-					if _map_root != null:
-						_map_root.set_world_bounds(_map_def.world_bounds)
-
-			var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
-			var err_def := ResourceSaver.save(_map_def, def_path)
-			if err_def != OK:
-				push_warning("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err_def])
-
-		if not _map_scene_path.is_empty():
-			# 4. Pack: strip injected terrain def before packing so SceneManager does not resurrect deleted terrain at runtime.
-			var packed := _pack_map_scene()
-			if packed != null:
-				var err_save := ResourceSaver.save(packed, _map_scene_path)
-				if err_save != OK:
-					push_warning("MapEditor: failed to save scene to '%s' (error %d)" % [_map_scene_path, err_save])
-
+func save_map() -> bool:
+	if _map_root == null or _map_def == null:
+		return false
+	# 1. Streams: persist uncommitted voxel blocks to sqlite first so the scene never outruns its terrain.
+	_map_root.flush_voxel_streams()
+	# 2. Spawns: player and enemy marker positions into MapDef, the runtime source of truth.
+	_sync_spawns_into_def()
+	# 3. Metadata: only fields the author changed, so spinner rounding cannot rewrite untouched values.
+	_apply_metadata_edits()
+	# 4. Persist both files; dirty clears only when both succeeded.
+	var saved := _save_map_def() and _persist_map_scene()
+	if saved:
 		_dirty = false
-		if _hud != null and _map_def != null:
-			_hud.set_map_info(_map_def.id, _dirty)
+	# 5. Map Info: Refreshing HUD to show clean or dirty status after save attempt.
+	_refresh_map_info()
+	return saved
+
+
+func _sync_spawns_into_def() -> void:
+	## Auxiliary: Syncs player and enemy spawn markers to MapDef properties.
+	var player: Variant = _spawn_markers.get("player")
+	if player != null and is_instance_valid(player):
+		_map_def.player_spawn = (player as Marker3D).global_position
+	var enemies: Array[Dictionary] = []
+	for marker: Variant in _spawn_markers.get("enemies", []):
+		if marker != null and is_instance_valid(marker):
+			enemies.append({"pos": (marker as Marker3D).global_position, "count": 1})
+	_map_def.enemy_spawns = enemies
+
+
+func _apply_metadata_edits() -> void:
+	## Auxiliary: Updates MapDef properties from modified fields in HUD metadata panel.
+	if _hud == null:
+		return
+	var edits: Dictionary = _hud.get_metadata_edits()
+	# 1. Plain fields share their name with the MapDef property.
+	for key: String in METADATA_KEYS:
+		if edits.has(key):
+			_map_def.set(key, edits[key])
+	# 2. Bounds also resize the live map, so they are applied separately.
+	_apply_world_bounds_edit(edits)
+
+
+func _apply_world_bounds_edit(edits: Dictionary) -> void:
+	## Auxiliary: Applies world_bounds edit to MapDef and live map.
+	if not (edits.get("world_bounds") is AABB):
+		return
+	_map_def.world_bounds = edits["world_bounds"]
+	_map_root.set_world_bounds(_map_def.world_bounds)
+
+
+func _save_map_def() -> bool:
+	## Auxiliary: Saves MapDef resource to disk.
+	if _map_def == null:
+		return false
+	var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
+	var err := ResourceSaver.save(_map_def, def_path)
+	if err != OK:
+		push_warning("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err])
+	return err == OK
+
+
+func _persist_map_scene() -> bool:
+	## Auxiliary: Packs and saves map scene to disk.
+	if _map_scene_path.is_empty():
+		return true
+	# 1. Pack: strip injected terrain def before packing so SceneManager does not resurrect deleted terrain at runtime.
+	var packed := _pack_map_scene()
+	if packed == null:
+		return false
+	var err := ResourceSaver.save(packed, _map_scene_path)
+	if err != OK:
+		push_warning("MapEditor: failed to save scene to '%s' (error %d)" % [_map_scene_path, err])
+	return err == OK
+
 
 
 ## Packs the live map without the injected terrain def. Runtime SceneManager only

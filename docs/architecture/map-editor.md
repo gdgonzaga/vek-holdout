@@ -82,7 +82,7 @@ sequenceDiagram
     Editor->>Launcher: hide_launcher()
 ```
 
-**New maps** go through the launcher's create form, which emits `new_map_requested(payload: Dictionary)` — `map_id`, `map_type`, `terrain_mode` (`EditorLauncher.TerrainMode`: `NOISE`/`HEIGHTMAP`/`NONE`), `noise_def_path`, `image`, `height_start`, `height_range`, `snap_to_grid`. The payload is a Dictionary (not a class) so a future blocky-image authoring key extends it without another signature change.
+**New maps** go through the launcher's create form, which emits `new_map_requested(payload: Dictionary)` — `map_id`, `map_type`, `terrain_mode` (`EditorLauncher.TerrainMode`: `NOISE`/`HEIGHTMAP`/`NONE`), `noise_def_path`, `image`, `height_start`, `height_range`, `snap_to_grid`. Map identifiers must be snake_case (lowercase letters, digits, underscores, starting with a letter), enforced by `MapIdRules.validate(map_id)`. The identifier defines the folder name under `data/maps/<id>/`, preventing path traversal or special characters. The payload is a Dictionary (not a class) so a future blocky-image authoring key extends it without another signature change.
 
 **Terrain generation on open** — the two "Inject terrain_gen" / "Attach streams" diagram steps are the terrain workflow, in this order:
 
@@ -165,11 +165,19 @@ Every modification records its reverse operation in a bounded undo buffer (`_und
 
 ### C. Save Flow
 
-When `save_map()` is triggered (`Ctrl+S` or UI Save button):
-1. **Flush Voxel Streams**: Calls `Map.flush_voxel_streams()` to persist uncommitted voxel blocks to SQLite.
-2. **Update MapDef**: Reads metadata edits (`display_name`, `description`, `map_type`, `difficulty`), `PlayerSpawn` position, and `EnemySpawn_*` positions (`enemy_spawns: Array[Dictionary]`), then saves `map_def.tres` via `ResourceSaver`.
-3. **Pack Scene**: Packs `_map_root` (excluding editor camera and UI scaffolding) into `PackedScene` and saves `map.tscn`. The injected terrain def is stripped while packing (`SmoothGrid.terrain_gen = null`) and restored immediately after, ensuring that runtime `SceneManager` only injects terrain when `MapDef.terrain_gen` is non-null and older scenes do not resurrect deleted terrain.
-4. **Update HUD**: Clears the dirty indicator flag.
+When `save_map() -> bool` is triggered (`Ctrl+S` or UI Save button):
+1. **Flush Voxel Streams**: Calls `Map.flush_voxel_streams()` to persist uncommitted voxel blocks to SQLite first, ensuring the scene never outruns its terrain.
+2. **Sync Spawns**: Syncs `PlayerSpawn` and `EnemySpawn_*` marker positions into `MapDef`.
+3. **Apply Metadata Edits**: Reads only fields modified in the HUD metadata panel (`get_metadata_edits()`), preventing untouched off-grid values from being rewritten by spinner rounding.
+4. **Persist Def & Scene**: Saves `MapDef` to `map_def.tres` and packs/persists `map.tscn`. The injected terrain def is stripped while packing (`SmoothGrid.terrain_gen = null`) and restored immediately after, ensuring that runtime `SceneManager` only injects terrain when `MapDef.terrain_gen` is non-null and older scenes do not resurrect deleted terrain.
+5. **Report Status**: Returns `true` only when both file writes succeed. If either fails, `_dirty` remains `true` and the dirty indicator stays visible in the HUD.
+
+### D. Reload Flows & Cursor State
+
+Actions that reload the map from disk (such as the Terrain Drawer **Apply** action or Water flood reload) guard against discarding unsaved work via `_guard_unsaved(action)`:
+- If `_dirty` is `true`, a confirmation modal prompts the author to "Save and Continue", "Discard and Continue", or "Cancel".
+- If a save fails during "Save and Continue", the reload sequence aborts to protect author work.
+- Reloads triggered from editor panels (`load_map(id, false)`) preserve `Input.mouse_mode = Input.MOUSE_MODE_VISIBLE`, keeping the cursor free rather than recapturing mouse look.
 
 ---
 
