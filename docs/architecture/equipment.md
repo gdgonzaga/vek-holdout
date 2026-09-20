@@ -36,7 +36,7 @@ In the Colony Management UI, `holster` is labeled as **"Sidearm"** via `GearText
 | `../data/jobs/fetch_equipment_job_def.gd` | Script (`class_name FetchEquipmentJobDef`, extends JobDef) | Work logic for equipment fetching: path to storage, direct equip in `complete()`, desire invalidation. |
 | `../data/jobs/fetch_equipment.tres` | Resource (`FetchEquipmentJobDef`) | Singleton job def resource for equipment retrieval. |
 
-Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `Colonist._ready` and `Player._ready`, via the shared `Equipment.ensure_on(actor, current)` static factory — it creates `Equipment` if `current` is null, then creates and wires `EquipmentVisualizer` so the sibling exists and listens to `slot_changed`. `equip_item()`'s main-hand-first-with-fallback policy is likewise shared via `Equipment.equip_preferring_main_hand(item_def)`.
+Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `Colonist._ready` and `Player._ready`, via the shared `Equipment.ensure_on(actor, current)` static factory — it creates `Equipment` if `current` is null, then creates and wires `EquipmentVisualizer` so the sibling exists and listens to `slot_changed`. `Colonist.equip_item()`'s main-hand-first-with-fallback policy is shared via `Equipment.equip_preferring_main_hand(item_def)`. The Player instead equips from its carry inventory with `Equipment.equip_from_inventory` (below).
 
 ---
 
@@ -128,7 +128,7 @@ The **Gear** sub-tab (Tab, Colonists, Gear) edits each colonist's desired loadou
 - **Status reasons.** `GearStatus.evaluate` reports why a target is unmet, in the order `EquipmentAudit` fulfils it: in the partner slot (will swap), in pockets (will equip), fetch queued (a `FetchEquipmentJob` for that colonist, slot and item is on the board), in storage (a fetch is posted at the next audit), otherwise none in storage. Its swap-partner pairs mirror `EquipmentAudit._audit_hand_pair` / `_audit_shield_pair`; keep them in sync.
 - **Unequip is disabled while the slot has a target**, because the audit would re-equip the item from pockets. Clear the target first.
 - **Esc** closes the picker before it closes the screen (`ColonistEquipmentPanel.handle_cancel`, called from its `_unhandled_input`; descendants receive unhandled input before their ancestors and `Main`).
-- **Names.** `GearText.item_display_name` (resource name, else id) and `GearText.slot_display_name` are the only naming paths; `holster` is labeled **Sidearm** through `GearText.SLOT_DISPLAY_NAMES`.
+- **Names.** `ItemDef.get_display_name()` (resource name, else id; `ItemDB.get_display_name(item_id)` for an id whose def may be gone) names items everywhere, and `GearText.slot_display_name` names slots; `holster` is labeled **Sidearm** through `GearText.SLOT_DISPLAY_NAMES`.
 
 ---
 
@@ -170,7 +170,7 @@ Signal: `changed()` fires after any mutation (including `deserialize` and `reset
 
 ## Inventory vs Equipment
 
-Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` equips a tool from inventory it calls `inventory.remove(item_id, 1)` then `equipment.stow_and_equip(SLOT_MAIN_HAND, item_def, inventory)`. Colonists keep their tool equipped across jobs (no unequip on job end); `swap_hand_for_tag` handles switching for a different job.
+Equipment and carry inventory are **separate stores**, for the Player as well as colonists: an equipped item is not listed, weighed, dropped or deposited as carried cargo. When `BTActionEquipTool` equips a tool from inventory it calls `inventory.remove(item_id, 1)` then `equipment.stow_and_equip(SLOT_MAIN_HAND, item_def, inventory)`. The Player's Equip button goes through `Equipment.equip_from_inventory`, which does the same remove-then-stow atomically (and restores the item if the displaced one has nowhere to go); its Unequip button uses `unequip_to_inventory`, which refuses when the pack has no room rather than dropping the item. Because held gear no longer counts toward carry weight, `HasItemCondition` counts the actor's equipment as well as the inventory. The Player-facing controls (an Equip button on each carried stack that some slot accepts, apparel included, and an Equipped strip with Unequip per occupied slot) live in the inventory panel; see [UI](ui.md). Colonists keep their tool equipped across jobs (no unequip on job end); `swap_hand_for_tag` handles switching for a different job.
 
 When colonists fall idle and perform storage hygiene, `JobBoard._find_best_crate_for_inventory` respects `_is_item_desired_by_colonist`, allowing colonists to keep desired loadout items in their pockets while depositing temporary labor tools back into colony crates.
 
@@ -203,8 +203,13 @@ When colonists fall idle and perform storage hygiene, `JobBoard._find_best_crate
 | `ensure_on(actor, current)` | `Equipment` | Static. Creates/wires Equipment + EquipmentVisualizer on actor if not already present. Shared by Player/Colonist `_ready`. |
 | `can_equip_to(slot_id, item_def)` | `bool` | True if item carries at least one accepted tag for the slot. |
 | `equip(slot_id, item_def)` | `bool` | Places item; emits `slot_changed`. False if tags invalid. |
-| `equip_preferring_main_hand(item_def)` | `bool` | Equips into main_hand, falling back to `get_slot_for_item`. Shared `equip_item()` policy for Player/Colonist. |
+| `equip_preferring_main_hand(item_def)` | `bool` | Equips into main_hand, falling back to `get_slot_for_item`. Now only `Colonist.equip_item()`'s policy: it overwrites the slot and never touches inventory, so gameplay code uses `stow_and_equip` or `equip_from_inventory` (see [Tech Debt](tech-debt.md)). |
 | `unequip(slot_id)` | `ItemDef` | Removes and returns item; emits `slot_changed`. Null if empty. |
+| `equip_from_inventory(item_def, inventory)` | `EquipResult` | Moves ONE carried item into the slot it belongs in (`resolve_equip_slot`), stowing whatever it displaces (holster, else inventory). All-or-nothing: on any result but `OK` neither slots nor inventory changed. `EquipResult`: `OK`, `NOT_CARRIED`, `NO_SLOT` (no slot accepts the item's tags), `ALREADY_HELD` (that slot already holds the same id), `NO_ROOM` (displaced item has nowhere to go). Player equip path. |
+| `resolve_equip_slot(item_def)` | `String` | Slot an item goes to when equipped from inventory: main_hand if it accepts the item, else the first empty eligible slot, else the first eligible slot even if occupied (apparel swap). "" if none accepts it; UIs use that to hide Equip. |
+| `unequip_to_inventory(slot_id, inventory)` | `bool` | Moves the slot's item into `inventory`. False (unchanged) if the slot is empty or the inventory has no room. |
+| `is_gear(item_def)` | `bool` | Static. True if any slot accepts the item (tool, weapon, apparel or shield tag). Lets UIs group gear apart from cargo (`ItemStackOrder`). |
+| `count_equipped_item(item_id)` / `count_equipped_tag(tag)` | `int` | Slots holding that id / an item carrying that tag. Used by `HasItemCondition`. |
 | `get_item(slot_id)` | `ItemDef` | Current item in slot, or null. |
 | `is_empty(slot_id)` | `bool` | True if slot holds no item. |
 | `get_slot_for_item(item_def)` | `String` | First valid empty slot (prefers main_hand/holster), or "". |

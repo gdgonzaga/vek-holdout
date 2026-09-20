@@ -77,3 +77,16 @@ of quietly calcifying:
 `HealthComponent`/task exports directly, then delete the null/false branches
 — making `enemy_def` mandatory on `EnemyBase` and `use_agent_attack_params`
 implicit (always-on) — collapsing each pair back down to a single path.
+
+---
+
+## Inventory & Equipment Leftovers (2026-09-20)
+
+Found while reworking the inventory, equipment and storage UI (see [Inventory](inventory.md), [Equipment](equipment.md), [UI](ui.md)). Tracked here so they get cut or finished instead of calcifying.
+
+1. **`EventBus.item_picked_up` is declared but unwired.** `subsystems/autoloads/event_bus.gd` declares it, but nothing emits or connects it; the docs used to describe an inventory-to-HUD flow that never existed. Emit it from the pickup path when something needs it, or delete it from the registry.
+2. **`Colonist.equip_item()` / `unequip_item()` and `Equipment.equip_preferring_main_hand()` overwrite a slot without stowing anything or touching inventory.** Only tests call them now: the Player equips through `Equipment.equip_from_inventory` and colonist AI through `stow_and_equip`. Kept because `suite_colonist_combat_test` and `suite_equippable_schema_test` arm colonists with them. Migrate those tests to `Equipment.equip`, then delete the three methods.
+3. **`Inventory.transfer_to` keeps a defensive add-back path** (`if unplaced > 0: add(item_id, unplaced)`). It is unreachable while every target's `add` agrees with its `max_addable`, and is kept on purpose so a stricter subclass can never make a transfer swallow items. Remove it if that guarantee is ever enforced by a test.
+4. **Orphaned stacks are invisible.** An inventory stack whose `ItemDef` no longer exists (a removed item, an old save) stays in `items` and in saves, but every item list (inventory panel, transfer panel, crate card) skips it, so it cannot be seen, moved or dropped.
+5. **The storage transfer panel has no search box.** Large crates need scrolling. Optional; the Storage Options panel already has a search field to reuse.
+6. **Known failing tests, not caused by the work above (causes not investigated):** `suite_world_item_test` (9 hauling and pickup tests), `suite_furniture_test` `test_furniture_layer_attaches_bed_component_when_bed_params_present` (`BedParams.rest_rate_per_second` missing), `suite_food_ai_test` `test_find_food_ignores_blacklisted_crate` (fails only when run after other suites). `suite_fetch_equipment_job_test` does not parse (`EquipmentSlotRow.SLOT_DISPLAY_NAMES` moved to `GearText`), and a suite that fails to parse aborts the whole gdUnit run.

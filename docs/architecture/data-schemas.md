@@ -304,9 +304,9 @@ Configures storage container properties. When non-null, `FurnitureLayer` attache
 | Field | Type | Description |
 |---|---|---|
 | `capacity` | `float` | Weight capacity in kg (default `100.0`). |
-| `allowed_item_ids` | `Array[String]` | Item ID whitelist for accepted items. |
-| `allowed_tags` | `Array[String]` | Item tag whitelist for accepted items. |
-| `priority` | `int` | Hauling priority from 1 to 5 (default `3`). |
+| `allowed_item_ids` | `Array[String]` | Item ID whitelist for accepted items. Copied to the `StorageInventory`, where the Storage Options panel edits it per crate. |
+| `allowed_tags` | `Array[String]` | Item tag whitelist for accepted items. An item matching either list is accepted. Copied to the `StorageInventory` and shown read-only in the Storage Options panel (there is no in-game editor for it). |
+| `priority` | `int` | Hauling priority from 1 to 5 (default `3`). Editable per crate in the Storage Options panel. |
 
 ### `CraftingParams` (Resource: `crafting_params.gd`)
 Configures crafting station recipes. When non-null, `FurnitureLayer` attaches a `CraftingStation` node.
@@ -354,7 +354,7 @@ Global inventory and world item definition. `ItemDef extends Resource`. Loaded a
 | Field | Type | Description |
 |---|---|---|
 | `id` | `String` | Canonical item identifier (e.g. `"laser_drill"`, `"wood"`). |
-| `weight` | `float` | Item weight in kg (default `0.0`). |
+| `weight` | `float` | Item weight in kg (default `0.0`). `0.0` means weightless: the item takes no carry or storage capacity (`Inventory.max_addable` returns `UNLIMITED_COUNT`), so set a real weight unless that is intended. |
 | `icon` | `Texture2D` | Inventory and UI icon texture. |
 | `scene` | `PackedScene` | 3D scene (.glb) rendered when dropped in the world as a `WorldItem`. Takes precedence over `mesh`. |
 | `mesh` | `Mesh` | 3D fallback visual mesh for `WorldItem`. |
@@ -364,6 +364,8 @@ Global inventory and world item definition. `ItemDef extends Resource`. Loaded a
 | `equippable` | `EquippableParams` | Nullable equippable capability (actions, animations). |
 | `food` | `FoodParams` | Nullable food capability (nutrition, health, eat duration). |
 | `wearable` | `WearableParams` | Nullable wearable capability (garment mesh or rigid bone sockets). |
+
+There is no separate display-name field: the player-facing name is the authored `resource_name`, falling back to `id`, exposed as `ItemDef.get_display_name()` (and `ItemDB.get_display_name(item_id)` for ids whose def may no longer exist). Author `resource_name` on every item.
 
 ### Sub-Resource: `ItemAmount` (Resource: `data/items/item_amount.gd`)
 Couples an item reference with a quantity. Used in recipe inputs/outputs, loot tables, and building costs.

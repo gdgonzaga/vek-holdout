@@ -159,7 +159,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 
 **Extends:** Condition
 **Script:** `data/conditions/has_item_condition.gd`
-**Description:** Leaf — actor carries `count` of an item, by exact `item_id` or by `item_tag` (any item whose `ItemDef.tags` match; id wins when both are set; both empty fails closed). Fails closed when the actor has no inventory.
+**Description:** Leaf — actor has `count` of an item on them, by exact `item_id` or by `item_tag` (any item whose `ItemDef.tags` match; id wins when both are set; both empty fails closed). Counts the carry inventory PLUS the actor's `equipment` slots, since an equipped item is no longer in the inventory. Fails closed when the actor has no inventory.
 **Properties:** `item_id: String`, `item_tag: String`, `count: int` (`[export default 1]`).
 
 ## Authoring

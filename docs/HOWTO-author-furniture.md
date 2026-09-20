@@ -111,6 +111,7 @@ build_time = 6.0
    - `priority`: `3` (hauling order priority 1–5)
    - `allowed_item_ids`: Optional whitelist of item IDs.
    - `allowed_tags`: Optional whitelist of item tags (e.g. `["food"]`).
+4. In game, **Open Storage** shows the transfer panel (1 / 10 / All per stack, dimmed rows with a reason when the container rejects an item or is full). **Storage Options**, also reachable from the transfer panel's **Options** button, edits the per-crate item whitelist and priority. An item matching either the whitelist or an `allowed_tags` entry is accepted; `allowed_tags` is shown there read-only, since it comes from this resource.
 
 ---
 

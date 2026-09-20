@@ -89,7 +89,7 @@ To use one, create a `.tres` of that class and populate its `conditions` (or
 
 > **Leaf conditions exist.** `data/conditions/` ships `MinSkillCondition`
 > (`skill_id` + `min_level` — gates on the actor's skill), `HasItemCondition`
-> (`item_id` or `item_tag` + `count` — gates on the actor's inventory), and
+> (`item_id` or `item_tag` + `count` — gates on the actor's inventory and equipped items), and
 > `CanCarryDispensedItems` (dispenser capacity check), plus authored
 > `true.tres` / `false.tres` constants. Combine them with the composites above.
 > An option with an empty `conditions` array is always available.

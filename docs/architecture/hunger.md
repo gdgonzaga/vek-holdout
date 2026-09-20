@@ -22,7 +22,7 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 | `subsystems/ai/tasks/actions/bt_action_eat_food.gd` | Script | LimboAI task executing timed eating animation, physiological replenishment, and goal clearance. |
 | `subsystems/ai/colonist_brain.gd` | Script | Arbitrates eating desires, tracks unreachable food blacklist, and evaluates food targets. |
 | `subsystems/inventory/storage_registry.gd` | Script | Spatial queries for edible items across registered crates and world drops. |
-| `ui/hud/hud.gd` | Script | HUD inventory panel rendering "Eat" action for carried food items. |
+| `ui/inventory/inventory_panel.gd` | Script | Inventory side panel; its carried-stack rows (`inventory_item_row`) show an "Eat" button for food and route it to `Player.consume_food_item`. |
 
 ## Signals
 
@@ -48,14 +48,14 @@ The Hunger and Nutrition subsystem governs physiological energy depletion, auton
 
 ## Flow Trace: Player Food Consumption
 
-**Trigger:** Player opens the HUD inventory list and activates the "Eat" button on an edible food stack.
+**Trigger:** Player opens the inventory panel (I) and activates the "Eat" button on an edible food stack.
 
-1. HUD._on_inventory_eat_pressed dispatches item ID to Player.consume_food_item(item_id).
+1. `InventoryPanel._on_eat_requested` (from the row's `eat_pressed`) dispatches the item ID to `Player.consume_food_item(item_id)`.
 2. Player checks that the item exists in carry inventory and has `def.is_food() == true`.
 3. Player.inventory.remove(item_id, 1) deducts 1 unit from carried weight and stacks.
 4. Player.needs.restore_need(&"hunger", nutrition_value) increases current hunger and clears starvation state if applicable.
 5. If `health_restore > 0`, Player.heal(health_restore) replenishes player hit points.
-6. HUD updates inventory list and hunger progress telemetry.
+6. The inventory's `inventory_changed` makes the panel rebuild its list (one coalesced rebuild per frame, keyboard focus kept on the Eat button).
 
 **End state:** Player consumes food with instant replenishment and HP gain without entering behavior tree states.
 

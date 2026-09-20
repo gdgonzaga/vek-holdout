@@ -121,7 +121,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 **Extends:** CharacterBody3D
 **Script:** `player.gd`
 **Description:** Player avatar. Owns movement physics, Mode+State transitions, mouse-mode management. Raw input reading is delegated to the `InputComponent` child. Combat is a `HealthComponent` child plus dispatch through the equipped weapon's `CombatActionParams` — see [Combat](combat.md). Build UX delegates to the Build subsystem.
-**Used by:** HUD (interact label + inventory panel + tap/hold interact routing), Build (placement source), Combat (damage target via `health_component`; scanned by enemy/colonist `BTActionScanThreats`).
+**Used by:** HUD (interact label + tap/hold interact routing; it hosts the `InventoryPanel`, which reads `inventory` and `equipment`), Build (placement source), Combat (damage target via `health_component`; scanned by enemy/colonist `BTActionScanThreats`).
 
 **Properties:**
 
@@ -173,12 +173,13 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `is_busy() -> bool` / `set_busy(value: bool) -> void` | Query/set `_busy`. Taken by `BuildAction` before showing its progress gauge, released on the gauge's `completed`/`cancelled` signals. |
 | `add_item(item_id, count) -> int` / `remove_item(item_id, count) -> int` | Thin wrappers over `inventory.add`/`inventory.remove`. Return overflow / shortfall respectively. |
 | `has_item(item_id, count) -> bool` / `can_carry(item_id, count) -> bool` | Thin wrappers over `inventory.has_item`/`inventory.can_add`. |
-| `drop_item(item_id: String, count: int = 1) -> WorldItem` | Removes `count` of `item_id` from inventory and spawns it as a `WorldItem` in front of the player (impulse toss). Unequips main_hand first if it holds the last copy of the dropped item. Returns null if the item wasn't carried. |
+| `drop_item(item_id: String, count: int = 1) -> WorldItem` | Removes `count` of `item_id` from inventory and spawns it as a `WorldItem` in front of the player (impulse toss). Only carried items can be dropped: a held (equipped) item is in `equipment`, not the inventory, so it must be unequipped first. Returns null if the item wasn't carried. |
 | `consume_food_item(item_id: String) -> bool` | Player's instant-eat path (mirrors the colonist BT eat flow without the animation/timer): validates `ItemDef.food`, removes 1 unit, restores hunger via `needs.restore_need`, and heals via `heal()` if `food.health_restore > 0`. See [Hunger](hunger.md). |
 | `take_damage(amount: int, source: Node = null) -> void` | Forwards to `health_component.take_damage()`. On `entity_died`, `_on_health_component_died` sets `state = DEAD` and emits `EventBus.player_died("combat")`. |
 | `heal(amount: int) -> void` | Forwards to `health_component.heal()`. |
-| `equip_item(item: ItemDef) -> bool` | Equips into main_hand via `equipment.equip_preferring_main_hand`. Visual update is automatic (`EquipmentVisualizer` listens to `Equipment.slot_changed`). See [Equipment](equipment.md). |
-| `unequip_item() -> ItemDef` / `get_equipped_item() -> ItemDef` | Unequip/query main_hand. |
+| `equip_item(item: ItemDef) -> Equipment.EquipResult` | MOVES one carried item out of the inventory into the slot it belongs in (`Equipment.equip_from_inventory`: main_hand for tools/weapons, the tagged slot for apparel), stowing whatever it displaces. Returns `OK` or the reason nothing changed. Visual update is automatic (`EquipmentVisualizer` listens to `Equipment.slot_changed`). See [Equipment](equipment.md). |
+| `unequip_slot(slot_id: String) -> bool` | Moves the slot's item back into the inventory; false (still equipped) when the pack has no room. |
+| `get_equipped_item() -> ItemDef` | Query main_hand. |
 | `_ensure_equipment() -> void` | Auxiliary: resolves/creates `equipment` (+ its visualizer) via `Equipment.ensure_on(self, equipment)`. |
 | `_execute_equipped_primary_action() -> void` | Runs the item equipped in main_hand's `EquippableParams.primary_action` (respecting its cooldown). Called by `_on_primary_action` when the equipped item is usable. |
 | `_on_primary_action() -> void` | LMB handler (connected to InputComponent's `primary_action_pressed`). Dispatch order: equipped item's primary action, else the crosshair target's `ForageAction`/`FarmManualAction`/`HarvestAction`, else real-time terrain/block mining (50 HP damage per swing via `SmoothGrid.apply_damage_at` or `BlockyGrid.apply_damage`). No-op while busy, in Blueprint mode, or when UiGate blocks input. |

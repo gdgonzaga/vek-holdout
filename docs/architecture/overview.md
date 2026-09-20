@@ -37,11 +37,13 @@ res://
 │   └── actions/        # Interaction runtime + data: InteractionComponent, GameAction
 ├── ui/                 # HUD + all full-screen UIs
 │   ├── hud/
+│   ├── inventory/
 │   ├── interaction/
 │   ├── log_feed/
 │   ├── log_history/
 │   ├── build_menu/
 │   ├── storage/
+│   ├── storage_filter/
 │   ├── player_screen/
 │   ├── colony_screen/
 │   ├── world_map/
@@ -181,7 +183,7 @@ Authoritative list of `event_bus.gd` signals. Used exclusively for cross-scene c
 | `plot_needs_sowing(growable: Node, anchor: Vector3i, crop_id: String, needed: bool)` | `Growable` | `Colony` | Farm plot requires seed planting; spawns or cancels sow job. |
 | `plot_needs_water(growable: Node, anchor: Vector3i, needed: bool)` | `Growable` | `Colony` | Farm plot requires hydration; spawns or cancels water job. |
 | `plot_needs_tending(growable: Node, anchor: Vector3i, needed: bool)` | `Growable` | `Colony` | Farm plot requires tending; spawns or cancels tend job. |
-| `item_picked_up(item_id: String, count: int)` | `Inventory` | `HUD` | Item added to player inventory while UI closed. |
+| `item_picked_up(item_id: String, count: int)` | *(none yet)* | *(none yet)* | Declared but unwired: nothing emits or connects it (see [Tech Debt](tech-debt.md)). |
 | `job_logged(entry: Dictionary)` | `JobBoard` | `JobLogUI` | Diagnostic event for job failure or dispatch telemetry. |
 | `command_mode_requested(colonist_ids: Array)` | UI / interaction | `CommandController` | Enters tactical command mode targeting specified colonists. |
 | `deploy_orders_issued(target_positions: Dictionary)` | `CommandController` | `Colony`, `JobBoard` | Commits tactical move/deploy orders for colonists. |

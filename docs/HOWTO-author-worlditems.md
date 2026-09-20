@@ -300,7 +300,8 @@ When authoring `data/items/<item_id>.tres`, `ItemDef` (`data/items/item_def.gd`)
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `id` | `String` | `""` | Unique item identifier key (matches filename). |
-| `weight` | `float` | `0.0` | Weight per unit in kg (checked by `Inventory.current_weight()`). |
+| `resource_name` | `String` | `""` | Player-facing name shown in every list (inventory, storage, crafting, gear). Falls back to `id` when empty, so always set it (Inspector: Resource > Name, or `resource_name = "..."` in the `.tres`). |
+| `weight` | `float` | `0.0` | Weight per unit in kg (checked by `Inventory.current_weight()`). `0.0` means weightless: the item takes no carry or storage capacity, so set a real weight unless that is intended. |
 | `icon` | `Texture2D` | `null` | Inventory and UI sprite icon. |
 | `scene` | `PackedScene` | `null` | 3D scene (.glb) rendered when dropped in the world as a `WorldItem`. |
 | `mesh` | `Mesh` | `null` | 3D visual fallback mesh if `scene` is unset. |
