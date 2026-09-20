@@ -60,7 +60,7 @@ Two top-level scopes, mirroring how state actually lives in memory:
     "run_progress": { ... },           // RunProgress.serialize() — unlocked ids
     "expeditions":  { ... },           // ExpeditionManager.serialize() — discovered_pois, on_expedition
     "game_log":     { ... },           // GameLog.serialize()     — entries buffer
-    "colony":       { ... },           // Colony.serialize()      — colonist roster, squads, job_board
+    "colony":       { ... },           // Colony.serialize()      — colonist roster, squads, loadouts, job_board
     "player":       { ... }            // Player.serialize()      — pos, cam_yaw, cam_pitch, inventory
   },
   "maps": {                            // per-map state, keyed by MapDef.id
@@ -178,7 +178,7 @@ The autosave-on-`map_unloading` idea (former open question) is **off** in v1 —
 1. Read `meta.json` + `state.json` from `user://saves/<slot>/`.
 2. `format_version` check → refuse on mismatch (no migration path yet; current loader only refuses).
 3. Restore global autoloads via `deserialize()`:
-   - GameState, TimeSystem, RunProgress, ExpeditionManager, GameLog, Colony (roster, squads, job_board — `Colony.deserialize` calls `reset_for_new_game()` first, then stages colonist records for restore).
+   - GameState, TimeSystem, RunProgress, ExpeditionManager, GameLog, Colony (roster, squads, loadouts, job_board — `Colony.deserialize` calls `reset_for_new_game()` first, then stages colonist records for restore).
    - Player state is staged in `_pending_player` — restored AFTER `swap_map` (player must be in the tree).
    - (The per-layer `_is_restoring` flags are NOT touched here — each toggles inside its own `deserialize()` at step 9.)
 4. **`_parked = state["maps"].duplicate(true)`** (REPLACE, per INV-2).

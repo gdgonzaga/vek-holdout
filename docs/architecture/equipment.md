@@ -2,7 +2,7 @@
 
 Per-character 8-slot gear system. `Equipment` (Node component) holds concrete `ItemDef` references keyed by slot ID. `EquipmentVisualizer` (sibling Node) owns all 3D visual attachment logic. Both live under `subsystems/equipment/`. GDD §17 Equipment.
 
-> **Implementation status: implemented.** `equipment.gd` and `equipment_visualizer.gd` exist and are code-created on every `Colonist` and `Player` in `_ready`. Loadout fulfillment via `EquipmentAudit` and `FetchEquipmentJobDef` is active. Loadout templates (`LoadoutManager`, `DiscoveredGear`) and armor/shield data schemas are future scope.
+> **Implementation status: implemented.** `equipment.gd` and `equipment_visualizer.gd` exist and are code-created on every `Colonist` and `Player` in `_ready`. Loadout fulfillment via `EquipmentAudit` and `FetchEquipmentJobDef` is active. Manual loadout templates (`LoadoutBook`, applied from the Gear sub-tab and squad cards) are implemented; raid auto-equip (`LoadoutManager`), `DiscoveredGear` and armor/shield data schemas are future scope.
 
 ---
 
@@ -132,6 +132,42 @@ The **Gear** sub-tab (Tab, Colonists, Gear) edits each colonist's desired loadou
 
 ---
 
+## Loadouts (Named Slot Templates)
+
+A **loadout** is a player-authored, named `{slot_id: item_id}` template with at most one item per slot. It has no priorities or fall-back ranks: each slot holds one item or is undefined.
+
+- **Stamped, not linked.** Applying a loadout writes each defined slot into the colonist's desired slots through `Equipment.set_desired_item`, then forgets the colonist. The audit, `FetchEquipmentJob`, storage hygiene and `GearStatus` only ever read `equipment.get_desired_item(slot)`, so none of them knows loadouts exist. Editing a loadout later does not change colonists that already received it. Fetch jobs already in flight for a replaced target retire through the existing stale-target check.
+- **Partial apply.** A loadout stores only the slots it defines, and apply touches only those. A "Miner" tool loadout does not wipe a colonist's personal armor. A loadout therefore cannot clear a target; use **Clear target** in the Gear picker for that.
+- **Eligibility is checked on apply.** `Equipment.set_desired_item` only validates the slot id, so `LoadoutBook.apply_to` resolves each item id through a caller-supplied resolver (`ItemDB.get_def` in the UI) and requires `Equipment.can_equip_to`. Unknown items and items that do not fit the slot are skipped and counted, never written. A loadout may name items the colony does not own yet; the normal target status (`None in colony`) reports the shortage.
+- **Matching is derived.** `LoadoutBook.matches` / `find_matching_ids` compare a colonist's targets to each loadout on demand (all defined slots equal; an empty loadout matches nothing). No colonist stores a loadout id.
+
+### Class: LoadoutBook
+
+**Script:** `subsystems/equipment/loadout_book.gd` (`RefCounted`, no autoload access). `Colony.loadouts` owns the single instance as a plain field (not a child node) and saves it under `"loadouts"` in `Colony.serialize()`; `Colony.reset_for_new_game()` clears it and an older save without the key restores an empty book.
+
+| Function | Description |
+|---|---|
+| `create(name) -> String` | New empty loadout; returns its generated id (`loadout_N`, never reused after a delete) or `""` for a blank or already-used name (case-insensitive). |
+| `rename(id, name)`, `delete(id)`, `has(id)`, `list_ids()`, `get_name(id)`, `find_id_by_name(name)` | Identity and lookup. Ids are stable across renames; `list_ids` is creation order. |
+| `set_slot(id, slot_id, item_id)`, `clear_slot(id, slot_id)`, `get_slots(id)` | Edit one slot. `set_slot` rejects unknown slot ids and blank item ids; `get_slots` returns a copy. |
+| `capture_from(id, equipment)` | Replace the loadout's slots with the colonist's non-empty targets ("save these targets as a loadout"). |
+| `apply_to(id, equipment, resolve_item) -> Dictionary` | Stamp onto a colonist. Returns `{"changed": int, "skipped": int}`; a slot already on target is neither. |
+| `matches(id, equipment)`, `find_matching_ids(equipment)` | Derived "which loadouts does this colonist match". |
+| `serialize()` / `deserialize(data)` / `reset()` | SaveSystem contract. `deserialize` drops malformed entries and unknown slot ids and resumes the id counter past every restored id. |
+
+Signal: `changed()` fires after any mutation (including `deserialize` and `reset`) so open UI refreshes without polling.
+
+### Loadout UI
+
+- **`loadout_strip`** (top of the Gear sub-tab, instanced by `colonist_equipment_panel`): a loadout dropdown, **Apply**, **Save as...** (an inline name row, no popup, so no UiGate involvement), a `Matches: X` / `Custom targets` / `No targets set` label and a one-line result message. **Save as...** is disabled until the colonist has a target; a typed name that already exists turns the confirm button into **Overwrite**. Esc in the name field closes the row and is consumed, so it never closes the screen. The strip listens to the colonist's `desired_slot_changed` and to `LoadoutBook.changed`.
+- **`squad_card`**: a `Loadout [v] [Apply to squad]` row that applies to every live member of the squad (`Colony.get_squad_members`) and reports one summed sentence. There is deliberately no separate colonist-group concept: squads already are the group.
+- **`LoadoutUi`** (`ui/colony_management/loadout_ui.gd`): stateless helpers shared by both: result sentences, dropdown filling / selection (loadout ids ride as item metadata), `has_targets`, and the item resolver.
+- **Not built yet:** rename/delete UI (the book supports both), a dedicated Loadouts tab with a full editor, per-loadout availability preview, and roster multi-select apply.
+
+**Known behavior to be aware of.** `FetchEquipmentJob` has priority 500 (above all labor). Applying a loadout to a whole squad can post up to 8 fetch jobs per colonist at once, and colonists drop work to gear up. Nothing reserves stock: with one rifle and three colonists targeting it, the first fetch wins and the others show `None in colony`.
+
+---
+
 ## Inventory vs Equipment
 
 Equipment and carry inventory are **separate stores**. When `BTActionEquipTool` equips a tool from inventory it calls `inventory.remove(item_id, 1)` then `equipment.stow_and_equip(SLOT_MAIN_HAND, item_def, inventory)`. Colonists keep their tool equipped across jobs (no unequip on job end); `swap_hand_for_tag` handles switching for a different job.
@@ -226,7 +262,7 @@ Static audit and loadout fulfillment coordinator. Evaluates colonist equipment, 
 
 ## Future scope (not yet built)
 
-- **`LoadoutManager`** (child of Colony autoload) — player-created slot->item_def_id templates, auto-equip on `raid_started` / auto-unequip on `raid_ended`. See tech-debt.md.
+- **`LoadoutManager`** (child of Colony autoload) — auto-equip a colonist's assigned loadout on `raid_started` / auto-unequip on `raid_ended`. The templates themselves now exist as `LoadoutBook` (see [Loadouts](#loadouts-named-slot-templates)); only the raid-triggered assignment remains. See tech-debt.md.
 - **`DiscoveredGear`** (child of Colony autoload) — tracks item_def_ids ever possessed; gates loadout-slot picker UI.
 - **Armor + shield items** — `data/armor/` and `data/shields/` schemas (C9 in TODO.md).
 - **Durability sum** — `Equipment.get_total_durability() -> int` for HealthComponent once armor items ship.
