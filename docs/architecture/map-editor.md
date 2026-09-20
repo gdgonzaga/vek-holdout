@@ -112,8 +112,10 @@ A toolbar toggle opens the `TerrainDrawer` (top-right; mutually exclusive with t
 
 - Shows mode, def id, and for heightmap maps a read-only minimap with the axis contract (image +x -> world +x, image +y -> world +z, 1 px = 1 m).
 - Edits `height_start`/`height_range` and `snap_to_grid` (heightmap maps) or seed/frequency (noise maps); **Replace Image…/Convert to Heightmap…/Add Heightmap…** picks a new image (pending until Apply); **Remove Terrain** strips `terrain_gen`.
+- **Edit Contract & Value Retention:** The drawer sends only touched fields in `get_terrain_drawer_edits()`, preventing unedited controls from writing back clamped or rounded values to a def. The vertical span always mirrors the loaded `TerrainGenDef` (`height_start` and `height_range`) so height conversions inherit the map's active height band. Snapping (`snap_to_grid`) is an explicit opt-in action that re-quantizes the stored heightmap image into 1 m tiers upon Apply.
 - **Ownership rule:** The editor never modifies shared baseline defs in `data/terrain/`. On first edit, a shared def is copied into `data/maps/<id>/terrain_gen.tres` ("map-owned"); shared files are never written to.
 - **Apply & Reload:** Writes the map-owned def(s) and reloads the map exactly once (`_reload_current_map` -> flush -> `load_map`). Deliberately not a live generator hot-swap — already-streamed blocks keep stale generated data under a swap, while the single reload path (flush streams, re-attach, re-inject def) is known-consistent and cheap in the editor. Streams flush first so pending sculpts survive the reload. **Remove Terrain** clears the injected def, setting `SmoothGrid.terrain_gen = null` so removing terrain sticks across reloads. Standing warning in the drawer: sculpted edits keep their absolute heights, so changing the base may float or bury them (sqlite overrides are absolute, F2/F8).
+
 
 
 ### A5. Spawn Point Placement & Actor Authoring

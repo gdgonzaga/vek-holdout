@@ -11,6 +11,13 @@ const TERRAIN_FILE: String = "terrain_gen.tres"
 ## Same defaults the launcher's create form shows (min -6 m, max +10 m).
 const DEFAULT_HEIGHT_START: float = -6.0
 const DEFAULT_HEIGHT_RANGE: float = 16.0
+## Spinner limits shared by the launcher's create form and the terrain drawer, so
+## a value the launcher accepted is never clamped when the drawer shows it.
+const HEIGHT_MIN_SPIN_RANGE: Vector2 = Vector2(-128.0, 128.0)
+const HEIGHT_MAX_SPIN_RANGE: Vector2 = Vector2(-128.0, 256.0)
+## FastNoiseLite seeds are 32-bit; the old 999999 cap silently rewrote real seeds.
+const NOISE_SEED_MAX: float = 2147483647.0
+const NOISE_FREQUENCY_STEP: float = 0.0001
 
 
 # =================

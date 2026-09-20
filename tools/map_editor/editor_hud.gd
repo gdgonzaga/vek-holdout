@@ -93,6 +93,11 @@ var _pending_heightmap: Image = null
 var _terrain_remove_pending := false
 var _drawer_is_heightmap := false
 var _drawer_has_terrain := false
+## Drawer fields the author edited since the last set_terrain_drawer_state, so an
+## untouched Apply never writes clamped or rounded spinner values back to a def.
+var _drawer_touched: Dictionary = {}
+## True while set_* methods fill the controls programmatically (not author edits).
+var _drawer_loading: bool = false
 
 var _drawer_water_enabled_check: CheckBox
 var _drawer_water_level_spin: SpinBox
@@ -693,11 +698,12 @@ func _build_ui() -> void:
 	span_row.add_child(min_lbl)
 
 	_terrain_min_spin = SpinBox.new()
-	_terrain_min_spin.min_value = -100.0
-	_terrain_min_spin.max_value = 100.0
+	_terrain_min_spin.min_value = MapTerrainAuthoring.HEIGHT_MIN_SPIN_RANGE.x
+	_terrain_min_spin.max_value = MapTerrainAuthoring.HEIGHT_MIN_SPIN_RANGE.y
 	_terrain_min_spin.step = 0.5
 	_terrain_min_spin.tooltip_text = "Lowest terrain height in meters (black pixels)"
 	_terrain_min_spin.value_changed.connect(_update_terrain_span_label)
+	_terrain_min_spin.value_changed.connect(func(_v: float) -> void: _mark_drawer_touched("span"))
 	span_row.add_child(_terrain_min_spin)
 
 	var max_lbl := Label.new()
@@ -706,11 +712,12 @@ func _build_ui() -> void:
 	span_row.add_child(max_lbl)
 
 	_terrain_max_spin = SpinBox.new()
-	_terrain_max_spin.min_value = -100.0
-	_terrain_max_spin.max_value = 200.0
+	_terrain_max_spin.min_value = MapTerrainAuthoring.HEIGHT_MAX_SPIN_RANGE.x
+	_terrain_max_spin.max_value = MapTerrainAuthoring.HEIGHT_MAX_SPIN_RANGE.y
 	_terrain_max_spin.step = 0.5
 	_terrain_max_spin.tooltip_text = "Highest terrain height in meters (white pixels)"
 	_terrain_max_spin.value_changed.connect(_update_terrain_span_label)
+	_terrain_max_spin.value_changed.connect(func(_v: float) -> void: _mark_drawer_touched("span"))
 	span_row.add_child(_terrain_max_spin)
 
 	_terrain_span_label = Label.new()
@@ -726,10 +733,11 @@ func _build_ui() -> void:
 	_terrain_snap_check = CheckBox.new()
 	_terrain_snap_check.name = "TerrainSnapCheck"
 	_terrain_snap_check.text = "Snap to 1m Grid"
-	_terrain_snap_check.tooltip_text = "Quantize elevations to 1m integer steps so flat plateaus sit flush on the block grid"
-	_terrain_snap_check.button_pressed = true
+	_terrain_snap_check.tooltip_text = "Re-quantize the stored image to 1 m tiers on Apply"
+	_terrain_snap_check.button_pressed = false
 	_terrain_snap_check.add_theme_font_size_override("font_size", 11)
 	_terrain_snap_check.toggled.connect(func(_toggled: bool) -> void: _update_terrain_span_label())
+	_terrain_snap_check.toggled.connect(func(_on: bool) -> void: _mark_drawer_touched("snap_to_grid"))
 	snap_row.add_child(_terrain_snap_check)
 
 	# Noise section: seed + frequency fields.
@@ -749,8 +757,9 @@ func _build_ui() -> void:
 
 	_terrain_seed_spin = SpinBox.new()
 	_terrain_seed_spin.min_value = 0.0
-	_terrain_seed_spin.max_value = 999999.0
+	_terrain_seed_spin.max_value = MapTerrainAuthoring.NOISE_SEED_MAX
 	_terrain_seed_spin.step = 1.0
+	_terrain_seed_spin.value_changed.connect(func(_v: float) -> void: _mark_drawer_touched("noise_seed"))
 	seed_row.add_child(_terrain_seed_spin)
 
 	var freq_row := HBoxContainer.new()
@@ -763,10 +772,11 @@ func _build_ui() -> void:
 	freq_row.add_child(freq_lbl)
 
 	_terrain_freq_spin = SpinBox.new()
-	_terrain_freq_spin.min_value = 0.001
+	_terrain_freq_spin.min_value = MapTerrainAuthoring.NOISE_FREQUENCY_STEP
 	_terrain_freq_spin.max_value = 0.2
-	_terrain_freq_spin.step = 0.001
+	_terrain_freq_spin.step = MapTerrainAuthoring.NOISE_FREQUENCY_STEP
 	_terrain_freq_spin.value = 0.012
+	_terrain_freq_spin.value_changed.connect(func(_v: float) -> void: _mark_drawer_touched("noise_frequency"))
 	freq_row.add_child(_terrain_freq_spin)
 
 	# Image / removal actions + apply.
@@ -811,6 +821,7 @@ func _build_ui() -> void:
 	_drawer_water_enabled_check.text = "Enabled"
 	_drawer_water_enabled_check.tooltip_text = "Enable water level for this map"
 	_drawer_water_enabled_check.add_theme_font_size_override("font_size", 11)
+	_drawer_water_enabled_check.toggled.connect(func(_on: bool) -> void: _mark_drawer_touched("water_enabled"))
 	water_row.add_child(_drawer_water_enabled_check)
 
 	var lvl_lbl := Label.new()
@@ -825,6 +836,7 @@ func _build_ui() -> void:
 	_drawer_water_level_spin.step = 0.5
 	_drawer_water_level_spin.value = -2.0
 	_drawer_water_level_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_drawer_water_level_spin.value_changed.connect(func(_v: float) -> void: _mark_drawer_touched("water_level"))
 	water_row.add_child(_drawer_water_level_spin)
 
 	_drawer_water_flood_button = Button.new()
@@ -1087,20 +1099,33 @@ func unfocus_search() -> void:
 		_block_palette.unfocus_search()
 
 
+## True when node is a text-entry control. A SpinBox's editable part is an inner
+## LineEdit, so spinners are covered without listing them.
+static func is_text_control(node: Node) -> bool:
+	return node is LineEdit or node is TextEdit
+
+
 func is_metadata_focused() -> bool:
-	if _meta_display_name_input != null and _meta_display_name_input.has_focus():
-		return true
-	if _meta_desc_input != null and _meta_desc_input.has_focus():
-		return true
-	if _meta_type_option != null and _meta_type_option.has_focus():
-		return true
-	if _meta_difficulty_spin != null and _meta_difficulty_spin.get_line_edit() != null and _meta_difficulty_spin.get_line_edit().has_focus():
-		return true
-	return false
+	# 1. Panel Focus: Checking if keyboard focus sits on an editable text control inside the metadata panel.
+	return _focus_inside(_metadata_panel) or (_meta_type_option != null and _meta_type_option.has_focus())
+
+
+func is_terrain_drawer_focused() -> bool:
+	# 1. Drawer Focus: Checking if keyboard focus sits on an editable text control inside the terrain drawer.
+	return _focus_inside(_terrain_drawer)
 
 
 func is_any_input_focused() -> bool:
 	return is_search_focused() or is_metadata_focused() or is_terrain_drawer_focused()
+
+
+func _focus_inside(panel: Control) -> bool:
+	## Auxiliary: whether keyboard focus sits on a text control that lives under panel.
+	if panel == null or not is_inside_tree():
+		return false
+	var focus_owner := get_viewport().gui_get_focus_owner()
+	return is_text_control(focus_owner) and panel.is_ancestor_of(focus_owner)
+
 
 
 # --- Information display helpers ---
@@ -1232,10 +1257,13 @@ func toggle_metadata_panel() -> void:
 func set_terrain_drawer_state(terrain_def: TerrainGenDef) -> void:
 	if _terrain_drawer == null:
 		return
+	_drawer_loading = true
+	_drawer_touched.clear()
 	_drawer_has_terrain = terrain_def != null
 	_drawer_is_heightmap = terrain_def != null and terrain_def.heightmap != null
 	_pending_heightmap = null
 	_terrain_remove_pending = false
+	# 1. Button Refresh: Updating the remove button visibility and text based on terrain state.
 	_update_remove_button()
 	_terrain_mode_label.text = "Mode: " + (
 		"Heightmap (image)" if _drawer_is_heightmap
@@ -1253,15 +1281,32 @@ func set_terrain_drawer_state(terrain_def: TerrainGenDef) -> void:
 		else ("Convert to Heightmap…" if _drawer_has_terrain else "Add Heightmap…")
 	)
 	_terrain_remove_button.visible = _drawer_has_terrain
+	# Span always mirrors the def (noise defs carry a range too), so Convert to
+	# Heightmap starts from the map's real height band; no terrain uses the launcher defaults.
+	# 2. Span Spinners: Seeding span spinners from the terrain def or fallback defaults.
+	_seed_span_spinners(terrain_def)
+	_terrain_snap_check.button_pressed = false
 	if _drawer_is_heightmap:
-		_terrain_min_spin.value = terrain_def.height_start
-		_terrain_max_spin.value = terrain_def.height_start + terrain_def.height_range
+		# 3. Minimap Texture: Generating minimap preview from def heightmap texture.
 		_terrain_minimap.texture = _minimap_from_texture(terrain_def.heightmap)
-		_update_terrain_span_label()
 	elif _drawer_has_terrain:
 		_terrain_seed_spin.value = terrain_def.noise_seed
 		_terrain_freq_spin.value = terrain_def.noise_frequency
 		_terrain_minimap.texture = null
+	# 4. Span Label: Updating preview text with the seeded values.
+	_update_terrain_span_label()
+	_drawer_loading = false
+
+
+func _seed_span_spinners(terrain_def: TerrainGenDef) -> void:
+	## Auxiliary: Seeds min and max spinboxes from terrain def or defaults.
+	var start := MapTerrainAuthoring.DEFAULT_HEIGHT_START
+	var span := MapTerrainAuthoring.DEFAULT_HEIGHT_RANGE
+	if terrain_def != null:
+		start = terrain_def.height_start
+		span = terrain_def.height_range
+	_terrain_min_spin.value = start
+	_terrain_max_spin.value = start + span
 
 
 ## Minimap preview of a def's heightmap texture — uncompressed L8, mirroring
@@ -1283,33 +1328,60 @@ func _minimap_from_texture(tex: Texture2D) -> ImageTexture:
 func get_terrain_drawer_edits() -> Dictionary:
 	if _terrain_min_spin == null or _terrain_max_spin == null:
 		return {}
-	var min_h := _terrain_min_spin.value
-	var max_h := _terrain_max_spin.value
-	return {
-		"height_start": min_h,
-		"height_range": maxf(0.5, max_h - min_h),
-		"noise_seed": int(_terrain_seed_spin.value),
-		"noise_frequency": _terrain_freq_spin.value,
+	var edits: Dictionary = {
 		"pending_image": _pending_heightmap,
 		"remove": _terrain_remove_pending,
-		"snap_to_grid": _terrain_snap_check.button_pressed if _terrain_snap_check != null else false,
-		"water_enabled": _drawer_water_enabled_check.button_pressed if _drawer_water_enabled_check != null else false,
-		"water_level": _drawer_water_level_spin.value if _drawer_water_level_spin != null else -2.0,
 	}
+	# 1. Span: sent when edited, or when a new image needs one.
+	_add_span_edits(edits)
+	# 2. Noise and snap: only what the author changed.
+	_add_touched_edits(edits)
+	return edits
+
+
+func _mark_drawer_touched(key: String) -> void:
+	## Auxiliary: records that a drawer control was touched by the author.
+	if not _drawer_loading:
+		_drawer_touched[key] = true
+
+
+func _add_span_edits(edits: Dictionary) -> void:
+	## Auxiliary: adds height_start and height_range if span was touched or a pending image exists.
+	if not _drawer_touched.has("span") and _pending_heightmap == null:
+		return
+	edits["height_start"] = _terrain_min_spin.value
+	edits["height_range"] = maxf(0.5, _terrain_max_spin.value - _terrain_min_spin.value)
+
+
+func _add_touched_edits(edits: Dictionary) -> void:
+	## Auxiliary: adds individual drawer parameters only if they were modified by the author.
+	if _drawer_touched.has("noise_seed"):
+		edits["noise_seed"] = int(_terrain_seed_spin.value)
+	if _drawer_touched.has("noise_frequency"):
+		edits["noise_frequency"] = _terrain_freq_spin.value
+	if _drawer_touched.has("snap_to_grid"):
+		edits["snap_to_grid"] = _terrain_snap_check.button_pressed
+	if _drawer_touched.has("water_enabled"):
+		edits["water_enabled"] = _drawer_water_enabled_check.button_pressed
+	if _drawer_touched.has("water_level"):
+		edits["water_level"] = _drawer_water_level_spin.value
 
 
 ## Update water drawer controls to match loaded map configuration.
 func set_water_drawer_state(enabled: bool, level: float) -> void:
+	_drawer_loading = true
 	if _drawer_water_enabled_check != null:
 		_drawer_water_enabled_check.button_pressed = enabled
 	if _drawer_water_level_spin != null:
 		_drawer_water_level_spin.value = level
+	_drawer_loading = false
 
 
 ## Preview a picked image before Apply commits it: minimap + heightmap fields.
 func set_pending_heightmap_image(image: Image) -> void:
 	_pending_heightmap = image
 	if image != null:
+		# 1. Preview Texture: Generating uncompressed preview texture for minimap display.
 		_terrain_minimap.texture = ImageTexture.create_from_image(image)
 	# Picking an image implies heightmap mode on apply; flip the visible section
 	# so the span fields match what will be written.
@@ -1318,6 +1390,8 @@ func set_pending_heightmap_image(image: Image) -> void:
 	_terrain_noise_section.visible = false
 	_terrain_mode_label.text = "Mode: Heightmap (image)*"
 	_terrain_pick_button.text = "Replace Image…"
+	# 2. Span Label: Updating terrain span label to reflect current spinner values for new image.
+	_update_terrain_span_label()
 
 
 func is_terrain_drawer_visible() -> bool:
@@ -1336,12 +1410,6 @@ func close_terrain_drawer() -> void:
 	if _terrain_drawer != null:
 		_terrain_drawer.visible = false
 
-
-func is_terrain_drawer_focused() -> bool:
-	for spin: SpinBox in [_terrain_min_spin, _terrain_max_spin, _terrain_seed_spin, _terrain_freq_spin]:
-		if spin != null and spin.get_line_edit() != null and spin.get_line_edit().has_focus():
-			return true
-	return false
 
 
 func _update_terrain_span_label(_value: float = 0.0) -> void:

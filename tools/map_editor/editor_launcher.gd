@@ -277,8 +277,8 @@ func _build_ui() -> void:
 	range_row.add_child(min_lbl)
 
 	_height_min_spin = SpinBox.new()
-	_height_min_spin.min_value = -128.0
-	_height_min_spin.max_value = 128.0
+	_height_min_spin.min_value = MapTerrainAuthoring.HEIGHT_MIN_SPIN_RANGE.x
+	_height_min_spin.max_value = MapTerrainAuthoring.HEIGHT_MIN_SPIN_RANGE.y
 	_height_min_spin.step = 0.5
 	_height_min_spin.value = -6.0
 	_height_min_spin.tooltip_text = "Lowest terrain height in meters (pure black pixel)"
@@ -291,8 +291,8 @@ func _build_ui() -> void:
 	range_row.add_child(max_lbl)
 
 	_height_max_spin = SpinBox.new()
-	_height_max_spin.min_value = -128.0
-	_height_max_spin.max_value = 256.0
+	_height_max_spin.min_value = MapTerrainAuthoring.HEIGHT_MAX_SPIN_RANGE.x
+	_height_max_spin.max_value = MapTerrainAuthoring.HEIGHT_MAX_SPIN_RANGE.y
 	_height_max_spin.step = 0.5
 	_height_max_spin.value = 10.0
 	_height_max_spin.tooltip_text = "Highest terrain height in meters (pure white pixel)"

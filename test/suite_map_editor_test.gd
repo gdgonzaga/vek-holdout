@@ -1867,9 +1867,7 @@ func test_editor_launcher_snap_to_grid_toggle_and_payload() -> void:
 func test_editor_hud_terrain_drawer_snap_to_grid() -> void:
 	var hud: EditorHUD = auto_free(EditorHUDClass.new())
 	hud.setup()
-
 	var hm_def := TerrainGenDef.new()
-	hm_def.id = "hm_snap_test"
 	hm_def.height_start = -4.0
 	hm_def.height_range = 10.0
 	var img := Image.create(16, 16, false, Image.FORMAT_L8)
@@ -1877,12 +1875,79 @@ func test_editor_hud_terrain_drawer_snap_to_grid() -> void:
 	hm_def.heightmap = ImageTexture.create_from_image(img)
 	hud.set_terrain_drawer_state(hm_def)
 
-	assert_object(hud._terrain_snap_check).is_not_null()
-	assert_bool(hud._terrain_snap_check.button_pressed).is_true()
+	# Snap is opt-in: off by default, and absent from an untouched Apply.
+	assert_bool(hud._terrain_snap_check.button_pressed).is_false()
+	assert_bool(hud.get_terrain_drawer_edits().has("snap_to_grid")).is_false()
+
+	hud._terrain_snap_check.button_pressed = true
+	assert_bool(hud.get_terrain_drawer_edits().get("snap_to_grid", false)).is_true()
 	assert_str(hud._terrain_span_label.text).contains("grid tiers")
 
+
+func test_editor_hud_untouched_drawer_reports_no_field_edits() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+	var noise_def := TerrainGenDef.new()
+	noise_def.noise_seed = 20260817
+	noise_def.noise_frequency = 0.0125
+	hud.set_terrain_drawer_state(noise_def)
+
 	var edits := hud.get_terrain_drawer_edits()
-	assert_bool(edits.get("snap_to_grid", false)).is_true()
+	for key in ["noise_seed", "noise_frequency", "height_start", "height_range", "snap_to_grid"]:
+		assert_bool(edits.has(key)).is_false()
+	# Values round-trip unclamped and unrounded.
+	assert_float(hud._terrain_seed_spin.value).is_equal(20260817.0)
+	assert_float(hud._terrain_freq_spin.value).is_equal_approx(0.0125, 0.00001)
+
+
+func test_editor_hud_edited_field_is_reported_alone() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	add_child(hud)
+	hud.setup()
+	hud.set_terrain_drawer_state(TerrainGenDef.new())
+
+	hud._terrain_seed_spin.value = 4242
+
+	var edits := hud.get_terrain_drawer_edits()
+	assert_int(edits.get("noise_seed", -1)).is_equal(4242)
+	assert_bool(edits.has("noise_frequency")).is_false()
+
+
+func test_editor_hud_reload_of_drawer_state_clears_touched_flags() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	add_child(hud)
+	hud.setup()
+	hud.set_terrain_drawer_state(TerrainGenDef.new())
+	hud._terrain_seed_spin.value = 4242
+	hud.set_terrain_drawer_state(TerrainGenDef.new())
+	assert_bool(hud.get_terrain_drawer_edits().has("noise_seed")).is_false()
+
+
+func test_editor_hud_converting_noise_map_seeds_span_from_the_def() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+	var noise_def := TerrainGenDef.new()
+	noise_def.height_start = -3.0
+	noise_def.height_range = 8.0
+	hud.set_terrain_drawer_state(noise_def)
+
+	var img := Image.create(16, 16, false, Image.FORMAT_L8)
+	hud.set_pending_heightmap_image(img)
+
+	var edits := hud.get_terrain_drawer_edits()
+	assert_float(edits.get("height_start", 999.0)).is_equal(-3.0)
+	assert_float(edits.get("height_range", 999.0)).is_equal(8.0)
+
+
+func test_editor_hud_adding_heightmap_to_terrainless_map_uses_launcher_defaults() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+	hud.set_terrain_drawer_state(null)
+	hud.set_pending_heightmap_image(Image.create(16, 16, false, Image.FORMAT_L8))
+
+	var edits := hud.get_terrain_drawer_edits()
+	assert_float(edits.get("height_start", 999.0)).is_equal(MapTerrainAuthoring.DEFAULT_HEIGHT_START)
+	assert_float(edits.get("height_range", 999.0)).is_equal(MapTerrainAuthoring.DEFAULT_HEIGHT_RANGE)
 
 
 ## Map editor creation with snap_to_grid quantizes the embedded texture.
@@ -2000,3 +2065,23 @@ func test_map_editor_new_map_with_water_enabled() -> void:
 
 	await _dispose_test_editor(editor)
 	_remove_test_map(TEST_WATER_MAP)
+
+
+func test_editor_hud_text_control_detection_is_generic() -> void:
+	assert_bool(EditorHUDClass.is_text_control(auto_free(LineEdit.new()))).is_true()
+	assert_bool(EditorHUDClass.is_text_control(auto_free(TextEdit.new()))).is_true()
+	assert_bool(EditorHUDClass.is_text_control(auto_free(Button.new()))).is_false()
+	assert_bool(EditorHUDClass.is_text_control(null)).is_false()
+
+
+func test_editor_hud_focus_inside_any_spinbox_counts_as_input_focus() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	add_child(hud)
+	hud.setup()
+	hud.toggle_metadata_panel()
+	hud._meta_flora_cap_spin.get_line_edit().grab_focus()
+	assert_bool(hud.is_any_input_focused()).is_true()
+	assert_bool(hud.is_metadata_focused()).is_true()
+	hud._meta_flora_cap_spin.get_line_edit().release_focus()
+	assert_bool(hud.is_any_input_focused()).is_false()
+
