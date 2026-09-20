@@ -669,11 +669,6 @@ func create_new_map(payload: Dictionary) -> String:
 
 	load_map(map_name)
 
-	if payload.get("water_enabled", false):
-		var w_level: float = float(payload.get("water_level", -2.0))
-		flood_water_level(w_level, false)
-		save_map()
-
 	return tscn_path
 
 
@@ -932,60 +927,78 @@ func _stamp_map_scene(template_path: String, tscn_dest_path: String, db_dest_pat
 
 func _create_map_def(payload: Dictionary, folder_path: String, tscn_path: String) -> void:
 	var map_name := payload.get("map_id", "") as String
-	var map_type := int(payload.get("map_type", MapDef.MapType.POI))
+	# 1. Shell: identity, spawn, flora and bounds from the launcher payload.
+	var def := _new_map_def_shell(payload, tscn_path)
+	# 2. Terrain: noise copy, heightmap, or none, per the launcher's mode.
+	def.terrain_gen = _build_initial_terrain_def(payload, map_name)
+	# 3. Water: the same flags on MapDef and its (map-owned) terrain def.
+	def.water_enabled = bool(payload.get("water_enabled", false))
+	def.water_level = float(payload.get("water_level", -2.0))
+	MapTerrainAuthoring.apply_water(def.terrain_gen, def.water_enabled, def.water_level)
+	# 4. Persist the terrain def first so MapDef stores its ext_resource path.
+	MapTerrainAuthoring.persist_owned(def.terrain_gen, MAPS_DIR, map_name)
+	var err := ResourceSaver.save(def, folder_path + "map_def.tres")
+	if err != OK:
+		push_error("MapEditor: failed to save MapDef to '%s' (error %d)" % [folder_path + "map_def.tres", err])
+
+
+func _build_initial_terrain_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
+	match int(payload.get("terrain_mode", EditorLauncherClass.TerrainMode.NOISE)):
+		EditorLauncherClass.TerrainMode.NONE:
+			# No terrain_gen: the SmoothGrid frees itself, a blocky-only map.
+			return null
+		EditorLauncherClass.TerrainMode.HEIGHTMAP:
+			return _initial_heightmap_def(payload, map_name)
+		_:
+			return _initial_noise_def(payload, map_name)
+
+
+func _new_map_def_shell(payload: Dictionary, tscn_path: String) -> MapDef:
+	var map_name := payload.get("map_id", "") as String
 	var def := MapDef.new()
 	def.id = map_name
 	def.display_name = map_name.capitalize()
 	def.scene_path = tscn_path
-	def.map_type = map_type as MapDef.MapType
+	def.map_type = int(payload.get("map_type", MapDef.MapType.POI)) as MapDef.MapType
 	def.player_spawn = Vector3(0, 5, 0)
-	def.enemy_spawns = []
-	def.unlock_condition = ""
 	def.difficulty = 1
+	if payload.get("world_bounds") is AABB:
+		def.world_bounds = payload["world_bounds"]
+	# Flora rate, cap, attempts and palette come from the launcher payload.
+	_apply_flora_payload(def, payload)
+	return def
+
+
+func _apply_flora_payload(def: MapDef, payload: Dictionary) -> void:
 	def.flora_spawns_per_day = int(payload.get("flora_spawns_per_day", 0))
 	def.flora_spawn_cap = int(payload.get("flora_spawn_cap", 60))
 	def.flora_max_spawn_attempts = int(payload.get("flora_max_spawn_attempts", 15))
+	# Task 8.2 (MapEditorConfig) replaces this literal with the configured palette.
 	var tree1_def := load("res://data/furniture/tree1.tres") as BuildableDef
 	if tree1_def != null:
 		def.flora_palette = [tree1_def]
-	if payload.has("world_bounds") and payload["world_bounds"] is AABB:
-		def.world_bounds = payload["world_bounds"]
 
-	var terrain_mode := int(payload.get("terrain_mode", EditorLauncherClass.TerrainMode.NOISE))
-	if terrain_mode == EditorLauncherClass.TerrainMode.HEIGHTMAP:
-		def.terrain_gen = _write_heightmap_terrain_def(payload, folder_path, map_name)
-	elif terrain_mode == EditorLauncherClass.TerrainMode.NONE:
-		# No terrain_gen: the SmoothGrid frees itself — a blocky-only map.
-		def.terrain_gen = null
-	else:
-		var noise_path := payload.get("noise_def_path", "") as String
-		var shared_def: TerrainGenDef = null
-		if ResourceLoader.exists(noise_path):
-			shared_def = load(noise_path) as TerrainGenDef
-		elif ResourceLoader.exists(DEFAULT_TERRAIN_GEN):
-			shared_def = load(DEFAULT_TERRAIN_GEN) as TerrainGenDef
-		
-		if shared_def != null:
-			# Duplicate the shared def so this map can have its own water settings.
-			def.terrain_gen = shared_def.duplicate()
-			def.terrain_gen.id = map_name + "_terrain"
-			def.terrain_gen.display_name = map_name.capitalize() + " Terrain"
 
-	def.water_enabled = bool(payload.get("water_enabled", false))
-	def.water_level = float(payload.get("water_level", -2.0))
-	if def.terrain_gen != null:
-		def.terrain_gen.water_enabled = def.water_enabled
-		def.terrain_gen.water_level = def.water_level
-		var terrain_path := folder_path + "terrain_gen.tres"
-		var terr_err := ResourceSaver.save(def.terrain_gen, terrain_path)
-		if terr_err != OK:
-			push_warning("MapEditor: failed to save local terrain def to '%s'" % terrain_path)
-		def.terrain_gen = load(terrain_path) as TerrainGenDef
+func _initial_heightmap_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
+	var image: Image = payload.get("image", null)
+	if image == null:
+		push_error("MapEditor: heightmap map '%s' requested without an image - no terrain def written" % map_name)
+		return null
+	return MapTerrainAuthoring.build_heightmap_def(
+		map_name,
+		image,
+		float(payload.get("height_start", MapTerrainAuthoring.DEFAULT_HEIGHT_START)),
+		float(payload.get("height_range", MapTerrainAuthoring.DEFAULT_HEIGHT_RANGE)),
+		bool(payload.get("snap_to_grid", false)),
+	)
 
-	var def_path := folder_path + "map_def.tres"
-	var err := ResourceSaver.save(def, def_path)
-	if err != OK:
-		push_error("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err])
+
+func _initial_noise_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
+	var noise_path := payload.get("noise_def_path", "") as String
+	var source_path := noise_path if ResourceLoader.exists(noise_path) else DEFAULT_TERRAIN_GEN
+	var shared: TerrainGenDef = load(source_path) as TerrainGenDef if ResourceLoader.exists(source_path) else null
+	# A copy inside this map's folder, so its water flags and edits never touch the shared baseline.
+	return MapTerrainAuthoring.ensure_map_owned(shared, map_name)
 
 
 ## Shared-def scan for the launcher's noise dropdown: data/terrain/*.tres minus
@@ -1014,102 +1027,65 @@ func _scan_noise_defs() -> Array[Dictionary]:
 ## editor is a runtime process and cannot run Godot's import pipeline, so a bare
 ## PNG copied into the project wouldn't load via ResourceLoader — embedding
 ## keeps the map folder self-contained and export-safe.
-func _write_heightmap_terrain_def(payload: Dictionary, folder_path: String, map_name: String) -> TerrainGenDef:
-	var image: Image = payload.get("image", null)
-	if image == null:
-		push_error("MapEditor: heightmap map '%s' requested without an image — no terrain def written" % map_name)
-		return null
-	var height_start := float(payload.get("height_start", -6.0))
-	var height_range := float(payload.get("height_range", 16.0))
-	var snap_to_grid := bool(payload.get("snap_to_grid", false))
-	if snap_to_grid:
-		image = EditorLauncherClass.quantize_heightmap_image(image, height_start, height_range, 1.0)
-	else:
-		if image.is_compressed():
-			image.decompress()
-		image.convert(Image.FORMAT_L8)
-	var terrain_def := TerrainGenDef.new()
-	terrain_def.id = map_name + "_terrain"
-	terrain_def.display_name = map_name.capitalize() + " Terrain"
-	terrain_def.height_start = height_start
-	terrain_def.height_range = height_range
-	terrain_def.heightmap = ImageTexture.create_from_image(image)
-	var terrain_path := folder_path + "terrain_gen.tres"
-	var err := ResourceSaver.save(terrain_def, terrain_path)
-	if err != OK:
-		push_warning("MapEditor: failed to save terrain def to '%s' (error %d)" % [terrain_path, err])
-		return terrain_def
-	return load(terrain_path) as TerrainGenDef
-
-
 # --- terrain drawer -------------------------------------------------------------
 
-## Apply = write def(s) + reload the map. Deliberately not a live generator
-## hot-swap: already-streamed blocks keep stale generated data under a swap,
-## while the reload path (re-attach streams, re-inject def) is known-consistent
-## and cheap in the editor. Streams flush first so pending sculpts survive.
 func _on_terrain_apply() -> void:
 	if _map_def == null or _hud == null:
 		return
-	var edits := _hud.get_terrain_drawer_edits()
-	var map_id := _map_def.id
+	var edits: Dictionary = _hud.get_terrain_drawer_edits()
 
-	if edits.get("remove", false):
-		_map_def.terrain_gen = null
-		_save_map_def()
-		_reload_current_map()
-		return
-
-	var pending_image: Image = edits.get("pending_image", null)
-	if pending_image != null:
-		# Replace/convert: always writes the per-map def, then repoints MapDef.
-		var payload := {
-			"map_id": map_id,
-			"image": pending_image,
-			"height_start": float(edits.get("height_start", -6.0)),
-			"height_range": float(edits.get("height_range", 16.0)),
-			"snap_to_grid": bool(edits.get("snap_to_grid", false)),
-		}
-		_map_def.terrain_gen = _write_heightmap_terrain_def(payload, MAPS_DIR + map_id + "/", map_id)
-		_save_map_def()
-		_reload_current_map()
-		return
-
-	var terrain_def := _map_def.terrain_gen
-	if terrain_def == null:
-		return
-	if terrain_def.heightmap != null:
-		var start := float(edits.get("height_start", terrain_def.height_start))
-		var range_val := float(edits.get("height_range", terrain_def.height_range))
-		var snap := bool(edits.get("snap_to_grid", false))
-		terrain_def.height_start = start
-		terrain_def.height_range = range_val
-		if snap and terrain_def.heightmap != null:
-			var raw_img := terrain_def.heightmap.get_image()
-			if raw_img != null:
-				var q_img := EditorLauncherClass.quantize_heightmap_image(raw_img, start, range_val, 1.0)
-				terrain_def.heightmap = ImageTexture.create_from_image(q_img)
-	else:
-		terrain_def.noise_seed = int(edits.get("noise_seed", terrain_def.noise_seed))
-		terrain_def.noise_frequency = float(edits.get("noise_frequency", terrain_def.noise_frequency))
-	if not terrain_def.resource_path.is_empty():
-		var err := ResourceSaver.save(terrain_def, terrain_def.resource_path)
-		if err != OK:
-			push_warning("MapEditor: failed to save terrain def to '%s' (error %d)" % [terrain_def.resource_path, err])
-
-	if edits.has("water_enabled"):
-		_map_def.water_enabled = bool(edits.get("water_enabled", false))
-		_map_def.water_level = float(edits.get("water_level", -2.0))
-		if _map_def.terrain_gen != null:
-			_map_def.terrain_gen.water_enabled = _map_def.water_enabled
-			_map_def.terrain_gen.water_level = _map_def.water_level
-			if not _map_def.terrain_gen.resource_path.is_empty():
-				ResourceSaver.save(_map_def.terrain_gen, _map_def.terrain_gen.resource_path)
-		_save_map_def()
-
+	# 1. Terrain def: remove, replace image, or edit the map-owned def in memory, so a shared baseline is never mutated.
+	_apply_terrain_edits(edits)
+	# 2. Water: mirrored onto MapDef and the def together, so every apply path persists the same flags.
+	_apply_water_edits(edits)
+	# 3. Persist the def once (no-op when the map has no terrain).
+	_persist_terrain_def()
+	# 4. Persist MapDef so the reload below reads the new pointers.
+	_save_map_def()
+	# 5. One reload: generator, streams and drawer state rebuild from the saved defs.
 	_reload_current_map()
-	if _map_def.water_enabled:
-		flood_water_level(_map_def.water_level, true)
+
+
+func _apply_terrain_edits(edits: Dictionary) -> void:
+	if bool(edits.get("remove", false)):
+		_map_def.terrain_gen = null
+		return
+	var pending: Image = edits.get("pending_image", null)
+	if pending != null:
+		# Replace/convert always builds a fresh per-map heightmap def.
+		_map_def.terrain_gen = _build_replacement_def(pending, edits)
+		return
+	if _map_def.terrain_gen == null:
+		return
+	# Localize a shared baseline into this map's folder before mutating it.
+	_map_def.terrain_gen = MapTerrainAuthoring.ensure_map_owned(_map_def.terrain_gen, _map_def.id)
+	MapTerrainAuthoring.apply_edits(_map_def.terrain_gen, edits)
+
+
+func _build_replacement_def(image: Image, edits: Dictionary) -> TerrainGenDef:
+	return MapTerrainAuthoring.build_heightmap_def(
+		_map_def.id,
+		image,
+		float(edits.get("height_start", MapTerrainAuthoring.DEFAULT_HEIGHT_START)),
+		float(edits.get("height_range", MapTerrainAuthoring.DEFAULT_HEIGHT_RANGE)),
+		bool(edits.get("snap_to_grid", false)),
+	)
+
+
+func _apply_water_edits(edits: Dictionary) -> void:
+	if edits.has("water_enabled"):
+		_map_def.water_enabled = bool(edits["water_enabled"])
+		_map_def.water_level = float(edits.get("water_level", _map_def.water_level))
+	if _map_def.terrain_gen == null:
+		return
+	_map_def.terrain_gen = MapTerrainAuthoring.ensure_map_owned(_map_def.terrain_gen, _map_def.id)
+	MapTerrainAuthoring.apply_water(_map_def.terrain_gen, _map_def.water_enabled, _map_def.water_level)
+
+
+func _persist_terrain_def() -> void:
+	if _map_def.terrain_gen == null:
+		return
+	MapTerrainAuthoring.persist_owned(_map_def.terrain_gen, MAPS_DIR, _map_def.id)
 
 
 func _on_terrain_pick_image() -> void:
@@ -1148,17 +1124,20 @@ func _reload_current_map() -> void:
 	load_map(_map_def.id)
 
 
+## The def on MapDef is the single source of truth: assigning null over a stale
+## def embedded by an older save makes Remove Terrain stick.
 func _inject_terrain_gen(map: Node, def: MapDef) -> void:
-	if def != null and def.terrain_gen != null and map != null:
-		var smooth := map.get_node_or_null("SmoothGrid") as SmoothGrid
-		if smooth == null:
-			smooth = map.find_child("SmoothGrid") as SmoothGrid
-		if smooth != null:
-			smooth.terrain_gen = def.terrain_gen
-			# Same catalog injection SceneManager does at runtime — authored
-			# blobs ride the F12 sidecar either way, but with strata active the
-			# editor's dig previews also match what players will hit.
-			smooth.set_material_catalog(BuildLibrary.get_terrain_materials())
+	if def == null or map == null:
+		return
+	var smooth := map.get_node_or_null("SmoothGrid") as SmoothGrid
+	if smooth == null:
+		smooth = map.find_child("SmoothGrid") as SmoothGrid
+	if smooth == null:
+		return
+	smooth.terrain_gen = def.terrain_gen
+	if def.terrain_gen != null:
+		# Same catalog injection SceneManager does at runtime, so strata and dig previews match what players hit.
+		smooth.set_material_catalog(BuildLibrary.get_terrain_materials())
 
 
 func _attach_streams(map: Node, map_id: String) -> void:
@@ -1581,19 +1560,11 @@ func _on_flood_water_requested(water_level: float) -> void:
 	flood_water_level(water_level, true)
 
 
-func flood_water_level(water_level: float, clear_above: bool = true) -> int:
-	## High-level orchestrator: Updates water settings and reloads to apply the generator.
+func flood_water_level(water_level: float, _clear_above: bool = true) -> int:
 	if _map_def == null:
 		return 0
-
-	_map_def.water_enabled = true
-	_map_def.water_level = water_level
-	if _map_def.terrain_gen != null:
-		_map_def.terrain_gen.water_enabled = true
-		_map_def.terrain_gen.water_level = water_level
-		if not _map_def.terrain_gen.resource_path.is_empty():
-			ResourceSaver.save(_map_def.terrain_gen, _map_def.terrain_gen.resource_path)
-
+	_apply_water_edits({"water_enabled": true, "water_level": water_level})
+	_persist_terrain_def()
 	_save_map_def()
 	_reload_current_map()
 	return 1
@@ -1990,18 +1961,35 @@ func save_map() -> void:
 				push_warning("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err_def])
 
 		if not _map_scene_path.is_empty():
-			var packed := PackedScene.new()
-			var err_pack := packed.pack(_map_root)
-			if err_pack == OK:
+			# 4. Pack: strip injected terrain def before packing so SceneManager does not resurrect deleted terrain at runtime.
+			var packed := _pack_map_scene()
+			if packed != null:
 				var err_save := ResourceSaver.save(packed, _map_scene_path)
 				if err_save != OK:
 					push_warning("MapEditor: failed to save scene to '%s' (error %d)" % [_map_scene_path, err_save])
-			else:
-				push_warning("MapEditor: failed to pack map scene (error %d)" % err_pack)
 
 		_dirty = false
 		if _hud != null and _map_def != null:
 			_hud.set_map_info(_map_def.id, _dirty)
+
+
+## Packs the live map without the injected terrain def. Runtime SceneManager only
+## injects a def when MapDef.terrain_gen is non-null, so an embedded copy would
+## resurrect terrain the author removed.
+func _pack_map_scene() -> PackedScene:
+	var smooth := _map_root.get_smooth_grid()
+	var live_def: TerrainGenDef = null
+	if smooth != null and is_instance_valid(smooth):
+		live_def = smooth.terrain_gen
+		smooth.terrain_gen = null
+	var packed := PackedScene.new()
+	var err := packed.pack(_map_root)
+	if smooth != null and is_instance_valid(smooth):
+		smooth.terrain_gen = live_def
+	if err != OK:
+		push_warning("MapEditor: failed to pack map scene (error %d)" % err)
+		return null
+	return packed
 
 
 func _get_rotation_axis_vector() -> Vector3:

@@ -84,6 +84,44 @@ func test_map_editor_terrain_gen_injection() -> void:
 	map.free()
 
 
+func test_inject_terrain_gen_null_def_overrides_embedded_def() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var map_root := Node3D.new()
+	var smooth := SmoothGrid.new()
+	smooth.name = "SmoothGrid"
+	smooth.terrain_gen = TerrainGenDef.new()
+	map_root.add_child(smooth)
+	var def := MapDef.new()
+	def.terrain_gen = null
+
+	editor._inject_terrain_gen(map_root, def)
+
+	assert_object(smooth.terrain_gen).is_null()
+	map_root.free()
+
+
+func test_save_map_does_not_embed_injected_terrain_gen() -> void:
+	var id := Sandbox.map_id("embed")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	assert_object(editor._map_root.get_smooth_grid().terrain_gen).is_not_null()
+
+	editor.save_map()
+
+	var packed := load(editor._map_scene_path) as PackedScene
+	var instance := packed.instantiate()
+	var smooth := instance.get_node_or_null("SmoothGrid") as SmoothGrid
+	assert_object(smooth).is_not_null()
+	assert_object(smooth.terrain_gen).is_null()
+	instance.free()
+	# The live grid keeps its def after saving.
+	assert_object(editor._map_root.get_smooth_grid().terrain_gen).is_not_null()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
 func test_map_editor_attach_streams() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	var root := Node3D.new()
@@ -1397,6 +1435,103 @@ func test_map_editor_terrain_drawer_edits_apply_and_reload() -> void:
 	assert_str(editor._hud._terrain_mode_label.text).contains("None")
 
 	await _dispose_test_editor(editor)
+
+
+func test_apply_edits_never_modify_a_shared_def_file() -> void:
+	var id := Sandbox.map_id("shared")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.blocky_only_payload(id))
+	var shared_path := "user://sandbox_shared_apply.tres"
+	var shared := Sandbox.save_noise_def(shared_path, 20260817, 0.0125)
+	editor._map_def.terrain_gen = shared
+	editor._save_map_def()
+	editor._reload_current_map()
+
+	editor._hud._terrain_seed_spin.value = 777
+	editor._on_terrain_apply()
+
+	var on_disk := ResourceLoader.load(shared_path, "", ResourceLoader.CACHE_MODE_IGNORE) as TerrainGenDef
+	assert_int(on_disk.noise_seed).is_equal(20260817)
+	assert_float(on_disk.noise_frequency).is_equal(0.0125)
+	assert_str(editor._map_def.terrain_gen.resource_path).is_equal("res://data/maps/%s/terrain_gen.tres" % id)
+	assert_int(editor._map_def.terrain_gen.noise_seed).is_equal(777)
+	DirAccess.remove_absolute(shared_path)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_replace_image_carries_water_settings() -> void:
+	var id := Sandbox.map_id("water_keep")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var payload := Sandbox.heightmap_payload(id)
+	payload["water_enabled"] = true
+	payload["water_level"] = -3.0
+	editor.create_new_map(payload)
+
+	var image := Image.create(32, 32, false, Image.FORMAT_L8)
+	image.fill(Color(0.4, 0.4, 0.4))
+	editor._hud.set_pending_heightmap_image(image)
+	editor._on_terrain_apply()
+
+	assert_bool(editor._map_def.terrain_gen.water_enabled).is_true()
+	assert_float(editor._map_def.terrain_gen.water_level).is_equal(-3.0)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_replace_image_returns_the_new_def_not_the_cached_one() -> void:
+	var id := Sandbox.map_id("cache")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	var old_def: TerrainGenDef = editor._map_def.terrain_gen
+
+	var image := Image.create(48, 48, false, Image.FORMAT_L8)
+	image.fill(Color(0.2, 0.2, 0.2))
+	editor._hud.set_pending_heightmap_image(image)
+	editor._on_terrain_apply()
+
+	assert_object(editor._map_def.terrain_gen).is_not_same(old_def)
+	assert_int(editor._map_def.terrain_gen.heightmap.get_width()).is_equal(48)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_remove_terrain_sticks_after_reload() -> void:
+	var id := Sandbox.map_id("remove")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+
+	editor._hud._on_terrain_remove_toggled()
+	editor._on_terrain_apply()
+
+	assert_object(editor._map_def.terrain_gen).is_null()
+	assert_object(editor._map_root.get_smooth_grid().terrain_gen).is_null()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_apply_reloads_the_map_exactly_once() -> void:
+	var id := Sandbox.map_id("once")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var payload := Sandbox.heightmap_payload(id)
+	payload["water_enabled"] = true
+	editor.create_new_map(payload)
+
+	var loads: Array[int] = [0]
+	editor.child_entered_tree.connect(func(n: Node) -> void:
+		if n is Map:
+			loads[0] += 1
+	)
+	editor._on_terrain_apply()
+
+	assert_int(loads[0]).is_equal(1)
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 # --- Map deletion (launcher button + confirmation dialog) -------------------

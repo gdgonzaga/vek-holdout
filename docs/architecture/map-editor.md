@@ -100,19 +100,20 @@ New maps begin with no pre-generated trees. Instead, dynamic vegetation growth i
 
 ### A2. Terrain Setup: Heightmap or Noise
 
-The create form's Terrain section picks how the new map's `SmoothGrid` generates (see [Voxel World](voxel-world.md) for the generator side):
+The create form's Terrain section picks how the new map's `SmoothGrid` generates (handled via `MapTerrainAuthoring`, see [Voxel World](voxel-world.md) for the generator side):
 
 - **Procedural (noise)** — dropdown of shared `data/terrain/*.tres` defs (heightmap-driven defs are excluded; they are per-map content). This replaces the old hardcoded `default_ground.tres` wiring.
-- **Heightmap (image)** — a native `FileDialog` (any disk location, png/jpg/bmp/webp/tga — the external-tool handoff) loads the image via `EditorLauncher.load_heightmap_image()`, which validates it (≥ 16 px, warns past 1024²) and normalizes to L8 grayscale. Creation writes a **per-map** `data/maps/<id>/terrain_gen.tres` whose `heightmap` is an **embedded `ImageTexture`**: the editor is a runtime process and cannot run Godot's import pipeline, so a bare PNG copied into the project wouldn't load via `ResourceLoader` — embedding keeps the map folder self-contained and export-safe.
+- **Heightmap (image)** — a native `FileDialog` (any disk location, png/jpg/bmp/webp/tga — the external-tool handoff) loads the image via `EditorLauncher.load_heightmap_image()`, which validates it (>= 16 px, warns past 1024^2) and normalizes to L8 grayscale. Creation writes a **per-map** `data/maps/<id>/terrain_gen.tres` whose `heightmap` is an **embedded `ImageTexture`**: the editor is a runtime process and cannot run Godot's import pipeline, so a bare PNG copied into the project wouldn't load via `ResourceLoader` — embedding keeps the map folder self-contained and export-safe.
 - **None** — `terrain_gen = null`; the `SmoothGrid` frees itself on load (blocky-only map).
 
 ### A3. Terrain Drawer (in-session adjustment)
 
 A toolbar toggle opens the `TerrainDrawer` (top-right; mutually exclusive with the Metadata panel; Esc closes it). It mirrors the metadata panel's `set_…`/`get_…edits()` pattern:
 
-- Shows mode, def id, and for heightmap maps a read-only minimap with the axis contract (image +x → world +x, image +y → world +z, 1 px = 1 m).
+- Shows mode, def id, and for heightmap maps a read-only minimap with the axis contract (image +x -> world +x, image +y -> world +z, 1 px = 1 m).
 - Edits `height_start`/`height_range` and `snap_to_grid` (heightmap maps) or seed/frequency (noise maps); **Replace Image…/Convert to Heightmap…/Add Heightmap…** picks a new image (pending until Apply); **Remove Terrain** strips `terrain_gen`.
-- **Apply = write def(s) + reload the map.** Deliberately not a live generator hot-swap — already-streamed blocks keep stale generated data under a swap, while the reload path (flush streams, re-attach, re-inject def) is known-consistent and cheap in the editor. Streams flush first so pending sculpts survive the reload. Standing warning in the drawer: sculpted edits keep their absolute heights, so changing the base may float or bury them (sqlite overrides are absolute, F2/F8).
+- **Ownership rule:** The editor never modifies shared baseline defs in `data/terrain/`. On first edit, a shared def is copied into `data/maps/<id>/terrain_gen.tres` ("map-owned"); shared files are never written to.
+- **Apply & Reload:** Writes the map-owned def(s) and reloads the map exactly once (`_reload_current_map` -> flush -> `load_map`). Deliberately not a live generator hot-swap — already-streamed blocks keep stale generated data under a swap, while the single reload path (flush streams, re-attach, re-inject def) is known-consistent and cheap in the editor. Streams flush first so pending sculpts survive the reload. **Remove Terrain** clears the injected def, setting `SmoothGrid.terrain_gen = null` so removing terrain sticks across reloads. Standing warning in the drawer: sculpted edits keep their absolute heights, so changing the base may float or bury them (sqlite overrides are absolute, F2/F8).
 
 
 ### A5. Spawn Point Placement & Actor Authoring
@@ -165,7 +166,7 @@ Every modification records its reverse operation in a bounded undo buffer (`_und
 When `save_map()` is triggered (`Ctrl+S` or UI Save button):
 1. **Flush Voxel Streams**: Calls `Map.flush_voxel_streams()` to persist uncommitted voxel blocks to SQLite.
 2. **Update MapDef**: Reads metadata edits (`display_name`, `description`, `map_type`, `difficulty`), `PlayerSpawn` position, and `EnemySpawn_*` positions (`enemy_spawns: Array[Dictionary]`), then saves `map_def.tres` via `ResourceSaver`.
-3. **Pack Scene**: Packs `_map_root` (excluding editor camera and UI scaffolding) into `PackedScene` and saves `map.tscn`.
+3. **Pack Scene**: Packs `_map_root` (excluding editor camera and UI scaffolding) into `PackedScene` and saves `map.tscn`. The injected terrain def is stripped while packing (`SmoothGrid.terrain_gen = null`) and restored immediately after, ensuring that runtime `SceneManager` only injects terrain when `MapDef.terrain_gen` is non-null and older scenes do not resurrect deleted terrain.
 4. **Update HUD**: Clears the dirty indicator flag.
 
 ---
