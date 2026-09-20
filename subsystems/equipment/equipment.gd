@@ -32,6 +32,10 @@ const SLOT_ACCEPTED_TAGS: Dictionary = {
 	"back":      ["equip_back", "shield"],
 }
 
+## Outcome of equip_from_inventory. NO_ROOM means the item that would be
+## displaced has nowhere to go (holster taken and the carry inventory is full).
+enum EquipResult { OK, NOT_CARRIED, NO_SLOT, ALREADY_HELD, NO_ROOM }
+
 # ================
 # Primary Functions
 # ================
@@ -174,6 +178,75 @@ func equip_preferring_main_hand(item_def: ItemDef) -> bool:
 	return equip(slot, item_def)
 
 
+## Moves ONE carried item_def from `inventory` into the slot it belongs in, the
+## way a colonist's equip does (equipment and carry inventory are separate stores,
+## so a held item is no longer listed, weighed or depositable as carried cargo).
+## Whatever the slot held is stowed (holster, else inventory), never overwritten.
+## All-or-nothing: on any non-OK result neither the slots nor the inventory changed.
+func equip_from_inventory(item_def: ItemDef, inventory: Inventory) -> EquipResult:
+	if item_def == null or inventory == null or not inventory.has_item(item_def.id, 1):
+		return EquipResult.NOT_CARRIED
+
+	# 1. Slot Resolution: Picking main_hand for tools/weapons or the tagged wearable slot for apparel.
+	var slot_id: String = resolve_equip_slot(item_def)
+	if slot_id.is_empty():
+		return EquipResult.NO_SLOT
+
+	# 2. Duplicate Guard: stow_and_equip treats "same id already there" as success, which would swallow the spare copy.
+	if _slot_holds_id(slot_id, item_def.id):
+		return EquipResult.ALREADY_HELD
+
+	# 3. Atomic Move: Removing first so the new item's weight is free for the displaced one, restoring it if that still won't fit.
+	inventory.remove(item_def.id, 1)
+	if stow_and_equip(slot_id, item_def, inventory):
+		return EquipResult.OK
+	inventory.add(item_def.id, 1)
+	return EquipResult.NO_ROOM
+
+
+## Slot an item goes to when equipped from the carry inventory: main_hand when it
+## accepts the item, else the first empty eligible slot, else the first eligible
+## slot even if occupied (its holder is swapped out). "" when no slot accepts it.
+## UIs use a non-empty result to decide whether to offer Equip at all.
+func resolve_equip_slot(item_def: ItemDef) -> String:
+	if can_equip_to(SLOT_MAIN_HAND, item_def):
+		return SLOT_MAIN_HAND
+	var free_slot: String = get_slot_for_item(item_def)
+	if not free_slot.is_empty():
+		return free_slot
+	# 1. Occupied Fallback: Apparel with a worn counterpart still has a slot to swap into.
+	return _first_eligible_slot(item_def)
+
+
+## Takes the item out of slot_id and puts it in `inventory`. False (nothing
+## changed) when the slot is empty or the inventory has no room for it.
+func unequip_to_inventory(slot_id: String, inventory: Inventory) -> bool:
+	var held: ItemDef = get_item(slot_id)
+	if held == null:
+		return false
+	# 1. Room-Checked Stow: Refusing rather than dropping, so a full pack never loses gear.
+	return _try_stow_to_inventory(slot_id, held, inventory)
+
+
+## How many equipped slots hold item_id (0 if none).
+func count_equipped_item(item_id: String) -> int:
+	var total: int = 0
+	for slot_id: String in _slots:
+		if _slot_holds_id(slot_id, item_id):
+			total += 1
+	return total
+
+
+## How many equipped slots hold an item carrying tag (0 if none).
+func count_equipped_tag(tag: String) -> int:
+	var total: int = 0
+	for slot_id: String in _slots:
+		var item: ItemDef = _slots[slot_id]
+		if item != null and item.has_tag(tag):
+			total += 1
+	return total
+
+
 ## Returns true if any equipped slot holds an item carrying the given tag.
 ## Used by BTConditionHasTool to check equipped state before falling back to inventory.
 func has_item_with_tag(tag: String) -> bool:
@@ -264,6 +337,18 @@ func is_desired_equipped(slot_id: String) -> bool:
 	return current != null and current.id == desired
 
 
+## True if any slot accepts item_def (it carries a tool, weapon, apparel or shield tag).
+## UIs use it to group gear apart from cargo without hardcoding tag names.
+static func is_gear(item_def: ItemDef) -> bool:
+	if item_def == null:
+		return false
+	for slot_id: String in SLOT_ACCEPTED_TAGS:
+		for tag: String in SLOT_ACCEPTED_TAGS[slot_id]:
+			if item_def.has_tag(tag):
+				return true
+	return false
+
+
 ## Static domain helper: queries ItemDB and returns all ItemDefs that can be equipped to slot_id.
 static func get_eligible_items_for_slot(slot_id: String) -> Array[ItemDef]:
 	var eligible: Array[ItemDef] = []
@@ -325,6 +410,20 @@ func _item_matches_slot_tags(slot_id: String, item_def: ItemDef) -> bool:
 		if item_def.has_tag(tag):
 			return true
 	return false
+
+
+func _first_eligible_slot(item_def: ItemDef) -> String:
+	## Auxiliary: First slot in registry order whose accepted tags match item_def, occupied or not.
+	for slot_id: String in SLOT_ACCEPTED_TAGS:
+		if can_equip_to(slot_id, item_def):
+			return slot_id
+	return ""
+
+
+func _slot_holds_id(slot_id: String, item_id: String) -> bool:
+	## Auxiliary: True if slot_id currently holds an item with this id.
+	var held: ItemDef = _slots.get(slot_id, null)
+	return held != null and held.id == item_id
 
 
 func _find_slot_with_tag(tag: String) -> String:

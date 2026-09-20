@@ -415,7 +415,7 @@ func test_player_primary_action_only_triggers_animation_when_action_fires() -> v
 	var equip := EquippableParams.new()
 	equip.primary_action = action
 	item.equippable = equip
-	player.equip_item(item)
+	player.equipment.equip(Equipment.SLOT_MAIN_HAND, item)
 
 	player._on_primary_action()
 	assert_int(spy.trigger_calls.size()).is_equal(1)

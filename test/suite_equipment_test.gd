@@ -501,3 +501,248 @@ func test_panel_unequip_preserves_item_in_inventory() -> void:
 
 	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_null()
 	assert_int(colonist.inventory.get_item_count("hammer")).is_equal(1)
+
+
+# ==============================
+# equip_from_inventory / unequip_to_inventory (player equip moves items)
+# ==============================
+
+## Inventory holding `count` of each given item, roomy unless `capacity` is passed.
+func _make_carry(stacks: Dictionary, capacity: float = 100.0) -> Inventory:
+	var inv: Inventory = auto_free(Inventory.new())
+	inv.capacity = capacity
+	for item_id: String in stacks:
+		inv.add(item_id, stacks[item_id])
+	return inv
+
+
+func test_equip_from_inventory_moves_item_into_main_hand() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	var inv: Inventory = _make_carry({"axe": 1})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(axe, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.OK)
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("axe")
+	assert_int(inv.get_item_count("axe")).is_equal(0)
+
+
+func test_equip_from_inventory_takes_exactly_one_of_a_stack() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	var inv: Inventory = _make_carry({"axe": 3})
+
+	eq.equip_from_inventory(axe, inv)
+
+	assert_int(inv.get_item_count("axe")).is_equal(2)
+
+
+func test_equip_from_inventory_stows_held_item_in_free_holster() -> void:
+	var eq: Equipment = _make_equipment()
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, sword)
+	var inv: Inventory = _make_carry({"pickaxe": 1})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(pick, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.OK)
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("pickaxe")
+	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("sword")
+	assert_int(inv.get_item_count("sword")).is_equal(0)
+
+
+func test_equip_from_inventory_returns_held_item_to_inventory_when_holster_taken() -> void:
+	# Break caught: equip() alone overwrites the slot, so the held item would simply vanish.
+	var eq: Equipment = _make_equipment()
+	var sword: ItemDef = _make_item("sword", ["weapon"])
+	var pistol: ItemDef = _make_item("pistol", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, sword)
+	eq.equip(Equipment.SLOT_HOLSTER, pistol)
+	var inv: Inventory = _make_carry({"pickaxe": 1})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(pick, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.OK)
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("pickaxe")
+	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
+	assert_int(inv.get_item_count("sword")).is_equal(1)
+
+
+func test_equip_from_inventory_routes_wearable_to_its_slot() -> void:
+	var eq: Equipment = _make_equipment()
+	var cap: ItemDef = _make_item("cap", ["equip_head"])
+	var inv: Inventory = _make_carry({"cap": 1})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(cap, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.OK)
+	assert_str(eq.get_item(Equipment.SLOT_HEAD).id).is_equal("cap")
+	assert_bool(eq.is_empty(Equipment.SLOT_MAIN_HAND)).is_true()
+
+
+func test_equip_from_inventory_swaps_out_worn_apparel() -> void:
+	var eq: Equipment = _make_equipment()
+	var old_cap: ItemDef = _make_item("old_cap", ["equip_head"])
+	var new_cap: ItemDef = _make_item("new_cap", ["equip_head"])
+	eq.equip(Equipment.SLOT_HEAD, old_cap)
+	var inv: Inventory = _make_carry({"new_cap": 1})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(new_cap, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.OK)
+	assert_str(eq.get_item(Equipment.SLOT_HEAD).id).is_equal("new_cap")
+	assert_int(inv.get_item_count("old_cap")).is_equal(1)
+
+
+func test_equip_from_inventory_reports_not_carried_and_changes_nothing() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	var inv: Inventory = _make_carry({})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(axe, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.NOT_CARRIED)
+	assert_bool(eq.is_empty(Equipment.SLOT_MAIN_HAND)).is_true()
+
+
+func test_equip_from_inventory_reports_no_slot_and_keeps_the_item() -> void:
+	var eq: Equipment = _make_equipment()
+	var rock: ItemDef = _make_item("rock", ["material"])
+	var inv: Inventory = _make_carry({"rock": 2})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(rock, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.NO_SLOT)
+	assert_int(inv.get_item_count("rock")).is_equal(2)
+
+
+func test_equip_from_inventory_refuses_an_item_already_held_in_that_slot() -> void:
+	# Break caught: stow_and_equip treats "same id" as success, which would delete the spare copy.
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, axe)
+	var inv: Inventory = _make_carry({"axe": 1})
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(axe, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.ALREADY_HELD)
+	assert_int(inv.get_item_count("axe")).is_equal(1)
+
+
+func test_equip_from_inventory_no_room_for_displaced_item_changes_nothing() -> void:
+	var eq: Equipment = _make_equipment()
+	var heavy: ItemDef = _make_item("heavy_sword", ["weapon"], 6.0)
+	var pistol: ItemDef = _make_item("pistol", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"], 5.0)
+	eq.equip(Equipment.SLOT_MAIN_HAND, heavy)
+	eq.equip(Equipment.SLOT_HOLSTER, pistol)
+	var inv: Inventory = _make_carry({"pickaxe": 1}, 5.0)  # once pickaxe leaves, only 5 kg free
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(pick, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.NO_ROOM)
+	assert_int(inv.get_item_count("pickaxe")).is_equal(1)
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("heavy_sword")
+	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
+
+
+func test_equip_from_inventory_counts_the_freed_weight_of_the_new_item() -> void:
+	# Break caught: stowing the held item BEFORE removing the new one fails on a full inventory.
+	var eq: Equipment = _make_equipment()
+	var sword: ItemDef = _make_item("sword", ["weapon"], 5.0)
+	var pistol: ItemDef = _make_item("pistol", ["weapon"])
+	var pick: ItemDef = _make_item("pickaxe", ["tool"], 5.0)
+	eq.equip(Equipment.SLOT_MAIN_HAND, sword)
+	eq.equip(Equipment.SLOT_HOLSTER, pistol)
+	var inv: Inventory = _make_carry({"pickaxe": 1}, 5.0)  # completely full
+
+	var result: Equipment.EquipResult = eq.equip_from_inventory(pick, inv)
+
+	assert_int(result).is_equal(Equipment.EquipResult.OK)
+	assert_int(inv.get_item_count("sword")).is_equal(1)
+	assert_int(inv.get_item_count("pickaxe")).is_equal(0)
+
+
+func test_equip_from_inventory_emits_slot_changed_for_the_target_slot() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	var inv: Inventory = _make_carry({"axe": 1})
+	var counter := Doubles.SignalCounter.new(eq.slot_changed)
+
+	eq.equip_from_inventory(axe, inv)
+
+	assert_int(counter.read()).is_equal(1)
+
+
+func test_unequip_to_inventory_returns_the_item() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, axe)
+	var inv: Inventory = _make_carry({})
+
+	var ok: bool = eq.unequip_to_inventory(Equipment.SLOT_MAIN_HAND, inv)
+
+	assert_bool(ok).is_true()
+	assert_bool(eq.is_empty(Equipment.SLOT_MAIN_HAND)).is_true()
+	assert_int(inv.get_item_count("axe")).is_equal(1)
+
+
+func test_unequip_to_inventory_refused_when_full_keeps_item_equipped() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"], 3.0)
+	eq.equip(Equipment.SLOT_MAIN_HAND, axe)
+	var inv: Inventory = _make_carry({}, 1.0)
+
+	var ok: bool = eq.unequip_to_inventory(Equipment.SLOT_MAIN_HAND, inv)
+
+	assert_bool(ok).is_false()
+	assert_str(eq.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("axe")
+
+
+func test_unequip_to_inventory_on_empty_slot_is_false() -> void:
+	var eq: Equipment = _make_equipment()
+	var inv: Inventory = _make_carry({})
+	assert_bool(eq.unequip_to_inventory(Equipment.SLOT_MAIN_HAND, inv)).is_false()
+
+
+# ==============================
+# count_equipped_item / count_equipped_tag
+# ==============================
+
+func test_count_equipped_item_counts_slots_holding_the_id() -> void:
+	var eq: Equipment = _make_equipment()
+	var axe: ItemDef = _make_item("axe", ["tool"])
+	eq.equip(Equipment.SLOT_MAIN_HAND, axe)
+	eq.equip(Equipment.SLOT_HOLSTER, axe)
+	assert_int(eq.count_equipped_item("axe")).is_equal(2)
+	assert_int(eq.count_equipped_item("saw")).is_equal(0)
+
+
+func test_count_equipped_tag_counts_slots_whose_item_has_the_tag() -> void:
+	var eq: Equipment = _make_equipment()
+	eq.equip(Equipment.SLOT_MAIN_HAND, _make_item("hoe", ["tool", "gardening_tool"]))
+	eq.equip(Equipment.SLOT_HOLSTER, _make_item("saw", ["tool"]))
+	assert_int(eq.count_equipped_tag("tool")).is_equal(2)
+	assert_int(eq.count_equipped_tag("gardening_tool")).is_equal(1)
+	assert_int(eq.count_equipped_tag("weapon")).is_equal(0)
+
+
+# ==============================
+# is_gear
+# ==============================
+
+func test_is_gear_true_for_tools_weapons_apparel_and_shields() -> void:
+	for tag: String in ["tool", "weapon", "equip_head", "equip_torso", "shield"]:
+		assert_bool(Equipment.is_gear(_make_item("gear_probe", [tag]))).is_true()
+
+
+func test_is_gear_false_for_items_no_slot_accepts() -> void:
+	assert_bool(Equipment.is_gear(_make_item("plain_probe", ["material", "wood"]))).is_false()
+	assert_bool(Equipment.is_gear(_make_item("untagged_probe", []))).is_false()
+
+
+func test_is_gear_false_for_null() -> void:
+	assert_bool(Equipment.is_gear(null)).is_false()

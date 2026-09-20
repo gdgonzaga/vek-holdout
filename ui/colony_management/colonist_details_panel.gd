@@ -366,13 +366,13 @@ func _populate_carried_items(force: bool = false) -> void:
 		child.queue_free()
 
 	var has_items := false
-	for item_id in inv.items:
+	for item_id in ItemStackOrder.sorted_item_ids(inv.items):
 		var count: int = int(inv.items[item_id])
 		if count <= 0:
 			continue
 		has_items = true
 		var def: ItemDef = ItemDB.get_def(item_id)
-		var iname: String = def.resource_name if (def != null and def.resource_name != "") else str(item_id)
+		var iname: String = ItemDB.get_display_name(str(item_id))
 		var weight: float = (def.weight * count) if def != null else 0.0
 		var lbl := Label.new()
 		lbl.text = "• %s  x%d  (%.1f kg)" % [iname, count, weight]

@@ -208,9 +208,45 @@ func test_has_item_fails_without_inventory() -> void:
 # ── Test doubles ───────────────────────────────────────────────────────────────
 
 ## Actor with a SkillSet-shaped property, as MinSkillCondition resolves it.
+# Equipped items live in Equipment, not the carry inventory, so "carries N of X" must count both.
+
+func _equip_on(actor: CarryingActor, slot_id: String, item_id: String, tags: Array) -> void:
+	if actor.equipment == null:
+		actor.equipment = auto_free(Equipment.new()) as Equipment
+	var def := _tagged_def(tags)
+	def.id = item_id
+	actor.equipment.equip(slot_id, def)
+
+func test_has_item_counts_an_equipped_item_by_id() -> void:
+	# Break caught: reading only the inventory fails a player who is holding the required tool.
+	var actor := _make_actor_with_inventory({}, {})
+	_equip_on(actor, Equipment.SLOT_MAIN_HAND, "hoe", ["tool"])
+	assert_bool(_has_item("hoe", "", 1).is_met(actor, null)).is_true()
+	assert_bool(_has_item("hoe", "", 2).is_met(actor, null)).is_false()
+
+func test_has_item_counts_an_equipped_item_by_tag() -> void:
+	var actor := _make_actor_with_inventory({}, {})
+	_equip_on(actor, Equipment.SLOT_MAIN_HAND, "hoe", ["tool", "gardening_tool"])
+	assert_bool(_has_item("", "gardening_tool", 1).is_met(actor, null)).is_true()
+	assert_bool(_has_item("", "weapon", 1).is_met(actor, null)).is_false()
+
+func test_has_item_sums_carried_and_equipped() -> void:
+	var actor := _make_actor_with_inventory({"hoe": _tagged_def(["tool"])}, {"hoe": 1})
+	_equip_on(actor, Equipment.SLOT_MAIN_HAND, "hoe", ["tool"])
+	assert_bool(_has_item("hoe", "", 2).is_met(actor, null)).is_true()
+	assert_bool(_has_item("", "tool", 2).is_met(actor, null)).is_true()
+	assert_bool(_has_item("hoe", "", 3).is_met(actor, null)).is_false()
+
+func test_has_item_ignores_equipment_of_a_different_item() -> void:
+	var actor := _make_actor_with_inventory({}, {})
+	_equip_on(actor, Equipment.SLOT_MAIN_HAND, "saw", ["tool"])
+	assert_bool(_has_item("hoe", "", 1).is_met(actor, null)).is_false()
+
+
 class SkilledActor extends Node:
 	var skill_set: SkillSet
 
 ## Actor with an Inventory-shaped property, as HasItemCondition resolves it.
 class CarryingActor extends Node:
 	var inventory: Inventory
+	var equipment: Equipment

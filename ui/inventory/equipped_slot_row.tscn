@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/inventory/equipped_slot_row.gd" id="1_row"]
+
+[node name="EquippedSlotRow" type="HBoxContainer"]
+theme_override_constants/separation = 6
+script = ExtResource("1_row")
+
+[node name="SlotLabel" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.7)
+
+[node name="Icon" type="TextureRect" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NameLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text_overrun_behavior = 3
+
+[node name="UnequipButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Unequip"

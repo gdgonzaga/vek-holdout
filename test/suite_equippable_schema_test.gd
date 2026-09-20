@@ -114,17 +114,6 @@ func test_colonist_equip_item() -> void:
 	assert_object(colonist.get_equipped_item()).is_equal(item)
 
 
-func test_player_equip_and_unequip_item() -> void:
-	var player: Player = auto_free(Player.new())
-	var item: ItemDef = auto_free(ItemDef.new())
-	item.id = "sample_weapon"
-	item.tags = ["weapon"]
-	player.equip_item(item)
-	assert_object(player.get_equipped_item()).is_equal(item)
-	player.unequip_item()
-	assert_object(player.get_equipped_item()).is_null()
-
-
 func test_player_weapon_visual_attachment_with_skeleton() -> void:
 	var player: Player = auto_free(Player.new())
 	var skeleton: Skeleton3D = auto_free(Skeleton3D.new())
@@ -137,7 +126,8 @@ func test_player_weapon_visual_attachment_with_skeleton() -> void:
 	item.tags = ["weapon"]
 	item.mesh = BoxMesh.new()
 
-	player.equip_item(item)
+	player.equipment = Equipment.ensure_on(player, null)
+	player.equipment.equip(Equipment.SLOT_MAIN_HAND, item)
 	# EquipmentVisualizer creates EquipSocket_main_hand on the skeleton's RightHand bone.
 	var socket: BoneAttachment3D = skeleton.get_node_or_null("EquipSocket_main_hand") as BoneAttachment3D
 	assert_object(socket).is_not_null()
@@ -145,7 +135,7 @@ func test_player_weapon_visual_attachment_with_skeleton() -> void:
 	assert_int(socket.get_child_count()).is_equal(1)
 	assert_str(socket.get_child(0).name).is_equal("EquippedVisual")
 
-	player.unequip_item()
+	player.equipment.unequip(Equipment.SLOT_MAIN_HAND)
 	assert_int(socket.get_child_count()).is_equal(0)
 
 

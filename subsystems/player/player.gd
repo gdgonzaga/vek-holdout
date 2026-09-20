@@ -123,11 +123,6 @@ func drop_item(item_id: String, count: int = 1) -> WorldItem:
 	if dropped_count <= 0:
 		return null
 
-	if equipment != null and equipment.get_item(Equipment.SLOT_MAIN_HAND) != null:
-		var hand_item: ItemDef = equipment.get_item(Equipment.SLOT_MAIN_HAND)
-		if hand_item.id == item_id and not inventory.has_item(item_id, 1):
-			equipment.unequip(Equipment.SLOT_MAIN_HAND)
-
 	var forward := -global_transform.basis.z
 	var spawn_pos := global_position + Vector3(0.0, 1.2, 0.0) + forward * 0.8
 	var impulse_dir := forward + Vector3(0.0, 0.3, 0.0)
@@ -681,18 +676,20 @@ func _resolve_air_axis(neg_held: bool, pos_held: bool, momentum: float) -> float
 		return momentum if momentum < 0.0 else -jump_move_speed
 	return 0.0 # released -> axis stops dead
 
-## Equips item to main_hand via the Equipment component. Returns false if the
-## item has no valid slot. Visual update is handled automatically by
-## EquipmentVisualizer via Equipment.slot_changed.
-func equip_item(item: ItemDef) -> bool:
+## Equips a carried item: MOVES one from the inventory into the slot it belongs
+## in (main_hand for tools/weapons, the tagged slot for apparel), stowing whatever
+## it displaces. Returns Equipment.EquipResult.OK, or why nothing changed. Visual
+## update is handled automatically by EquipmentVisualizer via Equipment.slot_changed.
+func equip_item(item: ItemDef) -> Equipment.EquipResult:
 	_ensure_equipment()
-	return equipment.equip_preferring_main_hand(item)
+	return equipment.equip_from_inventory(item, inventory)
 
 
-## Unequips whatever is in main_hand. Returns the removed ItemDef or null.
-func unequip_item() -> ItemDef:
+## Takes the item out of `slot_id` and puts it back in the inventory. Returns
+## false (item stays equipped) when the slot is empty or the pack has no room.
+func unequip_slot(slot_id: String) -> bool:
 	_ensure_equipment()
-	return equipment.unequip(Equipment.SLOT_MAIN_HAND)
+	return equipment.unequip_to_inventory(slot_id, inventory)
 
 
 ## Convenience accessor — returns the item currently in main_hand, or null.

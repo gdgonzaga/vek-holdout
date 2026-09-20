@@ -1,0 +1,66 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/inventory/inventory_panel.gd" id="1_panel"]
+
+[node name="InventoryPanel" type="PanelContainer"]
+visible = false
+layout_mode = 3
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 480.0
+grow_vertical = 2
+script = ExtResource("1_panel")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Inventory"
+
+[node name="WeightLabel" type="Label" parent="VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 2
+
+[node name="EquippedTitle" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Equipped"
+
+[node name="EquippedList" type="VBoxContainer" parent="VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="EquippedEmptyLabel" type="Label" parent="VBox"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.6)
+layout_mode = 2
+text = "Nothing equipped."
+
+[node name="Separator" type="HSeparator" parent="VBox"]
+layout_mode = 2
+
+[node name="CarriedTitle" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Carried"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ItemList" type="VBoxContainer" parent="VBox/ScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StatusLabel" type="Label" parent="VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.75, 0.4, 1)
+autowrap_mode = 3

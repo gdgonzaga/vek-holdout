@@ -226,12 +226,12 @@ func test_non_wearable_items_use_equip_socket_path() -> void:
 	item.tags = ["weapon"]
 	item.mesh = CylinderMesh.new()
 
-	player.equip_item(item)
+	player.equipment.equip(Equipment.SLOT_MAIN_HAND, item)
 	var socket: BoneAttachment3D = skeleton.get_node_or_null("EquipSocket_main_hand") as BoneAttachment3D
 	assert_object(socket).is_not_null()
 	assert_object(skeleton.get_node_or_null("WearBone_RightHand")).is_null()
 	assert_int(socket.get_child_count()).is_equal(1)
 
-	player.unequip_item()
+	player.equipment.unequip(Equipment.SLOT_MAIN_HAND)
 	assert_int(socket.get_child_count()).is_equal(0)
 

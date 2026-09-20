@@ -4,7 +4,7 @@ extends Control
 ## Contains:
 ##   - Crosshair (center screen)
 ##   - Interactable label (name + default action hint, below crosshair)
-##   - Inventory side panel (left edge, toggled with I)
+##   - Inventory side panel (left edge, toggled with I; see ui/inventory/inventory_panel.gd)
 ##
 ## Handles quick-tap vs long-press for the interact key (E):
 ##   - Quick tap (< 0.3s): executes the first action option on the targeted
@@ -15,16 +15,12 @@ const _HOLD_THRESHOLD := 0.3
 
 @onready var _crosshair: TextureRect = $Crosshair
 @onready var _interact_display: Control = $InteractLabel
-@onready var _inventory_panel: PanelContainer = $InventoryPanel
-@onready var _weight_label: Label = $InventoryPanel/VBox/Header/WeightLabel
-@onready var _item_list: VBoxContainer = $InventoryPanel/VBox/ScrollContainer/ItemList
+@onready var _inventory_panel: InventoryPanel = $InventoryPanel
 @onready var _day_label: Label = %DayLabel
 @onready var _clock_label: Label = %ClockLabel
 
 var _player: Player = null
 var _input_component: InputComponent = null
-var _inventory: Inventory = null
-var _inventory_open := false
 
 var _hold_timer := 0.0
 var _holding_interact := false
@@ -52,9 +48,9 @@ func _on_player_ready() -> void:
 
 
 func _wire_signals() -> void:
-	_inventory = _player.inventory
 	_player.interactable_changed.connect(_on_interactable_changed)
-	_inventory.inventory_changed.connect(_refresh_inventory)
+	# The panel owns its hotkey, lists and UiGate registration; it just needs the player.
+	_inventory_panel.setup(_player)
 	# Connect to InputComponent's interact press/release for hold detection.
 	if _input_component != null:
 		_input_component.interact_pressed.connect(_on_interact_pressed)
@@ -103,15 +99,11 @@ func _update_clock_display() -> void:
 
 
 func _on_interact_pressed() -> void:
-	if _inventory_open:
-		return
 	_holding_interact = true
 	_hold_timer = 0.0
 
 
 func _on_interact_released() -> void:
-	if _inventory_open:
-		return
 	if _holding_interact:
 		# Released before threshold — quick tap, execute default action.
 		_holding_interact = false
@@ -121,126 +113,3 @@ func _on_interact_released() -> void:
 		# Long-press already fired (menu opening handled in _process).
 		_holding_interact = false
 		_hold_timer = 0.0
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	# I toggles the inventory, but never on top of another open modal (e.g. a
-	# storage panel) — closing our own panel is always allowed.
-	if event.is_action_pressed("inventory_toggle"):
-		if _inventory_open or not UiGate.is_input_blocked():
-			_toggle_inventory()
-			get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_cancel") and _inventory_open:
-		_close_inventory()
-		get_viewport().set_input_as_handled()
-
-
-func _toggle_inventory() -> void:
-	if _inventory_open:
-		_close_inventory()
-	else:
-		_open_inventory()
-
-
-func _open_inventory() -> void:
-	_inventory_open = true
-	_inventory_panel.visible = true
-	UiGate.open_modal(_inventory_panel)
-	_refresh_inventory()
-
-
-func _close_inventory() -> void:
-	_inventory_open = false
-	_inventory_panel.visible = false
-	UiGate.close_modal(_inventory_panel)
-
-
-func _refresh_inventory() -> void:
-	if _inventory == null:
-		return
-	# Update weight display.
-	_weight_label.text = "%.1f / %.0f" % [_inventory.current_weight(), _inventory.capacity]
-	# Rebuild item rows.
-	for child in _item_list.get_children():
-		child.queue_free()
-	for item_id in _inventory.items:
-		var count: int = _inventory.items[item_id]
-		var def: ItemDef = ItemDB.get_def(item_id)
-		if def == null:
-			continue
-		var row := HBoxContainer.new()
-		# Icon.
-		var icon := TextureRect.new()
-		icon.custom_minimum_size = Vector2(32, 32)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture = def.icon
-		row.add_child(icon)
-		# Name.
-		var name_label := Label.new()
-		name_label.text = def.resource_name if def.resource_name != "" else item_id
-		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(name_label)
-		# Count.
-		var count_label := Label.new()
-		count_label.text = str(count)
-		count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(count_label)
-		# Stack weight.
-		var weight_label := Label.new()
-		weight_label.text = "%.1f" % (def.weight * count)
-		weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(weight_label)
-
-		# Equip button for equippable items
-		if def.is_equippable():
-			var equip_btn := Button.new()
-			var hand_item: ItemDef = _player.equipment.get_item(Equipment.SLOT_MAIN_HAND) if _player != null and _player.equipment != null else null
-			if hand_item == def:
-				equip_btn.text = "Equipped"
-				equip_btn.pressed.connect(func() -> void:
-					if _player != null:
-						_player.unequip_item()
-					_refresh_inventory()
-				)
-			else:
-				equip_btn.text = "Equip"
-				equip_btn.pressed.connect(func() -> void:
-					if _player != null:
-						_player.equip_item(def)
-					_refresh_inventory()
-				)
-			row.add_child(equip_btn)
-
-		# Eat button for edible food items
-		if def.is_food():
-			var eat_btn := Button.new()
-			eat_btn.text = "Eat"
-			eat_btn.pressed.connect(func() -> void:
-				if _player != null:
-					_player.consume_food_item(item_id)
-				_refresh_inventory()
-			)
-			row.add_child(eat_btn)
-
-		# Drop button to drop 1 item into the world
-		var drop_btn := Button.new()
-		drop_btn.text = "Drop"
-		drop_btn.pressed.connect(func() -> void:
-			if _player != null:
-				_player.drop_item(item_id, 1)
-			_refresh_inventory()
-		)
-		row.add_child(drop_btn)
-
-		# Drop All button to drop the full stack into the world
-		var drop_all_btn := Button.new()
-		drop_all_btn.text = "Drop All"
-		drop_all_btn.pressed.connect(func() -> void:
-			if _player != null:
-				_player.drop_item(item_id, count)
-			_refresh_inventory()
-		)
-		row.add_child(drop_all_btn)
-
-		_item_list.add_child(row)

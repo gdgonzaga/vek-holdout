@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://d01hjun1kf3e5" path="res://assets/crosshair.png" id="2_cross"]
 [ext_resource type="PackedScene" uid="uid://b11tjkfqq68l3" path="res://ui/hud/interact_label.tscn" id="3_interact"]
 [ext_resource type="Script" uid="uid://c4lb25c67638b" path="res://ui/hud/instructions_label.gd" id="3_w75iv"]
+[ext_resource type="PackedScene" path="res://ui/inventory/inventory_panel.tscn" id="5_inventory"]
 
 [node name="HUD" type="Control" unique_id=1095811631]
 layout_mode = 3
@@ -60,35 +61,12 @@ offset_right = 0.5
 offset_bottom = 265.5
 grow_vertical = 2
 
-[node name="InventoryPanel" type="PanelContainer" parent="." unique_id=1945632708]
-visible = false
-layout_mode = 0
+[node name="InventoryPanel" parent="." unique_id=1945632708 instance=ExtResource("5_inventory")]
+layout_mode = 1
+anchors_preset = 9
 anchor_bottom = 1.0
-offset_right = 350.0
+offset_right = 480.0
 grow_vertical = 2
-
-[node name="VBox" type="VBoxContainer" parent="InventoryPanel" unique_id=599802905]
-layout_mode = 2
-
-[node name="Header" type="HBoxContainer" parent="InventoryPanel/VBox" unique_id=800678690]
-layout_mode = 2
-
-[node name="TitleLabel" type="Label" parent="InventoryPanel/VBox/Header" unique_id=1816181448]
-layout_mode = 2
-text = "Inventory"
-
-[node name="WeightLabel" type="Label" parent="InventoryPanel/VBox/Header" unique_id=1672453198]
-layout_mode = 2
-horizontal_alignment = 2
-
-[node name="ScrollContainer" type="ScrollContainer" parent="InventoryPanel/VBox" unique_id=1948205376]
-layout_mode = 2
-size_flags_vertical = 3
-vertical_scroll_mode = 0
-
-[node name="ItemList" type="VBoxContainer" parent="InventoryPanel/VBox/ScrollContainer" unique_id=2010832468]
-layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="ClockContainer" type="MarginContainer" parent="."]
 anchors_preset = 1
