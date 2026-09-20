@@ -74,7 +74,7 @@ res://
 └── tools/              # Editor/build utilities
 ```
 
-`subsystems/loot/` does not exist yet — Loot is design-only (see [Loot](loot.md)). Functional Rooms
+`subsystems/loot/` holds only `LootRoller` so far — enemy drops are built, container loot is still design-only (see [Loot](loot.md)). Functional Rooms
 has no dedicated folder either; its planned state is meant to live on the `Colony` autoload (see
 [Functional Rooms](functional-rooms.md)).
 
@@ -108,7 +108,7 @@ has no dedicated folder either; its planned state is meant to live on the `Colon
 | Combat | `subsystems/combat/` | HealthComponent, EnemyBase, turret defenses, hostile behavior trees. |
 | Equipment | `subsystems/equipment/` | 8-slot gear component, EquipmentVisualizer, EquipmentAudit fulfillment. |
 | Raids | `subsystems/raids/` | NightRaidController, radial enemy spawning, spawn-rate pacing curves. |
-| Loot | — (planned) | Loot tables and container rolls for scavenge missions — spec only, see [Loot](loot.md). |
+| Loot | `subsystems/loot/`, `data/loot/` | `LootRoller` and the `LootTable` / `LootEntry` schemas; enemy drops are built, container rolls for scavenge missions are still spec only, see [Loot](loot.md). |
 | UI | `ui/` | persistent HUD, full-screen screens, dialogs. |
 | Game Log | `subsystems/core/` | On-screen event feed and history log. |
 

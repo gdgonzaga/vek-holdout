@@ -94,7 +94,35 @@ Data-driven definition for one hostile enemy archetype (GDD §5: Swarmer prototy
 | `los_loss_timeout` | `float` | `[export default 5.0]` Seconds without line of sight before a chasing enemy should give up (GDD Brawler table). Not consumed by any AI task yet — no LOS-tracking state exists. |
 | `behavior_tree` | `BehaviorTree` | The LimboAI tree this archetype runs. `EnemyBase._setup_ai_components()` creates the `BTPlayer` and loads this tree only when the scene doesn't already pre-place its own `BTPlayer` node — none of the shipped enemy scenes do, so this is the live source of truth for all three. |
 | `attack_params` | `CombatActionParams` | Polymorphic — assign a `MeleeActionParams` or `RangedActionParams` instance (`data/capability_params/`). Null means this archetype never attacks. Resolved via the `ICombatSource` duck-typed contract (`subsystems/core/i_combat_source.gd`, implemented by `EnemyBase.get_combat_action()`/`get_attack_range()`), consumed by `BTActionMeleeAttack.use_agent_attack_params`, `BTActionRangedAttack`, and `BTActionNavigateTo.arrival_distance_from_agent_attack_range`. |
+| `loot_table` | `LootTable` | `[export default null]` Rolled by `EnemyBase` when the enemy dies (see [Loot](loot.md)). Null means the archetype drops nothing. |
 | `moodlet_defs` | `Array[MoodletDef]` | `[export]` Same shape as `ColonistDef.moodlet_defs`, evaluated by `EnemyMoodletVisualizer`. |
+
+---
+
+## `data/loot/<id>.tres` (Resource: `loot_table.gd`) — `LootTable`
+
+Data-driven drop table, rolled by `LootRoller` (`subsystems/loot/loot_roller.gd`, see [Loot](loot.md)). `LootTable extends Resource`. Today only `EnemyDef.loot_table` references one; there is no id-indexed library yet, so tables are wired by direct `ext_resource` reference.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | `[export default ""]` Identity string per the data conventions. Nothing indexes by it yet. |
+| `guaranteed` | `Array[ItemAmount]` | `[export]` Always dropped, with the exact `ItemAmount.count`. Entries with a null `item_def` or `count <= 0` are skipped. |
+| `entries` | `Array[LootEntry]` | `[export]` Each entry rolls independently after `guaranteed`. Every entry that passes drops; there is no cap and no pick-one behavior. |
+
+All sources are merged into one stack per item id, so an item that appears in `guaranteed` and in several entries drops as a single summed stack.
+
+---
+
+## `data/loot/<id>.tres` sub-resource (Resource: `loot_entry.gd`) — `LootEntry`
+
+One independently rolled drop inside a `LootTable`. `LootEntry extends Resource`. It first rolls `chance`, then on success drops a uniform count in `[min_count, max_count]` (inclusive). Author "50% for 3 to 7 pieces" as one entry. A second low-chance entry for the same item stacks on top of it as a bonus drop.
+
+| Field | Type | Description |
+|---|---|---|
+| `item_def` | `ItemDef` | The item to drop. An entry with a null item is skipped. |
+| `chance` | `float` | `[export_range 0.0..1.0, default 1.0]` Probability the entry drops. `1.0` always drops and `0.0` never does. |
+| `min_count` | `int` | `[export default 1]` Lower bound of the count roll. Values below 1 are raised to 1. |
+| `max_count` | `int` | `[export default 1]` Upper bound of the count roll. A value below `min_count` is raised to `min_count`. |
 
 ---
 
