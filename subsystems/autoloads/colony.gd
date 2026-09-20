@@ -54,6 +54,10 @@ const DEPLOY_DEF := preload("res://data/jobs/deploy.tres")
 ## Registered squads: squad_id (String) -> Array of colonist_id (String).
 var squads: Dictionary = {}
 
+## Player-made equipment loadouts (named slot -> item templates, stamped onto colonists).
+## A plain object rather than a child node; saved with the colony (ARCH equipment.md).
+var loadouts: LoadoutBook = LoadoutBook.new()
+
 ## Active colonists. Node instances live in the current map's ColonistContainer;
 ## this Array is the cross-scene authority (colonist nodes persist base↔POI via
 ## reparent, like the Player).
@@ -511,6 +515,7 @@ func serialize() -> Dictionary:
 	return {
 		"colonists": list,
 		"squads": squads.duplicate(true),
+		"loadouts": loadouts.serialize(),
 		"job_board": job_board.serialize() if job_board != null else {},
 		"areas": area_manager.serialize() if area_manager != null else {},
 	}
@@ -520,6 +525,8 @@ func deserialize(data: Dictionary) -> void:
 	reset_for_new_game()
 	_pending_colonist_records.assign(data.get("colonists", []))
 	squads = data.get("squads", {}).duplicate(true)
+	# Older saves have no "loadouts" key; an empty dict restores an empty book.
+	loadouts.deserialize(data.get("loadouts", {}))
 	if job_board != null and data.has("job_board"):
 		job_board.deserialize(data["job_board"])
 	if area_manager != null and data.has("areas"):
@@ -536,6 +543,7 @@ func reset_for_new_game() -> void:
 	colonists.clear()
 	_pending_colonist_records.clear()
 	squads.clear()
+	loadouts.reset()
 	if job_board != null:
 		job_board.clear()
 	if area_manager != null:
