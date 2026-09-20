@@ -15,6 +15,7 @@ func test_enemy_def_defaults() -> void:
 	assert_float(def.los_loss_timeout).is_equal_approx(5.0, 0.001)
 	assert_object(def.behavior_tree).is_null()
 	assert_object(def.attack_params).is_null()
+	assert_object(def.loot_table).is_null()
 	assert_array(def.moodlet_defs).is_empty()
 
 

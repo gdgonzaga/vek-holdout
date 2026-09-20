@@ -27,6 +27,12 @@ const _VisualizerScript = preload("res://subsystems/combat/enemy_moodlet_visuali
 
 const _ARRIVAL_THRESHOLD: float = 0.3
 const _STEP_ARRIVAL_THRESHOLD: float = 0.2
+const _LOOT_SCATTER_RADIUS: float = 0.85
+const _LOOT_SPAWN_HEIGHT: float = 0.5
+const _LOOT_IMPULSE: float = 2.2
+
+## Lazily created by _get_loot_rng().
+var _loot_rng: RandomNumberGenerator = null
 var _path: Array[Vector3] = []
 var _path_index: int = 0
 
@@ -125,6 +131,8 @@ func get_attack_range() -> float:
 
 
 func _on_entity_died(_entity: Node) -> void:
+	# 1. Loot Drop: Rolling the archetype's table before the body is freed, while global_position is still valid.
+	_drop_loot()
 	queue_free()
 
 
@@ -175,6 +183,47 @@ func _setup_health_component() -> void:
 			health_component.entity_died.connect(_on_entity_died)
 	else:
 		push_warning("EnemyBase: missing HealthComponent child node on %s" % name)
+
+
+func _drop_loot() -> void:
+	## Auxiliary: Rolls enemy_def.loot_table and scatters each resulting stack around the death position.
+	if enemy_def == null or enemy_def.loot_table == null or not is_inside_tree():
+		return
+
+	# 1. Loot Roll: Resolving the table into one merged stack per item id using this enemy's RNG.
+	var stacks: Dictionary[String, int] = LootRoller.roll(enemy_def.loot_table, _get_loot_rng())
+
+	# 2. Scatter Spawn: Giving each stack its own slice of a circle so the physics bodies never overlap.
+	var index: int = 0
+	for item_id in stacks:
+		_spawn_loot_stack(item_id, stacks[item_id], index, stacks.size())
+		index += 1
+
+
+func _get_loot_rng() -> RandomNumberGenerator:
+	## Auxiliary: Lazily creates and randomizes this enemy's loot RNG on first use.
+	if _loot_rng == null:
+		_loot_rng = RandomNumberGenerator.new()
+		_loot_rng.randomize()
+	return _loot_rng
+
+
+func _spawn_loot_stack(item_id: String, count: int, index: int, total: int) -> void:
+	## Auxiliary: Spawns one WorldItem stack on its slice of the circle around the death position.
+	if item_id == "" or count <= 0:
+		return
+
+	# 1. Scatter Direction: Spreading `total` stacks evenly around 360 degrees so no two share a spawn point.
+	var dir: Vector3 = _get_loot_scatter_direction(index, total)
+	var spawn_pos: Vector3 = global_position + dir * _LOOT_SCATTER_RADIUS + Vector3(0.0, _LOOT_SPAWN_HEIGHT, 0.0)
+	var impulse_dir: Vector3 = (dir + Vector3(0.0, 0.9, 0.0)).normalized()
+	WorldItem.spawn_at(get_tree(), item_id, count, spawn_pos, impulse_dir, _LOOT_IMPULSE)
+
+
+func _get_loot_scatter_direction(index: int, total: int) -> Vector3:
+	## Auxiliary: Unit XZ direction for stack `index` of `total`, evenly spaced around a circle.
+	var angle: float = float(index) * TAU / float(maxi(1, total))
+	return Vector3(cos(angle), 0.0, sin(angle))
 
 
 func _setup_ai_components() -> void:

@@ -18,4 +18,7 @@ extends Resource
 ## Polymorphic combat data — assign a MeleeActionParams or RangedActionParams
 ## instance (data/capability_params/). Null means this archetype never attacks.
 @export var attack_params: CombatActionParams = null
+## Rolled by EnemyBase on death (LootRoller). Null means this archetype drops
+## nothing. Schema: docs/architecture/data-schemas.md (LootTable).
+@export var loot_table: LootTable = null
 @export var moodlet_defs: Array[MoodletDef] = []
