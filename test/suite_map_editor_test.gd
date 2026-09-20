@@ -7,6 +7,7 @@ const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
 const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
 const EditorPalettePanelClass = preload("res://tools/map_editor/editor_palette_panel.gd")
 const Doubles = preload("res://test/helpers/doubles.gd")
+const Sandbox = preload("res://test/helpers/map_editor_sandbox.gd")
 
 
 func test_editor_hud_modes_and_info() -> void:
@@ -1210,36 +1211,15 @@ const TEST_HEIGHTMAP_MAP := "test_heightmap_map"
 
 
 func _remove_test_map(map_id: String) -> void:
-	var dir := DirAccess.open("res://data/maps/" + map_id)
-	if dir == null:
-		return
-	for entry in dir.get_files():
-		dir.remove(entry)
-	DirAccess.open("res://data/maps/").remove(map_id)
+	Sandbox.remove_map(map_id)
 
 
-## Unload + drain in-flight streaming tasks BEFORE deleting the throwaway
-## folder — without the frames, async block-load workers hit a deleted sqlite
-## file and spam errors into the log.
 func _dispose_test_editor(editor: MapEditor) -> void:
-	editor.unload_map()
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_remove_test_map(TEST_HEIGHTMAP_MAP)
+	await Sandbox.dispose(get_tree(), editor, TEST_HEIGHTMAP_MAP)
 
 
 func _heightmap_payload(map_id: String) -> Dictionary:
-	var image := Image.create(32, 32, false, Image.FORMAT_RGB8)
-	image.fill(Color(0.75, 0.75, 0.75))
-	return {
-		"map_id": map_id,
-		"map_type": MapDef.MapType.POI,
-		"terrain_mode": EditorLauncherClass.TerrainMode.HEIGHTMAP,
-		"noise_def_path": "",
-		"image": image,
-		"height_start": -7.0,
-		"height_range": 21.0,
-	}
+	return Sandbox.heightmap_payload(map_id)
 
 
 ## HEIGHTMAP mode refuses to create without a picked image, and a picked image
