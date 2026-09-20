@@ -53,7 +53,7 @@ func get_item_id() -> String:
 
 func _render_static_content() -> void:
 	## Auxiliary: Fills name, icon/fallback glyph, target/equipped mark and tooltip from the entry.
-	var display_name: String = GearText.item_display_name(_entry.def)
+	var display_name: String = _entry.def.get_display_name()
 	_name_label.text = display_name
 	_mark_label.text = _mark_text(_entry)
 	tooltip_text = _tooltip_text(_entry.def)

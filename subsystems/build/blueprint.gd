@@ -160,10 +160,7 @@ func _refresh_info_text() -> void:
 	var parts := PackedStringArray()
 	for entry in def.material_cost:
 		var id := entry.item_def.id
-		var item_name := entry.item_def.resource_name
-		if item_name == "":
-			item_name = id
-		parts.append("%s %d/%d" % [item_name, int(_given.get(id, 0)), entry.count])
+		parts.append("%s %d/%d" % [entry.item_def.get_display_name(), int(_given.get(id, 0)), entry.count])
 	ic.info_text = "  ".join(parts)
 
 

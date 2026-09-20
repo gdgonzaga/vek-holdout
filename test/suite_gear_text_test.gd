@@ -11,24 +11,6 @@ func _make_item(id_val: String, display: String = "") -> ItemDef:
 
 
 # ==============================
-# item_display_name
-# ==============================
-
-func test_item_display_name_prefers_resource_name() -> void:
-	var def: ItemDef = _make_item("some_id", "Fancy Name")
-	assert_str(GearText.item_display_name(def)).is_equal("Fancy Name")
-
-
-func test_item_display_name_falls_back_to_id() -> void:
-	var def: ItemDef = _make_item("some_id")
-	assert_str(GearText.item_display_name(def)).is_equal("some_id")
-
-
-func test_item_display_name_null_def_is_empty() -> void:
-	assert_str(GearText.item_display_name(null)).is_equal("")
-
-
-# ==============================
 # slot_display_name
 # ==============================
 

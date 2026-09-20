@@ -127,8 +127,7 @@ func _update_display() -> void:
 		_hauling_section.visible = true
 		var item_str := ""
 		if "item_id" in _job and not str(_job.item_id).is_empty():
-			var idef = ItemDB.get_def(str(_job.item_id)) if ItemDB != null else null
-			var iname: String = idef.resource_name if (idef != null and idef.resource_name != "") else str(_job.item_id)
+			var iname: String = ItemDB.get_display_name(str(_job.item_id))
 			item_str = "Item: %s" % iname
 			if "total_units" in _job and int(_job.total_units) > 0:
 				item_str += " x%d" % int(_job.total_units)
@@ -168,7 +167,7 @@ func _update_display() -> void:
 						for entry in target_def.material_cost:
 							var rem: int = bp.remaining_need(entry.item_def.id)
 							if rem > 0:
-								var iname: String = entry.item_def.resource_name if (entry.item_def != null and entry.item_def.resource_name != "") else entry.item_def.id
+								var iname: String = entry.item_def.get_display_name()
 								missing.append("%dx %s" % [rem, iname])
 					if not missing.is_empty():
 						mat_str = "Awaiting Materials: Needs %s" % ", ".join(missing)

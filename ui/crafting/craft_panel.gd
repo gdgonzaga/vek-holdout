@@ -90,7 +90,7 @@ func _refresh_order_section() -> void:
 	for entry in recipe.inputs:
 		var id := entry.item_def.id
 		parts.append("%s %d/%d" % [
-			_item_name(id), _station.given_count(id), entry.count,
+			ItemDB.get_display_name(id), _station.given_count(id), entry.count,
 		])
 	var tag := "for you" if _station.worker() == CraftingStation.WORKER_PLAYER \
 			else "for the colony"
@@ -202,21 +202,16 @@ func _player_meets(recipe: RecipeDef) -> bool:
 func _describe(recipe: RecipeDef) -> String:
 	var outs := PackedStringArray()
 	for entry in recipe.outputs:
-		outs.append("%s x%d" % [_item_name(entry.item_def.id), entry.count])
+		outs.append("%s x%d" % [ItemDB.get_display_name(entry.item_def.id), entry.count])
 	var ins := PackedStringArray()
 	for entry in recipe.inputs:
-		ins.append("%d %s" % [entry.count, _item_name(entry.item_def.id)])
+		ins.append("%d %s" % [entry.count, ItemDB.get_display_name(entry.item_def.id)])
 	var text := "%s — %s" % [" + ".join(outs), " + ".join(ins)]
 	if recipe.base_time > 0.0:
 		text += " (%.0fs)" % recipe.base_time
 	return text
 
 
-func _item_name(item_id: String) -> String:
-	var def := ItemDB.get_def(item_id)
-	if def != null and def.resource_name != "":
-		return def.resource_name
-	return item_id
 
 
 func close() -> void:

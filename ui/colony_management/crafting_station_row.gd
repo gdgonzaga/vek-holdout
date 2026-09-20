@@ -114,7 +114,7 @@ func _refresh_order_section() -> void:
 	var parts := PackedStringArray()
 	for entry in recipe.inputs:
 		var item_id := entry.item_def.id
-		parts.append("%s %d/%d" % [_item_name(item_id), _station.given_count(item_id), entry.count])
+		parts.append("%s %d/%d" % [ItemDB.get_display_name(item_id), _station.given_count(item_id), entry.count])
 	_order_details_label.text = "Deposited Materials: %s" % ", ".join(parts)
 
 	var maintain := _station.maintain_goal()
@@ -126,7 +126,7 @@ func _refresh_order_section() -> void:
 		var current_stock: int = Colony.storage_registry.colony_stock(item_id, pos)
 		_maintain_status_label.visible = true
 		_maintain_status_label.text = "Maintain Target: %d %s (Stock: %d / %d)" % [
-			target, _item_name(item_id), current_stock, target
+			target, ItemDB.get_display_name(item_id), current_stock, target
 		]
 	else:
 		_maintain_status_label.visible = false
@@ -197,10 +197,3 @@ func _find_colonist(colonist_id: String) -> Colonist:
 		if is_instance_valid(c) and c.colonist_id == colonist_id:
 			return c
 	return null
-
-
-func _item_name(item_id: String) -> String:
-	var def := ItemDB.get_def(item_id)
-	if def != null and def.resource_name != "":
-		return def.resource_name
-	return item_id

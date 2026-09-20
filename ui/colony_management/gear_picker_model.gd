@@ -68,7 +68,7 @@ static func _matches_filter(def: ItemDef, clean_filter: String) -> bool:
 	## Auxiliary: True when the lowercase filter is empty or appears in the item's name, id or any tag.
 	if clean_filter.is_empty():
 		return true
-	if GearText.item_display_name(def).to_lower().contains(clean_filter):
+	if def.get_display_name().to_lower().contains(clean_filter):
 		return true
 	if def.id.to_lower().contains(clean_filter):
 		return true
@@ -124,7 +124,7 @@ static func _is_entry_before(a: Entry, b: Entry) -> bool:
 	var b_stocked: bool = b.stock > 0
 	if a_stocked != b_stocked:
 		return a_stocked
-	var name_order: int = GearText.item_display_name(a.def).naturalcasecmp_to(GearText.item_display_name(b.def))
+	var name_order: int = a.def.get_display_name().naturalcasecmp_to(b.def.get_display_name())
 	if name_order != 0:
 		return name_order < 0
 	return a.def.id < b.def.id

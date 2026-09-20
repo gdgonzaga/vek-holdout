@@ -1,8 +1,8 @@
 class_name GearText
 extends RefCounted
 ## Pure naming helpers shared by the Gear sub-tab (slot rows, picker rows, status text).
-## Keeps one copy of the "resource_name, else id" idiom and the slot alias table so the
-## slot list, picker and details panel can never disagree on what an item or slot is called.
+## Keeps one copy of the slot alias table so the slot list, picker and details panel can
+## never disagree on what a slot is called. Item names come from ItemDef.get_display_name().
 
 ## Display name overrides for slots whose UI label differs from their slot ID.
 ## Add entries here when a slot's canonical name needs a player-facing alias.
@@ -16,14 +16,6 @@ const EQUIP_TAG_PREFIX: String = "equip_"
 # =================
 # Primary Functions
 # =================
-
-## Player-facing item name: the resource name when authored, else the item id.
-## Returns "" for a null def so callers can pass an unresolved lookup straight through.
-static func item_display_name(def: ItemDef) -> String:
-	if def == null:
-		return ""
-	return def.resource_name if def.resource_name != "" else def.id
-
 
 ## Player-facing slot name, applying SLOT_DISPLAY_NAMES aliases over title-cased slot ids.
 static func slot_display_name(slot_id: String) -> String:

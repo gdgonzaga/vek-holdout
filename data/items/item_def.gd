@@ -32,6 +32,12 @@ extends Resource
 @export var wearable: WearableParams = null
 
 
+## Player-facing name: the authored resource_name, else the id. The one place this
+## rule lives, so every list, tooltip and message names an item the same way.
+func get_display_name() -> String:
+	return resource_name if resource_name != "" else id
+
+
 func is_equippable() -> bool:
 	return equippable != null
 

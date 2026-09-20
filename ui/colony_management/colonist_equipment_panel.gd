@@ -241,7 +241,7 @@ func _refresh_slot_state() -> void:
 
 func _show_slot_values(equipped: ItemDef, target_id: String) -> void:
 	## Auxiliary: Writes the equipped and target names, with muted placeholders when there are none.
-	_equipped_value_label.text = GearText.item_display_name(equipped) if equipped != null else EMPTY_TEXT
+	_equipped_value_label.text = equipped.get_display_name() if equipped != null else EMPTY_TEXT
 	_target_value_label.text = _target_display_name(target_id) if not target_id.is_empty() else NO_TARGET_TEXT
 
 
@@ -262,8 +262,7 @@ func _show_status_reason() -> void:
 
 func _target_display_name(target_id: String) -> String:
 	## Auxiliary: Name of a target item, falling back to its raw id if the def no longer exists.
-	var def: ItemDef = ItemDB.get_def(target_id)
-	return GearText.item_display_name(def) if def != null else target_id
+	return ItemDB.get_display_name(target_id)
 
 
 func _rebuild_picker() -> void:

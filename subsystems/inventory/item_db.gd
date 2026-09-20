@@ -23,6 +23,13 @@ func get_def(item_id: String) -> ItemDef:
 	return _defs_by_id.get(item_id)
 
 
+## Player-facing name for an item id: its def's display name, or the raw id when
+## the def no longer exists (an orphaned stack, a removed item), never "".
+func get_display_name(item_id: String) -> String:
+	var def: ItemDef = get_def(item_id)
+	return def.get_display_name() if def != null else item_id
+
+
 func has_def(item_id: String) -> bool:
 	return _defs_by_id.has(item_id)
 

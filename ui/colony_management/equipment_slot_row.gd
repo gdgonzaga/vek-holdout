@@ -70,7 +70,7 @@ func _update_equipped_display() -> void:
 		_equipped_label.text = "(empty)"
 		_equipped_label.add_theme_color_override("font_color", COLOR_EMPTY)
 		return
-	_equipped_label.text = GearText.item_display_name(item)
+	_equipped_label.text = item.get_display_name()
 	_equipped_label.add_theme_color_override("font_color", COLOR_EQUIPPED)
 
 
@@ -90,9 +90,7 @@ func _update_target_display() -> void:
 func _pending_target_text() -> String:
 	## Auxiliary: "-> Name" for the slot's target, falling back to the raw id if its def is gone.
 	var target_id: String = _colonist.equipment.get_desired_item(_slot_id)
-	var def: ItemDef = ItemDB.get_def(target_id)
-	var target_name: String = GearText.item_display_name(def) if def != null else target_id
-	return "→ %s" % target_name
+	return "→ %s" % ItemDB.get_display_name(target_id)
 
 
 func _on_pressed() -> void:
