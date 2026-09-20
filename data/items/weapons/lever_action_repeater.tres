@@ -6,17 +6,16 @@
 
 [sub_resource type="Resource" id="Resource_combat_action"]
 script = ExtResource("3_ranged")
-id = "rotary_stake_cannon_fire"
-cooldown_seconds = 0.25
-audio_event = "cannon_stake_fire"
-damage = 60.0
-range_meters = 45.0
-ammo_item_id = "steel_spike"
+id = "lever_action_repeater_fire"
+cooldown_seconds = 0.35
+audio_event = "gun_shot_rifle"
+damage = 55.0
+range_meters = 60.0
+ammo_item_id = "brass_cartridge"
 ammo_cost = 1
-is_hitscan = false
-spread_angle_degrees = 2.0
+is_hitscan = true
+spread_angle_degrees = 0.8
 show_tracer = true
-projectile_speed = 60.0
 
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip")
@@ -24,15 +23,15 @@ stance_animation = &"rifle"
 use_animation = &"fire"
 primary_action = SubResource("Resource_combat_action")
 
-[sub_resource type="BoxMesh" id="BoxMesh_stake_cannon"]
-size = Vector3(0.12, 0.75, 0.12)
+[sub_resource type="BoxMesh" id="BoxMesh_repeater"]
+size = Vector3(0.05, 0.85, 0.08)
 
 [resource]
-resource_name = "Rotary Stake Cannon"
+resource_name = "Lever-Action Repeater"
 script = ExtResource("1_def")
-id = "rotary_stake_cannon"
-weight = 5.5
-mesh = SubResource("BoxMesh_stake_cannon")
-tags = Array[String](["weapon", "ranged", "trained", "cannon"])
+id = "lever_action_repeater"
+weight = 3.6
+mesh = SubResource("BoxMesh_repeater")
+tags = Array[String](["weapon", "ranged", "trained", "rifle"])
 equippable = SubResource("Resource_equippable")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

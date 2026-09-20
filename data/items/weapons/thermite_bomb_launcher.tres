@@ -6,17 +6,19 @@
 
 [sub_resource type="Resource" id="Resource_combat_action"]
 script = ExtResource("3_ranged")
-id = "rotary_stake_cannon_fire"
-cooldown_seconds = 0.25
-audio_event = "cannon_stake_fire"
-damage = 60.0
-range_meters = 45.0
-ammo_item_id = "steel_spike"
+id = "thermite_bomb_launcher_fire"
+cooldown_seconds = 1.6
+audio_event = "launcher_fire"
+damage = 120.0
+range_meters = 40.0
+ammo_item_id = "thermite_canister"
 ammo_cost = 1
 is_hitscan = false
-spread_angle_degrees = 2.0
+spread_angle_degrees = 1.5
 show_tracer = true
-projectile_speed = 60.0
+projectile_speed = 30.0
+projectile_type = 1
+explosion_radius = 4.5
 
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip")
@@ -24,15 +26,15 @@ stance_animation = &"rifle"
 use_animation = &"fire"
 primary_action = SubResource("Resource_combat_action")
 
-[sub_resource type="BoxMesh" id="BoxMesh_stake_cannon"]
-size = Vector3(0.12, 0.75, 0.12)
+[sub_resource type="BoxMesh" id="BoxMesh_thermite"]
+size = Vector3(0.12, 0.8, 0.14)
 
 [resource]
-resource_name = "Rotary Stake Cannon"
+resource_name = "Thermite Bomb Launcher"
 script = ExtResource("1_def")
-id = "rotary_stake_cannon"
-weight = 5.5
-mesh = SubResource("BoxMesh_stake_cannon")
-tags = Array[String](["weapon", "ranged", "trained", "cannon"])
+id = "thermite_bomb_launcher"
+weight = 5.0
+mesh = SubResource("BoxMesh_thermite")
+tags = Array[String](["weapon", "ordnance", "trained", "thermite", "incendiary"])
 equippable = SubResource("Resource_equippable")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

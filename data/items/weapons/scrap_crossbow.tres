@@ -6,17 +6,17 @@
 
 [sub_resource type="Resource" id="Resource_combat_action"]
 script = ExtResource("3_ranged")
-id = "rotary_stake_cannon_fire"
-cooldown_seconds = 0.25
-audio_event = "cannon_stake_fire"
-damage = 60.0
-range_meters = 45.0
-ammo_item_id = "steel_spike"
+id = "scrap_crossbow_shoot"
+cooldown_seconds = 1.1
+audio_event = "crossbow_shoot"
+damage = 35.0
+range_meters = 35.0
+ammo_item_id = "wooden_stake"
 ammo_cost = 1
 is_hitscan = false
-spread_angle_degrees = 2.0
+spread_angle_degrees = 1.0
 show_tracer = true
-projectile_speed = 60.0
+projectile_speed = 45.0
 
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip")
@@ -24,15 +24,15 @@ stance_animation = &"rifle"
 use_animation = &"fire"
 primary_action = SubResource("Resource_combat_action")
 
-[sub_resource type="BoxMesh" id="BoxMesh_stake_cannon"]
-size = Vector3(0.12, 0.75, 0.12)
+[sub_resource type="BoxMesh" id="BoxMesh_crossbow"]
+size = Vector3(0.4, 0.65, 0.1)
 
 [resource]
-resource_name = "Rotary Stake Cannon"
+resource_name = "Scrap Crossbow"
 script = ExtResource("1_def")
-id = "rotary_stake_cannon"
-weight = 5.5
-mesh = SubResource("BoxMesh_stake_cannon")
-tags = Array[String](["weapon", "ranged", "trained", "cannon"])
+id = "scrap_crossbow"
+weight = 2.5
+mesh = SubResource("BoxMesh_crossbow")
+tags = Array[String](["weapon", "ranged", "untrained", "crossbow"])
 equippable = SubResource("Resource_equippable")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

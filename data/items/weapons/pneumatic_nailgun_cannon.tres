@@ -6,17 +6,17 @@
 
 [sub_resource type="Resource" id="Resource_combat_action"]
 script = ExtResource("3_ranged")
-id = "rotary_stake_cannon_fire"
-cooldown_seconds = 0.25
-audio_event = "cannon_stake_fire"
-damage = 60.0
-range_meters = 45.0
+id = "pneumatic_nailgun_cannon_fire"
+cooldown_seconds = 0.18
+audio_event = "nailgun_fire"
+damage = 45.0
+range_meters = 35.0
 ammo_item_id = "steel_spike"
 ammo_cost = 1
 is_hitscan = false
-spread_angle_degrees = 2.0
+spread_angle_degrees = 2.5
 show_tracer = true
-projectile_speed = 60.0
+projectile_speed = 65.0
 
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip")
@@ -24,15 +24,15 @@ stance_animation = &"rifle"
 use_animation = &"fire"
 primary_action = SubResource("Resource_combat_action")
 
-[sub_resource type="BoxMesh" id="BoxMesh_stake_cannon"]
-size = Vector3(0.12, 0.75, 0.12)
+[sub_resource type="BoxMesh" id="BoxMesh_nailgun"]
+size = Vector3(0.14, 0.75, 0.16)
 
 [resource]
-resource_name = "Rotary Stake Cannon"
+resource_name = "Pneumatic Nailgun Cannon"
 script = ExtResource("1_def")
-id = "rotary_stake_cannon"
-weight = 5.5
-mesh = SubResource("BoxMesh_stake_cannon")
-tags = Array[String](["weapon", "ranged", "trained", "cannon"])
+id = "pneumatic_nailgun_cannon"
+weight = 5.8
+mesh = SubResource("BoxMesh_nailgun")
+tags = Array[String](["weapon", "ordnance", "trained", "pneumatic"])
 equippable = SubResource("Resource_equippable")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://data/capability_params/equippable_params.gd" id="2_equip"]
+[ext_resource type="Script" path="res://data/capability_params/melee_action_params.gd" id="3_melee"]
+
+[sub_resource type="Resource" id="Resource_combat_action"]
+script = ExtResource("3_melee")
+id = "vibro_chitin_glaive_slash"
+cooldown_seconds = 0.45
+audio_event = "melee_swing"
+damage = 130.0
+range_meters = 3.2
+windup_seconds = 0.14
+active_seconds = 0.18
+hit_audio_event = "melee_impact"
+
+[sub_resource type="Resource" id="Resource_equippable"]
+script = ExtResource("2_equip")
+stance_animation = &"melee_2h"
+use_animation = &"swing"
+primary_action = SubResource("Resource_combat_action")
+
+[sub_resource type="BoxMesh" id="BoxMesh_glaive"]
+size = Vector3(0.06, 1.4, 0.04)
+
+[resource]
+resource_name = "Vibro-Chitin Glaive"
+script = ExtResource("1_def")
+id = "vibro_chitin_glaive"
+weight = 3.2
+mesh = SubResource("BoxMesh_glaive")
+tags = Array[String](["weapon", "melee", "trained"])
+equippable = SubResource("Resource_equippable")
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

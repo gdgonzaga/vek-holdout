@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://data/capability_params/equippable_params.gd" id="2_equip"]
+[ext_resource type="Script" path="res://data/capability_params/melee_action_params.gd" id="3_melee"]
+
+[sub_resource type="Resource" id="Resource_combat_action"]
+script = ExtResource("3_melee")
+id = "motorized_ripper_blade_slash"
+cooldown_seconds = 0.4
+audio_event = "melee_swing"
+damage = 85.0
+range_meters = 2.3
+windup_seconds = 0.12
+active_seconds = 0.2
+hit_audio_event = "melee_impact"
+
+[sub_resource type="Resource" id="Resource_equippable"]
+script = ExtResource("2_equip")
+stance_animation = &"melee_1h"
+use_animation = &"swing"
+primary_action = SubResource("Resource_combat_action")
+
+[sub_resource type="BoxMesh" id="BoxMesh_ripper"]
+size = Vector3(0.06, 0.75, 0.03)
+
+[resource]
+resource_name = "Motorized Ripper Blade"
+script = ExtResource("1_def")
+id = "motorized_ripper_blade"
+weight = 3.8
+mesh = SubResource("BoxMesh_ripper")
+tags = Array[String](["weapon", "melee", "trained"])
+equippable = SubResource("Resource_equippable")
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

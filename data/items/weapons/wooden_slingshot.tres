@@ -1,29 +1,38 @@
-[gd_resource type="Resource" script_class="ItemDef" format=3 uid="uid://bjrde83s24j6u"]
+[gd_resource type="Resource" script_class="ItemDef" format=3]
 
-[ext_resource type="Script" uid="uid://c2e0jn6sbgwfh" path="res://data/items/item_def.gd" id="1_def"]
-[ext_resource type="Script" uid="uid://dyh6tnhsxf1ie" path="res://data/capability_params/equippable_params.gd" id="2_equip"]
-[ext_resource type="Script" uid="uid://l7di14kuyx2u" path="res://data/capability_params/ranged_action_params.gd" id="3_ranged"]
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://data/capability_params/equippable_params.gd" id="2_equip"]
+[ext_resource type="Script" path="res://data/capability_params/ranged_action_params.gd" id="3_ranged"]
 
 [sub_resource type="Resource" id="Resource_combat_action"]
 script = ExtResource("3_ranged")
-spread_angle_degrees = 2.5
+id = "wooden_slingshot_shoot"
+cooldown_seconds = 0.5
+audio_event = "slingshot_release"
 damage = 15.0
-range_meters = 30.0
-id = "wooden_slingshot_fire"
-cooldown_seconds = 0.6
-audio_event = "bow_release"
+range_meters = 25.0
+ammo_item_id = "river_pebbles"
+ammo_cost = 1
+is_hitscan = false
+spread_angle_degrees = 2.5
+show_tracer = true
+projectile_speed = 35.0
 
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip")
-stance_animation = &"slingshot"
+stance_animation = &"pistol"
 use_animation = &"fire"
 primary_action = SubResource("Resource_combat_action")
+
+[sub_resource type="BoxMesh" id="BoxMesh_slingshot"]
+size = Vector3(0.08, 0.2, 0.03)
 
 [resource]
 resource_name = "Wooden Slingshot"
 script = ExtResource("1_def")
 id = "wooden_slingshot"
-weight = 0.8
-tags = Array[String](["weapon", "ranged", "untrained"])
+weight = 0.5
+mesh = SubResource("BoxMesh_slingshot")
+tags = Array[String](["weapon", "ranged", "untrained", "slingshot"])
 equippable = SubResource("Resource_equippable")
 metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"
