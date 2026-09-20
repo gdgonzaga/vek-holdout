@@ -492,9 +492,12 @@ func test_panel_unequip_preserves_item_in_inventory() -> void:
 	var hammer: ItemDef = _make_item("hammer", ["tool"])
 	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, hammer)
 
-	var panel := auto_free(ColonistEquipmentPanel.new()) as ColonistEquipmentPanel
-	panel._colonist = colonist
-	panel._on_slot_unequip_requested(Equipment.SLOT_MAIN_HAND)
+	var panel: ColonistEquipmentPanel = auto_free(
+			preload("res://ui/colony_management/colonist_equipment_panel.tscn").instantiate() as ColonistEquipmentPanel)
+	add_child(panel)
+	panel.set_colonist(colonist)
+	panel.select_slot(Equipment.SLOT_MAIN_HAND)
+	(panel.get_node("%UnequipButton") as Button).pressed.emit()
 
 	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_null()
 	assert_int(colonist.inventory.get_item_count("hammer")).is_equal(1)
