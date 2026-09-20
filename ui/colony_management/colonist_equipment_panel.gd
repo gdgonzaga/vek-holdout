@@ -29,6 +29,7 @@ var _colonist: Colonist = null
 var _active_slot: String = ""
 var _row_instances: Dictionary = {} # slot_id -> EquipmentSlotRow
 
+@onready var _loadout_strip: LoadoutStrip = %LoadoutStrip
 @onready var _slots_container: VBoxContainer = %SlotsContainer
 @onready var _picker_placeholder: Label = %PickerPlaceholder
 @onready var _picker_content: VBoxContainer = %PickerContent
@@ -77,10 +78,13 @@ func set_colonist(colonist: Colonist) -> void:
 	# 2. Row Binding: point every slot tile at the new colonist.
 	_bind_rows(_colonist)
 
-	# 3. Selection Reset: a slot selection belongs to one colonist, so drop it on switch.
+	# 3. Loadout Strip: apply and save act on whichever colonist is shown, so rebind it too.
+	_loadout_strip.set_colonist(_colonist)
+
+	# 4. Selection Reset: a slot selection belongs to one colonist, so drop it on switch.
 	deselect_slot()
 
-	# 4. Display Refresh: bring rows and status text in line with the new colonist's gear.
+	# 5. Display Refresh: bring rows and status text in line with the new colonist's gear.
 	refresh_display()
 
 

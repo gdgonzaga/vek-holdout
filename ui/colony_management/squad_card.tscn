@@ -77,3 +77,33 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 2
 text = "+ Assign Member"
+
+[node name="LoadoutRow" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LoadoutLabel" type="Label" parent="MarginContainer/VBoxContainer/LoadoutRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Loadout"
+
+[node name="LoadoutOption" type="OptionButton" parent="MarginContainer/VBoxContainer/LoadoutRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+fit_to_longest_item = false
+
+[node name="ApplyLoadoutButton" type="Button" parent="MarginContainer/VBoxContainer/LoadoutRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Apply to squad"
+
+[node name="LoadoutResultLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.85, 0.6, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3

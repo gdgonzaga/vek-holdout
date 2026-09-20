@@ -14,6 +14,9 @@ signal squad_modified()
 @onready var _no_members_label: Label = %NoMembersLabel
 @onready var _add_member_option: OptionButton = %AddMemberOption
 @onready var _add_member_button: Button = %AddMemberButton
+@onready var _loadout_option: OptionButton = %LoadoutOption
+@onready var _apply_loadout_button: Button = %ApplyLoadoutButton
+@onready var _loadout_result_label: Label = %LoadoutResultLabel
 
 var _squad_id: String = ""
 
@@ -38,6 +41,9 @@ func _initial_refresh() -> void:
 
 	if _add_member_button != null and not _add_member_button.pressed.is_connected(_on_add_member_pressed):
 		_add_member_button.pressed.connect(_on_add_member_pressed)
+
+	if not _apply_loadout_button.pressed.is_connected(_on_apply_loadout_pressed):
+		_apply_loadout_button.pressed.connect(_on_apply_loadout_pressed)
 
 	refresh()
 
@@ -108,6 +114,41 @@ func refresh() -> void:
 		_dismiss_squad_button.visible = false
 
 	_populate_available_candidates()
+	_refresh_loadout_row()
+
+
+func _refresh_loadout_row() -> void:
+	## Loadout dropdown follows the colony's loadouts; Apply needs a loadout and at least one member.
+	LoadoutUi.fill_options(_loadout_option, Colony.loadouts, LoadoutUi.selected_id(_loadout_option))
+	_apply_loadout_button.disabled = _loadout_option.disabled or Colony.get_squad_members(_squad_id).is_empty()
+
+
+func _on_apply_loadout_pressed() -> void:
+	var loadout_id: String = LoadoutUi.selected_id(_loadout_option)
+	if loadout_id.is_empty():
+		return
+
+	# 1. Stamp: write the loadout's slots into every member's targets (each colonist's audit does the fetching).
+	var totals: Dictionary = _apply_loadout_to_members(loadout_id)
+
+	# 2. Feedback: one sentence for the whole squad.
+	_loadout_result_label.text = LoadoutUi.squad_apply_summary(
+			Colony.loadouts.get_name(loadout_id), totals["colonists"], totals)
+	_loadout_result_label.visible = true
+
+
+func _apply_loadout_to_members(loadout_id: String) -> Dictionary:
+	## Auxiliary: Applies the loadout to each live member; returns summed {"colonists", "changed", "skipped"}.
+	var totals: Dictionary = {"colonists": 0, "changed": 0, "skipped": 0}
+	for member_id: String in Colony.get_squad_members(_squad_id):
+		var colonist: Colonist = Colony.get_colonist(member_id)
+		if colonist == null or colonist.equipment == null:
+			continue
+		var counts: Dictionary = Colony.loadouts.apply_to(loadout_id, colonist.equipment, LoadoutUi.item_resolver())
+		totals["colonists"] += 1
+		totals["changed"] += counts["changed"]
+		totals["skipped"] += counts["skipped"]
+	return totals
 
 
 func _populate_available_candidates() -> void:
