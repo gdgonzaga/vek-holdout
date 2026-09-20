@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="EnemyDef" format=3]
+[gd_resource type="Resource" script_class="EnemyDef" format=3 uid="uid://oj8hdfy6562x"]
 
 [ext_resource type="Script" uid="uid://d277064bfrknd" path="res://data/enemies/enemy_def.gd" id="1_def"]
 [ext_resource type="Script" uid="uid://s6oulktogq82" path="res://data/moodlets/moodlet_def.gd" id="2_moodlet"]
 [ext_resource type="Resource" uid="uid://mmltmlexqq6a" path="res://data/moodlets/heart_hp_gauge.tres" id="3_hp_gauge"]
-[ext_resource type="BehaviorTree" path="res://data/ai/trees/enemy_ranged_kiter.tres" id="4_tree"]
+[ext_resource type="BehaviorTree" uid="uid://b05lmmk8ngme" path="res://data/ai/trees/enemy_ranged_kiter.tres" id="4_tree"]
 [ext_resource type="Script" uid="uid://l7di14kuyx2u" path="res://data/capability_params/ranged_action_params.gd" id="5_ranged"]
 
 [sub_resource type="Resource" id="Resource_shooter_attack"]
@@ -17,9 +17,7 @@ script = ExtResource("1_def")
 id = "enemy_shooter"
 display_name = "Shooter"
 max_hp = 60
-max_durability = 0
 base_move_speed = 2.98
-detect_range = 16.0
 behavior_tree = ExtResource("4_tree")
 attack_params = SubResource("Resource_shooter_attack")
 moodlet_defs = Array[ExtResource("2_moodlet")]([ExtResource("3_hp_gauge")])

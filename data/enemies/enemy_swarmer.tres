@@ -1,17 +1,17 @@
-[gd_resource type="Resource" script_class="EnemyDef" format=3]
+[gd_resource type="Resource" script_class="EnemyDef" format=3 uid="uid://q6i0tuwhc7ot"]
 
 [ext_resource type="Script" uid="uid://d277064bfrknd" path="res://data/enemies/enemy_def.gd" id="1_def"]
 [ext_resource type="Script" uid="uid://s6oulktogq82" path="res://data/moodlets/moodlet_def.gd" id="2_moodlet"]
 [ext_resource type="Resource" uid="uid://mmltmlexqq6a" path="res://data/moodlets/heart_hp_gauge.tres" id="3_hp_gauge"]
-[ext_resource type="BehaviorTree" path="res://data/ai/trees/enemy_melee.tres" id="4_tree"]
+[ext_resource type="BehaviorTree" uid="uid://brucpai1ig0sb" path="res://data/ai/trees/enemy_melee.tres" id="4_tree"]
 [ext_resource type="Script" uid="uid://ck40vkswllpr6" path="res://data/capability_params/melee_action_params.gd" id="5_melee"]
 
 [sub_resource type="Resource" id="Resource_swarmer_attack"]
 script = ExtResource("5_melee")
-damage = 15.0
-range_meters = 1.5
 windup_seconds = 0.2
 active_seconds = 0.0
+damage = 15.0
+range_meters = 1.5
 cooldown_seconds = 0.4
 
 [resource]
@@ -20,7 +20,6 @@ id = "enemy_swarmer"
 display_name = "Swarmer"
 max_hp = 50
 max_durability = 10
-base_move_speed = 5.0
 detect_range = 128.0
 behavior_tree = ExtResource("4_tree")
 attack_params = SubResource("Resource_swarmer_attack")
