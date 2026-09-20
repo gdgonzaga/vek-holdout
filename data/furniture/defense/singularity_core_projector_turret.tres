@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/turret_params.gd" id="2_tparams"]
+[ext_resource type="Resource" path="res://data/items/ammo/xenotech_cell.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_singularity_turret"]
+size = Vector3(1.8, 2.2, 1.8)
+
+[sub_resource type="Resource" id="TurretParams_singularity_turret"]
+script = ExtResource("2_tparams")
+range = 35.0
+fire_rate = 0.15
+damage = 220
+ammo_type = ExtResource("3_ammo")
+turn_speed = 0.8
+projectile_speed = 20.0
+projectile_type = 1
+explosion_radius = 7.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "singularity_core_projector_turret"
+display_name = "Singularity Core Projector"
+hp = 400
+dimensions = Vector3i(2, 2, 2)
+mesh = SubResource("BoxMesh_singularity_turret")
+turret_params = SubResource("TurretParams_singularity_turret")
+unlocked_by_default = true
+build_time = 7.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

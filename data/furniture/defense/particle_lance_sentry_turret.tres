@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/turret_params.gd" id="2_tparams"]
+[ext_resource type="Resource" path="res://data/items/ammo/xenotech_cell.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_particle_lance"]
+size = Vector3(1.6, 2.0, 1.6)
+
+[sub_resource type="Resource" id="TurretParams_particle_lance"]
+script = ExtResource("2_tparams")
+range = 45.0
+fire_rate = 0.5
+damage = 160
+ammo_type = ExtResource("3_ammo")
+turn_speed = 2.5
+projectile_speed = 120.0
+projectile_type = 0
+explosion_radius = 0.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "particle_lance_sentry_turret"
+display_name = "Particle Lance Sentry"
+hp = 320
+dimensions = Vector3i(2, 2, 2)
+mesh = SubResource("BoxMesh_particle_lance")
+turret_params = SubResource("TurretParams_particle_lance")
+unlocked_by_default = true
+build_time = 6.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

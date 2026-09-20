@@ -27,11 +27,13 @@ metadata/_custom_type_script = "uid://cqa8ehd6p5jke"
 
 [sub_resource type="Resource" id="TurretParams_wooden_stake_turret"]
 script = ExtResource("2_tparams_script")
-range = 18.0
-damage = 5
+range = 20.0
+fire_rate = 0.8
+damage = 25
 ammo_type = ExtResource("3_ammo")
-turn_speed = 1.0
+turn_speed = 1.5
 projectile_scene = ExtResource("8_tryv4")
+projectile_speed = 30.0
 explosion_radius = 0.0
 
 [resource]

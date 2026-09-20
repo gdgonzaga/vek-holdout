@@ -1,53 +1,31 @@
 [gd_resource type="Resource" script_class="FurnitureDef" format=3 uid="uid://u4oircn05k0s"]
 
-[ext_resource type="Script" uid="uid://bpf22i1m773qh" path="res://subsystems/actions/action_option.gd" id="1_7lhua"]
-[ext_resource type="Resource" uid="uid://dwnu8etf4kv16" path="res://data/action_options/open_storage_action_option.tres" id="2_rd3ei"]
-[ext_resource type="Texture2D" uid="uid://vvmdstrmy750" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.png" id="3_653rx"]
-[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="4_fp3fb"]
-[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="5_14ejb"]
-[ext_resource type="PackedScene" uid="uid://cavmbwfcd3yyd" path="res://assets/custom/wooden_stake_turret/wooden_stake_turret.glb" id="6_8tans"]
-[ext_resource type="Script" uid="uid://d1d6mt2bi578n" path="res://data/furniture/furniture_def.gd" id="7_apec6"]
-[ext_resource type="Script" uid="uid://cqa8ehd6p5jke" path="res://data/capability_params/storage_params.gd" id="8_ciw6t"]
-[ext_resource type="Resource" uid="uid://dyoa05atjswxr" path="res://data/items/ammo/wooden_stake.tres" id="9_l0a15"]
-[ext_resource type="ArrayMesh" uid="uid://b4qew1tqywb0s" path="res://assets/animpic-mega-survival-construction/SM_Stone_01.SM_Stone_01.mesh" id="10_7lhua"]
-[ext_resource type="Script" uid="uid://bx8eopmw77d7s" path="res://data/capability_params/turret_params.gd" id="11_gex5s"]
+[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/turret_params.gd" id="2_tparams_script"]
+[ext_resource type="Resource" path="res://data/items/ammo/scrap_shrapnel_shell.tres" id="3_ammo"]
 
-[sub_resource type="Resource" id="Resource_u6rff"]
-script = ExtResource("4_fp3fb")
-item_def = ExtResource("5_14ejb")
-count = 10
-metadata/_custom_type_script = "uid://taqanw6psc6o"
+[sub_resource type="BoxMesh" id="BoxMesh_bomb_turret"]
+size = Vector3(1.8, 1.5, 1.8)
 
-[sub_resource type="Resource" id="Resource_12841"]
-script = ExtResource("8_ciw6t")
-capacity = 10.0
-allowed_item_ids = Array[String](["wooden_stake"])
-priority = 4
-metadata/_custom_type_script = "uid://cqa8ehd6p5jke"
-
-[sub_resource type="Resource" id="TurretParams_wooden_stake_turret"]
-script = ExtResource("11_gex5s")
-range = 18.0
-damage = 20
-ammo_type = ExtResource("9_l0a15")
+[sub_resource type="Resource" id="TurretParams_bomb_turret"]
+script = ExtResource("2_tparams_script")
+range = 30.0
+fire_rate = 0.25
+damage = 70
+ammo_type = ExtResource("3_ammo")
 turn_speed = 1.0
-projectile_mesh = ExtResource("10_7lhua")
-projectile_speed = 15.0
+projectile_speed = 20.0
 projectile_type = 1
-explosion_radius = 10.0
+explosion_radius = 4.5
 
 [resource]
-script = ExtResource("7_apec6")
-dimensions = Vector3i(2, 2, 2)
-action_options = Array[ExtResource("1_7lhua")]([ExtResource("2_rd3ei")])
-storage_params = SubResource("Resource_12841")
-turret_params = SubResource("TurretParams_wooden_stake_turret")
+script = ExtResource("1_fdef")
 id = "bomb_turret"
-display_name = "bomb turret"
-icon = ExtResource("3_653rx")
-hp = 150
-scene = ExtResource("6_8tans")
-material_cost = Array[ExtResource("4_fp3fb")]([SubResource("Resource_u6rff")])
+display_name = "Cast Shrapnel Mortar"
+hp = 200
+dimensions = Vector3i(2, 2, 2)
+mesh = SubResource("BoxMesh_bomb_turret")
+turret_params = SubResource("TurretParams_bomb_turret")
 unlocked_by_default = true
-build_time = 3.0
+build_time = 4.0
 metadata/_custom_type_script = "uid://d1d6mt2bi578n"

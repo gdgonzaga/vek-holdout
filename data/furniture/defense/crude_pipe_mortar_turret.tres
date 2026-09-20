@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/turret_params.gd" id="2_tparams"]
+[ext_resource type="Resource" path="res://data/items/weapons/scrap_pipe_bomb.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_pipe_mortar"]
+size = Vector3(1.5, 1.2, 1.5)
+
+[sub_resource type="Resource" id="TurretParams_pipe_mortar"]
+script = ExtResource("2_tparams")
+range = 22.0
+fire_rate = 0.25
+damage = 45
+ammo_type = ExtResource("3_ammo")
+turn_speed = 1.0
+projectile_speed = 16.0
+projectile_type = 1
+explosion_radius = 3.5
+
+[resource]
+script = ExtResource("1_fdef")
+id = "crude_pipe_mortar_turret"
+display_name = "Crude Pipe Mortar"
+hp = 130
+dimensions = Vector3i(2, 2, 2)
+mesh = SubResource("BoxMesh_pipe_mortar")
+turret_params = SubResource("TurretParams_pipe_mortar")
+unlocked_by_default = true
+build_time = 3.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

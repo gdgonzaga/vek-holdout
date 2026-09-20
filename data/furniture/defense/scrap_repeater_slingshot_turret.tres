@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/turret_params.gd" id="2_tparams"]
+[ext_resource type="Resource" path="res://data/items/ammo/river_pebbles.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_repeater_slingshot"]
+size = Vector3(1.6, 1.4, 1.6)
+
+[sub_resource type="Resource" id="TurretParams_repeater_slingshot"]
+script = ExtResource("2_tparams")
+range = 16.0
+fire_rate = 2.5
+damage = 8
+ammo_type = ExtResource("3_ammo")
+turn_speed = 3.5
+projectile_speed = 35.0
+projectile_type = 0
+explosion_radius = 0.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "scrap_repeater_slingshot_turret"
+display_name = "Scrap Repeater Slingshot"
+hp = 120
+dimensions = Vector3i(2, 2, 2)
+mesh = SubResource("BoxMesh_repeater_slingshot")
+turret_params = SubResource("TurretParams_repeater_slingshot")
+unlocked_by_default = true
+build_time = 3.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"

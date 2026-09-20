@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="FurnitureDef" format=3]
+
+[ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="1_fdef"]
+[ext_resource type="Script" path="res://data/capability_params/turret_params.gd" id="2_tparams"]
+[ext_resource type="Resource" path="res://data/items/ammo/steel_spike.tres" id="3_ammo"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_spike_ballista"]
+size = Vector3(1.8, 1.6, 1.8)
+
+[sub_resource type="Resource" id="TurretParams_spike_ballista"]
+script = ExtResource("2_tparams")
+range = 36.0
+fire_rate = 0.6
+damage = 90
+ammo_type = ExtResource("3_ammo")
+turn_speed = 1.6
+projectile_speed = 55.0
+projectile_type = 0
+explosion_radius = 0.0
+
+[resource]
+script = ExtResource("1_fdef")
+id = "pneumatic_spike_ballista_turret"
+display_name = "Pneumatic Spike Ballista"
+hp = 280
+dimensions = Vector3i(2, 2, 2)
+mesh = SubResource("BoxMesh_spike_ballista")
+turret_params = SubResource("TurretParams_spike_ballista")
+unlocked_by_default = true
+build_time = 5.0
+metadata/_custom_type_script = "uid://d1d6mt2bi578n"
