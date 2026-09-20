@@ -6,7 +6,7 @@ extends GameAction
 const _filter_panel_scene: PackedScene = preload("res://ui/storage_filter/storage_filter_panel.tscn")
 
 func _init() -> void:
-	label = "Configure Filter"
+	label = "Storage Options"
 
 # =================
 # Primary Functions

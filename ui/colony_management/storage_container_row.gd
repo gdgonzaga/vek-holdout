@@ -1,16 +1,20 @@
 extends PanelContainer
 class_name StorageContainerRow
 ## A single storage container card in the Storage screen of Colony Management.
-## Displays container label, world position, total stored weight / capacity,
-## and a breakdown of item stacks inside.
+## Displays container label, world position, priority and accepted items, total
+## stored weight / capacity, and a breakdown of item stacks inside. Redraws from the
+## container's inventory_changed signal (one coalesced rebuild per frame), not a timer.
+
+const _ITEM_ROW_SCENE: PackedScene = preload("res://ui/shared/item_row.tscn")
 
 @onready var _container_name_label: Label = %ContainerNameLabel
+@onready var _filter_label: Label = %FilterLabel
 @onready var _weight_label: Label = %WeightLabel
 @onready var _weight_progress_bar: ProgressBar = %WeightProgressBar
 @onready var _item_list: VBoxContainer = %ItemList
 
 var _furniture: Furniture = null
-var _poll_timer: Timer = null
+var _refresh_pending: bool = false
 
 
 func setup(furniture: Furniture) -> void:
@@ -28,11 +32,10 @@ func _initial_refresh() -> void:
 	_update_header()
 	_refresh_inventory()
 
-	_poll_timer = Timer.new()
-	_poll_timer.wait_time = 0.5
-	_poll_timer.timeout.connect(_refresh_inventory)
-	add_child(_poll_timer)
-	_poll_timer.start()
+	# Any deposit, withdrawal, priority or filter change redraws the card.
+	var inv: StorageInventory = _furniture.get_node_or_null("StorageInventory") as StorageInventory
+	if inv != null:
+		inv.inventory_changed.connect(_request_refresh)
 
 
 func _update_header() -> void:
@@ -43,15 +46,27 @@ func _update_header() -> void:
 	_container_name_label.text = "%s  @ (%d, %d, %d)" % [label_text, pos.x, pos.y, pos.z]
 
 
+func _request_refresh() -> void:
+	## Auxiliary: Queues one redraw for the end of the frame, however many changes fired (hauls come in bursts).
+	if _refresh_pending:
+		return
+	_refresh_pending = true
+	_refresh_inventory.call_deferred()
+
+
 func _refresh_inventory() -> void:
+	_refresh_pending = false
 	if _furniture == null or not is_instance_valid(_furniture) or _item_list == null:
 		return
 
+	# Detach before freeing so a same-frame redraw never lays out old and new rows together.
 	for child in _item_list.get_children():
+		_item_list.remove_child(child)
 		child.queue_free()
 
 	var inv: StorageInventory = _furniture.get_node_or_null("StorageInventory") as StorageInventory
 	if inv == null:
+		_filter_label.text = ""
 		_weight_label.text = "Capacity: N/A"
 		_weight_progress_bar.value = 0.0
 		var empty_lbl := Label.new()
@@ -61,6 +76,7 @@ func _refresh_inventory() -> void:
 		_item_list.add_child(empty_lbl)
 		return
 
+	_filter_label.text = StorageSummary.describe(inv)
 	var current_wt := inv.current_weight()
 	var cap := inv.capacity
 	_weight_label.text = "Stored Weight: %.1f / %.1f kg" % [current_wt, cap]
@@ -76,26 +92,11 @@ func _refresh_inventory() -> void:
 		_item_list.add_child(empty_lbl)
 		return
 
-	for item_id in inv.items:
-		var count: int = inv.items[item_id]
+	for item_id in ItemStackOrder.sorted_item_ids(inv.items):
 		var def: ItemDef = ItemDB.get_def(item_id)
-		var iname: String = def.resource_name if (def != null and def.resource_name != "") else item_id.capitalize()
-		var weight: float = (def.weight * count) if def != null else 0.0
-
-		var hbox := HBoxContainer.new()
-		hbox.add_theme_constant_override("separation", 6)
-
-		if def != null and def.icon != null:
-			var icon_rect := TextureRect.new()
-			icon_rect.texture = def.icon
-			icon_rect.custom_minimum_size = Vector2(16, 16)
-			icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			hbox.add_child(icon_rect)
-
-		var lbl := Label.new()
-		lbl.text = "• %s  x%d  (%.1f kg)" % [iname, count, weight]
-		lbl.add_theme_font_size_override("font_size", 13)
-		hbox.add_child(lbl)
-
-		_item_list.add_child(hbox)
+		if def == null:
+			continue
+		var stack_row := _ITEM_ROW_SCENE.instantiate() as ItemRow
+		_item_list.add_child(stack_row)
+		stack_row.set_compact(true)
+		stack_row.setup(def, int(inv.items[item_id]))

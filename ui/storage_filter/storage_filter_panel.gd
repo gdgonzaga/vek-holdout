@@ -39,8 +39,10 @@ func _ready() -> void:
 	# 3. Initial Population: Populate item definitions from ItemDB.
 	_load_all_item_defs()
 	
-	# 4. View Rendering: Render left item list and right allowed list.
-	_refresh_all_views()
+	# 4. View Rendering: Only once a container is set. The action adds the panel and then calls
+	# setup(), which builds the views; building here too would render every row twice.
+	if _storage_inv != null:
+		_refresh_all_views()
 	
 	if _search_edit != null:
 		_search_edit.grab_focus()
@@ -126,13 +128,11 @@ func _setup_priority_options() -> void:
 
 
 func _load_all_item_defs() -> void:
-	## Auxiliary: Loads all item definitions from ItemDB sorted alphabetically.
+	## Auxiliary: Loads all item definitions from ItemDB, sorted by the name the player sees (then id).
 	_all_defs.clear()
 	if ItemDB != null:
 		_all_defs = ItemDB.get_all_defs()
-	_all_defs.sort_custom(func(a: ItemDef, b: ItemDef) -> bool:
-		return a.id.to_lower() < b.id.to_lower()
-	)
+	_all_defs.sort_custom(_is_def_before)
 
 
 func _update_title_label() -> void:
@@ -144,7 +144,7 @@ func _update_title_label() -> void:
 		var tlabel = _furniture.get("label")
 		if tlabel != null and str(tlabel) != "":
 			container_name = str(tlabel)
-	_title_label.text = "Configure Filter - %s" % container_name
+	_title_label.text = "Storage Options - %s" % container_name
 
 
 func _refresh_all_views() -> void:
@@ -201,6 +201,8 @@ func _create_all_item_row(def: ItemDef) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.set_meta("item_id", def.id)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# The raw id is a developer detail: kept out of the label, available on hover.
+	row.tooltip_text = def.id
 
 	var is_allowed := _is_item_in_whitelist(def.id)
 
@@ -221,8 +223,7 @@ func _create_all_item_row(def: ItemDef) -> HBoxContainer:
 		row.add_child(icon_rect)
 
 	var name_label := Label.new()
-	var display_name := def.resource_name if def.resource_name != "" else def.id
-	name_label.text = "%s (%s)" % [display_name, def.id]
+	name_label.text = def.get_display_name()
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_label)
 
@@ -238,23 +239,27 @@ func _refresh_allowed_list() -> void:
 	if _allowed_items_list == null:
 		return
 	for child in _allowed_items_list.get_children():
+		_allowed_items_list.remove_child(child)
 		child.queue_free()
 
 	var allowed_ids := _get_allowed_ids()
-	
+	var allowed_tags := _get_allowed_tags()
+
 	# 1. Status Update: Updates description label explaining current storage filter state.
-	_update_allowed_status_label(allowed_ids.size())
+	_update_allowed_status_label(allowed_ids, allowed_tags)
+
+	# 2. Tag Rule: Read-only note (it comes from the container type), because a tag admits items too.
+	if not allowed_tags.is_empty():
+		_add_note_label(_tag_rule_note(allowed_tags, not allowed_ids.is_empty()))
 
 	if allowed_ids.is_empty():
-		var empty_label := Label.new()
-		empty_label.text = "All items allowed (no filter active).\nCheck items on the left to restrict storage."
-		empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_allowed_items_list.add_child(empty_label)
+		if allowed_tags.is_empty():
+			_add_note_label("All items allowed (no filter active).\nCheck items on the left to restrict storage.")
 		return
 
-	for item_id in allowed_ids:
+	for item_id in _sorted_by_display_name(allowed_ids):
 		var def := ItemDB.get_def(item_id) if ItemDB != null else null
-		# 2. Row Construction: Creates allowed item row with checkbox/remove button.
+		# 3. Row Construction: Creates allowed item row with checkbox/remove button.
 		var row := _create_allowed_item_row(item_id, def)
 		_allowed_items_list.add_child(row)
 
@@ -281,7 +286,7 @@ func _create_allowed_item_row(item_id: String, def: ItemDef) -> HBoxContainer:
 		row.add_child(icon_rect)
 
 	var name_label := Label.new()
-	var display_name := def.resource_name if (def != null and def.resource_name != "") else item_id
+	var display_name := ItemDB.get_display_name(item_id)
 	name_label.text = display_name
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_label)
@@ -340,7 +345,7 @@ func _does_item_match_query(q: String, item_id: String, def: ItemDef) -> bool:
 	if item_id.to_lower().find(q) != -1:
 		return true
 	if def != null:
-		if def.resource_name.to_lower().find(q) != -1:
+		if def.get_display_name().to_lower().find(q) != -1:
 			return true
 		for tag in def.tags:
 			if tag.to_lower().find(q) != -1:
@@ -368,14 +373,47 @@ func _update_count_label(visible_count: int, total_count: int) -> void:
 		_count_label.text = "Showing %d / %d items" % [visible_count, total_count]
 
 
-func _update_allowed_status_label(allowed_count: int) -> void:
-	## Auxiliary: Updates the status label in the right section.
+func _update_allowed_status_label(allowed_ids: Array[String], allowed_tags: Array[String]) -> void:
+	## Auxiliary: Updates the status label in the right section (counts the whitelist and names any tag rule).
 	if _status_label == null:
 		return
-	if allowed_count == 0:
-		_status_label.text = "Status: Unrestricted (accepts all items)"
-	else:
-		_status_label.text = "Status: Restricted (%d item%s allowed)" % [
-			allowed_count,
-			"" if allowed_count == 1 else "s"
-		]
+	_status_label.text = StorageSummary.status_text(allowed_ids, allowed_tags)
+
+
+func _get_allowed_tags() -> Array[String]:
+	## Auxiliary: Returns the container's tag rule (read-only here; it comes from the container type).
+	if _storage_inv == null:
+		return []
+	return _storage_inv.allowed_tags
+
+
+func _tag_rule_note(allowed_tags: Array[String], has_item_whitelist: bool) -> String:
+	## Auxiliary: Explains that the tag rule also admits items, phrased by whether a whitelist exists.
+	var tag_list: String = ", ".join(allowed_tags)
+	if has_item_whitelist:
+		return "Also accepts any item tagged: %s (set by the container type)." % tag_list
+	return "Only accepts items tagged: %s (set by the container type)." % tag_list
+
+
+func _add_note_label(text: String) -> void:
+	## Auxiliary: Adds a wrapped explanatory line to the allowed list.
+	var note := Label.new()
+	note.text = text
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_allowed_items_list.add_child(note)
+
+
+func _sorted_by_display_name(item_ids: Array[String]) -> Array[String]:
+	## Auxiliary: A copy of the ids ordered by the name the player sees (then id).
+	var sorted_ids: Array[String] = item_ids.duplicate()
+	sorted_ids.sort_custom(func(a: String, b: String) -> bool:
+		var name_order: int = ItemDB.get_display_name(a).naturalcasecmp_to(ItemDB.get_display_name(b))
+		return name_order < 0 if name_order != 0 else a < b
+	)
+	return sorted_ids
+
+
+func _is_def_before(a: ItemDef, b: ItemDef) -> bool:
+	## Auxiliary: Orders defs by natural-case display name, then id.
+	var name_order: int = a.get_display_name().naturalcasecmp_to(b.get_display_name())
+	return name_order < 0 if name_order != 0 else a.id < b.id

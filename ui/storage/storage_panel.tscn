@@ -19,10 +19,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -220.0
-offset_right = 300.0
-offset_bottom = 220.0
+offset_left = -450.0
+offset_top = -260.0
+offset_right = 450.0
+offset_bottom = 260.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -33,22 +33,34 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="TitleLabel" type="Label" parent="Panel/VBox/Header"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Storage"
 
-[node name="CloseButton" type="Button" parent="Panel/VBox/Header"]
+[node name="ConfigureButton" type="Button" parent="Panel/VBox/Header"]
+unique_name_in_owner = true
 layout_mode = 2
+tooltip_text = "Set which items this container accepts and its hauling priority"
+text = "Options"
+
+[node name="CloseButton" type="Button" parent="Panel/VBox/Header"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
 text = "X"
 
+[node name="InfoLabel" type="Label" parent="Panel/VBox"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.7)
+layout_mode = 2
+
 [node name="Body" type="HBoxContainer" parent="Panel/VBox"]
-layout_mode = 3
-size_flags_horizontal = 3
+layout_mode = 2
 size_flags_vertical = 3
 
 [node name="PlayerColumn" type="VBoxContainer" parent="Panel/VBox/Body"]
-layout_mode = 3
+layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="PlayerHeader" type="HBoxContainer" parent="Panel/VBox/Body/PlayerColumn"]
@@ -60,20 +72,38 @@ size_flags_horizontal = 3
 text = "You"
 
 [node name="PlayerWeight" type="Label" parent="Panel/VBox/Body/PlayerColumn/PlayerHeader"]
+unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 2
 
+[node name="PlayerBar" type="ProgressBar" parent="Panel/VBox/Body/PlayerColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+show_percentage = false
+
+[node name="PlayerEmptyLabel" type="Label" parent="Panel/VBox/Body/PlayerColumn"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.6)
+layout_mode = 2
+text = "Nothing carried."
+
 [node name="PlayerScroll" type="ScrollContainer" parent="Panel/VBox/Body/PlayerColumn"]
-layout_mode = 3
-size_flags_vertical = 3
 custom_minimum_size = Vector2(0, 320)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
 [node name="PlayerList" type="VBoxContainer" parent="Panel/VBox/Body/PlayerColumn/PlayerScroll"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="Separator" type="VSeparator" parent="Panel/VBox/Body"]
+layout_mode = 2
+
 [node name="StorageColumn" type="VBoxContainer" parent="Panel/VBox/Body"]
-layout_mode = 3
+layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="StorageHeader" type="HBoxContainer" parent="Panel/VBox/Body/StorageColumn"]
@@ -85,14 +115,36 @@ size_flags_horizontal = 3
 text = "Container"
 
 [node name="StorageWeight" type="Label" parent="Panel/VBox/Body/StorageColumn/StorageHeader"]
+unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 2
 
+[node name="StorageBar" type="ProgressBar" parent="Panel/VBox/Body/StorageColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+show_percentage = false
+
+[node name="StorageEmptyLabel" type="Label" parent="Panel/VBox/Body/StorageColumn"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.6)
+layout_mode = 2
+text = "Empty."
+
 [node name="StorageScroll" type="ScrollContainer" parent="Panel/VBox/Body/StorageColumn"]
-layout_mode = 3
-size_flags_vertical = 3
 custom_minimum_size = Vector2(0, 320)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
 [node name="StorageList" type="VBoxContainer" parent="Panel/VBox/Body/StorageColumn/StorageScroll"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="StatusLabel" type="Label" parent="Panel/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.75, 0.4, 1)
+autowrap_mode = 3

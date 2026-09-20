@@ -237,3 +237,112 @@ func _make_test_item(p_id: String, p_weight: float, p_tags: Array[String]) -> It
 	def.weight = p_weight
 	def.tags = p_tags
 	return def
+
+
+func test_filter_panel_title_uses_the_storage_options_wording() -> void:
+	# The interaction menu entry is "Storage Options"; the panel it opens must not call itself something else.
+	var fdef := auto_free(FurnitureDef.new()) as FurnitureDef
+	fdef.id = "test_crate"
+	fdef.display_name = "Test Crate"
+	var furniture := auto_free(Furniture.new()) as Furniture
+	furniture.def = fdef
+	furniture.def_id = "test_crate"
+	var storage := auto_free(StorageInventory.new()) as StorageInventory
+	furniture.add_child(storage)
+	var panel := auto_free(_FilterPanelScene.instantiate()) as StorageFilterPanel
+	add_child(panel)
+	panel.setup(furniture, storage)
+
+	assert_str((panel.get_node("%TitleLabel") as Label).text).starts_with("Storage Options")
+
+
+# ── filter panel: build once, display names, tag rules ────────────────────────
+
+var _filter_previous_defs: Dictionary = {}
+
+
+func _register_filter_item(item_id: String, display: String) -> void:
+	var def := auto_free(ItemDef.new()) as ItemDef
+	def.id = item_id
+	def.resource_name = display
+	def.weight = 1.0
+	if not _filter_previous_defs.has(item_id):
+		_filter_previous_defs[item_id] = ItemDB._defs_by_id.get(item_id, null)
+	ItemDB._defs_by_id[item_id] = def
+
+
+func _restore_filter_defs() -> void:
+	for item_id: String in _filter_previous_defs:
+		if _filter_previous_defs[item_id] != null:
+			ItemDB._defs_by_id[item_id] = _filter_previous_defs[item_id]
+		else:
+			ItemDB._defs_by_id.erase(item_id)
+	_filter_previous_defs.clear()
+
+
+func _make_filter_furniture() -> Array:
+	var furniture := auto_free(Furniture.new()) as Furniture
+	var storage := auto_free(StorageInventory.new()) as StorageInventory
+	furniture.add_child(storage)
+	return [furniture, storage]
+
+
+
+
+func test_filter_panel_builds_no_rows_before_it_has_a_container() -> void:
+	# Break caught: _ready built every item row against a null container, then setup rebuilt them all.
+	var panel := auto_free(_FilterPanelScene.instantiate()) as StorageFilterPanel
+	add_child(panel)
+	assert_int((panel.get_node("%AllItemsList") as Node).get_child_count()).is_equal(0)
+
+	var parts := _make_filter_furniture()
+	panel.setup(parts[0], parts[1])
+
+	assert_int((panel.get_node("%AllItemsList") as Node).get_child_count()).is_greater(0)
+
+
+func test_filter_panel_sorts_by_display_name_and_hides_the_raw_id() -> void:
+	_register_filter_item("test_f_zzz", "Alpha Thing")
+	_register_filter_item("test_f_aaa", "Zulu Thing")
+	var parts := _make_filter_furniture()
+	var panel := auto_free(_FilterPanelScene.instantiate()) as StorageFilterPanel
+	add_child(panel)
+	panel.setup(parts[0], parts[1])
+
+	var alpha_index := -1
+	var zulu_index := -1
+	for row: Node in (panel.get_node("%AllItemsList") as Node).get_children():
+		var texts: Array[String] = []
+		for child: Node in row.get_children():
+			if child is Label:
+				texts.append((child as Label).text)
+		if row.get_meta("item_id", "") == "test_f_zzz":
+			alpha_index = row.get_index()
+			assert_array(texts).contains(["Alpha Thing"])
+			for text: String in texts:
+				assert_bool(text.contains("test_f_zzz")).is_false()
+		if row.get_meta("item_id", "") == "test_f_aaa":
+			zulu_index = row.get_index()
+	_restore_filter_defs()
+
+	assert_int(alpha_index).is_greater_equal(0)
+	assert_int(alpha_index).is_less(zulu_index)
+
+
+func test_filter_panel_shows_the_tag_rule_and_never_claims_unrestricted() -> void:
+	var parts := _make_filter_furniture()
+	var storage := parts[1] as StorageInventory
+	storage.allowed_tags = ["test_tag_food"]
+	var panel := auto_free(_FilterPanelScene.instantiate()) as StorageFilterPanel
+	add_child(panel)
+	panel.setup(parts[0], storage)
+
+	assert_str((panel.get_node("%StatusLabel") as Label).text).contains("test_tag_food")
+	assert_str((panel.get_node("%StatusLabel") as Label).text).not_contains("Unrestricted")
+	var allowed_texts: Array[String] = []
+	for child: Node in (panel.get_node("%AllowedItemsList") as Node).get_children():
+		if child is Label:
+			allowed_texts.append((child as Label).text)
+	var joined := " ".join(allowed_texts)
+	assert_str(joined).contains("test_tag_food")
+	assert_str(joined).not_contains("All items allowed")

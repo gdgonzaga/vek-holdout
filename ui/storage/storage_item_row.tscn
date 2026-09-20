@@ -1,0 +1,25 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://ui/shared/item_row.tscn" id="1_base"]
+[ext_resource type="Script" path="res://ui/storage/storage_item_row.gd" id="2_row"]
+
+[node name="StorageItemRow" instance=ExtResource("1_base")]
+script = ExtResource("2_row")
+
+[node name="MoveOneButton" type="Button" parent="." index="4"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Move 1"
+text = "1"
+
+[node name="MoveTenButton" type="Button" parent="." index="5"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Move 10"
+text = "10"
+
+[node name="MoveAllButton" type="Button" parent="." index="6"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Move all"
+text = "All"
