@@ -141,6 +141,48 @@ In Zylann's voxel mesher (`VoxelMesherBlocky`), adjacent opaque cubes cull touch
 - Because non-cubic meshes leave parts of their `1 m³` cell open, `VoxelLibraryGenerator` sets model transparency/cull masks so that adjacent solid blocks do **not** mistakenly cull their visible faces when touching sloped or recessed sides of a non-cubic block.
 - **Blender Rule**: Do NOT create interior faces inside the mesh (e.g. inside a hollow arch). Delete all internal, invisible geometry before exporting.
 
+### D. Transparent Surfaces (Windows, Glass, Grates)
+
+Transparency is already supported by the block pipeline: water sets `transparency_index = 1`,
+`culls_neighbors_of_same_type = true` and a `custom_material` (see `data/blocks/water.tres`),
+and `VoxelMesherBlocky` renders transparent surfaces in their own pass. A window is the same
+mechanism plus a second material, because it has an opaque frame and a see-through pane.
+
+**One block, two surfaces.** A voxel cell holds a single block, so the frame and the glass must
+be one mesh with two material slots, not two blocks.
+
+#### Blender
+- Model the window as a single mesh inside the `[0, 1]` cell (all rules in 1.1A still apply).
+- Give the object two material slots: `frame` and `glass`. Name them; the surface index in
+  Godot follows slot order (`frame` = surface 0, `glass` = surface 1).
+- Glass pane: either a thin closed slab (about 2 to 4 cm thick) or a double-sided quad. Use a slab
+  if the pane should block movement or projectiles via collision.
+- Keep the pane at mid-depth of the cell, not flush with a cell face. A flush pane gets culled
+  by, or z-fights with, the neighbouring wall.
+- Delete interior faces as usual. Do not leave a face between the frame and the pane where they touch.
+- Only the material names matter on export. Colour and alpha set in Blender are replaced by the
+  Godot material.
+- Iron Bars and other grates do not need alpha. Model the bars as real geometry (cheap at 1 m and
+  it avoids sorting problems). If a cutout texture is used instead, use `ALPHA_SCISSOR`, not blended alpha.
+
+#### Godot
+- Set `transparency_index > 0` on the `BlockDef` so opaque neighbours do not cull faces seen through the glass.
+- Glass material: a `StandardMaterial3D` with `transparency = ALPHA`, a light tint, low roughness,
+  and shadow casting off. Store it in `assets/materials/`.
+- **Planned, does not exist yet:** `BlockDef.custom_materials: Array[Material]`, where index N maps
+  to mesh surface N and a null entry keeps the default generated material. Today
+  `tools/voxel_library_generator.gd` only sets `material_override_0` (from `custom_material`),
+  which is enough for single-surface blocks like water but not for a frame plus glass. The generator
+  must loop over the array and set `material_override_N` for each surface. Check `docs/TODO.md` and
+  `docs/architecture/tech-debt.md` before adding it, and update this section when it lands.
+
+#### Caveats
+- Alpha-blended surfaces do not cast normal shadows, so leave shadow casting off on the glass.
+- Overlapping transparent surfaces (glass next to water) can sort incorrectly. Set `render_priority`
+  on the materials to fix it.
+- Confirm in game that light passes through the window, since the block otherwise reads as solid
+  to lighting.
+
 ---
 
 ## 2. Textures & Shaders
