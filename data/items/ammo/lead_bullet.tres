@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_bullet"]
+top_radius = 0.012
+bottom_radius = 0.012
+height = 0.04
+radial_segments = 6
+
+[resource]
+resource_name = "Lead Bullet"
+script = ExtResource("1_def")
+id = "lead_bullet"
+weight = 0.05
+mesh = SubResource("CylinderMesh_bullet")
+tags = Array[String](["ammo", "bullet", "lead", "cartridge"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_thermite"]
+top_radius = 0.04
+bottom_radius = 0.04
+height = 0.12
+radial_segments = 6
+
+[resource]
+resource_name = "Thermite Canister"
+script = ExtResource("1_def")
+id = "thermite_canister"
+weight = 0.35
+mesh = SubResource("CylinderMesh_thermite")
+tags = Array[String](["ammo", "incendiary", "explosive", "canister"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

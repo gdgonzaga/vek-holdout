@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_biopod"]
+radius = 0.05
+height = 0.1
+radial_segments = 8
+rings = 6
+
+[resource]
+resource_name = "Bio-Plasma Pod"
+script = ExtResource("1_def")
+id = "bio_plasma_pod"
+weight = 0.15
+mesh = SubResource("SphereMesh_biopod")
+tags = Array[String](["ammo", "bio_plasma", "xenotech", "pod"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

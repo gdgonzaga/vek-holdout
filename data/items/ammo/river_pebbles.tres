@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_pebbles"]
+radius = 0.04
+height = 0.08
+radial_segments = 6
+rings = 4
+
+[resource]
+resource_name = "River Pebbles"
+script = ExtResource("1_def")
+id = "river_pebbles"
+weight = 0.02
+mesh = SubResource("SphereMesh_pebbles")
+tags = Array[String](["ammo", "pebbles", "scrap"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

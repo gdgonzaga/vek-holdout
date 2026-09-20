@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_shell"]
+top_radius = 0.015
+bottom_radius = 0.015
+height = 0.06
+radial_segments = 6
+
+[resource]
+resource_name = "Scrap Shrapnel Shell"
+script = ExtResource("1_def")
+id = "scrap_shrapnel_shell"
+weight = 0.08
+mesh = SubResource("CylinderMesh_shell")
+tags = Array[String](["ammo", "shotgun_shell", "ordnance", "shrapnel"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://data/items/item_def.gd" id="1_def"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cartridge"]
+top_radius = 0.008
+bottom_radius = 0.008
+height = 0.05
+radial_segments = 6
+
+[resource]
+resource_name = "Brass Cartridge"
+script = ExtResource("1_def")
+id = "brass_cartridge"
+weight = 0.04
+mesh = SubResource("CylinderMesh_cartridge")
+tags = Array[String](["ammo", "cartridge", "bullet", "brass"])
+metadata/_custom_type_script = "uid://c2e0jn6sbgwfh"
