@@ -470,3 +470,167 @@ func test_transfer_to_restricted_storage_rejects_unallowed() -> void:
 	assert_int(unplaced_ammo).is_equal(0)
 	assert_int(player.get_item_count("ammo")).is_equal(0)
 	assert_int(crate.get_item_count("ammo")).is_equal(10)
+
+
+# ── max_addable() ──────────────────────────────────────────────────────────────
+
+func test_max_addable_reports_weight_room() -> void:
+	var inv := _make_inventory(10.0, {"wood": _wood})  # wood = 2 kg
+	assert_int(inv.max_addable("wood")).is_equal(5)
+	inv.add("wood", 2)
+	assert_int(inv.max_addable("wood")).is_equal(3)
+
+
+func test_max_addable_is_zero_for_unknown_item() -> void:
+	var inv := _make_inventory(50.0, {"wood": _wood})
+	assert_int(inv.max_addable("unknown")).is_equal(0)
+
+
+func test_max_addable_is_zero_for_item_the_filter_rejects() -> void:
+	var ammo_def := auto_free(ItemDef.new()) as ItemDef
+	ammo_def.weight = 0.5
+	var crate := auto_free(Doubles.MockStorageInventory.new()) as Doubles.MockStorageInventory
+	crate.capacity = 50.0
+	crate._defs = {"wood": _wood, "ammo": ammo_def}
+	crate.allowed_item_ids = ["ammo"]
+
+	assert_int(crate.max_addable("wood")).is_equal(0)
+	assert_int(crate.max_addable("ammo")).is_equal(100)
+
+
+func test_max_addable_is_never_negative_when_over_capacity() -> void:
+	# A bag being unequipped can drop capacity below the current load.
+	var inv := _make_inventory(50.0, {"wood": _wood})
+	inv.add("wood", 20)
+	inv.capacity = 10.0
+	assert_int(inv.max_addable("wood")).is_equal(0)
+
+
+func test_max_addable_weightless_item_is_not_limited_by_capacity() -> void:
+	# Break caught: dividing by def.weight == 0 makes a default-weight ItemDef unaddable.
+	var feather := auto_free(ItemDef.new()) as ItemDef
+	feather.weight = 0.0
+	var inv := _make_inventory(0.0, {"feather": feather})
+	assert_int(inv.max_addable("feather")).is_greater_equal(1000)
+
+
+func test_add_weightless_item_is_fully_accepted() -> void:
+	var feather := auto_free(ItemDef.new()) as ItemDef
+	feather.weight = 0.0
+	var inv := _make_inventory(5.0, {"feather": feather})
+	var overflow := inv.add("feather", 7)
+	assert_int(overflow).is_equal(0)
+	assert_int(inv.get_item_count("feather")).is_equal(7)
+
+
+# ── inventory_changed emission ─────────────────────────────────────────────────
+
+func test_add_emits_once_when_items_were_added() -> void:
+	var inv := _make_inventory(50.0, {"wood": _wood})
+	var counter := Doubles.SignalCounter.new(inv.inventory_changed)
+	inv.add("wood", 3)
+	assert_int(counter.read()).is_equal(1)
+
+
+func test_add_does_not_emit_when_nothing_fits() -> void:
+	# Break caught: add() emitting unconditionally rebuilds every open panel for no change.
+	var inv := _make_inventory(0.0, {"wood": _wood})
+	var counter := Doubles.SignalCounter.new(inv.inventory_changed)
+	var overflow := inv.add("wood", 3)
+	assert_int(overflow).is_equal(3)
+	assert_int(counter.read()).is_equal(0)
+
+
+func test_remove_does_not_emit_when_nothing_was_there() -> void:
+	var inv := _make_inventory(50.0, {"wood": _wood})
+	var counter := Doubles.SignalCounter.new(inv.inventory_changed)
+	inv.remove("wood", 3)
+	assert_int(counter.read()).is_equal(0)
+
+
+# ── transfer_to() atomicity ────────────────────────────────────────────────────
+
+func test_transfer_partial_emits_once_per_inventory() -> void:
+	# Break caught: remove-then-add-back on the source emits twice and refreshes panels mid-transfer.
+	var defs := {"wood": _wood}
+	var source := _make_inventory(50.0, defs)
+	var target := _make_inventory(8.0, defs)  # room for 4 wood
+	source.add("wood", 10)
+	var source_counter := Doubles.SignalCounter.new(source.inventory_changed)
+	var target_counter := Doubles.SignalCounter.new(target.inventory_changed)
+
+	source.transfer_to(target, "wood", 10)
+
+	assert_int(source_counter.read()).is_equal(1)
+	assert_int(target_counter.read()).is_equal(1)
+
+
+func test_transfer_partial_keeps_source_stack_order() -> void:
+	# Break caught: erasing and re-adding the source key moves it to the end of the list.
+	var defs := {"wood": _wood, "stone": _stone}
+	var source := _make_inventory(100.0, defs)
+	var target := _make_inventory(8.0, defs)  # room for 4 wood
+	source.add("wood", 10)
+	source.add("stone", 2)
+
+	source.transfer_to(target, "wood", 10)
+
+	assert_array(source.items.keys()).is_equal(["wood", "stone"])
+	assert_int(source.get_item_count("wood")).is_equal(6)
+
+
+func test_transfer_rejected_item_leaves_source_untouched() -> void:
+	# Break caught: a rejected transfer must not touch the source or fire its signal.
+	var ammo_def := auto_free(ItemDef.new()) as ItemDef
+	ammo_def.weight = 0.5
+	var defs := {"wood": _wood, "ammo": ammo_def}
+	var source := _make_inventory(100.0, defs)
+	source.add("wood", 5)
+	source.add("ammo", 10)
+	var crate := auto_free(Doubles.MockStorageInventory.new()) as Doubles.MockStorageInventory
+	crate.capacity = 50.0
+	crate._defs = defs
+	crate.allowed_item_ids = ["ammo"]
+	var source_counter := Doubles.SignalCounter.new(source.inventory_changed)
+	var crate_counter := Doubles.SignalCounter.new(crate.inventory_changed)
+
+	var unplaced := source.transfer_to(crate, "wood", 5)
+
+	assert_int(unplaced).is_equal(5)
+	assert_array(source.items.keys()).is_equal(["wood", "ammo"])
+	assert_int(source_counter.read()).is_equal(0)
+	assert_int(crate_counter.read()).is_equal(0)
+
+
+func test_transfer_into_full_target_leaves_source_untouched() -> void:
+	var defs := {"wood": _wood, "stone": _stone}
+	var source := _make_inventory(100.0, defs)
+	var target := _make_inventory(0.0, defs)
+	source.add("wood", 5)
+	source.add("stone", 1)
+	var source_counter := Doubles.SignalCounter.new(source.inventory_changed)
+
+	var unplaced := source.transfer_to(target, "wood", 5)
+
+	assert_int(unplaced).is_equal(5)
+	assert_array(source.items.keys()).is_equal(["wood", "stone"])
+	assert_int(source_counter.read()).is_equal(0)
+
+
+# ── count_items_with_tag() ─────────────────────────────────────────────────────
+
+func test_count_items_with_tag_sums_matching_stacks() -> void:
+	var tool_a := auto_free(ItemDef.new()) as ItemDef
+	tool_a.weight = 1.0
+	tool_a.tags = ["tool"]
+	var tool_b := auto_free(ItemDef.new()) as ItemDef
+	tool_b.weight = 1.0
+	tool_b.tags = ["tool", "axe"]
+	var inv := _make_inventory(100.0, {"a": tool_a, "b": tool_b, "wood": _wood})
+	inv.add("a", 2)
+	inv.add("b", 3)
+	inv.add("wood", 4)
+
+	assert_int(inv.count_items_with_tag("tool")).is_equal(5)
+	assert_int(inv.count_items_with_tag("axe")).is_equal(3)
+	assert_int(inv.count_items_with_tag("nothing")).is_equal(0)
