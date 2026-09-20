@@ -15,7 +15,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `../core/look_lean.gd` | Script (component) | Shared torso/head look lean, added as a `LookLean` child of both `player.tscn` and `colonist.tscn` (lives in core — the AGENTS ambiguous-ownership rule). Holds the lean knobs and bends Chest/Head by whatever pitch its owner's animation controller feeds it each frame. See the class reference below. |
 | `Inventory` (scene child) | Scene node | `CharacterInventory`, scene-placed under `player.tscn`. Carry inventory backing `add_item`/`remove_item`/`drop_item`/`has_item`/`can_carry`. See [Inventory](inventory.md). |
 | *(code-created in `_ready`)* | — | `HungerComponent` (via `HungerComponent.ensure_on(self)`, see [Hunger](hunger.md)), `SkillSet` (unseeded — every skill reads L1 until trained by use), and `Equipment` + `EquipmentVisualizer` (via `Equipment.ensure_on(self, equipment)`, see [Equipment](equipment.md)). |
-| `command_controller.gd` | Script (Node, optional) | Child node (`CommandController`), present only when authored in the scene (`get_node_or_null`). Given the active camera in `_ready` for issuing world-space commands (e.g. colonist orders). |
+| `../colonists/command_controller.gd` | Script (Node, optional) | Child node (`CommandController`), present only when authored in the scene (`get_node_or_null`). Given the active camera in `_ready` for issuing world-space commands (e.g. colonist orders). |
 | `../data/characters/player.tres` | Data *(planned — does not exist yet)* | CharacterDef: HP, base move speed, sprint mult, Stamina drain rate, Breath costs. See [Data Schemas](data-schemas.md). |
 
 ## Signals
@@ -24,8 +24,11 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 |---|---|---|---|---|
 | `build_placement_toggled(active)` | `player.gd` | BuildController, HUD (crosshair), `InstructionsLabel` | Yes | Enter Build Placement |
 | `build_menu_toggled(open)` | `player.gd` | `InstructionsLabel` | Yes | Build menu visibility |
+| `dig_box_toggled(active)` | `player.gd` | DigBoxController, DigBoxHud | Yes | Toggle Dig Box Designation |
+| `area_designation_toggled(active)` | `player.gd` | AreaDesignationController, AreaDesignationHud | Yes | Toggle Area Designation |
+| `harvest_box_toggled(active)` | `player.gd` | HarvestBoxController, HUD | Yes | Toggle Harvest Box Designation |
 | `interactable_changed(component)` | `player.gd` | HUD (InteractLabel) | No (direct Player signal) | Target gained/lost under the crosshair |
-| `player_died(context)` | `player.gd` *(planned — not yet emitted)* | GameState, HUD | Yes | Player Death / Respawn |
+| `player_died(context)` | `player.gd` | GameState, HUD | Yes | Player Death / Respawn |
 
 > **Interaction routing is split across Player + HUD.** The Player resolves + caches the crosshair target and emits `interactable_changed`; the **HUD** owns the E-key tap-vs-hold timer (tap → `execute_default_action`, hold → `open_interaction_menu`) — see the "Interact (E key)" flow and the [Actions & Interaction](actions.md) subsystem.
 
@@ -129,7 +132,7 @@ Third-person controller, camera rig, Mode+State machine (GDD §4), inventory + e
 | `gravity` | `float` | `[export default 9.8]` Gravity acceleration. |
 | `jump_force` | `float` | `[export default 5.0]` Vertical impulse on jump. |
 | `jump_move_speed` | `float` | `[export default 0.5]` Mid-air nudge speed for axis braking. |
-| `mode` | `Mode` enum | `NORMAL`, `BUILD_MENU`, `BUILD_PLACEMENT`, or `DIG_BOX_DESIGNATION` (dig-box terrain designation; toggled by `_on_dig_box_toggle_pressed`, mutually exclusive with Blueprint mode). |
+| `mode` | `Mode` enum | `NORMAL`, `BUILD_MENU`, `BUILD_PLACEMENT`, `DIG_BOX_DESIGNATION`, `AREA_DESIGNATION`, `DESIGNATION_MENU`, or `HARVEST_BOX_DESIGNATION`. |
 | `state` | `State` enum | Movement/action state (`IDLE`, `WALK`, `SPRINT`, `ATTACK`, `INTERACT`, `SLEEP`, `DEAD`). Only `IDLE`/`WALK`/`SPRINT`/`DEAD` are actively assigned at runtime; `ATTACK`/`INTERACT`/`SLEEP` are placeholders. |
 | `interact_distance` | `float` | `[export default 8.0]` Max range for the interaction crosshair raycast. |
 | `_busy` | `bool` | True while a timed action (e.g. a `BuildAction` with `build_time`) holds the player; gates movement, jump, and discrete actions. Set via `is_busy()`/`set_busy()`. |

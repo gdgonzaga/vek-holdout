@@ -165,6 +165,44 @@ Click the **Metadata** button in the top-right toolbar to open the metadata draw
 
 Metadata edits are automatically saved to `map_def.tres` when saving.
 
+### Complete `MapDef` Schema Reference (`data/maps/map_def.gd`)
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `id` | `String` | `""` | Map identifier matching folder name. |
+| `display_name` | `String` | `""` | UI label in menus and expedition logs. |
+| `description` | `String` | `""` | Summary text shown in world map and mission dispatch. |
+| `scene_path` | `String` | `""` | Path to map scene (`res://data/maps/<id>/map.tscn`). |
+| `map_type` | `MapType` | `BASE` | `BASE` (0), `POI` (1), `BUILDING` (2), `TOWN` (3). |
+| `player_spawn` | `Vector3` | `(0, 5, 0)` | Fallback spawn position if marker missing. |
+| `enemy_spawns` | `Array[Dictionary]` | `[]` | Fallback enemy spawn array `[{"pos": Vector3, "count": int}]`. |
+| `unlock_condition` | `String` | `""` | Unlock prerequisite identifier. |
+| `difficulty` | `int` | `1` | Difficulty tier rating (1 to 10). |
+| `world_bounds` | `AABB` | `192x64x192` | Discrete playable world volume bounding box. |
+| `terrain_gen` | `TerrainGenDef` | `null` | Smooth terrain definition (`null` = blocky only). |
+| `water_enabled` | `bool` | `false` | Baseline water flooding toggle. |
+| `water_level` | `float` | `-2.0` | Water plane elevation in meters. |
+| `flora_palette` | `Array[BuildableDef]` | `[]` | Flora definitions available for dynamic growth. |
+| `flora_spawns_per_day` | `int` | `0` | Spawn attempts scheduled per in-game day (0 = disabled). |
+| `flora_spawn_cap` | `int` | `60` | Maximum simultaneous live flora entities. |
+| `flora_max_spawn_attempts` | `int` | `15` | Placement retries per spawn tick before skipping. |
+| `flora_min_distance` | `float` | `4.0` | Minimum spacing from player spawn and existing flora. |
+
+### Complete `TerrainGenDef` Schema Reference (`data/terrain/terrain_gen_def.gd`)
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `id` | `String` | `""` | Unique generator identifier. |
+| `display_name` | `String` | `""` | Human-readable label. |
+| `noise_seed` | `int` | `0` | FastNoiseLite seed for reproducible procedural generation. |
+| `noise_frequency` | `float` | `0.012` | Frequency controlling hill size and slope budget. |
+| `heightmap` | `Texture2D` | `null` | Optional grayscale heightmap overriding procedural noise. |
+| `height_start` | `float` | `-4.0` | Lowest terrain elevation floor in meters. |
+| `height_range` | `float` | `12.0` | Vertical elevation lift in meters above floor. |
+| `max_walk_slope_deg` | `float` | `45.0` | Maximum walkable slope gate in degrees for pathfinding. |
+| `water_enabled` | `bool` | `false` | Whether baseline water is enabled. |
+| `water_level` | `float` | `-2.0` | Baseline water elevation in meters. |
+
 ---
 
 ## 8. Saving and Persistence

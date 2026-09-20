@@ -34,6 +34,7 @@ Authoring guide for creating new trees and plants: [`docs/HOWTO-author-wild-flor
 
 | Signal | Emitted by | Listeners | Via EventBus? | Flows |
 |---|---|---|---|---|
+| `harvest_box_toggled(active)` | `Player` | `HarvestBoxController`, HUD | Yes | Area designation toggle (**T**) |
 | `furniture_removed(def_id, anchor)` | `FurnitureLayer` / `WildFlora` | BuildController, Map, Colony | Yes | Felling / Uprooting |
 
 *(Wild flora instances communicate primarily via `HealthComponent` signals (`damaged`, `entity_died`) and direct `FurnitureLayer` queries.)*

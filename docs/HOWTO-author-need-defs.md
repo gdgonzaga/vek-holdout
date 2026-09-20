@@ -18,8 +18,13 @@ Colonist needs (e.g., Hunger, Rest, Recreation) are defined as text-based `.tres
 | `decay_per_game_hour` | `float` | `0.05` | Rate at which the need level decays from `1.0` (satisfied) toward `0.0` per second. |
 | `response_curve` | `Curve` | `null` | Optional Godot inspector `Curve` mapping deficit (`0.0`..`1.0`) to Utility AI urgency score (`0.0`..`1.0`). If `null`, linear evaluation is used. |
 | `emergency_threshold` | `float` | `0.10` | Critical need level threshold at which action commitment inertia is bypassed, forcing immediate need satisfaction. |
+| `release_threshold` | `float` | `0.50` | Raw need level this need must recover to before `ColonistBrain` will release its hard lock on satisfying it. |
 | `goal_name` | `StringName` | `&"eat"` | High-level goal identifier written to the agent's Blackboard when this need wins Utility arbitration (e.g. `&"eat"`, `&"rest"`, `&"recreation"`). |
 | `target_group` | `StringName` | `&"storage_crate"` | Godot node group name for spatial proximity lookups of smart objects. The shipped needs use `&"storage_crate"` (hunger), `&"bed"` (rest) and `&"recreation_object"` (recreation) — the group name must match the furniture's `tags` entry exactly, or the need scores `0.0` forever. |
+| `depletion_damage_interval` | `float` | `0.0` | Seconds between periodic damage ticks when need reaches 0.0 (`0.0` = no periodic damage). |
+| `depletion_damage` | `int` | `0` | Hit points deducted per depletion damage tick. |
+| `depletion_speed_mult` | `float` | `1.0` | Movement speed multiplier applied to the colonist while this need is fully depleted. |
+| `depletion_stamina_mult` | `float` | `1.0` | Stamina recovery multiplier applied while this need is fully depleted. |
 
 ---
 

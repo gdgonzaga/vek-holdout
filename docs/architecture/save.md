@@ -60,7 +60,7 @@ Two top-level scopes, mirroring how state actually lives in memory:
     "run_progress": { ... },           // RunProgress.serialize() — unlocked ids
     "expeditions":  { ... },           // ExpeditionManager.serialize() — discovered_pois, on_expedition
     "game_log":     { ... },           // GameLog.serialize()     — entries buffer
-    "colony":       { ... },           // Colony.serialize()      — colonist roster, squads, loadouts, job_board
+    "colony":       { ... },           // Colony.serialize()      — colonist roster, squads, loadouts, job_board, areas
     "player":       { ... }            // Player.serialize()      — pos, cam_yaw, cam_pitch, inventory
   },
   "maps": {                            // per-map state, keyed by MapDef.id

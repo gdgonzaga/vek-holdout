@@ -291,4 +291,24 @@ In Godot, open the mesh's material (or create a `StandardMaterial3D` / `ORMMater
    - If using `ORMMaterial3D`:
      - Assign **`T_<item_id>_ORM.png`** directly to the **ORM Texture** slot.
 
+---
+
+## 6. Complete `ItemDef` Resource Schema
+
+When authoring `data/items/<item_id>.tres`, `ItemDef` (`data/items/item_def.gd`) exposes the following properties:
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `id` | `String` | `""` | Unique item identifier key (matches filename). |
+| `weight` | `float` | `0.0` | Weight per unit in kg (checked by `Inventory.current_weight()`). |
+| `icon` | `Texture2D` | `null` | Inventory and UI sprite icon. |
+| `scene` | `PackedScene` | `null` | 3D scene (.glb) rendered when dropped in the world as a `WorldItem`. |
+| `mesh` | `Mesh` | `null` | 3D visual fallback mesh if `scene` is unset. |
+| `material` | `Material` | `null` | Material override applied to `mesh`. |
+| `visual_scale` | `Vector3` | `Vector3.ONE` | Scale applied to the visual mesh and collision box. |
+| `tags` | `Array[String]` | `[]` | Category tags (e.g. `["tool", "axe"]`, `["weapon"]`, `["equip_head"]`). |
+| `equippable` | `EquippableParams` | `null` | Nullable capability for weapons/tools (see [Authoring Melee Weapons](HOWTO-author-melee-weapons.md)). |
+| `food` | `FoodParams` | `null` | Nullable capability for consumable food (`nutrition_value`, `eat_duration`). |
+| `wearable` | `WearableParams` | `null` | Nullable capability for wearable armor/clothing (see [Authoring Wearable Gear Models](HOWTO-author-gear-models.md)). |
+
 The item is now fully registered with its custom low-poly PBR 3D mesh for world drops, colony hauling, and inventory visuals!

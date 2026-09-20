@@ -47,6 +47,7 @@ growth_time_hours = 18.0      # Total in-game hours from seed to 100% maturity
 growth_stages = 3             # Number of visual stages (1: Sprout, 2: Growing, 3: Mature)
 base_harvest_time = 3.0       # Base seconds to harvest (scaled by Harvesting skill)
 wither_hours = 24.0           # Hours mature crop can sit unharvested before withering (0.0 = never)
+seed_item_id = "sweet_maize_seeds" # Optional seed ItemDef id consumed to plant (empty = free sowing)
 ```
 
 ---

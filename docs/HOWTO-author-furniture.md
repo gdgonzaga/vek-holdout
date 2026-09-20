@@ -14,7 +14,12 @@ In *Xeno Frontier: Colony Defense*, free-standing structures that occupy space i
 FurnitureDef (e.g. data/furniture/recreation/colonist_bed.tres)
 ├── id: "colonist_bed"
 ├── dimensions: Vector3i(1, 1, 2)
-├── mesh / scene / texture / hp / material_cost
+├── BuildableDef Base Fields:
+│   ├── mesh / scene: 3D model (scene takes precedence)
+│   ├── icon: Optional build menu UI texture
+│   ├── texture / texture_variation: Albedo map and shader variation toggle
+│   ├── PBR Textures: normal_texture, roughness_texture, metalness_texture, orme_texture
+│   └── hp / material_cost / build_time / unlocked_by_default
 ├── tags: ["bed"]
 └── Capability Parameters (extends FurnitureCapability)
     ├── bed_params: BedParams                <-- Attached
@@ -144,6 +149,51 @@ Recreation objects satisfy the colonist `recreation` need. See ARCH `recreation.
    - `use_offsets`: omitted — colonists path to any walkable cell near the object
 
 4. Note that `use_offsets` **caps** the effective capacity: authoring two offsets on a `capacity = 4` object yields two slots, because there is nowhere sensible to put the third user. Leave it empty when capacity should be the only limit.
+
+---
+
+### Example E: Authoring an Automated Turret (`wooden_stake_turret.tres`)
+
+Automated defenses scan for enemies and fire projectiles. See [Authoring Defensive Turrets](HOWTO-author-turrets.md) for full Blender rigging and export steps.
+
+1. Create `res://data/furniture/defense/<id>.tres`.
+2. Attach `TurretParams`:
+   - `range`: `18.0` (meters)
+   - `fire_rate`: `0.2` (shots/sec)
+   - `damage`: `15`
+   - `ammo_type`: `ExtResource("res://data/items/wooden_stake.tres")` (or `null` for free firing)
+   - `turn_speed`: `3.0` (rad/s)
+   - `min_pitch_deg` / `max_pitch_deg`: `-15.0` / `60.0`
+   - `projectile_speed`: `30.0` (m/s)
+   - `projectile_type`: `0` (`REGULAR`) or `1` (`EXPLOSIVE`)
+
+---
+
+### Example F: Authoring a Light Source (`wall_torch.tres`, `standing_lamp.tres`)
+
+Illuminates the environment with dynamic lighting. `FurnitureLayer` attaches a `LightSourceComponent` (`OmniLight3D`).
+
+1. Create `res://data/furniture/lighting/<id>.tres`.
+2. Attach `LightParams`:
+   - `color`: `Color(1.0, 0.85, 0.6, 1.0)` (warm incandescent)
+   - `energy`: `1.5`
+   - `range`: `8.0` (illumination radius in meters)
+   - `attenuation`: `1.0`
+   - `shadows_enabled`: `false` (default `false` for performance)
+   - `local_offset`: `Vector3(0.0, 1.5, 0.0)` (light emission point above the floor)
+
+---
+
+### Example G: Authoring a Static Harvestable Node (`scrap_heap.tres`)
+
+Natural resource nodes felled by colonists or the player. `FurnitureLayer` attaches a `Harvestable` component and injects the `toggle_harvest` action option.
+
+1. Create `res://data/furniture/resources/<id>.tres`.
+2. Attach `HarvestParams`:
+   - `yields`: Array of `ItemAmount` (e.g. `[5 x scrap_metal]`)
+   - `work_time`: `4.0` (unskilled work seconds to harvest)
+   - `respawn_time`: `0.0` (`0.0` = node is destroyed upon completion; `> 0.0` = node respawns after N seconds)
+   - `required_tool_tag`: `"pickaxe"` or `"axe"` (leave empty for bare-hand harvesting)
 
 ---
 

@@ -347,6 +347,119 @@ Configures direct resource harvesting. When non-null, `FurnitureLayer` attaches 
 
 ---
 
+## `data/items/<id>.tres` (Resource: `data/items/item_def.gd`) — `ItemDef` & `ItemAmount`
+
+Global inventory and world item definition. `ItemDef extends Resource`. Loaded and indexed by `ItemDB`. `ItemDef` follows the capability composition pattern, attaching optional sub-resources for equippable, food, and wearable behaviors.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Canonical item identifier (e.g. `"laser_drill"`, `"wood"`). |
+| `weight` | `float` | Item weight in kg (default `0.0`). |
+| `icon` | `Texture2D` | Inventory and UI icon texture. |
+| `scene` | `PackedScene` | 3D scene (.glb) rendered when dropped in the world as a `WorldItem`. Takes precedence over `mesh`. |
+| `mesh` | `Mesh` | 3D fallback visual mesh for `WorldItem`. |
+| `material` | `Material` | Material override applied to the `WorldItem` mesh. |
+| `visual_scale` | `Vector3` | Scale factor applied to visual mesh/scene and collision box (default `(1, 1, 1)`). |
+| `tags` | `Array[String]` | Classification tags (e.g. `["tool", "mining_tool"]`). |
+| `equippable` | `EquippableParams` | Nullable equippable capability (actions, animations). |
+| `food` | `FoodParams` | Nullable food capability (nutrition, health, eat duration). |
+| `wearable` | `WearableParams` | Nullable wearable capability (garment mesh or rigid bone sockets). |
+
+### Sub-Resource: `ItemAmount` (Resource: `data/items/item_amount.gd`)
+Couples an item reference with a quantity. Used in recipe inputs/outputs, loot tables, and building costs.
+
+| Field | Type | Description |
+|---|---|---|
+| `item_def` | `ItemDef` | Referenced item definition. |
+| `count` | `int` | Quantity (default `1`). |
+
+---
+
+## `data/crops/<id>.tres` (Resource: `data/crops/crop_def.gd`) — `CropDef` & `CropYieldTier`
+
+Global definition for farmable crops (GDD §6 / Farming). `CropDef extends Resource`.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique crop identifier (e.g. `"synth_wheat"`). |
+| `display_name` | `String` | UI display label. |
+| `growth_time_hours` | `float` | In-game hours required to reach maturity (default `12.0`). |
+| `growth_stages` | `int` | Number of visual growth stages (default `3`). |
+| `stage_scenes` | `Array[PackedScene]` | Optional 3D scenes for each growth stage. |
+| `max_water` | `float` | Maximum water capacity percentage (default `100.0`). |
+| `water_decay_per_hour` | `float` | Water decay rate in percent per in-game hour (default `4.0`). |
+| `thirsty_threshold` | `float` | Water percent threshold below which a Water job is posted (default `30.0`). |
+| `tending_mode` | `TendingMode` | Tending mode: `NONE` (0), `MILESTONE` (1), `DECAY` (2). |
+| `tending_milestones` | `Array[float]` | Progress milestones (0.0 to 1.0) requiring tending. |
+| `tending_decay_hours` | `float` | In-game hours a tended state lasts before needing tending again. |
+| `untended_growth_mult` | `float` | Growth multiplier while needing tending (default `0.0` = halted). |
+| `neglect_hours` | `float` | In-game hours crop can remain untended before yield penalties accumulate. |
+| `neglect_yield_penalty` | `float` | Fraction of yield lost per `neglect_hours` exceeded. |
+| `plant_conditions` | `Array[Condition]` | Conditions required to sow/plant this crop. |
+| `tend_conditions` | `Array[Condition]` | Conditions required to tend this crop. |
+| `seed_item_id` | `String` | Optional seed item ID consumed to plant. |
+| `yield_tiers` | `Array[CropYieldTier]` | Yield definitions by reached growth progress. |
+| `base_harvest_time` | `float` | Base work seconds to harvest (default `3.0`). |
+| `wither_hours` | `float` | In-game hours a mature crop can sit unharvested before withering (0.0 = never). |
+
+### Sub-Resource: `CropYieldTier` (Resource: `data/crops/crop_yield_tier.gd`)
+Specifies yields granted when harvesting at or above a progress threshold.
+
+| Field | Type | Description |
+|---|---|---|
+| `min_growth_progress` | `float` | Minimum growth progress required (default `1.0`). |
+| `yields` | `Array[ItemAmount]` | Items harvested at this tier. |
+
+---
+
+## `data/crafting/<id>.tres` (Resource: `data/crafting/recipe_def.gd`) — `RecipeDef`
+
+Declarative conversion recipe for crafting stations. `RecipeDef extends Resource`.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique recipe identifier. |
+| `display_name` | `String` | Human-readable label in craft panels and logs. |
+| `inputs` | `Array[ItemAmount]` | Materials consumed per craft. |
+| `outputs` | `Array[ItemAmount]` | Items produced per craft. |
+| `base_time` | `float` | Base work duration in seconds, scaled by crafter's skill (default `1.0`). |
+| `conditions` | `Array[Condition]` | Hot-evaluated actor gates (e.g. `MinSkillCondition`). |
+
+---
+
+## `data/skills/skills.tres` (Resource: `data/skills/skill_def.gd`) — `SkillDef`
+
+Definition for colonist skill disciplines (GDD §6.3). Authored as sub-resources in `data/skills/skills.tres`.
+
+| Field | Type | Description |
+|---|---|---|
+| `skill_id` | `String` | Skill identifier key (e.g. `"construction"`, `"farming"`). |
+| `display_name` | `String` | UI display label. |
+| `labor` | `String` | Associated `LaborDef.id` governed by this skill. |
+| `multipliers` | `Array[float]` | Work-speed multipliers per level (L1 to L5, default `[1.0, 1.2, 1.4, 1.7, 2.0]`). |
+| `use_curve` | `Array[int]` | Cumulative successful uses required to reach L2 through L5 (default `[20, 50, 100, 200]`). |
+
+---
+
+## `data/terrain/<id>.tres` (Resource: `data/terrain/terrain_gen_def.gd`) — `TerrainGenDef`
+
+Parameters for smooth natural terrain generation in the dual-voxel system. `TerrainGenDef extends Resource`.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique generator identifier. |
+| `display_name` | `String` | UI display label. |
+| `noise_seed` | `int` | FastNoiseLite seed for reproducible procedural generation (default `0`). |
+| `noise_frequency` | `float` | Frequency shaping terrain slope and features (default `0.012`). |
+| `heightmap` | `Texture2D` | Optional grayscale heightmap image overriding procedural noise. |
+| `height_start` | `float` | Base elevation floor in meters (default `-4.0`). |
+| `height_range` | `float` | Vertical elevation span in meters (default `12.0`). |
+| `max_walk_slope_deg` | `float` | Maximum walkable slope gate in degrees for pathfinding (default `45.0`). |
+| `water_enabled` | `bool` | Whether baseline water plane is enabled (default `false`). |
+| `water_level` | `float` | Baseline water elevation in meters (default `-2.0`). |
+
+---
+
 ## ItemDef capability parameters
 
 Nullable sub-resources attached to `ItemDef` (`data/capability_params/`) following the composition pattern.

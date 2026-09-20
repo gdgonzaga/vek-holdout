@@ -41,7 +41,21 @@ The `.tres` covers the data half; the behavior half is a set of virtuals on `Job
 - **`work_site(actor, job)`** — per-cycle walk target for multi-site labors (hauling: crate while empty-handed, sink while carrying); `null` uses the job's anchor/target placement.
 - **`_needs(growable)` / `_apply(growable, actor)`** — the farming skeleton (`FarmingJobDef`): a new farm labor drops in by overriding just these two.
 
-Existing def subclasses (`data/jobs/*_job_def.gd`) are the reference implementations — `dig_job_def.gd` is the minimal `complete()` + gates example.
+Existing def subclasses (`data/jobs/*_job_def.gd`) are the reference implementations — `dig_job_def.gd` is the minimal `complete()` + gates example:
+
+| Subclass Script | Class Name | Purpose |
+|---|---|---|
+| `data/jobs/construction_job_def.gd` | `ConstructionJobDef` | Multi-unit structure assembly on blueprint sites. |
+| `data/jobs/crafting_job_def.gd` | `CraftingJobDef` | Work station item crafting from `RecipeDef` inputs. |
+| `data/jobs/dig_job_def.gd` | `DigJobDef` | Voxel terrain extraction on designated mining volumes. |
+| `data/jobs/hauling_job_def.gd` | `HaulingJobDef` | Material hauling between ground, crates, and build sinks. |
+| `data/jobs/farming_job_def.gd` | `FarmingJobDef` | Base class for farm plot labor (`sow`, `water`, `tend`, `harvest`). |
+| `data/jobs/sow_job_def.gd` | `SowJobDef` | Seeds planting on designated empty farm plots. |
+| `data/jobs/water_job_def.gd` | `WaterJobDef` | Hydrating dry farm plots below threshold. |
+| `data/jobs/tend_job_def.gd` | `TendJobDef` | Tending plots requiring milestone or decay maintenance. |
+| `data/jobs/harvest_job_def.gd` | `HarvestJobDef` | Reaping mature crops from farm plots or designated wild plants. |
+| `data/jobs/deploy_job_def.gd` | `DeployJobDef` | Tactical stationing and waypoint deployment (`requires_adjacent = false`). |
+| `data/jobs/fetch_equipment_job_def.gd` | `FetchEquipmentJobDef` | Self-directed colonist retrieval of assigned gear from storage crates. |
 
 ---
 

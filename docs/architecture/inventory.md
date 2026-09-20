@@ -10,6 +10,7 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 | `character_inventory.gd` | Script (`class_name CharacterInventory`, extends Inventory) | Character-specific inventory with `base_capacity` (export, default 50.0) + `bonus_capacity` (set by bag equipment). Recalculates `capacity` on ready and on bag equipment change. Used by Player (scene-placed) and Colonist (code-created in `_ready`, so the colonist can carry hauled materials and stand in for `actor` in `Blueprint.deposit_from`). |
 | `storage_inventory.gd` | Script (`class_name StorageInventory`, extends Inventory) | Per-instance contents of a storage container (crates, shelves). Attached as a child of a `Furniture` (named `"StorageInventory"`) when its `FurnitureDef` has `storage_params`; reads `capacity` and item/tag filter restrictions from those params at `_ready`. Player<->crate transfers use the inherited `transfer_to`. |
 | `storage_registry.gd` | Script (`class_name StorageRegistry`, on Colony) | Live index of storage crates, so hauling jobs can find a source for a blueprint's still-needed materials. Scans the current map's `FurnitureContainer` each call — no registration. See class reference. |
+| `world_item.gd` | Script (`class_name WorldItem`, extends RigidBody3D) | Physical item drop in the 3D world (Layer 5 interaction). Visual mesh from `ItemDef.mesh`, pickup via interaction, forbidden state (`is_forbidden`), and impulse toss on drop. |
 | `item_db.gd` | Autoload (`ItemDB`) | Read-only catalog of item definitions. Recursively scans `data/items/` at startup via `ContentDirLoader` (see [Overview](overview.md#content-directory-loading)); keyed by `ItemDef.id` (the canonical item identity, e.g. `"wood_block"`). Read-only after `_ready`. |
 | `../data/items/item_def.gd` | Resource (`class_name ItemDef`, extends Resource) | Item definition schema. Fields: `id: String` (canonical item identity — what `ItemDB` keys by and inventories store), `weight: float`, `icon: Texture2D`, `mesh: Mesh` (world item visual shape — authoring guide: [`docs/HOWTO-author-worlditems.md`](../HOWTO-author-worlditems.md)), `material: Material` (optional material override), `visual_scale: Vector3` (world item scale), `tags: Array[String]` (categorization — the `"tool"` tag protects carried tools from dirt-floor drops during in-field job transitions while allowing crate storage during hygiene), `equippable: EquippableParams` (nullable capability). |
 | `../data/items/` | Data | Item definition `.tres` files (one per item type), grouped into `materials/`, `weapons/`, `ammo/`, `tools/`, `apparel/`, `food/` subfolders by category. |
@@ -47,21 +48,22 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 
 | Signal | Description |
 |---|---|
-| `inventory_changed()` | Emitted after any successful add/remove/transfer mutation. |
+| `inventory_changed()` | Emitted after a mutation that changed the contents: an `add` that took at least one unit, or a `remove` that removed at least one. A rejected or empty call emits nothing, so open panels do not rebuild for no change. |
 
 **Functions:**
 
 | Function | Returns | Description |
 |---|---|---|
-| `add(item_id, count)` | `int` | Adds items; returns overflow (items that didn't fit). Handles unknown items (returns all as overflow) and negative/zero counts (noop). |
+| `add(item_id, count)` | `int` | Adds as many as `max_addable` allows; returns overflow (items that didn't fit). Handles unknown or filtered-out items (returns all as overflow) and negative/zero counts (noop). Emits `inventory_changed` only if something was added. |
+| `max_addable(item_id)` | `int` | Largest count that would be accepted right now: 0 for an unknown or filtered-out item or when no weight room is left (never negative, even if capacity dropped below the current load), `UNLIMITED_COUNT` for a weightless item. The single "does it fit" rule behind `add`, `can_add` and `transfer_to`; UIs use it to dim or disable a transfer. |
 | `remove(item_id, count)` | `int` | Removes items; returns items NOT removed (excess request). Erases key when count hits zero. |
 | `is_item_allowed(item_id)` | `bool` | Virtual check whether this inventory accepts `item_id`. Base class returns true; overridden by subclasses (e.g. `StorageInventory`). |
-| `can_add(item_id, count)` | `bool` | True if the item is allowed and fits by weight. False for unknown or disallowed items. |
+| `can_add(item_id, count)` | `bool` | `count <= max_addable(item_id)`: true if the item is allowed and fits by weight. False for unknown or disallowed items. |
 | `has_item(item_id, count)` | `bool` | True if `items[item_id] >= count`. |
 | `has_item_tag(tag, count = 1)` | `bool` | True if items whose `ItemDef.tags` carry `tag` total at least `count` across stacks (e.g. any carried `"tool"`). Unknown items never match. |
 | `get_item_count(item_id)` | `int` | Current count of the item (0 if absent). |
 | `current_weight()` | `float` | Sum of `count × weight` for all stored items. |
-| `transfer_to(target, item_id, count)` | `int` | Moves items to another `Inventory`. Removes from self first, adds to target, returns overflow to self. Returns items that did NOT end up in the target. |
+| `transfer_to(target, item_id, count)` | `int` | Moves items to another `Inventory`. Caps the move at what self holds and `target.max_addable` accepts before touching either side, then removes from self and adds to target. A rejected or full-target transfer changes nothing and emits nothing; a partial one emits once per inventory and leaves the source's other stacks in place. Anything the target still refuses goes back to self as a safety net. Returns items that did NOT end up in the target. |
 | `_get_def(item_id)` | `ItemDef` | Virtual. Default: `ItemDB.get_def(item_id)`. Override in tests or subclasses. |
 
 ### Class: CharacterInventory
@@ -113,7 +115,8 @@ Weight-based inventory model. Items stored as `{item_id: count}` dictionaries; c
 ## Design Notes
 
 - **Weight-based, not slot-based.** No `ItemStack` or fixed slot array. Items accumulate freely; the only constraint is total weight.
-- **transfer_to() uses remove-first-then-add.** Prevents item duplication. If the target is full, overflow items are returned to the source.
+- **transfer_to() sizes the move first, then removes-first-then-adds.** It asks `target.max_addable` up front so a full or filtering target is a no-op rather than a remove/re-add round trip (which used to reorder the source's `items` dictionary, and so any UI list built from it, and fire `inventory_changed` several times). Remove-first still prevents item duplication; the add-back only runs if a target's `add` is stricter than its `max_addable`.
+- **Weightless items are unbounded, not unaddable.** An `ItemDef` left at the default `weight = 0.0` used to be rejected in full, because `add` divided the free capacity by the item's weight. `max_addable` now treats it as taking no room.
 - **transfer_to() return value:** Returns the number of items that did **not** end up in the target. This covers both "target was full" (partial transfer) and "source didn't have enough" (requested 10, source had 3 → returns 7).
 - **Forbidden flag, not a cooldown.** `WorldItem.forbidden` (toggled by the player via `ToggleForbiddenAction`, or read by `StorageRegistry`/`HaulingJobDef`/`Colony`) excludes an item from hauling and stock counts. It is a persistent flag, not a timed cooldown — nothing currently auto-forbids items dropped by AI inventory hygiene (`AIUtils.drop_unneeded_items`, `Colonist.drop_held_item`).
 - **`_get_def()` is the test seam.** Unit tests subclass `Inventory` and override `_get_def()` with a mock dictionary; no `.tres` files needed in the test suite.

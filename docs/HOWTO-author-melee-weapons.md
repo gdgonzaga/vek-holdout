@@ -182,7 +182,6 @@ hit_audio_event = "melee_impact"
 
 [sub_resource type="Resource" id="Resource_equippable"]
 script = ExtResource("2_equip")
-slot_type = 0
 stance_animation = &"melee_1h"
 use_animation = &"swing"
 primary_action = SubResource("Resource_combat_action")
@@ -196,6 +195,8 @@ scene = ExtResource("4_scene")
 tags = Array[String](["weapon", "melee", "untrained"])
 equippable = SubResource("Resource_equippable")
 ```
+
+> **Tag-Based Slot Routing**: `EquippableParams` contains no slot fields. Equipment slot eligibility is resolved purely via `ItemDef.tags` (e.g. `"weapon"` maps to weapon/main hand slots, `"tool"` to tool slots per `Equipment.SLOT_ACCEPTED_TAGS`).
 
 ### Step 2: Configure Melee Timing Parameters
 

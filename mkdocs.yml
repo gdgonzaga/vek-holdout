@@ -48,6 +48,9 @@ nav:
     - "Wild Flora": architecture/wild-flora.md
     - Hunger: architecture/hunger.md
     - Recreation: architecture/recreation.md
+    - Combat: architecture/combat.md
+    - "Equipment & Loadouts": architecture/equipment.md
+    - Raids: architecture/raids.md
     - UI: architecture/ui.md
     - "Game Log": architecture/game-log.md
   - Reference:
@@ -55,11 +58,8 @@ nav:
   - Tracking:
     - "Tech Debt & Unimplemented": architecture/tech-debt.md
   - Planned:
-    - Combat: architecture/combat.md
-    - "Equipment & Loadouts": architecture/equipment.md
     - Energy: architecture/energy.md
     - "Permadeath & Memorial": architecture/permadeath-memorial.md
-    - Raids: architecture/raids.md
     - Loot: architecture/loot.md
     - "Debug Console": architecture/debug-console.md
     - "Debug Commands": architecture/debug-commands.md

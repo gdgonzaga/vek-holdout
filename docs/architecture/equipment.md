@@ -32,9 +32,9 @@ In the Colony Management UI, `holster` is labeled as **"Sidearm"** via `GearText
 | `equipment.gd` | Script (`class_name Equipment`, extends Node) | Per-character slot state and desired target assignments. No visual logic. Serializable. |
 | `equipment_visualizer.gd` | Script (`class_name EquipmentVisualizer`, extends Node) | Visual attachment: listens to `Equipment.slot_changed`, instantiates GLB/mesh on per-slot skeleton sockets. |
 | `equipment_audit.gd` | Script (`class_name EquipmentAudit`) | Static helper library executing desired equipment audits, swap-first resolution, and fetch job creation. |
-| `fetch_equipment_job.gd` | Script (`class_name FetchEquipmentJob`, extends Job) | Targeted job carrying `target_slot` and `target_item_id`. |
-| `fetch_equipment_job_def.gd` | Script (`class_name FetchEquipmentJobDef`, extends JobDef) | Work logic for equipment fetching: path to storage, direct equip in `complete()`, desire invalidation. |
-| `data/jobs/fetch_equipment.tres` | Resource (`FetchEquipmentJobDef`) | Singleton job def resource for equipment retrieval. |
+| `../colonists/fetch_equipment_job.gd` | Script (`class_name FetchEquipmentJob`, extends Job) | Targeted job carrying `target_slot` and `target_item_id`. |
+| `../data/jobs/fetch_equipment_job_def.gd` | Script (`class_name FetchEquipmentJobDef`, extends JobDef) | Work logic for equipment fetching: path to storage, direct equip in `complete()`, desire invalidation. |
+| `../data/jobs/fetch_equipment.tres` | Resource (`FetchEquipmentJobDef`) | Singleton job def resource for equipment retrieval. |
 
 Both `Equipment` and `EquipmentVisualizer` are code-created as child nodes in `Colonist._ready` and `Player._ready`, via the shared `Equipment.ensure_on(actor, current)` static factory — it creates `Equipment` if `current` is null, then creates and wires `EquipmentVisualizer` so the sibling exists and listens to `slot_changed`. `equip_item()`'s main-hand-first-with-fallback policy is likewise shared via `Equipment.equip_preferring_main_hand(item_def)`.
 

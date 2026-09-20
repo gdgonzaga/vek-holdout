@@ -53,6 +53,7 @@ equipment fulfillment are BT-task-driven, not a dedicated component — see belo
 - `skill_set`: `SkillSet`, scene child (`$SkillSet`), seeded from `colonist_def.starting_skills`.
 - `stamina_component`: `StaminaComponent`, scene child (`$StaminaComponent`).
 - `pathfinder`: `VoxelPathfinder`, scene child (`$VoxelPathfinder`).
+- `colonist_combat`: `ColonistCombat`, scene child (`$ColonistCombat`). Resolves equipped weapon and executes attacks via `BTActionColonistCombatAttack` (see [Combat](combat.md)).
 - `needs` / `brain` / `bt_player`: `ColonistNeeds` / `ColonistBrain` / `BTPlayer` — each resolved via `get_node_or_null` in `_ready`, code-created and added as a child if the scene doesn't already have one (so hand-authored scenes can override, but `colonist.tscn` need not include them). `needs` manages hunger, rest, and recreation uniformly; `bt_player.behavior_tree` loads from `data/ai/trees/colonist_root.tres` when created.
 - `interaction`: `InteractionComponent`, resolved or code-created the same way; rebuilt each time via `refresh_interaction_options()`.
 
@@ -157,6 +158,17 @@ The Moodlet system allows data-driven evaluation and visual representation of co
 - **UI Integration**: Active moodlet icons are presented in the Colony Management roster (`ColonistEntry`) with tooltips and fixed aspect-ratio icon slots.
 - **Visualizer Layout**: `MoodletLayoutResolver` (`subsystems/core/moodlet_layout_resolver.gd`) is the shared pure-arithmetic engine behind `ColonistMoodletVisualizer`, `EnemyMoodletVisualizer`, and `WildFloraMoodletVisualizer` — it evaluates `moodlet_defs` against an entity, groups the active results by `line_number`, and caps each row independently (rather than capping the flat list before grouping) so a crowded row can never starve out an unrelated row's icon. Each visualizer arranges its grouped rows in compacted horizontal bands stacked vertically in 3D billboard space above the entity (skipping inactive lines), dynamically syncing `Sprite3D.hframes` and advancing `Sprite3D.frame` for animated spritesheets at `frame_fps`.
 
+
+---
+
+## Squad & Tactical Deployment
+
+Colonists can be grouped into persistent squads and deployed to tactical positions in the world using `CommandController` and `Colony` methods:
+
+- **`CommandController` (`subsystems/colonists/command_controller.gd`)**: Attached to the Player (`player.tscn`) or active during tactical deployment. Listens to `EventBus.command_mode_requested(colonist_ids)`. Projects screen-center raycasts to ground, calculates formation offsets for multi-colonist squads, displays 3D target markers, and emits `EventBus.deploy_orders_issued(orders)` on commit.
+- **Squad Management (`Colony`)**: `Colony` manages squad definitions (`squads: Dictionary`), persisting them in `serialize()` / `deserialize()`. Methods include `create_squad(name)`, `delete_squad(squad_id)`, `assign_to_squad(colonist_id, squad_id)`, `remove_from_squad(colonist_id)`, and `get_squad_members(squad_id)`.
+- **Deployment Execution (`Colony.deploy_colonist` / `Colony.deploy_squad`)**: Cancels existing deployments, creates a `DeployJobDef` job (`data/jobs/deploy.tres`), assigns it directly to the target colonist, and routes navigation to the target world coordinates.
+- **Actions (`data/actions/`)**: `DeployColonistAction`, `DeploySquadAction`, `DismissColonistAction`, and `DismissSquadAction` expose direct execution from UI panels (such as `SquadCard` in Colony Management).
 
 ---
 

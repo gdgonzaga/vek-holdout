@@ -207,6 +207,7 @@ Save your exported `.glb` or `.obj` mesh file to `assets/custom_meshes/<block_id
 | `collision_enabled` | `true` | Set `false` for non-solid blocks (water, tall grass). |
 | `transparency_index` | `0` | `0` = opaque, `>0` = transparent (for `VoxelMesherBlocky` face culling). |
 | `culls_neighbors_of_same_type` | `false` | When `true`, touching blocks of the same model cull their shared internal faces. |
+| `custom_material` | `null` | Optional custom Material (e.g. animated water ShaderMaterial) overriding the standard generated material. |
 | `fixed_index` | `-1` | Explicit base library index override (`> 0`) for guaranteed save-compatible index assignment across updates; leave `-1` for the default auto-assigned sequential index — there is no `type_id`/`base_library_id` field, `BlockLibrary` owns that mapping. |
 
 ### Step 3: Bake Voxel Library (`voxel_library.tres`)

@@ -87,6 +87,9 @@ Ensure all dropped items (wood, branches, berries, fiber, saplings) exist as `It
 | `initial_growth_max` | `1.0` | Maximum randomized growth progress on fresh world generation. |
 | `impact_audio_event` | `"foliage_rustle"` | Audio event on weapon hit (`"wood_chop"`, `"foliage_rustle"`). |
 | `hit_particles_color` | `Color(0.3, 0.6, 0.2)` | Particle color burst on weapon impact. |
+| `required_tool_tag` | `"axe"` | Item tag a colonist must hold to claim a chop/removal job on this flora (e.g. `"axe"` for timber; empty = bare hands). |
+| `chop_work_time` | `6.0` | Unskilled work duration in seconds to fell/remove this flora via the harvest labor job. |
+| `moodlet_defs` | `[plant_order_moodlet.tres]` | Billboard indicator icons (e.g. `PlantOrderMoodletDef` for harvest/chop designations). |
 | `tags` | `["live_flora", "bush", "forageable"]` | Gameplay query tags (`"tree"`, `"timber"`, `"bush"`). |
 
 ---
@@ -99,6 +102,7 @@ Add elements to the `stages` array in ascending order of `min_progress` (from `0
 - `min_progress`: `0.0`
 - `max_hp`: `30`
 - `visual_scale`: `Vector3(0.4, 0.4, 0.4)`
+- `can_chop`: `true`
 - `can_harvest_fruit`: `false`
 - `fell_yields`: `[1 x fiber]`
 
@@ -106,6 +110,7 @@ Add elements to the `stages` array in ascending order of `min_progress` (from `0
 - `min_progress`: `0.6`
 - `max_hp`: `80`
 - `visual_scale`: `Vector3(0.85, 0.85, 0.85)`
+- `can_chop`: `true`
 - `can_harvest_fruit`: `false`
 - `fell_yields`: `[2 x branches, 1 x fiber]`
 
@@ -113,6 +118,7 @@ Add elements to the `stages` array in ascending order of `min_progress` (from `0
 - `min_progress`: `1.0`
 - `max_hp`: `100`
 - `visual_scale`: `Vector3(1.0, 1.0, 1.0)`
+- `can_chop`: `true`
 - `can_harvest_fruit`: `true`
 - `harvest_yields`: `[4 x elder_berries]`
 - `fell_yields`: `[2 x branches, 4 x elder_berries]` (drops fruit if chopped down while ripe!)

@@ -143,6 +143,12 @@ TurretBase (Node3D / MeshInstance3D)
    - **`max_pitch_deg`**: Maximum upward elevation limit in degrees (e.g. `60.0`).
    - **`projectile_speed`**: Travel speed in m/s (e.g. `30.0`).
    - **`projectile_type`**: `REGULAR` (direct single-target hit) or `EXPLOSIVE` (AoE splash).
+   - **`explosion_radius`**: Area-of-effect damage radius in meters when `projectile_type` is `EXPLOSIVE` (e.g. `3.0`).
+   - **`muzzle_offset`**: Fallback spawn location `Vector3` if no `"Muzzle"` node is found in the model hierarchy (default `(0, 2.0, 0)`).
+   - **`projectile_scene`**: Optional custom `PackedScene` for the projectile.
+   - **`projectile_mesh` / `projectile_material`**: Fallback visual mesh and material used when `projectile_scene` is null.
+   - **`enable_muzzle_flash` / `enable_projectile_trail` / `enable_explosion_particles`**: Boolean toggles for particle VFX (all default `true`).
+   - **`explosion_particle_scene`**: Optional custom particle scene override on impact.
 
 ---
 

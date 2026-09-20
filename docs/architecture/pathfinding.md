@@ -139,5 +139,5 @@ Navigation is built around four decoupled layers:
 ### Class: StepClimber
 
 **Extends:** `Node3D`  
-**Script:** `subsystems/colonists/step_climber.gd`  
+**Script:** `subsystems/core/step_climber.gd`  
 **Description:** Physics climbing assist component. Probes forward obstacle geometry and applies vertical boost velocity when encountering climbable ledges and smooth terrain steps.  
