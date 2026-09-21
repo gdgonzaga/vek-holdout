@@ -9,6 +9,8 @@ extends GdUnitTestSuite
 ## _placement_cell branches on. Also pins the generator-mode branch: noise defs
 ## (every existing map) vs heightmap defs (external-tool authoring).
 
+const HeightFixtures := preload("res://test/helpers/height_fixtures.gd")
+
 ## Grid + bare VoxelTerrain in the tree. The terrain child is parented BEFORE
 ## the grid enters the tree so the grid's @onready terrain_path resolves.
 func _build_grid(with_gen: bool) -> SmoothGrid:
@@ -287,29 +289,27 @@ func test_noise_def_still_builds_noise_generator() -> void:
 	assert_bool(generator is VoxelGeneratorNoise2D).is_true()
 
 
-## _prepare_heightmap_image: whatever the source texture's format, the generator
-## receives Image.FORMAT_RF (snapped to whole-meter physical heights).
-func test_prepare_heightmap_image_normalizes_and_snaps() -> void:
-	var def := TerrainGenDef.new()
-	def.height_start = 0.0
-	def.height_range = 100.0
-	var rgb := Image.create(2, 2, false, Image.FORMAT_RGB8)
-	# Value of 0.052 * 100 = 5.2 meters -> snaps to 5.0 meters -> 0.05 pixel value
-	rgb.fill(Color(0.052, 0.052, 0.052))
-	def.heightmap = ImageTexture.create_from_image(rgb)
-	
-	var prepared: Image = SmoothGrid._prepare_heightmap_image(def)
-	assert_that(prepared).is_not_null()
-	assert_int(prepared.get_format()).is_equal(Image.FORMAT_RF)
-	assert_float(prepared.get_pixel(0, 0).r).is_equal_approx(0.05, 0.001)
+## get_height_sampler: one lazily built sampler per grid. BlockyGrid's water
+## generator asks for it during its own _ready, which can run before this grid's.
+func test_get_height_sampler_is_built_lazily_and_shared() -> void:
+	var grid: SmoothGrid = auto_free(SmoothGrid.new())
+	assert_object(grid.get_height_sampler()).is_null()
+
+	grid.terrain_gen = HeightFixtures.make_flat_noise_def(-3.0)
+	var first := grid.get_height_sampler()
+	assert_object(first).is_not_null()
+	assert_object(grid.get_height_sampler()).is_same(first)
 
 
-## _prepare_heightmap_image: null def or null heightmap stays null so
-## the caller falls back to the noise path.
-func test_prepare_heightmap_image_null_and_passthrough() -> void:
-	assert_that(SmoothGrid._prepare_heightmap_image(null)).is_null()
-	var def := TerrainGenDef.new()
-	assert_that(SmoothGrid._prepare_heightmap_image(def)).is_null()
+## Strata's pristine height and the water shoreline must read the same ground.
+func test_pristine_height_reads_through_the_shared_sampler() -> void:
+	var grid: SmoothGrid = auto_free(SmoothGrid.new())
+	grid.terrain_gen = HeightFixtures.make_heightmap_def(8, {Vector2i(2, 3): 7}, 1)
+
+	assert_float(grid.get_pristine_height(2.0, 3.0)).is_equal_approx(7.0, 0.0001)
+	assert_float(grid.get_pristine_height(0.0, 0.0)).is_equal_approx(1.0, 0.0001)
+	assert_float(grid.get_pristine_height(2.0, 3.0)).is_equal_approx(
+			grid.get_height_sampler().sample_height(2, 3), 0.0001)
 
 
 # --- is_solid_cell: lattice semantics of carve dilation ------------------------

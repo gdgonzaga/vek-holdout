@@ -600,9 +600,9 @@ static func create_image_file_dialog() -> FileDialog:
 
 
 ## Load + validate + normalize an image file into the L8 grayscale the
-## generator consumes (the same contract SmoothGrid._prepare_heightmap_image
+## generator consumes (the same contract TerrainHeightSampler.prepare_heightmap_image
 ## applies to texture pixels, kept local so the tool doesn't reach into
-## subsystem privates). Null on unusable input, reason pushed.
+## subsystem internals). Null on unusable input, reason pushed.
 static func load_heightmap_image(path: String) -> Image:
 	var image := Image.load_from_file(path)
 	if image == null:

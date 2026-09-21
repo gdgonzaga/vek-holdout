@@ -49,4 +49,6 @@ class_name TerrainGenDef
 @export var water_enabled: bool = false
 
 ## Authoring metadata for the Map Editor: baseline water height in meters (Y axis).
+## Water is whole 1 m cubes, so the rendered surface sits at floor(water_level):
+## -1.5 renders at -2.0.
 @export var water_level: float = -2.0

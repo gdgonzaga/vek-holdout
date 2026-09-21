@@ -75,22 +75,28 @@ func _ready() -> void:
 	_setup_water_generator()
 
 func _setup_water_generator() -> void:
-	# Map editor / root injects terrain_gen during map load.
+	# Map editor / root injects terrain_gen during map load; no sibling ground means no water to place.
+	var smooth: SmoothGrid = _find_smooth_grid()
+	if smooth == null or smooth.terrain_gen == null or not smooth.terrain_gen.water_enabled:
+		return
+
+	var water_idx: int = _library.get_index("water")
+	if water_idx <= 0:
+		return
+
+	var water_gen := WaterGenerator.new()
+	# The smooth grid's own height sampler, so the shoreline is read from the exact ground it meshes.
+	water_gen.setup(smooth.get_height_sampler(), smooth.terrain_gen.water_level, _library.get_stored_index(water_idx, 0))
+	if "generator" in _terrain:
+		_terrain.set("generator", water_gen)
+
+
+## The SmoothGrid the map root mounts beside this grid, or null (a bare grid, e.g. in tests).
+func _find_smooth_grid() -> SmoothGrid:
 	var map: Node = get_parent()
-	var t_gen: TerrainGenDef = null
-	if map != null:
-		var smooth = map.get_node_or_null("SmoothGrid")
-		if smooth != null:
-			t_gen = smooth.get("terrain_gen") as TerrainGenDef
-	
-	if t_gen != null and t_gen.water_enabled:
-		var water_gen = WaterGenerator.new()
-		var water_idx = _library.get_index("water")
-		if water_idx > 0:
-			var stored = _library.get_stored_index(water_idx, 0)
-			water_gen.setup(t_gen, t_gen.water_level, stored)
-			if "generator" in _terrain:
-				_terrain.set("generator", water_gen)
+	if map == null:
+		return null
+	return map.get_node_or_null("SmoothGrid") as SmoothGrid
 
 
 ## Library factory — overridable so tests can mount a fixture BlockLibrary

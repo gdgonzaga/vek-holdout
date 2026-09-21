@@ -124,10 +124,10 @@ var _height_cache: Dictionary = {}
 var _pristine_cache: Dictionary = {}
 var _strata: TerrainStrata = null
 var _catalog_by_id: Dictionary = {}
-## Generator-mirror inputs for _pristine_height: the def's own prepared image
-## (heightmap maps) or a noise sampler with the generator's exact params (F13).
-var _heightmap_image: Image = null
-var _noise_sampler: FastNoiseLite = null
+## Generator-mirror height source for _pristine_height (and BlockyGrid's water
+## generator): the def's own prepared image (heightmap maps) or a noise sampler
+## with the generator's exact params (F13). Built lazily by get_height_sampler().
+var _height_sampler: TerrainHeightSampler = null
 ## F12 block size (from the terrain's mesh_block_size); 0 until first use.
 var _block_size := 0
 
@@ -161,16 +161,12 @@ func _ready() -> void:
 	if "bounds" in _terrain:
 		_terrain.set("bounds", world_bounds)
 
-	# One prepared image feeds both the generator and _pristine_height — F13's
-	# lockstep rule: strata and generator must describe the same def. Noise
-	# maps mirror the generator's sampler the same way (F13 closed form).
-	_heightmap_image = _prepare_heightmap_image(terrain_gen)
-	if _heightmap_image == null:
-		_noise_sampler = FastNoiseLite.new()
-		_noise_sampler.seed = terrain_gen.noise_seed
-		_noise_sampler.frequency = terrain_gen.noise_frequency
+	# One sampler feeds both the generator and _pristine_height — F13's lockstep
+	# rule: strata and generator must describe the same def. Noise maps mirror
+	# the generator's sampler the same way (F13 closed form).
+	var sampler := get_height_sampler()
 	if "generator" in _terrain:
-		_terrain.set("generator", _build_generator(terrain_gen, _heightmap_image))
+		_terrain.set("generator", _build_generator(terrain_gen, sampler.get_heightmap_image()))
 	if "mesher" in _terrain:
 		_terrain.set("mesher", VoxelMesherTransvoxel.new())
 
@@ -193,6 +189,14 @@ func _ready() -> void:
 		_terrain.block_loaded.connect(_on_block_loaded)
 	if _terrain.has_signal("block_unloaded"):
 		_terrain.block_unloaded.connect(_clear_height_cache)
+
+## Shared ground-height source, built on first use: BlockyGrid's water generator
+## asks for it during its own _ready, which map.tscn orders before this grid's.
+## Null when the map has no natural terrain (terrain_gen unset).
+func get_height_sampler() -> TerrainHeightSampler:
+	if _height_sampler == null and terrain_gen != null:
+		_height_sampler = TerrainHeightSampler.from_def(terrain_gen)
+	return _height_sampler
 
 # --- generator construction ---------------------------------------------------
 
@@ -237,39 +241,6 @@ func _build_heightmap_generator(def: TerrainGenDef, heightmap: Image) -> Resourc
 	if "offset" in generator:
 		generator.set("offset", heightmap.get_size() / 2)
 	return generator
-
-## Heightmap pixels as the generator wants them: uncompressed L8 so the value
-## read is the authored grayscale regardless of source texture format. Static
-## so a future blocky-grid image generator in this subsystem can promote it to
-## a shared helper by moving, not rewriting. Null tex / unreadable pixels ->
-## null (the caller falls back to noise; the error is reported here).
-static func _prepare_heightmap_image(def: TerrainGenDef) -> Image:
-	if def == null or def.heightmap == null:
-		return null
-	var image := def.heightmap.get_image()
-	if image == null:
-		push_error("SmoothGrid: terrain_gen.heightmap has no readable pixels — falling back to noise")
-		return null
-	if image.is_compressed():
-		if image.decompress() != OK:
-			push_error("SmoothGrid: terrain_gen.heightmap is compressed and cannot decompress — falling back to noise")
-			return null
-	
-	# The map editor's L8 quantization causes ~0.2m offsets (e.g. 128/255 = 0.5019 -> +0.196m).
-	# Convert to float and snap physical heights back to the nearest whole meter to
-	# recover the authored integer height and align the generator with the Blocky grid.
-	image.convert(Image.FORMAT_RF)
-	var width := image.get_width()
-	var height := image.get_height()
-	for y: int in range(height):
-		for x: int in range(width):
-			var v: float = image.get_pixel(x, y).r
-			var h: float = def.height_start + v * def.height_range
-			var snapped_h: float = roundf(h)
-			var new_v: float = (snapped_h - def.height_start) / def.height_range
-			image.set_pixel(x, y, Color(new_v, new_v, new_v, 1.0))
-			
-	return image
 
 # --- read / edit surface (D1 mirror of BlockyGrid's block API) -----------------
 
@@ -925,22 +896,10 @@ func _pristine_height(x: float, z: float) -> float:
 
 
 func _compute_pristine(x: int, z: int) -> float:
-	if terrain_gen == null:
+	var sampler := get_height_sampler()
+	if sampler == null:
 		return NAN
-	if _heightmap_image != null:
-		var size := _heightmap_image.get_size()
-		if size.x <= 0 or size.y <= 0:
-			return NAN
-		var px := wrapi(x + int(size.x) / 2, 0, int(size.x))
-		var pz := wrapi(z + int(size.y) / 2, 0, int(size.y))
-		var v := _heightmap_image.get_pixel(px, pz).r
-		return terrain_gen.height_start + v * terrain_gen.height_range
-	if _noise_sampler == null:
-		_noise_sampler = FastNoiseLite.new()
-		_noise_sampler.seed = terrain_gen.noise_seed
-		_noise_sampler.frequency = terrain_gen.noise_frequency
-	var n := _noise_sampler.get_noise_2d(x, z)
-	return terrain_gen.height_start + (n * 0.5 + 0.5) * terrain_gen.height_range
+	return sampler.sample_height(x, z)
 
 # --- Terrain damage & mining (real-time LMB mining) ---------------------------
 

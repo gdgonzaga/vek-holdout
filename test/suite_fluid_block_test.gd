@@ -3,6 +3,15 @@ extends GdUnitTestSuite
 ## System logic tests for fluid block registration, fixed indexing, and mesher attributes.
 
 const Fixtures := preload("res://test/helpers/rotation_fixtures.gd")
+const HeightFixtures := preload("res://test/helpers/height_fixtures.gd")
+
+
+## BlockyGrid mounting a fixture library, so the wiring test needs no data/blocks/.
+class FixtureBlockyGrid extends BlockyGrid:
+	var fixture_dir: String = ""
+
+	func _make_library() -> BlockLibrary:
+		return BlockLibrary.new(fixture_dir)
 
 
 func test_fixed_index_ordering() -> void:
@@ -87,7 +96,7 @@ func test_water_generator_does_not_exceed_water_level() -> void:
 	def.id = "test_gen"
 	def.height_start = -10.0
 	def.height_range = 0.0
-	gen.setup(def, -2.0, 14)
+	gen.setup(TerrainHeightSampler.from_def(def), -2.0, 14)
 
 	var buf := VoxelBuffer.new()
 	buf.create(1, 16, 1)
@@ -108,7 +117,7 @@ func test_water_generator_skips_chunk_above_water_level() -> void:
 	def.id = "test_gen"
 	def.height_start = -10.0
 	def.height_range = 0.0
-	gen.setup(def, -2.0, 14)
+	gen.setup(TerrainHeightSampler.from_def(def), -2.0, 14)
 
 	var buf := VoxelBuffer.new()
 	buf.create(1, 16, 1)
@@ -124,7 +133,7 @@ func test_water_generator_dry_land_has_no_water() -> void:
 	def.id = "test_gen"
 	def.height_start = 2.0
 	def.height_range = 0.0
-	gen.setup(def, -2.0, 14)
+	gen.setup(TerrainHeightSampler.from_def(def), -2.0, 14)
 
 	var buf := VoxelBuffer.new()
 	buf.create(1, 16, 1)
@@ -132,6 +141,127 @@ func test_water_generator_dry_land_has_no_water() -> void:
 
 	for y in 16:
 		assert_int(buf.get_voxel(0, y, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
+## Water level -2.0 puts the water top at -2, so the highest water cell is y = -3.
+## Buffer index = world y + 16 for the origin (x, -16, z) used below.
+func test_water_generator_column_is_wet_when_any_corner_is_below_water_top() -> void:
+	# Only corner (0,0) is low; cell (0,0) still gets water because the cube must
+	# overshoot into the bank for the smooth ground to bury its edge.
+	var def := HeightFixtures.make_heightmap_def(8, {Vector2i(0, 0): -6}, 5)
+	var gen: WaterGenerator = auto_free(WaterGenerator.new())
+	gen.setup(TerrainHeightSampler.from_def(def), -2.0, 14)
+
+	var buf := VoxelBuffer.new()
+	buf.create(2, 16, 1)
+	gen._generate_block(buf, Vector3i(0, -16, 0), 0)
+
+	assert_int(buf.get_voxel(0, 9, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+	assert_int(buf.get_voxel(0, 10, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(14)
+	assert_int(buf.get_voxel(0, 13, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(14)
+	assert_int(buf.get_voxel(0, 14, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+	# Cell (1,0) has no corner below the top: it stays dry all the way up.
+	for y in 16:
+		assert_int(buf.get_voxel(1, y, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
+func test_water_generator_column_is_dry_when_every_corner_is_at_or_above_water_top() -> void:
+	# Ground exactly at the water top is not below it: no water.
+	var def := HeightFixtures.make_heightmap_def(8, {
+		Vector2i(0, 0): -2,
+		Vector2i(1, 0): -2,
+		Vector2i(0, 1): 3,
+		Vector2i(1, 1): 3,
+	}, 5)
+	var gen: WaterGenerator = auto_free(WaterGenerator.new())
+	gen.setup(TerrainHeightSampler.from_def(def), -2.0, 14)
+
+	var buf := VoxelBuffer.new()
+	buf.create(1, 16, 1)
+	gen._generate_block(buf, Vector3i(0, -16, 0), 0)
+
+	for y in 16:
+		assert_int(buf.get_voxel(0, y, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
+func test_water_generator_fill_starts_at_the_lowest_corner() -> void:
+	var def := HeightFixtures.make_heightmap_def(8, {
+		Vector2i(0, 0): -4,
+		Vector2i(1, 0): -9,
+		Vector2i(0, 1): -5,
+		Vector2i(1, 1): -7,
+	}, 5)
+	var gen: WaterGenerator = auto_free(WaterGenerator.new())
+	gen.setup(TerrainHeightSampler.from_def(def), -2.0, 14)
+
+	var buf := VoxelBuffer.new()
+	buf.create(1, 16, 1)
+	gen._generate_block(buf, Vector3i(0, -16, 0), 0)
+
+	# Lowest corner is -9, so water spans world y -9 (index 7) up to -3 (index 13).
+	assert_int(buf.get_voxel(0, 6, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+	assert_int(buf.get_voxel(0, 7, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(14)
+	assert_int(buf.get_voxel(0, 13, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(14)
+	assert_int(buf.get_voxel(0, 14, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
+func test_water_generator_without_a_sampler_generates_nothing() -> void:
+	var gen: WaterGenerator = auto_free(WaterGenerator.new())
+	gen.setup(null, -2.0, 14)
+
+	var buf := VoxelBuffer.new()
+	buf.create(1, 16, 1)
+	gen._generate_block(buf, Vector3i(0, -16, 0), 0)
+
+	for y in 16:
+		assert_int(buf.get_voxel(0, y, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
+## map.tscn readies BlockyGrid before SmoothGrid, yet the water generator must
+## still read the smooth grid's own ground so the shoreline follows the bank.
+func test_blocky_grid_water_generator_follows_the_smooth_grids_ground() -> void:
+	var dir := "user://fixture_blocks_water_wiring/"
+	DirAccess.make_dir_recursive_absolute(dir)
+	var d := DirAccess.open(dir)
+	if d != null:
+		for f in d.get_files():
+			d.remove(f)
+	_write_custom_def(dir + "water.tres", "water", 14, true)
+
+	var ground := HeightFixtures.make_heightmap_def(8, {Vector2i(0, 0): -6}, 5)
+	ground.water_enabled = true
+	ground.water_level = -2.0
+
+	# Whole subtree built detached, blocky first, so both _ready calls run on tree entry in scene order.
+	var root: Node3D = auto_free(Node3D.new())
+	var blocky: FixtureBlockyGrid = auto_free(FixtureBlockyGrid.new())
+	blocky.name = "BlockyGrid"
+	blocky.fixture_dir = dir
+	var blocky_terrain := VoxelTerrain.new()
+	blocky_terrain.name = "VoxelTerrain"
+	blocky.add_child(blocky_terrain)
+	root.add_child(blocky)
+	var smooth: SmoothGrid = auto_free(SmoothGrid.new())
+	smooth.name = "SmoothGrid"
+	smooth.terrain_gen = ground
+	var smooth_terrain := VoxelTerrain.new()
+	smooth_terrain.name = "VoxelTerrain"
+	smooth.add_child(smooth_terrain)
+	root.add_child(smooth)
+	add_child(root)
+
+	var generator: Resource = blocky.get_terrain().get("generator")
+	assert_bool(generator is WaterGenerator).is_true()
+
+	var buf := VoxelBuffer.new()
+	buf.create(1, 16, 1)
+	generator._generate_block(buf, Vector3i(0, -16, 0), 0)
+
+	# Ground corner (0,0) sits at -6, so water fills world y -6..-3 (buffer index 10..13).
+	assert_int(buf.get_voxel(0, 9, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+	assert_int(buf.get_voxel(0, 10, 0, VoxelBuffer.CHANNEL_TYPE)).is_not_equal(0)
+	assert_int(buf.get_voxel(0, 13, 0, VoxelBuffer.CHANNEL_TYPE)).is_not_equal(0)
+	assert_int(buf.get_voxel(0, 14, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
 
 
 func _write_custom_def(path: String, block_id: String, fixed_idx: int, is_fluid: bool) -> void:
