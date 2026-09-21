@@ -22,10 +22,13 @@ const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
 var _sandbox: ColonySandbox
 var _furniture_layer: FurnitureLayer
+var _preexisting_world_items: Array[Node] = []
 
 
 func before_test() -> void:
 	GameLog.clear() # plant()/harvest log into the persistent autoload
+	# Harvest drops are parented to the current scene, not the sandbox container, so remember what was already there.
+	_preexisting_world_items = get_tree().get_nodes_in_group("world_items")
 	_sandbox = ColonySandbox.new(self)
 	_furniture_layer = FurnitureLayer.new()
 	_furniture_layer.set_container(_sandbox.container)
@@ -34,6 +37,15 @@ func before_test() -> void:
 
 func after_test() -> void:
 	_sandbox.restore()
+	# A leaked edible drop (potato) would be found as ground food by any later suite's StorageRegistry search.
+	_free_world_items_added_by_test()
+
+
+func _free_world_items_added_by_test() -> void:
+	for node: Node in get_tree().get_nodes_in_group("world_items"):
+		if is_instance_valid(node) and not _preexisting_world_items.has(node):
+			node.free()
+	_preexisting_world_items.clear()
 
 
 func test_crop_definitions_and_yield_tiers() -> void:

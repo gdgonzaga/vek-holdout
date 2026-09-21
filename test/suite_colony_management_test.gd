@@ -1,30 +1,30 @@
 extends GdUnitTestSuite
 ## Tests for Colony Management main UI window, tab layout, and colonist roster.
 
+const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+
 var _scene: Control
 
-# Swap-and-restore (AGENTS.md): the real registry must never be wired to test
-# fixtures, and Colony's container must survive the spawn tests' on_map_wired.
-var _real_registry: StorageRegistry
+# Swap-and-restore (AGENTS.md): the sandbox swaps the registry, job board and map caches;
+# Colony's container must also survive the spawn tests' on_map_wired.
+var _sandbox: ColonySandbox
 var _real_container: Node3D
-var _test_registry: StorageRegistry
 
 
 func before_test() -> void:
 	var packed: PackedScene = load("res://ui/colony_management/colony_management.tscn")
 	_scene = auto_free(packed.instantiate() as Control)
 	add_child(_scene)
-	_real_registry = Colony.storage_registry
+	_sandbox = ColonySandbox.new(self)
 	_real_container = Colony._container
-	_test_registry = StorageRegistry.new()
-	auto_free(_test_registry)
-	Colony.storage_registry = _test_registry
 
 
 func after_test() -> void:
-	Colony.storage_registry = _real_registry
+	_sandbox.restore()
 	Colony._container = _real_container
 	Colony.colonists.clear()
+	# Suites that deserialize or spawn leave squads, loadouts, areas and pending records behind; wipe them after the real registry and board are back.
+	Colony.reset_for_new_game()
 
 
 func test_colony_management_scene_loads() -> void:
@@ -314,7 +314,7 @@ func test_spawn_colonist_success() -> void:
 	assert_object(spawned.get_parent()).is_equal(dummy_container)
 	assert_vector(spawned.global_position).is_equal(Vector3(10, 1, 5))
 	assert_int(Colony.colonists.size()).is_equal(1)
-	assert_object(Colony.colonists[0]).is_equal(spawned)
+	assert_object(Colony.colonists[0]).is_same(spawned)
 
 
 ## Marker Y is a hint: with a ground query wired (dual-voxel Phase 3), the

@@ -16,6 +16,8 @@ func after_test() -> void:
 	Colony.squads.clear()
 	Colony.colonists.clear()
 	_sandbox.restore()
+	# The round-trip test deserializes squads and pending colonist records into the autoload; clear them after the real registry and board are back.
+	Colony.reset_for_new_game()
 
 
 func _make_test_colonist() -> Colonist:

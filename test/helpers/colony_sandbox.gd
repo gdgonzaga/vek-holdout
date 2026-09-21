@@ -3,7 +3,10 @@ extends RefCounted
 ## (farming, harvesting, crafting, jobs). Swaps Colony.storage_registry and
 ## Colony.job_board for test-owned instances and restores them afterwards —
 ## AGENTS.md: autoloads persist across suites, so swap-and-restore instead of
-## mutating the real ones. Also hosts the shared actor/crate factories.
+## mutating the real ones. Also isolates the map-wiring caches (walkability, stand
+## hint, cell cost, ground query, terrain predicate, world bounds): a sandbox starts
+## with them unbound and restore() puts back whatever an earlier suite left there.
+## Also hosts the shared actor/crate factories.
 ##
 ## Composition on purpose: extending GdUnitTestSuite would make the gdUnit
 ## scanner pick this file up as an (empty) suite, and a RefCounted helper keeps
@@ -19,6 +22,12 @@ const PLAYER_SCENE: PackedScene = preload("res://subsystems/player/player.tscn")
 var _suite: GdUnitTestSuite
 var _real_registry: StorageRegistry
 var _real_board: JobBoard
+var _real_walkability: Callable
+var _real_stand_hint: Callable
+var _real_cell_cost: Callable
+var _real_ground_query: Callable
+var _real_terrain_predicate: Callable
+var _real_world_bounds: AABB
 
 ## The swapped-in, test-owned registry/board (auto-freed with the suite).
 var test_registry: StorageRegistry
@@ -33,6 +42,8 @@ func _init(suite: GdUnitTestSuite) -> void:
 	_suite = suite
 	_real_registry = Colony.storage_registry
 	_real_board = Colony.job_board
+	# Map-wiring caches: remember what an earlier suite may have left on Colony, then start this test from the unbound defaults so its job gating cannot depend on that.
+	_snapshot_and_reset_map_caches()
 	test_registry = StorageRegistry.new()
 	test_board = JobBoard.new()
 	container = Node3D.new()
@@ -48,7 +59,35 @@ func _init(suite: GdUnitTestSuite) -> void:
 func restore() -> void:
 	Colony.storage_registry = _real_registry
 	Colony.job_board = _real_board
+	# Map-wiring caches: put the pre-test values back through the setters so live colonists and the scratch pathfinder are re-pointed too.
+	_restore_map_caches()
+
+
+func _snapshot_and_reset_map_caches() -> void:
+	## Auxiliary: Colony keeps the active map's predicates as private Callables with no
+	## getters; copy them, then unbind so a sandbox test starts from the "no map" defaults.
+	_real_walkability = Colony._walkability_predicate
+	_real_stand_hint = Colony._stand_cell_hint
+	_real_cell_cost = Colony._cell_cost_fn
+	_real_ground_query = Colony._ground_query
+	_real_terrain_predicate = Colony._is_terrain_at
+	_real_world_bounds = Colony.get_world_bounds()
+	Colony.set_walkability_predicate(Callable())
+	Colony.set_stand_cell_hint(Callable())
+	Colony.set_cell_cost_fn(Callable())
+	Colony.set_ground_query(Callable())
+	Colony.set_terrain_predicate(Callable())
 	Colony.set_world_bounds(AABB())
+
+
+func _restore_map_caches() -> void:
+	## Auxiliary: inverse of _snapshot_and_reset_map_caches; safe to call repeatedly.
+	Colony.set_walkability_predicate(_real_walkability)
+	Colony.set_stand_cell_hint(_real_stand_hint)
+	Colony.set_cell_cost_fn(_real_cell_cost)
+	Colony.set_ground_query(_real_ground_query)
+	Colony.set_terrain_predicate(_real_terrain_predicate)
+	Colony.set_world_bounds(_real_world_bounds)
 
 
 func make_colonist() -> Colonist:

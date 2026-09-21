@@ -14,6 +14,19 @@ const _DOWN := Vector3i(0, -1, 0)
 const _UP := Vector3i(0, 1, 0)
 const _MAX_SLOPE_DEG := 45.0
 
+const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+
+var _sandbox: ColonySandbox
+
+
+func before_test() -> void:
+	# The dig-job test wires Colony's map predicates; the sandbox unbinds them now and restores them afterwards so nothing leaks into later suites.
+	_sandbox = ColonySandbox.new(self)
+
+
+func after_test() -> void:
+	_sandbox.restore()
+
 
 # --- fakes ------------------------------------------------------------------
 
