@@ -65,6 +65,7 @@ Collaborating classes that compose the Map Editor subsystem:
 | Script | Type | Responsibility |
 |---|---|---|
 | `tools/map_editor/editor_undo_history.gd` | `EditorUndoHistory` (`RefCounted`) | Bounded stack of undo entries (max depth 50) for block edits, smooth terrain sculpting, and structure stamps. |
+| `tools/map_editor/spawn_authoring.gd` | `SpawnAuthoring` (`RefCounted`) | Reads, creates, numbers, and tints spawn markers (Player, Colonist, Enemy) under `SpawnPoints`; preserves non-spawn markers. |
 
 ---
 

@@ -91,7 +91,7 @@ var _structure_defs: Array[StructureDef] = []
 var _selected_structure_idx: int = 0
 var _structure_tool: StructureToolClass = null
 var _yaw: int = 0 # Quarter turns (0..3)
-var _spawn_markers: Dictionary = {"player": null, "colonists": [], "enemies": []}
+var _spawns: SpawnAuthoring = SpawnAuthoring.new()
 var _selected_spawn_type: String = "player"
 
 var _ghost: MeshInstance3D = null
@@ -636,7 +636,7 @@ func load_map(map_id: String, recapture_mouse: bool = true) -> void:
 	_attach_streams(_map_root, map_id)
 	if _furniture_auth != null:
 		_furniture_auth.bind(_map_root)
-	_cache_spawn_markers()
+	_spawns.bind(_map_root)
 	_position_camera_at_spawn()
 
 	if _hud != null:
@@ -723,7 +723,7 @@ func unload_map() -> void:
 		_furniture_auth.unbind()
 	if _structure_tool != null:
 		_structure_tool.hide_ghost()
-	_spawn_markers = {"player": null, "colonists": [], "enemies": []}
+	_spawns.unbind()
 
 	if _map_root != null:
 		_map_root.queue_free()
@@ -1680,36 +1680,12 @@ func apply_water_settings(level: float, enabled: bool = true) -> void:
 func _do_spawn_place(type: String, hit: Dictionary) -> void:
 	if _map_root == null or not hit.get("hit", false):
 		return
-	var spawn_points: Node3D = _map_root.find_child("SpawnPoints") as Node3D
-	if spawn_points == null:
-		spawn_points = Node3D.new()
-		spawn_points.name = "SpawnPoints"
-		_map_root.add_child(spawn_points)
-		spawn_points.owner = _map_root
-
 	var target_pos := _get_surface_hit_point(hit)
-
-	if type == "player":
-		var player_marker: Marker3D = _spawn_markers.get("player")
-		if player_marker == null or not is_instance_valid(player_marker):
-			player_marker = spawn_points.find_child(SpawnMarkerRules.PLAYER_NAME) as Marker3D
-			if player_marker == null:
-				player_marker = Marker3D.new()
-				player_marker.name = SpawnMarkerRules.PLAYER_NAME
-				spawn_points.add_child(player_marker)
-				player_marker.owner = _map_root
-			_spawn_markers["player"] = player_marker
-		player_marker.global_position = target_pos
-		_visualize_spawn(player_marker, Color(0.2, 1.0, 0.2, 0.5))
-		if _map_def != null:
-			_map_def.player_spawn = target_pos
-	elif type == "colonist":
-		# 1. Spawn Placement: Instantiate numbered colonist spawn marker.
-		_place_numbered_spawn(spawn_points, SpawnMarkerRules.COLONIST_PREFIX, Color(0.2, 0.5, 1.0, 0.5), "colonists", target_pos)
-	elif type == "enemy":
-		# 1. Spawn Placement: Instantiate numbered enemy spawn marker.
-		_place_numbered_spawn(spawn_points, SpawnMarkerRules.ENEMY_PREFIX, Color(1.0, 0.2, 0.2, 0.5), "enemies", target_pos)
-
+	# 1. Marker: creation, naming and tinting live in SpawnAuthoring.
+	_spawns.place(_spawn_kind_for(type), target_pos)
+	# 2. MapDef mirrors the single player spawn immediately, as before.
+	if type == "player" and _map_def != null:
+		_map_def.player_spawn = target_pos
 	_update_spawn_hud_counts()
 	_mark_dirty()
 
@@ -1717,59 +1693,26 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 func _do_spawn_remove(hit: Dictionary) -> void:
 	if _map_root == null or not hit.get("hit", false):
 		return
-	var spawn_points := _map_root.find_child("SpawnPoints") as Node3D
-	if spawn_points == null:
+	# 1. Spawn Removal: Find and free nearest spawn marker within range.
+	var removed := _spawns.remove_nearest(_get_surface_hit_point(hit), SPAWN_REMOVE_RANGE)
+	if removed == SpawnMarkerRules.Kind.NONE:
 		return
-	# 1. Candidate: nearest real spawn marker; Furniture_* markers share the node but are never removable here.
-	var marker := _nearest_spawn_marker(spawn_points, _get_surface_hit_point(hit), SPAWN_REMOVE_RANGE)
-	if marker == null:
-		return
-	# 2. Bookkeeping: drop it from the cached lists (and MapDef for the player) before it is freed.
-	_forget_spawn_marker(marker)
-	marker.queue_free()
+	if removed == SpawnMarkerRules.Kind.PLAYER and _map_def != null:
+		_map_def.player_spawn = Vector3.ZERO
 	_update_spawn_hud_counts()
 	_mark_dirty()
 
 
-func _nearest_spawn_marker(spawn_points: Node3D, target: Vector3, max_distance: float) -> Marker3D:
-	## Auxiliary: Locates the nearest valid spawn marker within range.
-	var best: Marker3D = null
-	var best_dist := max_distance
-	for child in spawn_points.get_children():
-		if not (child is Marker3D) or SpawnMarkerRules.kind_of(child.name) == SpawnMarkerRules.Kind.NONE:
-			continue
-		var dist := (child as Marker3D).global_position.distance_to(target)
-		if dist < best_dist:
-			best_dist = dist
-			best = child as Marker3D
-	return best
-
-
-func _forget_spawn_marker(marker: Marker3D) -> void:
-	## Auxiliary: Removes a spawn marker from internal cache and map metadata.
-	match SpawnMarkerRules.kind_of(marker.name):
-		SpawnMarkerRules.Kind.PLAYER:
-			_spawn_markers["player"] = null
-			if _map_def != null:
-				_map_def.player_spawn = Vector3.ZERO
-		SpawnMarkerRules.Kind.COLONIST:
-			(_spawn_markers["colonists"] as Array).erase(marker)
-		SpawnMarkerRules.Kind.ENEMY:
-			(_spawn_markers["enemies"] as Array).erase(marker)
-
-
-func _place_numbered_spawn(spawn_points: Node3D, prefix: String, color: Color, list_key: String, world_pos: Vector3) -> void:
-	## Auxiliary: Instantiates and tracks a numbered spawn marker with visualization.
-	var names: Array[String] = []
-	for child in spawn_points.get_children():
-		names.append(String(child.name))
-	var marker := Marker3D.new()
-	marker.name = "%s_%d" % [prefix, SpawnMarkerRules.next_index(names, prefix)]
-	spawn_points.add_child(marker)
-	marker.owner = _map_root
-	marker.global_position = world_pos
-	_visualize_spawn(marker, color)
-	(_spawn_markers[list_key] as Array).append(marker)
+func _spawn_kind_for(type: String) -> SpawnMarkerRules.Kind:
+	## Auxiliary: Maps string spawn type identifier to SpawnMarkerRules.Kind enum value.
+	match type:
+		"player":
+			return SpawnMarkerRules.Kind.PLAYER
+		"colonist":
+			return SpawnMarkerRules.Kind.COLONIST
+		"enemy":
+			return SpawnMarkerRules.Kind.ENEMY
+	return SpawnMarkerRules.Kind.NONE
 
 
 func _on_spawn_type_selected(type: String) -> void:
@@ -1796,10 +1739,8 @@ func _set_spawn_type_direct(type: String) -> void:
 func _update_spawn_hud_counts() -> void:
 	if _hud == null:
 		return
-	var player_set := _spawn_markers.get("player") != null and is_instance_valid(_spawn_markers["player"])
-	var col_count := (_spawn_markers.get("colonists", []) as Array).size()
-	var enemy_count := (_spawn_markers.get("enemies", []) as Array).size()
-	_hud.set_spawn_counts(player_set, col_count, enemy_count)
+	var c: Dictionary = _spawns.counts()
+	_hud.set_spawn_counts(c["player"], c["colonists"], c["enemies"])
 
 
 func _do_structure_stamp(hit: Dictionary) -> void:
@@ -1835,55 +1776,6 @@ func _capture_structure_terrain(cell: Vector3i) -> Dictionary:
 	if positions.is_empty():
 		return {}
 	return _smooth_grid.capture_cells(SmoothGrid.cells_around(positions))
-
-
-func _cache_spawn_markers() -> void:
-	_spawn_markers = {
-		"player": null,
-		"colonists": [],
-		"enemies": [],
-	}
-	if _map_root == null:
-		return
-	var spawns: Node3D = _map_root.find_child("SpawnPoints") as Node3D
-	if spawns == null:
-		return
-	for child in spawns.get_children():
-		if child is Marker3D:
-			match SpawnMarkerRules.kind_of(child.name):
-				SpawnMarkerRules.Kind.PLAYER:
-					_spawn_markers["player"] = child
-					_visualize_spawn(child, Color(0.2, 1.0, 0.2, 0.5))
-				SpawnMarkerRules.Kind.COLONIST:
-					(_spawn_markers["colonists"] as Array).append(child)
-					_visualize_spawn(child, Color(0.2, 0.5, 1.0, 0.5))
-				SpawnMarkerRules.Kind.ENEMY:
-					(_spawn_markers["enemies"] as Array).append(child)
-					_visualize_spawn(child, Color(1.0, 0.2, 0.2, 0.5))
-	_update_spawn_hud_counts()
-
-
-func _visualize_spawn(marker: Marker3D, color: Color) -> void:
-	var existing := marker.get_node_or_null("SpawnVisualizer") as MeshInstance3D
-	if existing != null:
-		var mat := existing.material_override as StandardMaterial3D
-		if mat != null:
-			mat.albedo_color = color
-		return
-	var visualizer := MeshInstance3D.new()
-	visualizer.name = "SpawnVisualizer"
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.4
-	capsule.height = 1.8
-	visualizer.mesh = capsule
-	visualizer.position = Vector3(0, 0.9, 0)
-	visualizer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = color
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	visualizer.material_override = mat
-	marker.add_child(visualizer)
 
 
 func _cycle_block(dir: int) -> void:
@@ -2005,14 +1897,10 @@ func save_map() -> bool:
 
 func _sync_spawns_into_def() -> void:
 	## Auxiliary: Syncs player and enemy spawn markers to MapDef properties.
-	var player: Variant = _spawn_markers.get("player")
-	if player != null and is_instance_valid(player):
-		_map_def.player_spawn = (player as Marker3D).global_position
-	var enemies: Array[Dictionary] = []
-	for marker: Variant in _spawn_markers.get("enemies", []):
-		if marker != null and is_instance_valid(marker):
-			enemies.append({"pos": (marker as Marker3D).global_position, "count": 1})
-	_map_def.enemy_spawns = enemies
+	var player_pos: Variant = _spawns.player_position()
+	if player_pos != null:
+		_map_def.player_spawn = player_pos
+	_map_def.enemy_spawns = _spawns.enemy_spawns()
 
 
 func _apply_metadata_edits() -> void:

@@ -630,8 +630,8 @@ func test_map_editor_spawn_markers_cache_and_place() -> void:
 	editor.load_map("dev")
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 
-	assert_object(editor._spawn_markers.get("player")).is_not_null()
-	var player_marker: Marker3D = editor._spawn_markers["player"]
+	assert_object(editor._spawns.player_marker()).is_not_null()
+	var player_marker: Marker3D = editor._spawns.player_marker()
 	assert_object(player_marker.get_node_or_null("SpawnVisualizer")).is_not_null()
 
 	# Place new player spawn position
@@ -653,9 +653,9 @@ func test_map_editor_spawn_markers_cache_and_place() -> void:
 		"position": Vector3i(5, 1, 5),
 		"normal": Vector3i(0, 1, 0),
 	}
-	var initial_colonists_count: int = editor._spawn_markers.get("colonists", []).size()
+	var initial_colonists_count: int = editor._spawns.counts()["colonists"]
 	editor._do_spawn_place("colonist", hit_colonist)
-	var colonists: Array = editor._spawn_markers.get("colonists", [])
+	var colonists: Array[Marker3D] = editor._spawns.colonist_markers()
 	assert_int(colonists.size()).is_equal(initial_colonists_count + 1)
 	var col_marker: Marker3D = colonists[0]
 	assert_str(col_marker.name).contains("ColonistSpawn")
@@ -1252,7 +1252,7 @@ func test_map_editor_lmb_spawn_input_dispatches_spawns() -> void:
 		"normal": Vector3i(0, 1, 0),
 	}
 	editor._do_spawn_place("colonist", hit_col)
-	var colonists: Array = editor._spawn_markers.get("colonists", [])
+	var colonists: Array[Marker3D] = editor._spawns.colonist_markers()
 	assert_bool(colonists.size() > 0).is_true()
 
 
@@ -2031,10 +2031,10 @@ func test_map_editor_enemy_spawn_place_and_remove() -> void:
 		"position": Vector3i(12, 0, 12),
 		"normal": Vector3i(0, 1, 0),
 	}
-	var initial_enemy_count: int = (editor._spawn_markers.get("enemies", []) as Array).size()
+	var initial_enemy_count: int = editor._spawns.counts()["enemies"]
 	editor._do_spawn_place("enemy", hit_enemy)
 
-	var enemies: Array = editor._spawn_markers.get("enemies", [])
+	var enemies: Array[Marker3D] = editor._spawns.enemy_markers()
 	assert_int(enemies.size()).is_equal(initial_enemy_count + 1)
 	var last_enemy: Marker3D = enemies[enemies.size() - 1]
 	assert_str(last_enemy.name).contains("EnemySpawn")
@@ -2042,7 +2042,7 @@ func test_map_editor_enemy_spawn_place_and_remove() -> void:
 
 	# Test spawn removal
 	editor._do_spawn_remove(hit_enemy)
-	enemies = editor._spawn_markers.get("enemies", [])
+	enemies = editor._spawns.enemy_markers()
 	assert_int(enemies.size()).is_equal(initial_enemy_count)
 
 
@@ -2269,7 +2269,7 @@ func test_save_and_continue_keeps_unsaved_markers_across_the_reload() -> void:
 	editor._on_unsaved_save_confirmed()
 
 	assert_object(editor._map_root).is_not_same(root_before)
-	assert_int((editor._spawn_markers["enemies"] as Array).size()).is_equal(1)
+	assert_int(editor._spawns.counts()["enemies"]).is_equal(1)
 	assert_bool(editor._dirty).is_false()
 	await Sandbox.dispose(get_tree(), editor, id)
 
@@ -2281,7 +2281,7 @@ func test_discard_and_continue_reloads_without_the_markers() -> void:
 
 	editor._on_unsaved_custom_action(&"discard")
 
-	assert_int((editor._spawn_markers["enemies"] as Array).size()).is_equal(0)
+	assert_int(editor._spawns.counts()["enemies"]).is_equal(0)
 	await Sandbox.dispose(get_tree(), editor, id)
 
 
@@ -2386,7 +2386,7 @@ func test_spawn_remove_never_deletes_furniture_markers() -> void:
 	editor._do_spawn_remove(hit)
 
 	assert_bool(is_instance_valid(furniture) and not furniture.is_queued_for_deletion()).is_true()
-	assert_int((editor._spawn_markers["enemies"] as Array).size()).is_equal(0)
+	assert_int(editor._spawns.counts()["enemies"]).is_equal(0)
 	await Sandbox.dispose(get_tree(), editor, id)
 
 
