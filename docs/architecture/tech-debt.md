@@ -108,3 +108,24 @@ When undoing a smooth terrain `add_material` operation in the Map Editor (`tools
 **Status: Kept for unit tests.**
 
 `EditorHUD.populate_block_list(defs_by_index: Dictionary, selected_idx: int = -1)` in `tools/map_editor/editor_hud.gd` is retained specifically for test fixtures (`test/suite_map_editor_test.gd`). Production code populates via `populate_block_library(BlockLibrary)`. Kept so unit tests can evaluate palette search, filtering, and cycling with arbitrary in-memory dictionaries without creating temporary `.tres` files on disk.
+
+---
+
+## StructureBrowser Composition over EditorPalettePanel (2026-09-21)
+
+**Status: Open (Deferred follow-up).**
+
+`StructureBrowser` (`tools/map_editor/structure_browser.gd`) was factored out during early editor work and manages category tabs and an ItemList. `EditorPalettePanel` (`tools/map_editor/editor_palette_panel.gd`) was later extracted to centralize cyclic index stepping, query search predicates, and defensive array filtering across HUD palettes. While `StructureBrowser` now shares the unified `EditorPalettePanel.query_matches` predicate, full composition of `StructureBrowser` over `EditorPalettePanel` is deferred.
+
+**To resolve:** Refactor `StructureBrowser` to embed or delegate to `EditorPalettePanel` for category item list management, index navigation, and filtering.
+
+---
+
+## Map Editor Shipped Maps in Unit Tests (2026-09-21)
+
+**Status: Open (Progressive migration).**
+
+18 unit tests in `test/suite_map_editor_test.gd` still call `load_map("base")` or `load_map("dev")`, loading shipped maps directly from `res://data/maps/`. All newer suites and Phase 1-9 tests use `test/helpers/sandbox.gd` (`Sandbox.map_id(...)`, `Sandbox.blocky_only_payload(...)`, `Sandbox.heightmap_payload(...)`, and `Sandbox.dispose(...)`) to create and clean up isolated test maps under `res://data/maps/zz_sandbox_*/`.
+
+**To resolve:** Migrate the remaining 18 `load_map("base")` and `load_map("dev")` test cases in `test/suite_map_editor_test.gd` to sandbox fixtures so unit tests remain fully content-agnostic and resilient to changes in shipped map definitions.
+

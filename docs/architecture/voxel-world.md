@@ -147,6 +147,7 @@ Editor regeneration follows the same pipeline by design: the Terrain drawer's **
 | `serialize() -> Dictionary` / `deserialize(data)` | SaveSystem contract — buildable-block HP only; block types persist via the sqlite stream. |
 | `get_raw_voxel(pos: Vector3i) -> int` | Returns the raw stored voxel integer at position — a `VoxelBlockyLibrary` model index (base or rotation variant). |
 | `set_raw_voxel(pos: Vector3i, raw_val: int) -> void` | Sets the raw stored voxel integer at position (a library model index). |
+| `fill_box_raw(min_pos: Vector3i, max_pos: Vector3i, raw_val: int) -> void` | Writes raw voxel value to all cells in the axis-aligned integer bounding box (inclusive) via `VoxelTool.do_box`. Used by the Map Editor block brush. |
 | `get_block_type(pos: Vector3i) -> int` | The block type id at position — the def's BlockLibrary **base** index (stored variant indices resolve to their owning def). |
 | `get_block_rotation(pos: Vector3i) -> int` | The orthogonal orientation (0..23) the block at position renders at — the baked variant's orientation, 0 for unrotated/NONE blocks. |
 | `get_block_basis(pos: Vector3i) -> Basis` | The 3D Basis corresponding to the block rotation at position. |

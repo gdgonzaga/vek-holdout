@@ -64,12 +64,23 @@ MapEditor (Node3D, tools/map_editor/map_editor.gd)
 
 Collaborating classes that compose the Map Editor subsystem:
 
-| Script | Type | Responsibility |
-|---|---|---|
-| `tools/map_editor/editor_undo_history.gd` | `EditorUndoHistory` (`RefCounted`) | Bounded stack of undo entries (max depth 50) for block edits, smooth terrain sculpting, and structure stamps. |
-| `tools/map_editor/spawn_authoring.gd` | `SpawnAuthoring` (`RefCounted`) | Reads, creates, numbers, and tints spawn markers (Player, Colonist, Enemy) under `SpawnPoints`; preserves non-spawn markers. |
-| `tools/map_editor/editor_ghost.gd` | `EditorGhost` (`Node3D`) | Builds, positions, rotates, tints, and displays ghost preview meshes (blocks, sculpt spheres, furniture, spawn capsules) and 3D rotation axis lines. |
-| `tools/map_editor/map_repository.gd` | `MapRepository` (`RefCounted`) | Encapsulates map file-system scanning, scene template stamping, directory deletion, and MapDef / terrain resource creation. |
+| Script | Type | Lines | Responsibility |
+|---|---|---|---|
+| `tools/map_editor/map_editor.gd` | `MapEditor` (`Node3D`) | ~1950 | Standalone WYSIWYG orchestrator coordinating camera navigation, edit modes, input routing, and dual-voxel workflows. |
+| `tools/map_editor/editor_hud.gd` | `EditorHUD` (`CanvasLayer`) | ~1540 | Primary UI layer managing palettes, terrain/water drawers, metadata panels, and hotkey guides. |
+| `tools/map_editor/editor_launcher.gd` | `EditorLauncher` (`CanvasLayer`) | ~650 | Launch modal dialog providing existing map selection, deletion, and new map configuration forms. |
+| `tools/map_editor/structure_browser.gd` | `StructureBrowser` (`PanelContainer`) | ~380 | Searchable structure selection panel with category tabs and name/id query filtering. |
+| `tools/map_editor/spawn_authoring.gd` | `SpawnAuthoring` (`RefCounted`) | ~270 | Reads, creates, numbers, and tints spawn markers (Player, Colonist, Enemy) under `SpawnPoints`; preserves non-spawn markers. |
+| `tools/map_editor/structure_tool.gd` | `StructureTool` (`Node`) | ~245 | Manages active structure preview transforms, Y-offsets, nudging, and terrain-touching voxel queries. |
+| `tools/map_editor/map_repository.gd` | `MapRepository` (`RefCounted`) | ~240 | Encapsulates map file-system scanning, scene template stamping, directory deletion, and MapDef / terrain resource creation. |
+| `tools/map_editor/editor_palette_panel.gd` | `EditorPalettePanel` (`RefCounted`) | ~235 | Common palette helpers for cyclical index wrapping, query search predicates, and defensive index filtering. |
+| `tools/map_editor/editor_ghost.gd` | `EditorGhost` (`Node3D`) | ~180 | Builds, positions, rotates, tints, and displays ghost preview meshes (blocks, sculpt spheres, furniture, spawn capsules) and 3D rotation axis lines. |
+| `tools/map_editor/map_terrain_authoring.gd` | `MapTerrainAuthoring` (`RefCounted`) | ~155 | Manages heightmap def generation with embedded textures, water synchronization, and map-owned terrain persistence. |
+| `tools/map_editor/editor_content_loader.gd` | `EditorContentLoader` (`RefCounted`) | ~65 | Recursive disk asset discovery for furniture and structure definitions with strict type and format filtering. |
+| `tools/map_editor/editor_grid_overlay.gd` | `EditorGridOverlay` (`RefCounted`) | ~40 | Constructs the procedural wireframe reference grid mesh on the ground plane. |
+| `tools/map_editor/spawn_marker_rules.gd` | `SpawnMarkerRules` (`RefCounted`) | ~35 | Pure classification and prefix matching helper for identifying actor spawn marker kinds. |
+| `tools/map_editor/editor_undo_history.gd` | `EditorUndoHistory` (`RefCounted`) | ~30 | Bounded stack of undo entries (max depth 50) for block edits, smooth terrain sculpting, and structure stamps. |
+| `tools/map_editor/map_id_rules.gd` | `MapIdRules` (`RefCounted`) | ~15 | Validates map identifier strings against snake_case naming rules and path-traversal attacks. |
 
 ---
 
