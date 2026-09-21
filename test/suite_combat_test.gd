@@ -491,23 +491,32 @@ func _make_damage_dummy(pos: Vector3) -> StaticBody3D:
 	return body
 
 
+## The loop waits on physics ticks, not idle frames: the enemy's BTPlayer updates
+## in the physics step (that is where the target is scanned and the path set) and
+## EnemyBase applies its velocity in its own _physics_process. An idle-frame loop
+## only advanced the swarmer as far as the renderer happened to tick physics in the
+## meantime, so it passed on a vsynced GPU display and failed under a software
+## renderer, where the same 70 idle frames span about 2 physics ticks.
 func test_enemy_ai_behavior_with_colonist() -> void:
+	const COLONIST_X: float = 5.0
+	const MIN_ADVANCE_X: float = 3.0
+	const APPROACH_PHYSICS_TICKS: int = 70
+
 	var colonist := CharacterBody3D.new()
 	colonist.name = "TestColonist"
 	auto_free(colonist)
 	add_child(colonist)
 	colonist.add_to_group("colonists")
-	colonist.global_position = Vector3(5, 0, 0)
+	colonist.global_position = Vector3(COLONIST_X, 0.0, 0.0)
 
 	var swarmer := SwarmerScene.instantiate() as EnemyBase
 	auto_free(swarmer)
 	add_child(swarmer)
 	swarmer.global_position = Vector3.ZERO
-	
-	# Run frames for enemy (speed 5.0) to scan, acquire target, and traverse towards colonist
-	for i in range(70):
-		await await_idle_frame()
-		swarmer._physics_process(0.016)
 
-	assert_float(swarmer.global_position.x).is_greater(3.0)
+	# Let the enemy scan, acquire the colonist and walk towards it at its own move speed.
+	for _tick in range(APPROACH_PHYSICS_TICKS):
+		await get_tree().physics_frame
+
+	assert_float(swarmer.global_position.x).is_greater(MIN_ADVANCE_X)
 
