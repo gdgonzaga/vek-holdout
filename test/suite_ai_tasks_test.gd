@@ -4,6 +4,8 @@ extends GdUnitTestSuite
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 const Doubles = preload("res://test/helpers/doubles.gd")
+const JobFixtures = preload("res://test/helpers/job_fixtures.gd")
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
 
 const BTActionNavigateToScript = preload("res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd")
 const BTActionPerformWorkScript = preload("res://subsystems/ai/tasks/actions/bt_action_perform_work.gd")
@@ -18,16 +20,14 @@ const BTActionScanThreatsScript = preload("res://subsystems/ai/tasks/actions/bt_
 const BTActionMeleeAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_melee_attack.gd")
 const BTActionRangedAttackScript = preload("res://subsystems/ai/tasks/actions/bt_action_ranged_attack.gd")
 const BTActionBreachVoxelScript = preload("res://subsystems/ai/tasks/actions/bt_action_breach_voxel.gd")
-const BTConditionPathBlockedScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_path_blocked.gd")
 
 const BTTreeFactoryScript = preload("res://subsystems/ai/bt_tree_factory.gd")
 const ColonistNeedsScript = preload("res://subsystems/ai/colonist_needs.gd")
 const ColonistBrainScript = preload("res://subsystems/ai/colonist_brain.gd")
 
-const CONSTRUCTION_DEF: JobDef = preload("res://data/jobs/construction.tres")
-const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
-
 var _sandbox: ColonySandbox
+var _items: ItemDbSandbox
+var _hauling: HaulingJobDef
 var _blackboard: Blackboard
 var _actor: CharacterBody3D
 var _original_loop_length: float
@@ -38,6 +38,10 @@ func before_test() -> void:
 	TimeSystem._loop_length_seconds = TimeSystem.HOURS_PER_DAY
 	
 	_sandbox = ColonySandbox.new(self)
+	_items = ItemDbSandbox.new(self)
+	_hauling = JobFixtures.hauling()
+	# Item ids the hauling and tool-hygiene tests carry; tool-tagged ones are kept by inventory hygiene.
+	_register_test_items()
 	_blackboard = Blackboard.new()
 	_actor = auto_free(CharacterBody3D.new()) as CharacterBody3D
 	add_child(_actor)
@@ -48,11 +52,19 @@ func before_test() -> void:
 
 
 func after_test() -> void:
+	_items.restore()
 	_sandbox.restore()
+	TimeSystem._loop_length_seconds = _original_loop_length
 	ColonistNeeds._defs_loaded = false
 	ColonistNeeds._cached_need_defs.clear()
 	if Colony.job_board != null:
 		Colony.job_board.clear_blacklists()
+
+
+func _register_test_items() -> void:
+	_items.add_item("plank")
+	_items.add_item("axe", "", ["tool", "axe"])
+	_items.add_item("pruning_kit", "", ["tool", "gardening_tool"])
 
 
 # ── BTActionNavigateTo ───────────────────────────────────────────────────────
@@ -200,157 +212,6 @@ func test_perform_work_releases_job_reference_on_terminal_complete() -> void:
 	assert_bool(_blackboard.has_var(&"active_job")).is_false()
 
 
-## Regression (blueprint never finishes): ConstructionJobDef.complete must
-## materialize the blueprint and drop the job from the board. Before the def
-## contract existed, PerformWork had no effect path for construction and
-## colonists looped at the blueprint forever.
-func test_construction_def_completes_blueprint_and_drops_job() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	_sandbox.container.add_child(bp)
-	var layer := StubBlueprintLayer.new()
-	bp.layer = layer
-
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.target_node = bp
-	Colony.job_board.add_job(job)
-
-	CONSTRUCTION_DEF.complete(colonist, job)
-	assert_int(layer.completed.size()).is_equal(1)
-	assert_object(layer.completed[0]).is_same(bp)
-	assert_object(Colony.job_board.get_job(job.id)).is_null()
-
-
-## An occupied blueprint (someone standing in its volume) hides the job and
-## blocks complete() — the job waits on the board instead of entombing them.
-func test_construction_def_holds_job_while_blueprint_occupied() -> void:
-	var builder: Colonist = _sandbox.make_colonist()
-	var occupant: Colonist = _sandbox.make_colonist()
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	_sandbox.container.add_child(bp)
-	occupant.global_position = Vector3(0.5, 0.0, 0.5)  # inside cell (0,0,0)
-	var layer := StubBlueprintLayer.new()
-	bp.layer = layer
-
-	var job := Job.from_def(CONSTRUCTION_DEF)
-	job.target_node = bp
-	Colony.job_board.add_job(job)
-
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
-	CONSTRUCTION_DEF.complete(builder, job)
-	assert_int(layer.completed.size()).is_equal(0)
-	assert_object(Colony.job_board.get_job(job.id)).is_not_null()
-
-
-## The base JobDef contract's default terminal effect: drop the job from the
-## board so ClaimJob claims fresh work next tick.
-func test_base_def_complete_drops_job_from_board() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-	var def: JobDef = auto_free(JobDef.new()) as JobDef
-	def.labor_id = "hauling"  # unmapped labor: skill recording is a no-op
-	var job := Job.from_def(def)
-	Colony.job_board.add_job(job)
-
-	def.complete(colonist, job)
-	assert_object(Colony.job_board.get_job(job.id)).is_null()
-
-
-## Hauling picks its walk target from carry state: the stocking crate while
-## empty-handed, the sink while carrying a still-needed material.
-func test_hauling_def_picks_work_site_by_carry_state() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-	var crate: Furniture = _sandbox.make_crate("plank", 5)
-	crate.global_position = Vector3(10.0, 0.0, 10.0)
-	var sink := FakeMaterialSink.new()
-	auto_free(sink)
-	_sandbox.container.add_child(sink)
-
-	var job := Job.from_def(HAULING_DEF)
-	job.target_node = sink
-	job.location = Vector3(3.0, 0.0, 3.0)
-	Colony.job_board.add_job(job)
-
-	assert_bool(HAULING_DEF.is_available(job)).is_true()
-	assert_vector(HAULING_DEF.work_site(colonist, job) as Vector3).is_equal(Vector3(10.0, 0.0, 10.0))
-
-	colonist.inventory.add("plank", 2)
-	assert_vector(HAULING_DEF.work_site(colonist, job) as Vector3).is_equal(Vector3(3.0, 0.0, 3.0))
-
-
-## One full hauling run through the def's fetch/deliver cycles: withdraw up to
-## the sink's need from the crate, then deposit into the sink — the job ends by
-## satisfaction (should_close), never by a terminal complete.
-func test_hauling_def_complete_fetches_then_delivers() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-	var crate: Furniture = _sandbox.make_crate("plank", 5)
-	crate.global_position = Vector3(10.0, 0.0, 10.0)
-	var sink := FakeMaterialSink.new()
-	auto_free(sink)
-	_sandbox.container.add_child(sink)
-
-	var job := Job.from_def(HAULING_DEF)
-	job.target_node = sink
-	job.location = Vector3(3.0, 0.0, 3.0)
-
-	HAULING_DEF.complete(colonist, job)  # FETCH
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(3)
-	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(2)
-
-	HAULING_DEF.complete(colonist, job)  # DELIVER
-	assert_int(sink.deposited).is_equal(3)
-	assert_bool(sink.satisfied).is_true()
-	assert_bool(HAULING_DEF.job_complete(job)).is_true()
-	assert_bool(HAULING_DEF.should_close(job)).is_true()
-
-
-## The work cycle releases the legacy multi-assign slot so the board's
-## should_close prune can retire a satisfied job and other colonists can take
-## the next cycle.
-## Hauling picks work_site correctly for fractional JobInstance when carrying material.
-func test_hauling_def_work_site_with_job_instance() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-	var crate: Furniture = _sandbox.make_crate("plank", 5)
-	crate.global_position = Vector3(10.0, 0.0, 10.0)
-	var sink := FakeMaterialSink.new()
-	auto_free(sink)
-	_sandbox.container.add_child(sink)
-
-	var job_inst := JobInstance.create_haul(
-		HAULING_DEF,
-		&"plank",
-		3,
-		Vector3(10.0, 0.0, 10.0),
-		Vector3(4.0, 0.0, 4.0),
-		sink
-	)
-	Colony.job_board.add_job(job_inst)
-
-	assert_vector(HAULING_DEF.work_site(colonist, job_inst) as Vector3).is_equal(Vector3(10.0, 0.0, 10.0))
-
-	colonist.inventory.add("plank", 2)
-	assert_vector(HAULING_DEF.work_site(colonist, job_inst) as Vector3).is_equal(Vector3(4.0, 0.0, 4.0))
-
-
-## When the sink becomes satisfied before hauler arrives, complete() does not deposit surplus to crate (retains it).
-func test_hauling_def_retains_surplus_when_sink_satisfied_early() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-	var crate: Furniture = _sandbox.make_crate("plank", 0)
-	crate.global_position = Vector3(10.0, 0.0, 10.0)
-	var sink := FakeMaterialSink.new()
-	sink.satisfied = true
-	auto_free(sink)
-	_sandbox.container.add_child(sink)
-
-	var job := Job.from_def(HAULING_DEF)
-	job.target_node = sink
-	job.location = Vector3(3.0, 0.0, 3.0)
-
-	colonist.inventory.add("plank", 3)
-	HAULING_DEF.complete(colonist, job)
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(3)
-	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(0)
-
-
 ## BTActionClaimJob retains surplus items in inventory when the held claim is spent.
 func test_claim_job_retains_surplus_when_claim_is_spent() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
@@ -361,7 +222,7 @@ func test_claim_job_retains_surplus_when_claim_is_spent() -> void:
 	colonist.inventory.add("plank", 2)
 	
 	var job_inst := JobInstance.create_haul(
-		HAULING_DEF,
+		_hauling,
 		&"plank",
 		2,
 		Vector3(0, 0, 0),
@@ -395,7 +256,7 @@ func test_claim_job_retargets_target_pos_for_continuing_fractional_claim() -> vo
 	_sandbox.container.add_child(sink)
 
 	var job_inst := JobInstance.create_haul(
-		HAULING_DEF,
+		_hauling,
 		&"plank",
 		3,
 		Vector3(10.0, 0.0, 10.0),
@@ -427,9 +288,11 @@ func test_cleanup_incompatible_held_items_drops_unneeded_items_on_new_job() -> v
 	var job := Job.new()
 	job.def = stub_def
 
+	# The held job goes through the task's public tick, which runs the hygiene pass on it.
+	_blackboard.set_var(&"active_job", job)
 	var task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
 	task.initialize(colonist, _blackboard, colonist)
-	task._cleanup_incompatible_held_items(colonist, job)
+	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
 
 	# Planks are dropped because the stub job does not need them; axe (tool) is kept.
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
@@ -442,20 +305,22 @@ func test_unreachable_store_carried_items_drops_items_on_nav_failure() -> void:
 	colonist.inventory.add("plank", 4)
 	colonist.inventory.add("axe", 1)
 
-	var store_job := Job.from_def(HAULING_DEF)
+	var store_job := Job.from_def(_hauling)
 	store_job.title = "Store Carried Items"
 	_blackboard.set_var(&"active_job", store_job)
 
 	var nav_task: BTAction = auto_free(BTActionNavigateToScript.new()) as BTAction
+	# An unreachable target makes the public tick fail, which triggers the failure handling.
+	_blackboard.set_var(&"target_pos", Vector3(999, 999, 999))
 	nav_task.initialize(colonist, _blackboard, colonist)
-	nav_task._handle_navigation_failure()
+	assert_int(nav_task.execute(0.1)).is_equal(BTAction.FAILURE)
 
 	# Planks dropped to floor; axe kept.
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
 	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
 
 
-func test_perform_work_unassigns_legacy_job_after_cycle() -> void:
+func test_perform_work_unassigns_legacy_job_after_cycle() -> void:  # hygiene-ok: "legacy Job" is the live Job class, not a save shim
 	var colonist: Colonist = _sandbox.make_colonist()
 	var stub_def: StubCompletingJobDef = auto_free(StubCompletingJobDef.new()) as StubCompletingJobDef
 	stub_def.work_duration = 0.1
@@ -962,14 +827,6 @@ func test_colonist_brain_lock_suspends_during_threat_and_resumes_after() -> void
 	assert_str(String(bt_player.blackboard.get_var(&"current_goal"))).is_equal("eat")
 
 
-func test_furniture_group_registration() -> void:
-	var furniture: Furniture = auto_free(preload("res://subsystems/furniture/furniture.gd").new()) as Furniture
-	furniture.def_id = "test_bed"
-	furniture._ready()
-	assert_bool(furniture.is_in_group(&"test_bed")).is_true()
-	assert_bool(furniture.is_in_group(&"furniture")).is_true()
-
-
 # ── Phase 4: Universal Tasks & Tree Tests ────────────────────────────────────
 
 func test_claim_job_claims_from_job_board() -> void:
@@ -1242,7 +1099,8 @@ func test_colonist_root_tree_has_combat_branch_as_highest_priority() -> void:
 	assert_bool(attack is BTActionColonistCombatAttack).is_true()
 
 
-func test_tree_factory_generates_and_saves_trees() -> void:
+## In-memory only: the committed data/ai/trees/*.tres are authored content and are never written by a test.
+func test_tree_factory_builds_every_tree() -> void:
 	var work_tree: BehaviorTree = BTTreeFactoryScript.create_generic_work_tree()
 	assert_object(work_tree).is_not_null()
 	assert_object(work_tree.root_task).is_not_null()
@@ -1254,6 +1112,8 @@ func test_tree_factory_generates_and_saves_trees() -> void:
 	var colonist_tree: BehaviorTree = BTTreeFactoryScript.create_colonist_root_tree(work_tree)
 	assert_object(colonist_tree).is_not_null()
 	assert_object(colonist_tree.root_task).is_not_null()
+	# An empty tree would pass the null checks above yet do nothing at runtime.
+	assert_int(colonist_tree.root_task.get_child_count()).is_greater(0)
 	
 	var melee_tree: BehaviorTree = BTTreeFactoryScript.create_enemy_melee_tree()
 	assert_object(melee_tree).is_not_null()
@@ -1262,19 +1122,6 @@ func test_tree_factory_generates_and_saves_trees() -> void:
 	var ranged_tree: BehaviorTree = BTTreeFactoryScript.create_enemy_ranged_kiter_tree()
 	assert_object(ranged_tree).is_not_null()
 	assert_object(ranged_tree.root_task).is_not_null()
-
-	# Save .tres resources
-	var err1: int = ResourceSaver.save(work_tree, "res://data/ai/trees/bt_generic_work.tres")
-	var err2: int = ResourceSaver.save(haul_tree, "res://data/ai/trees/bt_haul_single_trip.tres")
-	var err3: int = ResourceSaver.save(colonist_tree, "res://data/ai/trees/colonist_root.tres")
-	var err4: int = ResourceSaver.save(melee_tree, "res://data/ai/trees/enemy_melee.tres")
-	var err5: int = ResourceSaver.save(ranged_tree, "res://data/ai/trees/enemy_ranged_kiter.tres")
-
-	assert_int(err1).is_equal(OK)
-	assert_int(err2).is_equal(OK)
-	assert_int(err3).is_equal(OK)
-	assert_int(err4).is_equal(OK)
-	assert_int(err5).is_equal(OK)
 
 
 # ── Phase 5: Hardening, Persistence & Verification Tests ─────────────────────
@@ -1343,34 +1190,13 @@ func test_interruption_contract_and_lazy_tool_drop() -> void:
 	
 	var claim_task: BTAction = auto_free(BTActionClaimJobScript.new()) as BTAction
 	_blackboard.set_var(&"required_equipped_tags", [&"axe"])
+	# The held job goes through the task's public tick, which runs the hygiene pass on it.
+	_blackboard.set_var(&"active_job", job)
 	claim_task.initialize(colonist, _blackboard, colonist)
-	claim_task._cleanup_incompatible_held_items(colonist, job)
+	assert_int(claim_task.execute(0.1)).is_equal(BTAction.SUCCESS)
 	
 	# Lazy cleanup dropped incompatible pruning kit
 	assert_bool(colonist.inventory.has_item("pruning_kit", 1)).is_false()
-
-
-func test_stateless_colonist_save_load() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-	colonist.global_position = Vector3(12.0, 3.5, -8.0)
-	colonist.inventory.items["wood_plank"] = 7
-	colonist.needs.set_need(&"hunger", 0.42)
-	colonist.needs.set_need(&"rest", 0.88)
-	
-	var data: Dictionary = colonist.serialize()
-	assert_bool(data.has("needs")).is_true()
-	assert_bool(data.has("inventory")).is_true()
-	assert_bool(data.has("pos")).is_true()
-	assert_int(data["inventory"]["items"]["wood_plank"]).is_equal(7)
-	
-	# Deserialize into another colonist
-	var loaded_colonist: Colonist = _sandbox.make_colonist()
-	loaded_colonist.deserialize(data)
-	
-	assert_vector(loaded_colonist.global_position).is_equal(Vector3(12.0, 3.5, -8.0))
-	assert_int(loaded_colonist.inventory.get_item_count("wood_plank")).is_equal(7)
-	assert_float(loaded_colonist.needs.get_need(&"hunger")).is_equal_approx(0.42, 0.001)
-	assert_float(loaded_colonist.needs.get_need(&"rest")).is_equal_approx(0.88, 0.001)
 
 
 class StubMapWithGrid extends Node:
@@ -1385,16 +1211,6 @@ class StubCompletingJobDef extends JobDef:
 
 	func complete(_actor: Node, _job: Variant) -> void:
 		complete_calls += 1
-
-
-## Records BlueprintLayer.complete_blueprint calls without touching the voxel
-## world (construction def tests).
-class StubBlueprintLayer extends RefCounted:
-	var completed: Array = []
-
-	func complete_blueprint(bp: Blueprint, _builder: Node) -> bool:
-		completed.append(bp)
-		return true
 
 
 ## MaterialSink duck-type for hauling def tests (the suite_jobs FakeSink

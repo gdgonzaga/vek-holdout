@@ -279,4 +279,9 @@ func test_furniture_serialize_deserialize_backward_compat_and_cap_state() -> voi
 	assert_bool(storage.allowed_item_ids.has("scrap_ammo")).is_true()
 
 
-
+func test_furniture_group_registration() -> void:
+	var furniture: Furniture = auto_free(preload("res://subsystems/furniture/furniture.gd").new()) as Furniture
+	furniture.def_id = "test_bed"
+	furniture._ready()
+	assert_bool(furniture.is_in_group(&"test_bed")).is_true()
+	assert_bool(furniture.is_in_group(&"furniture")).is_true()
