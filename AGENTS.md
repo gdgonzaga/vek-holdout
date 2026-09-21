@@ -30,6 +30,7 @@ Xeno Frontier: Colony Defense — Godot 4.7 (Forward Plus, Jolt) voxel colony-su
 7. Do not commit or edit previous automatically. Always wait for explicit commands before doing so.
 8. No LaTeX math syntax (e.g. `$...$`, `\pm`, `\times`) in responses, docs, or code comments. Use plain text or code formatting (e.g. `+/- 3 Y`, `2x2`, `3x3`).
 9. Only run tests when necessary. And only run relevant tests for changes made during the current coding session.
+10. No backward compatibility yet: Early in development, do not write migration layers, legacy fallbacks, or compatibility shims. When schemas or data formats change, start over by updating or recreating resources and definitions directly. Always explicitly flag breaking or incompatible changes to the user.
 
 ## GDScript style
 
@@ -64,6 +65,7 @@ Preferences: prefer **scene files over dynamically created nodes** for any non-t
 - `snake_case` filename matching the `id` field inside; **identity is the `id` string**, never the filename. Maps live in `data/maps/<id>/` with id == folder name.
 - Capability params: nullable typed sub-resources in `data/capability_params/` — composition, not subclassing, not a flat Dictionary.
 - Schemas marked "planned — does not exist yet" in `data-schemas.md` are designs, not code — don't create them silently; check TODO/tech-debt first.
+- **No backward compatibility**: Early development prioritizes clean schema design over stability. Do not write data migration shims or fallback parsers for obsolete formats; update or recreate `.tres` resource definitions directly, and flag incompatible changes to the user.
 
 ## Testing & commits
 
