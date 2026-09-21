@@ -30,35 +30,43 @@ func _get_used_channels_mask() -> int:
 func _generate_block(out_buffer: VoxelBuffer, origin: Vector3i, lod: int) -> void:
 	if lod > 0 or terrain_gen == null:
 		return
-	
-	if origin.y > water_level:
+
+	# Voxel unit cubes span [y, y + 1.0]. To keep the water surface at or below water_level,
+	# the highest allowable voxel cell index is floor(water_level) - 1.
+	var max_water_y: int = int(floor(water_level)) - 1
+	if origin.y > max_water_y:
 		return
-		
+
 	var size := out_buffer.get_size()
 	for z in size.z:
-		var world_z = origin.z + z
+		var world_z := origin.z + z
 		for x in size.x:
-			var world_x = origin.x + x
-			
-			var h: float = NAN
-			if _image != null:
-				var isize = _image.get_size()
-				var px = wrapi(world_x + int(isize.x) / 2, 0, int(isize.x))
-				var pz = wrapi(world_z + int(isize.y) / 2, 0, int(isize.y))
-				var v = _image.get_pixel(px, pz).r
-				h = terrain_gen.height_start + v * terrain_gen.height_range
-			elif _noise != null:
-				var n = _noise.get_noise_2d(world_x, world_z)
-				h = terrain_gen.height_start + (n * 0.5 + 0.5) * terrain_gen.height_range
-			
+			var world_x := origin.x + x
+
+			# 1. Height Sampling: Resolves the continuous terrain elevation at (x, z).
+			var h: float = _sample_terrain_height(world_x, world_z)
 			if is_nan(h):
 				continue
-				
-			var floor_y = int(floor(h))
-			if floor_y >= water_level:
+
+			var floor_y: int = int(floor(h))
+			if floor_y > max_water_y:
 				continue
-				
+
 			for y in size.y:
-				var world_y = origin.y + y
-				if world_y <= water_level and world_y > floor_y:
+				var world_y := origin.y + y
+				if world_y <= max_water_y and world_y >= floor_y:
 					out_buffer.set_voxel(water_raw_idx, x, y, z, VoxelBuffer.CHANNEL_TYPE)
+
+
+func _sample_terrain_height(world_x: int, world_z: int) -> float:
+	## Auxiliary: Samples the terrain elevation from the heightmap image or procedural noise.
+	if _image != null:
+		var isize := _image.get_size()
+		var px := wrapi(world_x + int(isize.x) / 2, 0, int(isize.x))
+		var pz := wrapi(world_z + int(isize.y) / 2, 0, int(isize.y))
+		var v: float = _image.get_pixel(px, pz).r
+		return terrain_gen.height_start + v * terrain_gen.height_range
+	elif _noise != null:
+		var n: float = _noise.get_noise_2d(world_x, world_z)
+		return terrain_gen.height_start + (n * 0.5 + 0.5) * terrain_gen.height_range
+	return NAN

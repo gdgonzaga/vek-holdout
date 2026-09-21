@@ -81,6 +81,59 @@ func test_smooth_grid_surface_height_analytical_fallback() -> void:
 	grid.free()
 
 
+func test_water_generator_does_not_exceed_water_level() -> void:
+	var gen: WaterGenerator = auto_free(WaterGenerator.new())
+	var def := TerrainGenDef.new()
+	def.id = "test_gen"
+	def.height_start = -10.0
+	def.height_range = 0.0
+	gen.setup(def, -2.0, 14)
+
+	var buf := VoxelBuffer.new()
+	buf.create(1, 16, 1)
+	gen._generate_block(buf, Vector3i(0, -16, 0), 0)
+
+	# With water_level = -2.0, max_water_y is -3 (top face at -2.0).
+	# world_y = -2 (buf y index 14) must be empty air (0).
+	# world_y = -3 (buf y index 13) must be water (14).
+	assert_int(buf.get_voxel(0, 14, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+	assert_int(buf.get_voxel(0, 13, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(14)
+	assert_int(buf.get_voxel(0, 6, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(14)
+	assert_int(buf.get_voxel(0, 5, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
+func test_water_generator_skips_chunk_above_water_level() -> void:
+	var gen: WaterGenerator = auto_free(WaterGenerator.new())
+	var def := TerrainGenDef.new()
+	def.id = "test_gen"
+	def.height_start = -10.0
+	def.height_range = 0.0
+	gen.setup(def, -2.0, 14)
+
+	var buf := VoxelBuffer.new()
+	buf.create(1, 16, 1)
+	gen._generate_block(buf, Vector3i(0, 0, 0), 0)
+
+	for y in 16:
+		assert_int(buf.get_voxel(0, y, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
+func test_water_generator_dry_land_has_no_water() -> void:
+	var gen: WaterGenerator = auto_free(WaterGenerator.new())
+	var def := TerrainGenDef.new()
+	def.id = "test_gen"
+	def.height_start = 2.0
+	def.height_range = 0.0
+	gen.setup(def, -2.0, 14)
+
+	var buf := VoxelBuffer.new()
+	buf.create(1, 16, 1)
+	gen._generate_block(buf, Vector3i(0, -16, 0), 0)
+
+	for y in 16:
+		assert_int(buf.get_voxel(0, y, 0, VoxelBuffer.CHANNEL_TYPE)).is_equal(0)
+
+
 func _write_custom_def(path: String, block_id: String, fixed_idx: int, is_fluid: bool) -> void:
 	var def := BlockDef.new()
 	def.id = block_id
