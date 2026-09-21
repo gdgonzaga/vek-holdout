@@ -2378,5 +2378,74 @@ func test_blocky_only_map_has_no_smooth_grid_and_shows_the_terrain_warning() -> 
 	await Sandbox.dispose(get_tree(), editor, id)
 
 
+func test_spawn_remove_never_deletes_furniture_markers() -> void:
+	var id := Sandbox.map_id("spawn_rm")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.blocky_only_payload(id))
+	var hit := {"hit": true, "position": Vector3i.ZERO, "normal": Vector3i.UP, "surface": "blocky"}
+	editor._do_spawn_place("enemy", hit)
+	# A furniture marker sits closer to the hit point than the enemy spawn.
+	var spawn_points := editor._map_root.find_child("SpawnPoints") as Node3D
+	var furniture := Marker3D.new()
+	furniture.name = "Furniture_zz_0"
+	spawn_points.add_child(furniture)
+	furniture.global_position = editor._get_surface_hit_point(hit)
+
+	editor._do_spawn_remove(hit)
+
+	assert_bool(is_instance_valid(furniture) and not furniture.is_queued_for_deletion()).is_true()
+	assert_int((editor._spawn_markers["enemies"] as Array).size()).is_equal(0)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_palette_step_index_wraps_and_handles_edges() -> void:
+	var idx: Array[int] = [4, 7, 9]
+	assert_int(EditorPalettePanelClass.step_index(idx, 4, 1)).is_equal(7)
+	assert_int(EditorPalettePanelClass.step_index(idx, 9, 1)).is_equal(4)
+	assert_int(EditorPalettePanelClass.step_index(idx, 4, -1)).is_equal(9)
+	assert_int(EditorPalettePanelClass.step_index(idx, 5, 1)).is_equal(4)
+	assert_int(EditorPalettePanelClass.step_index([] as Array[int], 0, 1)).is_equal(-1)
+
+
+func test_palette_filtered_indices_are_a_copy() -> void:
+	var panel: EditorPalettePanel = auto_free(EditorPalettePanelClass.new())
+	panel.setup("T", "search", Color.WHITE)
+	var item := EditorPalettePanelClass.Item.new()
+	item.index = 3
+	item.id = "zz_a"
+	panel.populate([item] as Array[EditorPalettePanel.Item], 3)
+
+	var leaked := panel.get_filtered_indices()
+	leaked.append(99)
+
+	assert_int(panel.get_filtered_indices().size()).is_equal(1)
+
+
+func test_furniture_cycle_with_a_zero_match_filter_does_not_corrupt_the_palette() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var a := FurnitureDef.new()
+	a.id = "zz_a"
+	var b := FurnitureDef.new()
+	b.id = "zz_b"
+	editor._furniture_defs = [a, b] as Array[FurnitureDef]
+	editor._hud.populate_furniture_list(editor._furniture_defs, 0)
+	editor._hud._furniture_palette._on_search_changed("no_such_furniture")
+
+	editor._cycle_furniture(1)
+
+	assert_int(editor._hud.get_filtered_furniture_indices().size()).is_equal(0)
+
+
+func test_palette_query_matches_name_id_and_extra_text() -> void:
+	assert_bool(EditorPalettePanelClass.query_matches("Wooden Bed", "bed1", "  ", "")).is_true()
+	assert_bool(EditorPalettePanelClass.query_matches("Wooden Bed", "bed1", "wood", "")).is_true()
+	assert_bool(EditorPalettePanelClass.query_matches("Wooden Bed", "bed1", "BED1", "")).is_true()
+	assert_bool(EditorPalettePanelClass.query_matches("Wall", "wall1", "shelter", "Shelter")).is_true()
+	assert_bool(EditorPalettePanelClass.query_matches("Wall", "wall1", "door", "Shelter")).is_false()
+
+
 
 

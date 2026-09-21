@@ -244,8 +244,7 @@ func _filter_items(query: String) -> void:
 		if not cat_matches:
 			continue
 		var dname := item.display_name if not item.display_name.is_empty() else item.id
-		var matches := q.is_empty() or dname.to_lower().contains(q) or item.id.to_lower().contains(q) or item.category.to_lower().contains(q)
-		if matches:
+		if EditorPalettePanel.query_matches(dname, item.id, query, item.category):
 			_filtered_indices.append(item.index)
 			var display_text := item.label if not item.label.is_empty() else dname
 			var list_idx := _item_list.add_item(display_text, item.icon)
@@ -322,7 +321,7 @@ func get_selected_index() -> int:
 
 
 func get_filtered_indices() -> Array[int]:
-	return _filtered_indices
+	return _filtered_indices.duplicate()
 
 
 func is_search_focused() -> bool:

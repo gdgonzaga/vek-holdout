@@ -30,6 +30,7 @@ const MAX_BRUSH_DIAMETER: int = 11
 ## Min/max sculpt radius for smooth terrain mode.
 const MIN_SCULPT_RADIUS: float = 0.5
 const MAX_SCULPT_RADIUS: float = 5.0
+const SPAWN_REMOVE_RANGE: float = 4.0
 
 ## MapDef properties whose HUD metadata key has the same name.
 const METADATA_KEYS: Array[String] = [
@@ -115,9 +116,9 @@ func _ready() -> void:
 	_build_grid_overlay()
 	_block_library = BlockLibrary.new()
 	_selected_block_index = _default_block_index()
-	_furniture_defs = _load_furniture_defs()
+	_furniture_defs = EditorContentLoader.load_furniture_defs()
 	_furniture_auth = FurnitureAuthoringClass.new()
-	_structure_defs = _load_structure_defs()
+	_structure_defs = EditorContentLoader.load_structure_defs()
 	_structure_tool = StructureToolClass.new()
 	_structure_tool.name = "StructureTool"
 	add_child(_structure_tool)
@@ -1622,21 +1623,21 @@ func _do_furniture_rotate_step(dir: int = 1) -> void:
 func _cycle_furniture(dir: int) -> void:
 	if _furniture_defs.is_empty():
 		return
-	var filtered: Array[int] = _hud.get_filtered_furniture_indices() if _hud != null else []
-	if filtered.is_empty():
-		for i in range(_furniture_defs.size()):
-			filtered.append(i)
-	var cur_pos := filtered.find(_selected_furniture_idx)
-	if cur_pos == -1:
-		cur_pos = 0
-	else:
-		cur_pos = (cur_pos + dir) % filtered.size()
-		if cur_pos < 0:
-			cur_pos += filtered.size()
-	_selected_furniture_idx = filtered[cur_pos]
+	# 1. Visible rows, or every def when the filter shows none (Tab still moves the selection).
+	var visible: Array[int] = _hud.get_filtered_furniture_indices() if _hud != null else []
+	var candidates := visible if not visible.is_empty() else _all_indices(_furniture_defs.size())
+	# 2. Step with wrap, then mirror the selection into the HUD.
+	_selected_furniture_idx = EditorPalettePanel.step_index(candidates, _selected_furniture_idx, dir)
 	if _hud != null:
 		_hud.select_furniture_by_index(_selected_furniture_idx)
 	_update_hud_info()
+
+
+func _all_indices(count: int) -> Array[int]:
+	## Auxiliary: Generates an array of sequential integer indices.
+	var out: Array[int] = []
+	out.assign(range(count))
+	return out
 
 
 func _on_hud_furniture_selected(idx: int) -> void:
@@ -1684,10 +1685,10 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 	if type == "player":
 		var player_marker: Marker3D = _spawn_markers.get("player")
 		if player_marker == null or not is_instance_valid(player_marker):
-			player_marker = spawn_points.find_child("PlayerSpawn") as Marker3D
+			player_marker = spawn_points.find_child(SpawnMarkerRules.PLAYER_NAME) as Marker3D
 			if player_marker == null:
 				player_marker = Marker3D.new()
-				player_marker.name = "PlayerSpawn"
+				player_marker.name = SpawnMarkerRules.PLAYER_NAME
 				spawn_points.add_child(player_marker)
 				player_marker.owner = _map_root
 			_spawn_markers["player"] = player_marker
@@ -1695,44 +1696,12 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 		_visualize_spawn(player_marker, Color(0.2, 1.0, 0.2, 0.5))
 		if _map_def != null:
 			_map_def.player_spawn = target_pos
-
 	elif type == "colonist":
-		var next_idx := 1
-		for child in spawn_points.get_children():
-			if child.name.begins_with("ColonistSpawn"):
-				var suffix := child.name.trim_prefix("ColonistSpawn_").trim_prefix("ColonistSpawn")
-				if suffix.is_valid_int():
-					next_idx = maxi(next_idx, int(suffix) + 1)
-				else:
-					next_idx = maxi(next_idx, 2)
-		var marker := Marker3D.new()
-		marker.name = "ColonistSpawn_%d" % next_idx
-		spawn_points.add_child(marker)
-		marker.owner = _map_root
-		marker.global_position = target_pos
-		_visualize_spawn(marker, Color(0.2, 0.5, 1.0, 0.5))
-		var col_list: Array = _spawn_markers.get("colonists", [])
-		col_list.append(marker)
-		_spawn_markers["colonists"] = col_list
-
+		# 1. Spawn Placement: Instantiate numbered colonist spawn marker.
+		_place_numbered_spawn(spawn_points, SpawnMarkerRules.COLONIST_PREFIX, Color(0.2, 0.5, 1.0, 0.5), "colonists", target_pos)
 	elif type == "enemy":
-		var next_idx := 1
-		for child in spawn_points.get_children():
-			if child.name.begins_with("EnemySpawn"):
-				var suffix := child.name.trim_prefix("EnemySpawn_").trim_prefix("EnemySpawn")
-				if suffix.is_valid_int():
-					next_idx = maxi(next_idx, int(suffix) + 1)
-				else:
-					next_idx = maxi(next_idx, 2)
-		var marker := Marker3D.new()
-		marker.name = "EnemySpawn_%d" % next_idx
-		spawn_points.add_child(marker)
-		marker.owner = _map_root
-		marker.global_position = target_pos
-		_visualize_spawn(marker, Color(1.0, 0.2, 0.2, 0.5))
-		var enemy_list: Array = _spawn_markers.get("enemies", [])
-		enemy_list.append(marker)
-		_spawn_markers["enemies"] = enemy_list
+		# 1. Spawn Placement: Instantiate numbered enemy spawn marker.
+		_place_numbered_spawn(spawn_points, SpawnMarkerRules.ENEMY_PREFIX, Color(1.0, 0.2, 0.2, 0.5), "enemies", target_pos)
 
 	_update_spawn_hud_counts()
 	_mark_dirty()
@@ -1741,38 +1710,59 @@ func _do_spawn_place(type: String, hit: Dictionary) -> void:
 func _do_spawn_remove(hit: Dictionary) -> void:
 	if _map_root == null or not hit.get("hit", false):
 		return
-	var spawn_points: Node3D = _map_root.find_child("SpawnPoints") as Node3D
+	var spawn_points := _map_root.find_child("SpawnPoints") as Node3D
 	if spawn_points == null:
 		return
+	# 1. Candidate: nearest real spawn marker; Furniture_* markers share the node but are never removable here.
+	var marker := _nearest_spawn_marker(spawn_points, _get_surface_hit_point(hit), SPAWN_REMOVE_RANGE)
+	if marker == null:
+		return
+	# 2. Bookkeeping: drop it from the cached lists (and MapDef for the player) before it is freed.
+	_forget_spawn_marker(marker)
+	marker.queue_free()
+	_update_spawn_hud_counts()
+	_mark_dirty()
 
-	var target_pos := _get_surface_hit_point(hit)
-	var closest_marker: Marker3D = null
-	var closest_dist := 4.0
 
+func _nearest_spawn_marker(spawn_points: Node3D, target: Vector3, max_distance: float) -> Marker3D:
+	## Auxiliary: Locates the nearest valid spawn marker within range.
+	var best: Marker3D = null
+	var best_dist := max_distance
 	for child in spawn_points.get_children():
-		if child is Marker3D:
-			var marker_node := child as Marker3D
-			var dist: float = marker_node.global_position.distance_to(target_pos)
-			if dist < closest_dist:
-				closest_dist = dist
-				closest_marker = child
+		if not (child is Marker3D) or SpawnMarkerRules.kind_of(child.name) == SpawnMarkerRules.Kind.NONE:
+			continue
+		var dist := (child as Marker3D).global_position.distance_to(target)
+		if dist < best_dist:
+			best_dist = dist
+			best = child as Marker3D
+	return best
 
-	if closest_marker != null:
-		if closest_marker == _spawn_markers.get("player"):
+
+func _forget_spawn_marker(marker: Marker3D) -> void:
+	## Auxiliary: Removes a spawn marker from internal cache and map metadata.
+	match SpawnMarkerRules.kind_of(marker.name):
+		SpawnMarkerRules.Kind.PLAYER:
 			_spawn_markers["player"] = null
 			if _map_def != null:
 				_map_def.player_spawn = Vector3.ZERO
-		elif closest_marker.name.begins_with("ColonistSpawn"):
-			var col_list: Array = _spawn_markers.get("colonists", [])
-			col_list.erase(closest_marker)
-			_spawn_markers["colonists"] = col_list
-		elif closest_marker.name.begins_with("EnemySpawn"):
-			var enemy_list: Array = _spawn_markers.get("enemies", [])
-			enemy_list.erase(closest_marker)
-			_spawn_markers["enemies"] = enemy_list
-		closest_marker.queue_free()
-		_update_spawn_hud_counts()
-		_mark_dirty()
+		SpawnMarkerRules.Kind.COLONIST:
+			(_spawn_markers["colonists"] as Array).erase(marker)
+		SpawnMarkerRules.Kind.ENEMY:
+			(_spawn_markers["enemies"] as Array).erase(marker)
+
+
+func _place_numbered_spawn(spawn_points: Node3D, prefix: String, color: Color, list_key: String, world_pos: Vector3) -> void:
+	## Auxiliary: Instantiates and tracks a numbered spawn marker with visualization.
+	var names: Array[String] = []
+	for child in spawn_points.get_children():
+		names.append(String(child.name))
+	var marker := Marker3D.new()
+	marker.name = "%s_%d" % [prefix, SpawnMarkerRules.next_index(names, prefix)]
+	spawn_points.add_child(marker)
+	marker.owner = _map_root
+	marker.global_position = world_pos
+	_visualize_spawn(marker, color)
+	(_spawn_markers[list_key] as Array).append(marker)
 
 
 func _on_spawn_type_selected(type: String) -> void:
@@ -1840,28 +1830,6 @@ func _capture_structure_terrain(cell: Vector3i) -> Dictionary:
 	return _smooth_grid.capture_cells(SmoothGrid.cells_around(positions))
 
 
-func _load_furniture_defs() -> Array[FurnitureDef]:
-	var out: Array[FurnitureDef] = []
-	var dir_path := "res://data/furniture/"
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		push_warning("MapEditor: could not open " + dir_path)
-		return out
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and fname.ends_with(".tres"):
-			var res = load(dir_path + fname)
-			if res is FurnitureDef:
-				out.append(res as FurnitureDef)
-		fname = dir.get_next()
-	dir.list_dir_end()
-	out.sort_custom(func(a: FurnitureDef, b: FurnitureDef) -> bool:
-		return a.id < b.id
-	)
-	return out
-
-
 func _cache_spawn_markers() -> void:
 	_spawn_markers = {
 		"player": null,
@@ -1875,15 +1843,16 @@ func _cache_spawn_markers() -> void:
 		return
 	for child in spawns.get_children():
 		if child is Marker3D:
-			if child.name == "PlayerSpawn":
-				_spawn_markers["player"] = child
-				_visualize_spawn(child, Color(0.2, 1.0, 0.2, 0.5))
-			elif child.name.begins_with("ColonistSpawn"):
-				_spawn_markers["colonists"].append(child)
-				_visualize_spawn(child, Color(0.2, 0.5, 1.0, 0.5))
-			elif child.name.begins_with("EnemySpawn"):
-				_spawn_markers["enemies"].append(child)
-				_visualize_spawn(child, Color(1.0, 0.2, 0.2, 0.5))
+			match SpawnMarkerRules.kind_of(child.name):
+				SpawnMarkerRules.Kind.PLAYER:
+					_spawn_markers["player"] = child
+					_visualize_spawn(child, Color(0.2, 1.0, 0.2, 0.5))
+				SpawnMarkerRules.Kind.COLONIST:
+					(_spawn_markers["colonists"] as Array).append(child)
+					_visualize_spawn(child, Color(0.2, 0.5, 1.0, 0.5))
+				SpawnMarkerRules.Kind.ENEMY:
+					(_spawn_markers["enemies"] as Array).append(child)
+					_visualize_spawn(child, Color(1.0, 0.2, 0.2, 0.5))
 	_update_spawn_hud_counts()
 
 
@@ -1913,44 +1882,44 @@ func _visualize_spawn(marker: Marker3D, color: Color) -> void:
 func _cycle_block(dir: int) -> void:
 	if _block_library == null:
 		return
-	var filtered: Array[int] = _hud.get_filtered_block_indices() if _hud != null else []
-	if filtered.is_empty():
-		filtered = _block_library.get_base_indices()
-	if filtered.is_empty():
+	# 1. Visible rows, or every base block when the filter shows none.
+	var visible: Array[int] = _hud.get_filtered_block_indices() if _hud != null else []
+	var candidates := visible if not visible.is_empty() else _block_library.get_base_indices()
+	if candidates.is_empty():
 		return
-	var cur_pos := filtered.find(_selected_block_index)
-	if cur_pos == -1:
-		cur_pos = 0
-	else:
-		cur_pos = (cur_pos + dir) % filtered.size()
-		if cur_pos < 0:
-			cur_pos += filtered.size()
-	_selected_block_index = filtered[cur_pos]
-	var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
-	if def != null and def.is_rotatable():
-		_active_rotation_index = def.sanitize_rotation(_active_rotation_index)
-	elif def != null and not def.is_rotatable():
-		_active_rotation_index = 0
+	# 2. Step with wrap, then keep the brush rotation valid for the new block.
+	_selected_block_index = EditorPalettePanel.step_index(candidates, _selected_block_index, dir)
+	# 3. Rotation Validation: Ensure active rotation index is valid for selected block definition.
+	_sanitize_rotation_for_selected_block()
 	if _hud != null:
 		_hud.select_block_by_index(_selected_block_index)
 	_update_hud_info()
-	if _camera != null and _ghost != null and _mode == Mode.BLOCK:
-		var hit := _raycast_from_camera()
-		_update_ghost(hit)
+	# 4. Ghost Refresh: Re-render ghost mesh for the newly selected block.
+	_refresh_block_ghost()
 
 
 func _on_hud_block_selected(idx: int) -> void:
 	if _block_library != null and _block_library.get_def_by_index(idx) != null:
 		_selected_block_index = idx
-		var def: BlockDef = _block_library.get_def_by_index(idx)
-		if def != null and def.is_rotatable():
-			_active_rotation_index = def.sanitize_rotation(_active_rotation_index)
-		elif def != null and not def.is_rotatable():
-			_active_rotation_index = 0
+		# 1. Rotation Validation: Ensure active rotation index is valid for selected block definition.
+		_sanitize_rotation_for_selected_block()
 		_update_hud_info()
-		if _camera != null and _ghost != null and _mode == Mode.BLOCK:
-			var hit := _raycast_from_camera()
-			_update_ghost(hit)
+		# 2. Ghost Refresh: Re-render ghost mesh for the newly selected block.
+		_refresh_block_ghost()
+
+
+func _sanitize_rotation_for_selected_block() -> void:
+	## Auxiliary: Clamps or resets rotation index depending on block rotatability.
+	var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
+	if def == null:
+		return
+	_active_rotation_index = def.sanitize_rotation(_active_rotation_index) if def.is_rotatable() else 0
+
+
+func _refresh_block_ghost() -> void:
+	## Auxiliary: Refreshes the active block placement ghost mesh under the cursor.
+	if _camera != null and _ghost != null and _mode == Mode.BLOCK:
+		_update_ghost(_raycast_from_camera())
 
 
 ## Terrain-mode material cycling — the mirror of BLOCK mode's block palette:
@@ -2188,43 +2157,12 @@ func _do_block_pick(hit: Dictionary) -> void:
 	_update_ghost(hit)
 
 
-func _load_structure_defs() -> Array[StructureDef]:
-	var out: Array[StructureDef] = []
-	var dir_path := "res://data/structures/"
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		push_warning("MapEditor: could not open " + dir_path)
-		return out
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir() and (fname.ends_with(".tres") or fname.ends_with(".res")):
-			var res = load(dir_path + fname)
-			if res is StructureDef:
-				out.append(res as StructureDef)
-		fname = dir.get_next()
-	dir.list_dir_end()
-	out.sort_custom(func(a: StructureDef, b: StructureDef) -> bool:
-		var name_a := a.display_name if not a.display_name.is_empty() else a.id
-		var name_b := b.display_name if not b.display_name.is_empty() else b.id
-		return name_a < name_b
-	)
-	return out
-
-
 func _cycle_structure(dir: int) -> void:
 	if _structure_defs.is_empty():
 		return
-	var filtered: Array[int] = _hud.get_filtered_structure_indices() if _hud != null else []
-	if filtered.is_empty():
-		for i in range(_structure_defs.size()):
-			filtered.append(i)
-	var cur_pos := filtered.find(_selected_structure_idx)
-	if cur_pos == -1:
-		cur_pos = 0
-	else:
-		cur_pos = (cur_pos + dir + filtered.size()) % filtered.size()
-	_selected_structure_idx = filtered[cur_pos]
+	var visible: Array[int] = _hud.get_filtered_structure_indices() if _hud != null else []
+	var candidates := visible if not visible.is_empty() else _all_indices(_structure_defs.size())
+	_selected_structure_idx = EditorPalettePanel.step_index(candidates, _selected_structure_idx, dir)
 	if _structure_tool != null and _selected_structure_idx >= 0 and _selected_structure_idx < _structure_defs.size():
 		_structure_tool.set_active_structure(_structure_defs[_selected_structure_idx])
 	if _hud != null:

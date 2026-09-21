@@ -126,7 +126,7 @@ Mode F5 (`Mode.SPAWN`) provides an interactive selector sidebar for configuring 
   - **Player**: Single `PlayerSpawn` marker (Green capsule visualizer); synced to `MapDef.player_spawn`.
   - **Colonist**: Multi-marker `ColonistSpawn_N` (Blue capsule visualizer).
   - **Enemy**: Multi-marker `EnemySpawn_N` (Red capsule visualizer); synced to `MapDef.enemy_spawns`.
-  - **Removal**: Selecting Remove or holding `Shift+LMB` deletes the nearest spawn marker within range.
+  - **Removal**: Selecting Remove or holding `Shift+LMB` deletes the nearest spawn marker within range (classified via `SpawnMarkerRules.kind_of()`). Furniture markers (`Furniture_*`) sharing the `SpawnPoints` container are ignored and never removed.
 - **Runtime Consumption**: `SpawnHelpers.read_spawns()` scans `SpawnPoints` markers to instantiate actors at authored world positions.
 
 ### A6. Water Authoring
@@ -137,6 +137,11 @@ The Map Editor provides water body authoring integrated with `WaterGenerator` an
 - **Mechanism (`apply_water_settings`)**: Applies the water toggle and level to `MapDef` and its map-owned terrain definition, persists them to disk, and reloads the map. At load time, `BlockyGrid` installs `WaterGenerator` when water is enabled. `WaterGenerator` populates water in newly generated terrain columns between the terrain floor and `water_level`.
 - **Generator vs Saved Blocks**: Blocks already committed to `map.sqlite` override procedural generation, so previously saved blocks retain their contents across reloads; water appears in blocks generated afterwards. There is currently no in-editor column sweep to replace blocks already saved to sqlite.
 - **Planned Flood Sweep**: A full column-sweep water flooding tool that updates existing authored and saved blocks across `world_bounds` is planned (see `docs/TODO.md`).
+
+### A7. Palettes & Content Discovery
+
+- **Recursive Content Discovery (`EditorContentLoader`)**: Furniture and structure definitions are discovered recursively across `res://data/furniture/` (which groups items into category subfolders such as `storage/`, `defense/`, etc.) and `res://data/structures/` (both `.tres` and `.res` definitions). Resources are strictly filtered by type (`FurnitureDef` vs. co-located `WildFloraDef`) and stably sorted by ID or display name.
+- **Shared Stepping and Filtering (`EditorPalettePanel`)**: `EditorPalettePanel.step_index()` provides cyclic index wrapping with fallback to the first element when current is not in the candidates list. Filtered row indices return copies to prevent external mutation. `EditorPalettePanel.query_matches()` provides a unified case-insensitive search predicate across name, ID, and optional category text for both `EditorPalettePanel` and `StructureBrowser`.
 
 ### B. Dual-Voxel Editing & Undo Pipeline
 

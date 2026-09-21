@@ -135,13 +135,11 @@ func _filter_items(query: String) -> void:
 	_item_list.fixed_icon_size =  Vector2i(64, 64)
 	_filtered_indices.clear()
 
-	var q := query.strip_edges().to_lower()
 	for item in _items:
 		if item == null:
 			continue
 		var dname := item.display_name if not item.display_name.is_empty() else item.id
-		var matches := q.is_empty() or dname.to_lower().contains(q) or item.id.to_lower().contains(q)
-		if matches:
+		if query_matches(dname, item.id, query):
 			_filtered_indices.append(item.index)
 			var display_text := item.label if not item.label.is_empty() else dname
 			var list_idx := _item_list.add_item(display_text, item.icon)
@@ -182,8 +180,28 @@ func select_by_index(global_idx: int) -> void:
 		_item_list.deselect_all()
 
 
+## A copy: callers (Tab cycling) build on it and must not mutate the row mapping.
 func get_filtered_indices() -> Array[int]:
-	return _filtered_indices
+	return _filtered_indices.duplicate()
+
+
+## The next index in the visible list after current, wrapping either way. When
+## current is not visible (filtered out), stepping lands on the first entry.
+static func step_index(indices: Array[int], current: int, dir: int) -> int:
+	if indices.is_empty():
+		return -1
+	var pos := indices.find(current)
+	if pos == -1:
+		return indices[0]
+	return indices[posmod(pos + dir, indices.size())]
+
+
+## Shared predicate for palette and structure filtering against name, id, and extra category text.
+static func query_matches(display_name: String, id: String, query: String, extra_text: String = "") -> bool:
+	var q := query.strip_edges().to_lower()
+	if q.is_empty():
+		return true
+	return display_name.to_lower().contains(q) or id.to_lower().contains(q) or extra_text.to_lower().contains(q)
 
 
 func is_search_focused() -> bool:
