@@ -25,3 +25,8 @@ enum Shape { BOX, SPHERE }
 
 ## Snap target to integer grid coordinates for clean, aligned excavation.
 @export var snap_grid: bool = true
+
+## HP of damage one real-time LMB swing does to the struck smooth-terrain voxel or placed block
+## (PlayerInteractor). Terrain breaks when its per-material HP pool (TerrainMaterialDef.hp) is used
+## up, so this sets how many swings a material takes.
+@export var swing_damage: int = 50

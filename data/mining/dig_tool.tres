@@ -5,3 +5,4 @@
 [resource]
 script = ExtResource("1_script")
 carve_radius = 0.5
+swing_damage = 50
