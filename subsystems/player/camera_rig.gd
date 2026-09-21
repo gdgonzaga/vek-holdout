@@ -103,6 +103,22 @@ func get_camera() -> Camera3D:
 	return cam as Camera3D
 
 
+## Where the camera looks, flattened to the horizontal plane and normalized. The rig owns the
+## camera basis, so movement wish vectors, item drops and body-facing all read this one
+## forward instead of each re-deriving it.
+func get_forward_horizontal() -> Vector3:
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	return forward.normalized()
+
+
+## The camera's right, flattened to the horizontal plane and normalized (strafe direction).
+func get_right_horizontal() -> Vector3:
+	var right := global_transform.basis.x
+	right.y = 0.0
+	return right.normalized()
+
+
 # --- SaveSystem contract -----------------------------------------------------
 # Yaw/pitch are private orbit state with no setters; these accessors expose them
 # for save/load without widening the gameplay API.

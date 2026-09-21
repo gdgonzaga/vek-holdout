@@ -26,6 +26,25 @@ func test_look_direction_tracks_camera_yaw() -> void:
 	assert_float(look_dir.z).is_equal_approx(expected_dir.z, 0.001)
 
 
+## The rig owns the camera basis, so movement, drops and body-facing all read one horizontal
+## forward/right pair from it. At +90 degrees of yaw, hand-derived: rotating -Z about Y by +90
+## gives -X for forward, and rotating +X gives -Z for right. A pitched camera must not tilt
+## either vector out of the horizontal plane.
+func test_rig_horizontal_axes_ignore_pitch_and_follow_yaw() -> void:
+	var player := _spawn_player()
+
+	player._rig.set_orientation(deg_to_rad(90.0), deg_to_rad(-30.0))
+
+	var forward := player._rig.get_forward_horizontal()
+	var right := player._rig.get_right_horizontal()
+	assert_float(forward.x).is_equal_approx(-1.0, 0.001)
+	assert_float(forward.y).is_equal_approx(0.0, 0.001)
+	assert_float(forward.z).is_equal_approx(0.0, 0.001)
+	assert_float(right.x).is_equal_approx(0.0, 0.001)
+	assert_float(right.y).is_equal_approx(0.0, 0.001)
+	assert_float(right.z).is_equal_approx(-1.0, 0.001)
+
+
 ## Regression: looking up must lean the head back and looking down must lean
 ## it forward. The first version had this inverted (the rig bends forward on
 ## positive local-X rotation) and a "pose changed" assertion couldn't catch it.
