@@ -341,6 +341,10 @@ func test_ghost_previews_terrain_sculpt_sphere() -> void:
 	assert_bool(editor._ghost.mesh is SphereMesh).is_true()
 	assert_vector(editor._ghost.scale).is_equal(Vector3(2.5, 2.5, 2.5))
 	assert_vector(editor._ghost.global_position).is_equal(Vector3(4.5, 2.0, 7.5))
+	# The drawn sphere must match the edited sphere: mesh radius times scale equals the brush radius.
+	var sphere := editor._ghost.mesh as SphereMesh
+	assert_float(sphere.radius * editor._ghost.scale.x).is_equal_approx(2.5, 0.001)
+	assert_float(sphere.height * editor._ghost.scale.y).is_equal_approx(5.0, 0.001)
 
 
 func test_map_editor_terrain_state_on_load() -> void:
@@ -2445,6 +2449,27 @@ func test_palette_query_matches_name_id_and_extra_text() -> void:
 	assert_bool(EditorPalettePanelClass.query_matches("Wooden Bed", "bed1", "BED1", "")).is_true()
 	assert_bool(EditorPalettePanelClass.query_matches("Wall", "wall1", "shelter", "Shelter")).is_true()
 	assert_bool(EditorPalettePanelClass.query_matches("Wall", "wall1", "door", "Shelter")).is_false()
+
+
+func test_wheel_belongs_to_the_view_only_when_captured_or_over_no_gui() -> void:
+	assert_bool(MapEditorClass.wheel_belongs_to_view(true, true)).is_true()
+	assert_bool(MapEditorClass.wheel_belongs_to_view(false, false)).is_true()
+	assert_bool(MapEditorClass.wheel_belongs_to_view(false, true)).is_false()
+
+
+func test_wheel_still_rotates_furniture_while_the_cursor_is_captured() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor._launcher.hide_launcher()
+	editor._set_mode(MapEditorClass.Mode.FURNITURE)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	var wheel := InputEventMouseButton.new()
+	wheel.pressed = true
+	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+
+	editor._input(wheel)
+
+	assert_int(editor._yaw).is_equal(1)
 
 
 

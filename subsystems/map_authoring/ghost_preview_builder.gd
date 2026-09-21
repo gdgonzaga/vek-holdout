@@ -118,9 +118,9 @@ static func build_mesh(vox_data: VoxData, mapping: VoxPaletteMapping = null) -> 
 			_add_quad(
 				st,
 				Vector3(px, py, pz + 1.0),
-				Vector3(px + 1.0, py + 1.0, pz + 1.0),
 				Vector3(px + 1.0, py, pz + 1.0),
-				Vector3(px, py, pz + 1.0)
+				Vector3(px + 1.0, py + 1.0, pz + 1.0),
+				Vector3(px, py + 1.0, pz + 1.0)
 			)
 
 		# -Z Face

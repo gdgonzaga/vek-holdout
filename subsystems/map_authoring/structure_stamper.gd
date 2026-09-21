@@ -54,6 +54,16 @@ static func rotate_vector_y(v: Vector3i, steps: int) -> Vector3i:
 	return v
 
 
+## Where the ghost node goes so its rotated unit-cube mesh covers exactly the
+## cells stamp_structure writes. The mesh rotates about a cube corner, the stamp
+## rotates cell indices, so the ghost needs the half-cell correction
+## 0.5 - rot * 0.5. Both rotations come from rotate_vector_y, so they cannot drift.
+static func ghost_origin(origin: Vector3i, pivot: Vector3i, rotation_y_steps: int) -> Vector3:
+	var rotated_pivot := Vector3(rotate_vector_y(pivot, rotation_y_steps))
+	var rotated_half := Vector3(rotate_vector_y(Vector3i.ONE, rotation_y_steps)) * 0.5
+	return Vector3(origin) - rotated_pivot + Vector3(0.5, 0.5, 0.5) - rotated_half
+
+
 ## Computes world-space positions and mapped palette entries for all voxels in vox_data
 ## after applying pivot offset and Y-axis rotation relative to origin.
 static func get_transformed_voxels(

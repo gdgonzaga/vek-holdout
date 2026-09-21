@@ -175,13 +175,10 @@ func _update_ghost_transform() -> void:
 		return
 
 	var origin := get_placement_origin(current_grid_position)
-	var pivot := calculate_pivot_offset()
 	var rot_basis := Basis(Vector3.UP, deg_to_rad(float(current_rotation * 90)))
-
-	_ghost_mesh_instance.global_transform = Transform3D(
-		rot_basis,
-		Vector3(origin) - rot_basis * Vector3(pivot)
-	)
+	# Same rotation the stamper applies, plus its half-cell correction, so the preview sits on the cells that will be written.
+	var ghost_position := StructureStamper.ghost_origin(origin, calculate_pivot_offset(), current_rotation)
+	_ghost_mesh_instance.global_transform = Transform3D(rot_basis, ghost_position)
 	_ghost_mesh_instance.visible = true
 
 

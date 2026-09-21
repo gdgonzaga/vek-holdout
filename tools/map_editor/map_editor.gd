@@ -342,7 +342,8 @@ func _input(event: InputEvent) -> void:
 						_do_structure_stamp(hit)
 						get_viewport().set_input_as_handled()
 			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				if not mb.pressed:
+				# 1. Viewport Routing: Allow hovered GUI controls (e.g. palettes) to scroll when cursor is uncaptured.
+				if not _wheel_reaches_viewport():
 					return
 				var wheel_dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
 				if Input.is_key_pressed(KEY_B):
@@ -489,6 +490,18 @@ func _input(event: InputEvent) -> void:
 			_cam_pitch -= mm.relative.y * MOUSE_SENSITIVITY
 			_cam_pitch = clampf(_cam_pitch, -89.0, 89.0)
 			_apply_camera_rotation()
+
+
+static func wheel_belongs_to_view(captured: bool, hovering_gui: bool) -> bool:
+	return captured or not hovering_gui
+
+
+func _wheel_reaches_viewport() -> bool:
+	## Auxiliary: Determines if mouse wheel events should be handled by the 3D editor viewport.
+	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	var hovering_gui := get_viewport().gui_get_hovered_control() != null
+	# 1. Routing check: Evaluate if wheel input belongs to viewport or GUI.
+	return wheel_belongs_to_view(captured, hovering_gui)
 
 
 func _apply_camera_rotation() -> void:
@@ -948,6 +961,9 @@ func _build_camera() -> void:
 func _build_ghost() -> void:
 	_box_mesh = BoxMesh.new()
 	_sphere_mesh = SphereMesh.new()
+	# Unit-radius sphere so scale matches the brush radius in metres.
+	_sphere_mesh.radius = 1.0
+	_sphere_mesh.height = 2.0
 	_capsule_mesh = CapsuleMesh.new()
 	_capsule_mesh.radius = 0.4
 	_capsule_mesh.height = 1.8

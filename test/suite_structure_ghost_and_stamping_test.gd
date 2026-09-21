@@ -119,6 +119,27 @@ func test_ghost_preview_builder_single_voxel() -> void:
 	assert_float(colors[0].b).is_equal_approx(0.0, 0.01)
 
 
+func test_single_voxel_mesh_has_six_full_faces_with_consistent_winding() -> void:
+	var data: VoxData = auto_free(VoxData.new())
+	data.dimensions = Vector3i.ONE
+	data.palette = [Color.WHITE]
+	data.set_voxel(Vector3i.ZERO, 1)
+
+	var mesh := GhostPreviewBuilderClass.build_mesh(data, null) as ArrayMesh
+	var arrays := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+
+	assert_int(verts.size()).is_equal(36)
+	var total_area := 0.0
+	for t in range(0, verts.size(), 3):
+		var cross := (verts[t + 1] - verts[t]).cross(verts[t + 2] - verts[t])
+		total_area += cross.length() * 0.5
+		# Same handedness as the five correct faces: the geometric normal agrees with the stored one.
+		assert_float(cross.normalized().dot(normals[t])).is_greater(0.99)
+	assert_float(total_area).is_equal_approx(6.0, 0.001)
+
+
 func test_ghost_preview_builder_face_culling() -> void:
 	var data: VoxData = auto_free(VoxData.new())
 	data.dimensions = Vector3i(2, 1, 1)
@@ -192,15 +213,32 @@ func test_structure_tool_ghost_mesh_lifecycle() -> void:
 	# Rotate 90 deg clockwise (current_rotation = 1)
 	tool.rotate_clockwise()
 	assert_int(tool.current_rotation).is_equal(1)
-	# Rotated Basis around Y: rot_basis * pivot = Basis(90) * (1, 0, 1) = (1, 0, -1)
-	# Mesh pos = (10, 5, 20) - (1, 0, -1) = (9, 5, 21)
+	# Rotated Basis around Y: pivot (1, 0, 1) rotates to (1, 0, -1) and half-cell correction adds (0, 0, 1)
+	# Mesh pos = (10, 5, 20) - (1, 0, -1) + (0, 0, 1) = (9, 5, 22)
 	assert_float(ghost_inst.global_position.x).is_equal_approx(9.0, 0.01)
 	assert_float(ghost_inst.global_position.y).is_equal_approx(5.0, 0.01)
-	assert_float(ghost_inst.global_position.z).is_equal_approx(21.0, 0.01)
+	assert_float(ghost_inst.global_position.z).is_equal_approx(22.0, 0.01)
 
 	# Deactivate hides ghost
 	tool.deactivate()
 	assert_bool(tool.is_ghost_visible()).is_false()
+
+
+func test_ghost_cube_centres_land_on_the_stamped_cells_for_every_rotation() -> void:
+	var data := _create_sample_vox_data()
+	var def := _create_sample_structure(_create_sample_mapping())
+	var origin := Vector3i(10, 5, 20)
+	var pivot := StructureStamper.calculate_pivot_offset(def, data)
+
+	for steps in range(4):
+		var rot_basis := Basis(Vector3.UP, deg_to_rad(float(steps * 90)))
+		var xform := Transform3D(rot_basis, StructureStamper.ghost_origin(origin, pivot, steps))
+		for item in StructureStamper.get_transformed_voxels(def, data, origin, steps):
+			var local: Vector3i = item["local_pos"]
+			var stamped: Vector3i = item["world_pos"]
+			var ghost_centre := xform * (Vector3(local) + Vector3(0.5, 0.5, 0.5))
+			var expected := Vector3(stamped) + Vector3(0.5, 0.5, 0.5)
+			assert_vector(ghost_centre).is_equal_approx(expected, Vector3(0.001, 0.001, 0.001))
 
 
 func test_structure_tool_stamp_and_bounding_box() -> void:
