@@ -292,12 +292,12 @@ func test_map_editor_structure_stamp_and_undo() -> void:
 
 	editor._do_structure_stamp({"hit": true, "position": Vector3i(10, 20, 30), "normal": Vector3i.UP, "surface": "blocky"})
 
-	assert_int(editor._undo_stack.size()).is_equal(1)
-	var entry: Dictionary = editor._undo_stack[0]
+	assert_int(editor._history.size()).is_equal(1)
+	var entry: Dictionary = editor._history.entries[0]
 	assert_str(entry["type"]).is_equal("structure")
 	assert_bool(entry.has("terrain_snapshot")).is_true()
 	assert_bool(editor._dirty).is_true()
 
 	editor._undo_last()
-	assert_int(editor._undo_stack.size()).is_equal(0)
+	assert_int(editor._history.size()).is_equal(0)
 	await Sandbox.dispose(get_tree(), editor, id)

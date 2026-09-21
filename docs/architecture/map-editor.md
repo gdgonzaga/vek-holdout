@@ -58,6 +58,14 @@ MapEditor (Node3D, tools/map_editor/map_editor.gd)
         └── Furniture_* (Marker3D)
 ```
 
+### Module Map
+
+Collaborating classes that compose the Map Editor subsystem:
+
+| Script | Type | Responsibility |
+|---|---|---|
+| `tools/map_editor/editor_undo_history.gd` | `EditorUndoHistory` (`RefCounted`) | Bounded stack of undo entries (max depth 50) for block edits, smooth terrain sculpting, and structure stamps. |
+
 ---
 
 ## 3. Map Lifecycle & Flows

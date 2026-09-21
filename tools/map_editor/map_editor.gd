@@ -12,6 +12,7 @@ const EditorLauncherClass = preload("res://tools/map_editor/editor_launcher.gd")
 const EditorGridOverlayClass = preload("res://tools/map_editor/editor_grid_overlay.gd")
 const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_authoring.gd")
 const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
+const EditorUndoHistoryClass = preload("res://tools/map_editor/editor_undo_history.gd")
 
 const MAPS_DIR: String = "res://data/maps/"
 const TERRAIN_DIR: String = "res://data/terrain/"
@@ -21,9 +22,6 @@ const CONFIG_PATH: String = "res://data/map_editor/map_editor_config.tres"
 const FLY_SPEED: float = 8.0
 const FLY_SPEED_FAST: float = 20.0
 const MOUSE_SENSITIVITY: float = 0.2
-
-## Maximum number of undo operations in history.
-const MAX_UNDO_DEPTH: int = 50
 
 ## Largest brush edge length B+scroll can reach in block mode.
 const MAX_BRUSH_DIAMETER: int = 11
@@ -67,7 +65,7 @@ var _pending_delete_map_id: String = ""
 var _drawer_file_dialog: FileDialog = null
 var _config: MapEditorConfig = null
 var _dirty: bool = false
-var _undo_stack: Array[Dictionary] = []
+var _history: EditorUndoHistory = EditorUndoHistory.new()
 
 var _blocky_grid: BlockyGrid = null
 var _block_library: BlockLibrary = null
@@ -194,16 +192,10 @@ func _toggle_grid() -> void:
 	_grid_overlay.visible = not _grid_overlay.visible
 
 
-func _push_undo(entry: Dictionary) -> void:
-	_undo_stack.append(entry)
-	if _undo_stack.size() > MAX_UNDO_DEPTH:
-		_undo_stack.pop_front()
-
-
 func _undo_last() -> void:
-	if _undo_stack.is_empty() or _map_root == null:
+	if _history.is_empty() or _map_root == null:
 		return
-	var entry: Dictionary = _undo_stack.pop_back()
+	var entry: Dictionary = _history.pop()
 	# 1. Restore: the entry type decides which voxel layers are put back exactly as they were.
 	match String(entry.get("type", "")):
 		"block":
@@ -626,7 +618,7 @@ func load_map(map_id: String, recapture_mouse: bool = true) -> void:
 	_map_def = def
 	_map_scene_path = def.scene_path
 	_dirty = false
-	_undo_stack.clear()
+	_history.clear()
 
 	_blocky_grid = _map_root.blocky_grid
 
@@ -740,7 +732,7 @@ func unload_map() -> void:
 	_map_def = null
 	_map_scene_path = ""
 	_dirty = false
-	_undo_stack.clear()
+	_history.clear()
 
 	_blocky_grid = null
 	_smooth_grid = null
@@ -1521,7 +1513,7 @@ func _do_block_stroke(hit: Dictionary, erase: bool, value: int) -> void:
 	if cell == Vector3i.MIN:
 		return
 	# 1. Undo entry: the raw value of every cell in the footprint, captured before the write.
-	_push_undo({"type": "block", "ops": _collect_block_ops(_brush_box(cell))})
+	_history.push({"type": "block", "ops": _collect_block_ops(_brush_box(cell))})
 	# 2. Write and persist (async retries, see below).
 	_apply_block_brush(cell, value)
 
@@ -1574,7 +1566,7 @@ func _sculpt(hit: Dictionary, is_add: bool) -> void:
 		return
 	var point: Vector3 = hit.get("point", Vector3.ZERO)
 	# 1. Snapshot: Capture before edit so undo restores exact prior samples and material tags.
-	_push_undo({"type": "terrain", "snapshot": _capture_brush_region(point, _sculpt_radius)})
+	_history.push({"type": "terrain", "snapshot": _capture_brush_region(point, _sculpt_radius)})
 	# 2. Edit: Modify smooth grid.
 	if is_add:
 		_smooth_grid.add_material(point, _terrain_material_id, _sculpt_radius)
@@ -1829,7 +1821,7 @@ func _do_structure_stamp(hit: Dictionary) -> void:
 	if ops.is_empty():
 		push_warning("MapEditor: structure stamp wrote nothing at %s — check palette mapping" % str(cell))
 		return
-	_push_undo({"type": "structure", "ops": ops, "terrain_snapshot": terrain_snapshot})
+	_history.push({"type": "structure", "ops": ops, "terrain_snapshot": terrain_snapshot})
 	# 2. Persist: flush modified blocks to disk and mark dirty.
 	_flush_terrains()
 	_mark_dirty()

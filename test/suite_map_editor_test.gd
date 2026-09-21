@@ -908,24 +908,12 @@ func test_map_editor_block_undo() -> void:
 			{"pos": Vector3i(0, 0, 0), "old_value": 3}
 		]
 	}
-	editor._push_undo(entry)
-	assert_int(editor._undo_stack.size()).is_equal(1)
+	editor._history.push(entry)
+	assert_int(editor._history.size()).is_equal(1)
 
 	editor._undo_last()
-	assert_int(editor._undo_stack.size()).is_equal(0)
+	assert_int(editor._history.size()).is_equal(0)
 	assert_bool(editor._dirty).is_true()
-
-
-func test_map_editor_undo_stack_max_depth() -> void:
-	var editor: MapEditor = auto_free(MapEditorClass.new())
-	add_child(editor)
-
-	for i in range(60):
-		editor._push_undo({"type": "block", "ops": [{"pos": Vector3i(i, 0, 0), "old_value": i}]})
-
-	assert_int(editor._undo_stack.size()).is_equal(MapEditorClass.MAX_UNDO_DEPTH)
-	var first_entry: Dictionary = editor._undo_stack[0]
-	assert_int(first_entry["ops"][0]["old_value"]).is_equal(10)
 
 
 func test_map_editor_terrain_undo() -> void:
@@ -938,15 +926,15 @@ func test_map_editor_terrain_undo() -> void:
 
 	editor._do_terrain_add(hit)
 
-	assert_int(editor._undo_stack.size()).is_equal(1)
-	var entry: Dictionary = editor._undo_stack[0]
+	assert_int(editor._history.size()).is_equal(1)
+	var entry: Dictionary = editor._history.entries[0]
 	assert_str(entry.get("type", "")).is_equal("terrain")
 	assert_bool(entry.has("snapshot")).is_true()
 	# Restore, not invert: the entry no longer records add/carve intent.
 	assert_bool(entry.has("was_add")).is_false()
 
 	editor._undo_last()
-	assert_int(editor._undo_stack.size()).is_equal(0)
+	assert_int(editor._history.size()).is_equal(0)
 	assert_bool(editor._dirty).is_true()
 	await Sandbox.dispose(get_tree(), editor, id)
 
@@ -983,7 +971,7 @@ func test_map_editor_ctrl_z_undo_hotkey() -> void:
 		"normal": Vector3.UP,
 	}
 	editor._do_terrain_carve(hit)
-	assert_int(editor._undo_stack.size()).is_equal(1)
+	assert_int(editor._history.size()).is_equal(1)
 
 	var ctrl_z := InputEventKey.new()
 	ctrl_z.pressed = true
@@ -991,7 +979,7 @@ func test_map_editor_ctrl_z_undo_hotkey() -> void:
 	ctrl_z.ctrl_pressed = true
 	editor._input(ctrl_z)
 
-	assert_int(editor._undo_stack.size()).is_equal(0)
+	assert_int(editor._history.size()).is_equal(0)
 	await Sandbox.dispose(get_tree(), editor, id)
 
 
@@ -1209,14 +1197,14 @@ func test_map_editor_lmb_terrain_input_dispatches_sculpt() -> void:
 		"normal": Vector3.UP,
 	}
 	editor._do_terrain_add(hit)
-	assert_int(editor._undo_stack.size()).is_equal(1)
-	assert_str(editor._undo_stack[-1].get("type", "")).is_equal("terrain")
-	assert_bool(editor._undo_stack[-1].has("snapshot")).is_true()
+	assert_int(editor._history.size()).is_equal(1)
+	assert_str(editor._history.entries[-1].get("type", "")).is_equal("terrain")
+	assert_bool(editor._history.entries[-1].has("snapshot")).is_true()
 
 	editor._do_terrain_carve(hit)
-	assert_int(editor._undo_stack.size()).is_equal(2)
-	assert_str(editor._undo_stack[-1].get("type", "")).is_equal("terrain")
-	assert_bool(editor._undo_stack[-1].has("snapshot")).is_true()
+	assert_int(editor._history.size()).is_equal(2)
+	assert_str(editor._history.entries[-1].get("type", "")).is_equal("terrain")
+	assert_bool(editor._history.entries[-1].has("snapshot")).is_true()
 
 
 func test_map_editor_lmb_furniture_input_dispatches_place_and_remove() -> void:
