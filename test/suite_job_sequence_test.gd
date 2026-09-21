@@ -1,12 +1,8 @@
 extends GdUnitTestSuite
 ## Unit tests for JobSequence pipeline orchestration (ARCH "Subsystem: Jobs").
 
-const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
-const CONSTRUCTION_DEF: JobDef = preload("res://data/jobs/construction.tres")
-const CRAFTING_DEF: JobDef = preload("res://data/jobs/crafting.tres")
-const DEPLOY_DEF: JobDef = preload("res://data/jobs/deploy.tres")
-
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+const JobFixtures = preload("res://test/helpers/job_fixtures.gd")
 
 var _sandbox: ColonySandbox
 
@@ -26,7 +22,7 @@ func test_sequence_step_progression() -> void:
 	seq.id = "seq_test_1"
 	seq.title = "Test Sequence"
 
-	var job1 := Job.from_def(DEPLOY_DEF)
+	var job1 := Job.from_def(JobFixtures.deploy())
 	job1.id = "job_step_1"
 	job1.sequence_id = seq.id
 	board.add_job(job1)
@@ -36,7 +32,7 @@ func test_sequence_step_progression() -> void:
 	bp.target_def_id = "test_wall"
 	add_child(bp)
 
-	var job2 := Job.from_def(CONSTRUCTION_DEF)
+	var job2 := Job.from_def(JobFixtures.construction())
 	job2.id = "job_step_2"
 	job2.target_node = bp
 	job2.sequence_id = seq.id
@@ -51,18 +47,25 @@ func test_sequence_step_progression() -> void:
 	assert_bool(job1.is_available()).is_true()
 	assert_bool(job2.is_available()).is_false()
 
-	# Pruning step 1 (completing it) advances sequence to step 2
-	job1.should_close() # check
-	board.remove_job(job1.id)
-	seq.advance_step()
+	# Completing step 1 flags it finished; the board's own poll prunes it and advances the
+	# sequence (this test never calls advance_step itself).
+	job1.is_completed = true
+	var poller := _sandbox.make_colonist()
+	poller.global_position = Vector3(50.0, 0.0, 50.0) # clear of the blueprint's cell so step 2 stays claimable
+	board.get_best_job_for(poller)
 
+	assert_object(board.get_job("job_step_1")).is_null()
+	assert_object(board.get_job("job_step_2")).is_same(job2)
+	assert_int(seq.current_step_index).is_equal(1)
 	assert_bool(seq.is_step_active("job_step_1")).is_false()
 	assert_bool(seq.is_step_active("job_step_2")).is_true()
 	assert_bool(job2.is_available()).is_true()
 
-	# Completing step 2 finishes the sequence
-	seq.advance_step()
+	# Completing the last step lets the next poll finish the sequence and retire it from the board
+	job2.is_completed = true
+	board.get_best_job_for(poller)
 	assert_int(seq.status).is_equal(int(JobSequence.Status.COMPLETED))
+	assert_object(board.get_sequence("seq_test_1")).is_null()
 
 
 func test_sequence_cancellation_cascades_to_all_steps() -> void:
@@ -71,13 +74,13 @@ func test_sequence_cancellation_cascades_to_all_steps() -> void:
 	var seq := JobSequence.new()
 	seq.id = "seq_test_cancel"
 
-	var job1 := Job.from_def(HAULING_DEF)
+	var job1 := Job.from_def(JobFixtures.hauling())
 	job1.id = "cancel_j1"
 	job1.sequence_id = seq.id
 	board.add_job(job1)
 	seq.add_step(job1.id)
 
-	var job2 := Job.from_def(CONSTRUCTION_DEF)
+	var job2 := Job.from_def(JobFixtures.construction())
 	job2.id = "cancel_j2"
 	job2.sequence_id = seq.id
 	board.add_job(job2)

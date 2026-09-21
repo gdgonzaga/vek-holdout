@@ -4,6 +4,8 @@ extends GdUnitTestSuite
 
 const Doubles = preload("res://test/helpers/doubles.gd")
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+const JobFixtures = preload("res://test/helpers/job_fixtures.gd")
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
 const WorldItemScript = preload("res://subsystems/inventory/world_item.gd")
 const PickupActionScript = preload("res://subsystems/actions/pickup_action.gd")
 const ToggleForbiddenActionScript = preload("res://subsystems/actions/toggle_forbidden_action.gd")
@@ -11,30 +13,23 @@ const ToggleForbiddenActionScript = preload("res://subsystems/actions/toggle_for
 var _wood: ItemDef
 var _stone: ItemDef
 var _sandbox: ColonySandbox
+var _items: ItemDbSandbox
 
 
 func before_test() -> void:
 	_sandbox = ColonySandbox.new(self)
+	_items = ItemDbSandbox.new(self)
 
-	_wood = ItemDef.new()
-	_wood.id = "wood"
+	# Synthetic items only: the suite never reads shipped item content.
+	_wood = _items.add_item("wood")
 	_wood.weight = 1.0
-	auto_free(_wood)
-
-	_stone = ItemDef.new()
-	_stone.id = "stone"
+	_stone = _items.add_item("stone")
 	_stone.weight = 2.0
-	auto_free(_stone)
-
-	if ItemDB != null:
-		ItemDB._defs_by_id["wood"] = _wood
-		ItemDB._defs_by_id["stone"] = _stone
+	_items.add_item("gravel").weight = 0.5
 
 
 func after_test() -> void:
-	if ItemDB != null:
-		ItemDB._defs_by_id.erase("wood")
-		ItemDB._defs_by_id.erase("stone")
+	_items.restore()
 	_sandbox.restore()
 
 
@@ -217,23 +212,23 @@ func test_player_drop_item_spawns_world_item() -> void:
 	var player: Player = auto_free(player_scene.instantiate())
 	get_tree().root.add_child(player)
 
-	player.add_item("dirt", 2)
-	assert_bool(player.has_item("dirt", 2)).is_true()
+	player.add_item("gravel", 2)
+	assert_bool(player.has_item("gravel", 2)).is_true()
 
-	var dropped: WorldItem = player.drop_item("dirt", 1)
+	var dropped: WorldItem = player.drop_item("gravel", 1)
 	if dropped != null:
 		auto_free(dropped)
-		assert_str(dropped.item_id).is_equal("dirt")
+		assert_str(dropped.item_id).is_equal("gravel")
 		assert_int(dropped.count).is_equal(1)
-	assert_bool(player.has_item("dirt", 1)).is_true()
-	assert_bool(player.has_item("dirt", 2)).is_false()
+	assert_bool(player.has_item("gravel", 1)).is_true()
+	assert_bool(player.has_item("gravel", 2)).is_false()
 
-	var dropped_all: WorldItem = player.drop_item("dirt", 1)
+	var dropped_all: WorldItem = player.drop_item("gravel", 1)
 	if dropped_all != null:
 		auto_free(dropped_all)
-		assert_str(dropped_all.item_id).is_equal("dirt")
+		assert_str(dropped_all.item_id).is_equal("gravel")
 		assert_int(dropped_all.count).is_equal(1)
-	assert_bool(player.has_item("dirt", 1)).is_false()
+	assert_bool(player.has_item("gravel", 1)).is_false()
 
 	get_tree().root.remove_child(player)
 
@@ -541,30 +536,30 @@ func test_world_item_job_single_assignee_and_surplus_delivery() -> void:
 	var job_c2 = _sandbox.test_board.get_best_job_for(colonist2)
 	assert_object(job_c2).is_null()
 
-	# Give colonist1 some existing dirt in inventory from a previous action
-	colonist1.inventory.add("dirt", 4)
+	# Give colonist1 some existing gravel in inventory from a previous action
+	colonist1.inventory.add("gravel", 4)
 
 	# Cycle 1: pickup
 	job.def.complete(colonist1, job)
 	assert_int(colonist1.inventory.get_item_count("wood")).is_equal(5)
-	assert_int(colonist1.inventory.get_item_count("dirt")).is_equal(4)
+	assert_int(colonist1.inventory.get_item_count("gravel")).is_equal(4)
 
 	# The delivery leg only deposits once the colonist stands at the crate (HaulingJobDef reach check).
 	colonist1.global_position = crate.global_position
 
-	# Cycle 2: deliver to crate -> should deposit wood AND surplus dirt
+	# Cycle 2: deliver to crate -> should deposit wood AND surplus gravel
 	job.def.complete(colonist1, job)
 	assert_int(colonist1.inventory.get_item_count("wood")).is_equal(0)
-	assert_int(colonist1.inventory.get_item_count("dirt")).is_equal(0)
+	assert_int(colonist1.inventory.get_item_count("gravel")).is_equal(0)
 	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("wood")).is_equal(5)
-	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("dirt")).is_equal(4)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("gravel")).is_equal(4)
 
 
 func test_store_carried_items_prefers_crate_with_capacity_and_drops_on_floor_when_full() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
 	colonist.global_position = Vector3.ZERO
-	# Give colonist some dirt to store
-	colonist.inventory.add("dirt", 6)
+	# Give colonist some gravel to store
+	colonist.inventory.add("gravel", 6)
 
 	# Full crate 1 at distance 2.0
 	var full_crate: Furniture = _sandbox.make_crate("wood", 0)
@@ -574,7 +569,7 @@ func test_store_carried_items_prefers_crate_with_capacity_and_drops_on_floor_whe
 	full_inv.add("wood", 1) # Full!
 
 	# Empty shelf/crate 2 at distance 10.0
-	var empty_crate: Furniture = _sandbox.make_crate("dirt", 0)
+	var empty_crate: Furniture = _sandbox.make_crate("gravel", 0)
 	empty_crate.global_position = Vector3(10.0, 0.0, 0.0)
 	var empty_inv := _sandbox.test_registry.inventory_of(empty_crate)
 	empty_inv.capacity = 50.0
@@ -588,8 +583,8 @@ func test_store_carried_items_prefers_crate_with_capacity_and_drops_on_floor_whe
 
 	# Complete deposit
 	job.def.complete(colonist, job)
-	assert_int(colonist.inventory.get_item_count("dirt")).is_equal(0)
-	assert_int(empty_inv.get_item_count("dirt")).is_equal(6)
+	assert_int(colonist.inventory.get_item_count("gravel")).is_equal(0)
+	assert_int(empty_inv.get_item_count("gravel")).is_equal(6)
 
 
 func test_world_item_custom_mesh_and_autofit_collision() -> void:
@@ -676,7 +671,7 @@ func test_spawn_at_aligns_above_ground_surface() -> void:
 	static_body.add_child(floor_shape)
 	_sandbox.container.add_child(static_body)
 
-	var item: WorldItem = WorldItemScript.spawn_at(_sandbox.container, "dirt", 1, Vector3(0.0, 0.4, 0.0), Vector3.UP, 0.0)
+	var item: WorldItem = WorldItemScript.spawn_at(_sandbox.container, "gravel", 1, Vector3(0.0, 0.4, 0.0), Vector3.UP, 0.0)
 	assert_object(item).is_not_null()
 	auto_free(item)
 
@@ -796,7 +791,7 @@ func test_carried_materials_allow_sink_job_assignment_without_crate_source() -> 
 	colonist.global_position = Vector3(0.0, 0.0, 0.0)
 	colonist.labor_priorities["hauling"] = 3
 
-	var hauling_def: JobDef = preload("res://data/jobs/hauling.tres")
+	var hauling_def: HaulingJobDef = JobFixtures.hauling()
 	var sink_job := Job.from_def(hauling_def)
 	sink_job.id = "test_sink_haul"
 	sink_job.target_node = sink

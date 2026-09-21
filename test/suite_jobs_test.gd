@@ -4,20 +4,83 @@ extends GdUnitTestSuite
 ## requirement gating enforced at selection + assignment, the MaterialSink
 ## duck-typed contract, hauling tool retention, and the Furniture state bag.
 
-const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
-const CONSTRUCTION_DEF: JobDef = preload("res://data/jobs/construction.tres")
-
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+const JobFixtures = preload("res://test/helpers/job_fixtures.gd")
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
+const BuildLibrarySandbox = preload("res://test/helpers/build_library_sandbox.gd")
+
+## Synthetic ids owned by this suite: the tests never depend on shipped items or blueprints.
+const MATERIAL_ID := "test_plank"
+const TOOL_ID := "test_axe"
+const STATION_ID := "test_station"
+const BLOCK_ID := "test_block"
 
 var _sandbox: ColonySandbox
+var _items: ItemDbSandbox
+var _builds: BuildLibrarySandbox
+var _hauling: HaulingJobDef
+var _construction: ConstructionJobDef
 
 
 func before_test() -> void:
 	_sandbox = ColonySandbox.new(self)
+	_items = ItemDbSandbox.new(self)
+	_builds = BuildLibrarySandbox.new(self)
+	_hauling = JobFixtures.hauling()
+	_construction = JobFixtures.construction()
+	# A stackable material and a tool-tagged item: the two item kinds the hauling tests distinguish.
+	_register_material_and_tool()
 
 
 func after_test() -> void:
+	_builds.restore()
+	_items.restore()
 	_sandbox.restore()
+
+
+func _register_material_and_tool() -> void:
+	var material: ItemDef = _items.add_item(MATERIAL_ID)
+	material.weight = 0.1
+	var tool_def: ItemDef = _items.add_item(TOOL_ID, "", [HaulingJobDef.TOOL_TAG])
+	tool_def.weight = 0.5
+
+
+## A 2x1x1 furniture buildable that costs 3 of MATERIAL_ID, registered in BuildLibrary.
+func _make_station_def() -> FurnitureDef:
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	def.id = STATION_ID
+	def.display_name = "Test Station"
+	def.dimensions = Vector3i(2, 1, 1)
+	def.build_time = 4.0
+	def.material_cost = [_make_cost(MATERIAL_ID, 3)]
+	_builds.add_buildable(def)
+	return def
+
+
+## A costless one-cell block buildable, registered in BuildLibrary.
+func _make_block_def() -> BlockDef:
+	var def: BlockDef = auto_free(BlockDef.new())
+	def.id = BLOCK_ID
+	def.display_name = "Test Block"
+	_builds.add_buildable(def)
+	return def
+
+
+func _make_cost(item_id: String, count: int) -> ItemAmount:
+	var cost: ItemAmount = ItemAmount.new()
+	cost.item_def = ItemDB.get_def(item_id)
+	cost.count = count
+	return cost
+
+
+## A Blueprint of `def` parented under the sandbox container.
+func _make_blueprint(def: BuildableDef, position: Vector3) -> Blueprint:
+	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
+	bp.target_def_id = def.id
+	bp.def = def
+	_sandbox.container.add_child(bp)
+	bp.global_position = position
+	return bp
 
 
 func _false_leaf() -> NotCondition:
@@ -109,27 +172,27 @@ func test_haul_job_survives_source_drought() -> void:
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
-	_sandbox.make_crate("plank", 0) # drought: no crate stocks a needed material
-	var job := Job.from_def(HAULING_DEF)
+	_sandbox.make_crate(MATERIAL_ID, 0) # drought: no crate stocks a needed material
+	var job := Job.from_def(_hauling)
 	job.target_node = sink
 	# Unclaimable while the drought lasts (selection skips it)…
 	assert_bool(job.is_available()).is_false()
 	# …but not dead: the job stays registered waiting for restock, and the
 	# stalled run is not a completion.
-	assert_bool(HAULING_DEF.should_close(job)).is_false()
-	assert_bool(HAULING_DEF.job_complete(job)).is_false()
+	assert_bool(_hauling.should_close(job)).is_false()
+	assert_bool(_hauling.job_complete(job)).is_false()
 
 
 func test_restock_makes_drought_haul_job_claimable_again() -> void:
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
-	var crate := _sandbox.make_crate("plank", 0)
-	var job := Job.from_def(HAULING_DEF)
+	var crate := _sandbox.make_crate(MATERIAL_ID, 0)
+	var job := Job.from_def(_hauling)
 	job.target_node = sink
-	_sandbox.test_registry.inventory_of(crate).add("plank", 2)
-	assert_bool(HAULING_DEF.is_available(job)).is_true()
-	assert_bool(HAULING_DEF.should_close(job)).is_false()
+	_sandbox.test_registry.inventory_of(crate).add(MATERIAL_ID, 2)
+	assert_bool(_hauling.is_available(job)).is_true()
+	assert_bool(_hauling.should_close(job)).is_false()
 
 
 func test_haul_job_closes_when_satisfied_or_sink_gone() -> void:
@@ -137,13 +200,13 @@ func test_haul_job_closes_when_satisfied_or_sink_gone() -> void:
 	auto_free(sink)
 	add_child(sink)
 	sink.satisfied = true
-	var job := Job.from_def(HAULING_DEF)
+	var job := Job.from_def(_hauling)
 	job.target_node = sink
-	assert_bool(HAULING_DEF.should_close(job)).is_true()
-	assert_bool(HAULING_DEF.job_complete(job)).is_true()
+	assert_bool(_hauling.should_close(job)).is_true()
+	assert_bool(_hauling.job_complete(job)).is_true()
 	job.target_node = null
-	assert_bool(HAULING_DEF.should_close(job)).is_true()
-	assert_bool(HAULING_DEF.job_complete(job)).is_false()
+	assert_bool(_hauling.should_close(job)).is_true()
+	assert_bool(_hauling.job_complete(job)).is_false()
 
 
 func test_default_def_should_close_mirrors_is_available() -> void:
@@ -156,13 +219,13 @@ func test_default_def_should_close_mirrors_is_available() -> void:
 
 func test_board_keeps_drought_haul_job_through_prune_until_restock() -> void:
 	var colonist := _sandbox.make_colonist()
-	var crate := _sandbox.make_crate("plank", 0)
+	var crate := _sandbox.make_crate(MATERIAL_ID, 0)
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
 	var board := JobBoard.new()
 	auto_free(board)
-	var job := Job.from_def(HAULING_DEF)
+	var job := Job.from_def(_hauling)
 	job.target_node = sink
 	job.location = Vector3.ZERO
 	board.add_job(job)
@@ -171,17 +234,17 @@ func test_board_keeps_drought_haul_job_through_prune_until_restock() -> void:
 	# …but the prune must not delete it — it waits on the board for restock.
 	assert_object(board.get_job(job.id)).is_not_null()
 	# A restocked crate flips it claimable; the next poll picks it up.
-	_sandbox.test_registry.inventory_of(crate).add("plank", 5)
+	_sandbox.test_registry.inventory_of(crate).add(MATERIAL_ID, 5)
 	assert_object(board.get_best_job_for(colonist)).is_same(job)
 
 
 func test_job_should_close_waits_for_last_assignee() -> void:
 	var colonist := _sandbox.make_colonist()
-	_sandbox.make_crate("plank", 5)
+	_sandbox.make_crate(MATERIAL_ID, 5)
 	var sink := FakeSink.new()
 	auto_free(sink)
 	add_child(sink)
-	var job := Job.from_def(HAULING_DEF)
+	var job := Job.from_def(_hauling)
 	job.target_node = sink
 	assert_bool(job.try_assign(colonist)).is_true()
 	# The sink satisfies mid-run (a parallel hauler's DELIVER crossed it).
@@ -196,12 +259,13 @@ func test_job_should_close_waits_for_last_assignee() -> void:
 func test_producer_spawns_haul_job_with_zero_stock() -> void:
 	# A material'd blueprint spawns a haul job even when NO crate stocks the
 	# needed material — the job drought-waits on the board instead of building
-	# without materials. workbench costs 15 planks (data/furniture/crafting_stations/workbench.tres).
+	# without materials. The synthetic station costs MATERIAL_ID.
+	var station := _make_station_def()
 	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	_sandbox.make_crate("plank", 0)
+	bp.target_def_id = station.id
+	_sandbox.make_crate(MATERIAL_ID, 0)
 	var anchor := Vector3i(1, 2, 3)
-	Colony._on_blueprint_placed("workbench", anchor, bp)
+	Colony._on_blueprint_placed(station.id, anchor, bp)
 	var spawned: Job = null
 	for j in _sandbox.test_board.get_jobs():
 		if j.anchor_cell == anchor:
@@ -212,7 +276,7 @@ func test_producer_spawns_haul_job_with_zero_stock() -> void:
 	assert_bool(spawned.should_close()).is_false() # drought-waiting, not dead
 	# Removal drops jobs by anchor — a later blueprint_removed can never strand
 	# one on the board.
-	Colony._on_blueprint_removed("workbench", anchor)
+	Colony._on_blueprint_removed(station.id, anchor)
 	assert_int(_sandbox.test_board.get_jobs().size()).is_equal(0)
 
 
@@ -222,27 +286,33 @@ func test_producer_spawns_haul_job_with_zero_stock() -> void:
 ## inventory for subsequent physical delivery — carried TOOLS are also kept.
 func test_deliver_cycle_deposits_need_and_retains_surplus_and_tools() -> void:
 	var colonist := _sandbox.make_colonist()
-	colonist.inventory.add("plank", 5)  # 3 deposited, 2 surplus
-	colonist.inventory.add("axe", 1) # data/items/axe.tres: tags ["tool", "axe"]
-	var crate := _sandbox.make_crate("plank", 0)
+	colonist.inventory.add(MATERIAL_ID, 5)  # 3 deposited, 2 surplus
+	colonist.inventory.add(TOOL_ID, 1) # tagged as a tool (HaulingJobDef.TOOL_TAG)
+	var crate := _sandbox.make_crate(MATERIAL_ID, 0)
 	var crate_inv := _sandbox.test_registry.inventory_of(crate)
 	var sink := SatisfyingFakeSink.new()
 	auto_free(sink)
 	add_child(sink)
-	var job := Job.from_def(HAULING_DEF)
+	var job := Job.from_def(_hauling)
 	job.target_node = sink
-	HAULING_DEF.complete(colonist, job)
+	_hauling.complete(colonist, job)
 	assert_bool(sink.satisfied).is_true()
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(2)
-	assert_int(crate_inv.get_item_count("plank")).is_equal(0)
-	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
-	assert_int(crate_inv.get_item_count("axe")).is_equal(0)
+	assert_int(colonist.inventory.get_item_count(MATERIAL_ID)).is_equal(2)
+	assert_int(crate_inv.get_item_count(MATERIAL_ID)).is_equal(0)
+	assert_int(colonist.inventory.get_item_count(TOOL_ID)).is_equal(1)
+	assert_int(crate_inv.get_item_count(TOOL_ID)).is_equal(0)
 
 
 func test_is_tool_reads_item_tags() -> void:
-	assert_bool(HAULING_DEF._is_tool("axe")).is_true()
-	assert_bool(HAULING_DEF._is_tool("plank")).is_false()
-	assert_bool(HAULING_DEF._is_tool("nonexistent")).is_false()
+	# Tags, not ids, decide toolness: a tool-tagged item with a plain name counts, an untagged
+	# item whose name sounds like a tool does not.
+	_items.add_item("test_wrench", "", [HaulingJobDef.TOOL_TAG])
+	_items.add_item("test_untagged_axe")
+	assert_bool(_hauling._is_tool("test_wrench")).is_true()
+	assert_bool(_hauling._is_tool("test_untagged_axe")).is_false()
+	assert_bool(_hauling._is_tool(TOOL_ID)).is_true()
+	assert_bool(_hauling._is_tool(MATERIAL_ID)).is_false()
+	assert_bool(_hauling._is_tool("nonexistent")).is_false()
 
 
 # ── Furniture state bag ───────────────────────────────────────────────────────
@@ -310,26 +380,22 @@ func test_world_changed_wakes_sleeping_jobs() -> void:
 # ── Construction occupation & stacked blueprints ──────────────────────────────
 
 func test_construction_is_available_when_clear_and_gated_when_occupied() -> void:
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.5, 0.0, 2.5)
-	var job := Job.from_def(CONSTRUCTION_DEF)
+	var bp := _make_blueprint(_make_station_def(), Vector3(2.5, 0.0, 2.5))
+	var job := Job.from_def(_construction)
 	job.target_node = bp
 	
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_true()
-	assert_bool(CONSTRUCTION_DEF.should_close(job)).is_false()
+	assert_bool(_construction.is_available(job)).is_true()
+	assert_bool(_construction.should_close(job)).is_false()
 	
 	var bystander := _sandbox.make_colonist()
 	bystander.global_position = Vector3(2.0, 0.0, 2.0)
 	Colony.colonists.append(bystander)
 	
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
-	assert_bool(CONSTRUCTION_DEF.should_close(job)).is_false()
+	assert_bool(_construction.is_available(job)).is_false()
+	assert_bool(_construction.should_close(job)).is_false()
 	
 	bystander.global_position = Vector3(10.0, 0.0, 10.0)
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_true()
+	assert_bool(_construction.is_available(job)).is_true()
 	
 	Colony.colonists.erase(bystander)
 
@@ -338,12 +404,8 @@ func test_construction_is_available_when_clear_and_gated_when_occupied() -> void
 
 
 func test_construction_gated_when_player_occupies_blueprint() -> void:
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.5, 0.0, 2.5)
-	var job := Job.from_def(CONSTRUCTION_DEF)
+	var bp := _make_blueprint(_make_station_def(), Vector3(2.5, 0.0, 2.5))
+	var job := Job.from_def(_construction)
 	job.target_node = bp
 	
 	var player := _sandbox.make_player()
@@ -351,33 +413,25 @@ func test_construction_gated_when_player_occupies_blueprint() -> void:
 	var old_player := SceneManager.get_player()
 	SceneManager.set_player(player)
 	
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
+	assert_bool(_construction.is_available(job)).is_false()
 	
 	player.global_position = Vector3(10.0, 0.0, 10.0)
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_true()
+	assert_bool(_construction.is_available(job)).is_true()
 	
 	SceneManager.set_player(old_player)
 
 
 func test_construction_gated_when_standing_inside_two_stacked_blueprints() -> void:
 	# Blueprint 1 at Y=0 (lower block), Blueprint 2 at Y=1 (upper block)
-	var bp1: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp1.target_def_id = "wood"
-	bp1.def = BuildLibrary.get_def("wood")
+	var block := _make_block_def()
+	var bp1 := _make_blueprint(block, Vector3(2.0, 0.0, 2.0))
 	bp1.anchor_cell = Vector3i(2, 0, 2)
-	_sandbox.container.add_child(bp1)
-	bp1.global_position = Vector3(2.0, 0.0, 2.0)
-	
-	var bp2: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp2.target_def_id = "wood"
-	bp2.def = BuildLibrary.get_def("wood")
+	var bp2 := _make_blueprint(block, Vector3(2.0, 1.0, 2.0))
 	bp2.anchor_cell = Vector3i(2, 1, 2)
-	_sandbox.container.add_child(bp2)
-	bp2.global_position = Vector3(2.0, 1.0, 2.0)
 	
-	var job1 := Job.from_def(CONSTRUCTION_DEF)
+	var job1 := Job.from_def(_construction)
 	job1.target_node = bp1
-	var job2 := Job.from_def(CONSTRUCTION_DEF)
+	var job2 := Job.from_def(_construction)
 	job2.target_node = bp2
 	
 	# Player standing at Y=0 (feet at Y=0, head at Y=1)
@@ -387,13 +441,13 @@ func test_construction_gated_when_standing_inside_two_stacked_blueprints() -> vo
 	SceneManager.set_player(player)
 	
 	# BOTH stacked blueprints must be detected as occupied by the player
-	assert_bool(CONSTRUCTION_DEF.is_available(job1)).is_false()
-	assert_bool(CONSTRUCTION_DEF.is_available(job2)).is_false()
+	assert_bool(_construction.is_available(job1)).is_false()
+	assert_bool(_construction.is_available(job2)).is_false()
 	
 	# Player steps away to X=10
 	player.global_position = Vector3(10.0, 0.0, 10.0)
-	assert_bool(CONSTRUCTION_DEF.is_available(job1)).is_true()
-	assert_bool(CONSTRUCTION_DEF.is_available(job2)).is_true()
+	assert_bool(_construction.is_available(job1)).is_true()
+	assert_bool(_construction.is_available(job2)).is_true()
 	
 	SceneManager.set_player(old_player)
 
@@ -401,12 +455,12 @@ func test_construction_gated_when_standing_inside_two_stacked_blueprints() -> vo
 ## Carried unequipped tools in colonist pockets generate Store Carried Items and deposit into crates.
 func test_store_carried_items_deposits_carried_tools_to_crate() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
-	var crate: Furniture = _sandbox.make_crate("axe", 0)
+	var crate: Furniture = _sandbox.make_crate(TOOL_ID, 0)
 	var crate_inv: Inventory = _sandbox.test_registry.inventory_of(crate)
 	crate.global_position = Vector3(5.0, 0.0, 5.0)
 
-	colonist.inventory.add("axe", 1)
-	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
+	colonist.inventory.add(TOOL_ID, 1)
+	assert_int(colonist.inventory.get_item_count(TOOL_ID)).is_equal(1)
 
 	var best_job: RefCounted = Colony.job_board.get_best_job_for(colonist)
 	assert_object(best_job).is_not_null()
@@ -414,29 +468,29 @@ func test_store_carried_items_deposits_carried_tools_to_crate() -> void:
 	var haul_job: Job = best_job as Job
 	assert_str(haul_job.title).is_equal("Store Carried Items")
 
-	HAULING_DEF.complete(colonist, haul_job)
-	assert_int(colonist.inventory.get_item_count("axe")).is_equal(0)
-	assert_int(crate_inv.get_item_count("axe")).is_equal(1)
+	_hauling.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count(TOOL_ID)).is_equal(0)
+	assert_int(crate_inv.get_item_count(TOOL_ID)).is_equal(1)
 
 
 ## Desired equipment in pockets is equipped immediately during audit rather than routed to crates.
 func test_equipment_audit_equips_carried_tool_before_hygiene() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
-	var crate: Furniture = _sandbox.make_crate("axe", 0)
+	var crate: Furniture = _sandbox.make_crate(TOOL_ID, 0)
 	var crate_inv: Inventory = _sandbox.test_registry.inventory_of(crate)
 	crate.global_position = Vector3(5.0, 0.0, 5.0)
 
-	colonist.equipment.set_desired_item(Equipment.SLOT_MAIN_HAND, "axe")
-	colonist.inventory.add("axe", 1)
-	assert_int(colonist.inventory.get_item_count("axe")).is_equal(1)
+	colonist.equipment.set_desired_item(Equipment.SLOT_MAIN_HAND, TOOL_ID)
+	colonist.inventory.add(TOOL_ID, 1)
+	assert_int(colonist.inventory.get_item_count(TOOL_ID)).is_equal(1)
 	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_null()
 
 	var job: RefCounted = Colony.job_board.get_best_job_for(colonist)
 	assert_object(job).is_null()
 	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_not_null()
-	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal("axe")
-	assert_int(colonist.inventory.get_item_count("axe")).is_equal(0)
-	assert_int(crate_inv.get_item_count("axe")).is_equal(0)
+	assert_str(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND).id).is_equal(TOOL_ID)
+	assert_int(colonist.inventory.get_item_count(TOOL_ID)).is_equal(0)
+	assert_int(crate_inv.get_item_count(TOOL_ID)).is_equal(0)
 
 
 func test_is_available_for_accepts_already_assigned_colonist() -> void:
@@ -453,26 +507,22 @@ func test_is_available_for_accepts_already_assigned_colonist() -> void:
 
 
 func test_construction_available_for_builder_at_blueprint() -> void:
-	var bp: Blueprint = auto_free(Blueprint.new()) as Blueprint
-	bp.target_def_id = "workbench"
-	bp.def = BuildLibrary.get_def("workbench")
-	_sandbox.container.add_child(bp)
-	bp.global_position = Vector3(2.0, 0.0, 2.0)
-	var job := Job.from_def(CONSTRUCTION_DEF)
+	var bp := _make_blueprint(_make_station_def(), Vector3(2.0, 0.0, 2.0))
+	var job := Job.from_def(_construction)
 	job.target_node = bp
 
 	var builder: Colonist = _sandbox.make_colonist()
 	builder.global_position = Vector3(2.0, 0.0, 2.0)
-	assert_bool(CONSTRUCTION_DEF.is_available_for(job, builder)).is_true()
-	assert_bool(CONSTRUCTION_DEF.is_available(job)).is_false()
+	assert_bool(_construction.is_available_for(job, builder)).is_true()
+	assert_bool(_construction.is_available(job)).is_false()
 
 
 func test_world_item_haul_multileg_lifecycle() -> void:
-	var crate := _sandbox.make_crate("plank", 0)
+	var crate := _sandbox.make_crate(MATERIAL_ID, 0)
 	crate.global_position = Vector3(0, 0, 0)
 	var crate_inv: Inventory = _sandbox.test_registry.inventory_of(crate)
 
-	var ground_item: WorldItem = WorldItem.spawn_at(self, "plank", 4, Vector3(5, 0, 5))
+	var ground_item: WorldItem = WorldItem.spawn_at(self, MATERIAL_ID, 4, Vector3(5, 0, 5))
 	auto_free(ground_item)
 	Colony.register_world_item(ground_item)
 
@@ -501,7 +551,7 @@ func test_world_item_haul_multileg_lifecycle() -> void:
 	assert_int(work_task.execute(1.5)).is_equal(BTAction.SUCCESS)
 
 	# After Leg 1, colonist carries the planks, but job is NOT released yet
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(4)
+	assert_int(colonist.inventory.get_item_count(MATERIAL_ID)).is_equal(4)
 	assert_bool(bb.has_var(&"active_job")).is_true()
 	assert_bool(job.is_assigned(colonist.colonist_id)).is_true()
 
@@ -513,8 +563,8 @@ func test_world_item_haul_multileg_lifecycle() -> void:
 
 	# Leg 2: Deposit to crate
 	assert_int(work_task.execute(1.5)).is_equal(BTAction.SUCCESS)
-	assert_int(crate_inv.get_item_count("plank")).is_equal(4)
-	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
+	assert_int(crate_inv.get_item_count(MATERIAL_ID)).is_equal(4)
+	assert_int(colonist.inventory.get_item_count(MATERIAL_ID)).is_equal(0)
 	assert_bool(bb.has_var(&"active_job")).is_false()
 	assert_bool(job.is_assigned(colonist.colonist_id)).is_false()
 
@@ -523,7 +573,7 @@ func test_world_item_below_world_bounds_is_rejected() -> void:
 	Colony.set_world_bounds(AABB(Vector3(-50, -10, -50), Vector3(100, 50, 100)))
 
 	# Item below lowest point of the map (Y = -15 < -10)
-	var void_item: WorldItem = WorldItem.spawn_at(self, "plank", 1, Vector3(0, -15, 0))
+	var void_item: WorldItem = WorldItem.spawn_at(self, MATERIAL_ID, 1, Vector3(0, -15, 0))
 	auto_free(void_item)
 	Colony.register_world_item(void_item)
 
@@ -531,7 +581,7 @@ func test_world_item_below_world_bounds_is_rejected() -> void:
 	assert_int(Colony.job_board.get_jobs().size()).is_equal(0)
 
 	# Item within bounds (Y = -5 >= -10)
-	var valid_item: WorldItem = WorldItem.spawn_at(self, "plank", 1, Vector3(0, -5, 0))
+	var valid_item: WorldItem = WorldItem.spawn_at(self, MATERIAL_ID, 1, Vector3(0, -5, 0))
 	auto_free(valid_item)
 	Colony.register_world_item(valid_item)
 
@@ -547,7 +597,7 @@ class FakeSink extends Node:
 	var satisfied := false
 
 	func needed_item_ids() -> Array[String]:
-		return ["plank"]
+		return [MATERIAL_ID]
 
 	func remaining_need(_item_id: String) -> int:
 		return 3
@@ -564,8 +614,8 @@ class FakeSink extends Node:
 ## hauling def's full DELIVER cycle.
 class SatisfyingFakeSink extends FakeSink:
 	func deposit_from(actor: Node) -> int:
-		var need: int = remaining_need("plank")
-		var short: int = actor.remove_item("plank", need)
+		var need: int = remaining_need(MATERIAL_ID)
+		var short: int = actor.remove_item(MATERIAL_ID, need)
 		var taken: int = need - short
 		if taken > 0:
 			satisfied = true
