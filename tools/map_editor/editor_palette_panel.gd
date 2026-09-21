@@ -226,3 +226,11 @@ func set_selected_info(name: String, id_str: String = "") -> void:
 			_id_label.visible = true
 		else:
 			_id_label.visible = false
+
+
+func get_item_count() -> int:
+	return _item_list.item_count if _item_list != null else 0
+
+
+func get_selected_text() -> String:
+	return _selected_label.text if _selected_label != null else ""

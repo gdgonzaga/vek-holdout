@@ -170,3 +170,32 @@ func test_set_block_with_rotation_roundtrips_through_variant_index() -> void:
 	# Rotation 0 keeps storing the plain base index.
 	grid.set_block(target, yaw_base, 0)
 	assert_int(grid.get_raw_voxel(target)).is_equal(yaw_base)
+
+
+func test_fill_box_raw_writes_every_cell_inclusive() -> void:
+	var grid := _build_grid()
+	DirAccess.make_dir_recursive_absolute("user://tmp_bg_test_box")
+	DirAccess.remove_absolute("user://tmp_bg_test_box/map.sqlite")
+	var stream := VoxelStreamSQLite.new()
+	stream.database_path = "user://tmp_bg_test_box/map.sqlite"
+	grid.get_terrain().stream = stream
+	var viewer := VoxelViewer.new()
+	viewer.position = Vector3(0.5, 0.5, 0.5)
+	viewer.requires_visuals = false
+	viewer.requires_collisions = false
+	grid.get_parent().add_child(viewer)
+	for _i in range(20):
+		await get_tree().physics_frame
+
+	grid.fill_box_raw(Vector3i(0, 0, 0), Vector3i(1, 1, 1), 5)
+	for _i in range(60):
+		if grid.get_raw_voxel(Vector3i(0, 0, 0)) != 0:
+			break
+		await get_tree().physics_frame
+
+	for x in 2:
+		for y in 2:
+			for z in 2:
+				assert_int(grid.get_raw_voxel(Vector3i(x, y, z))).is_equal(5)
+	assert_int(grid.get_raw_voxel(Vector3i(2, 0, 0))).is_equal(0)
+	DirAccess.remove_absolute("user://tmp_bg_test_box/map.sqlite")

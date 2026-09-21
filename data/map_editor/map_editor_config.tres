@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="MapEditorConfig" format=3]
+
+[ext_resource type="Script" path="res://data/buildables/buildable_def.gd" id="1_p683m"]
+[ext_resource type="Resource" path="res://data/furniture/tree1.tres" id="2_00cx0"]
+[ext_resource type="Resource" path="res://data/terrain/default_ground.tres" id="3_f2wfj"]
+[ext_resource type="Script" path="res://data/map_editor/map_editor_config.gd" id="4_u0r28"]
+
+[resource]
+script = ExtResource("4_u0r28")
+default_noise_def = ExtResource("3_f2wfj")
+default_flora_palette = Array[ExtResource("1_p683m")]([ExtResource("2_00cx0")])

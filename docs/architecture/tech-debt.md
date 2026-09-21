@@ -100,3 +100,11 @@ Found while reworking the inventory, equipment and storage UI (see [Inventory](i
 When undoing a smooth terrain `add_material` operation in the Map Editor (`tools/map_editor/map_editor.gd`), `restore_snapshot` restores prior SDF density samples and block metadata sidecars in `terrain.sqlite`. However, it does not remove the F14 visual Decal markers spawned under `SmoothGrid._marker_root` during the edit (the known stale-marker limit documented in `docs/architecture/mining.md`).
 
 **To resolve:** On `restore_snapshot`, identify any block origins whose material metadata was reverted or removed and prune the corresponding `"origin|id"` keys and Decal instances from `_marker_keys` and `_marker_root`.
+
+---
+
+## Map Editor HUD Block Palette Test Helper (2026-09-21)
+
+**Status: Kept for unit tests.**
+
+`EditorHUD.populate_block_list(defs_by_index: Dictionary, selected_idx: int = -1)` in `tools/map_editor/editor_hud.gd` is retained specifically for test fixtures (`test/suite_map_editor_test.gd`). Production code populates via `populate_block_library(BlockLibrary)`. Kept so unit tests can evaluate palette search, filtering, and cycling with arbitrary in-memory dictionaries without creating temporary `.tres` files on disk.

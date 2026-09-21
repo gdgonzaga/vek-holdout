@@ -16,7 +16,7 @@ const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
 const MAPS_DIR: String = "res://data/maps/"
 const TERRAIN_DIR: String = "res://data/terrain/"
 const TEMPLATE_PATH: String = "res://subsystems/maps/map_template.tscn"
-const DEFAULT_TERRAIN_GEN: String = "res://data/terrain/default_ground.tres"
+const CONFIG_PATH: String = "res://data/map_editor/map_editor_config.tres"
 
 const FLY_SPEED: float = 8.0
 const FLY_SPEED_FAST: float = 20.0
@@ -65,11 +65,11 @@ var _unsaved_dialog: ConfirmationDialog = null
 var _pending_after_guard: Callable = Callable()
 var _pending_delete_map_id: String = ""
 var _drawer_file_dialog: FileDialog = null
+var _config: MapEditorConfig = null
 var _dirty: bool = false
 var _undo_stack: Array[Dictionary] = []
 
 var _blocky_grid: BlockyGrid = null
-var _block_vt: VoxelTool = null
 var _block_library: BlockLibrary = null
 var _selected_block_index: int = -1 # Resolved by id in _ready; indices shift with the block set
 var _active_rotation_index: int = 0
@@ -83,9 +83,8 @@ enum RotationAxis {
 var _active_rotation_axis: int = RotationAxis.Y
 
 var _smooth_grid: SmoothGrid = null
-var _smooth_vt: VoxelTool = null
 var _sculpt_radius: float = 2.0
-var _terrain_material_id: String = "ground"
+var _terrain_material_id: String = ""
 
 var _furniture_auth: FurnitureAuthoring = null
 var _furniture_defs: Array[FurnitureDef] = []
@@ -110,6 +109,9 @@ var _cam_pitch: float = -30.0
 
 
 func _ready() -> void:
+	_config = load(CONFIG_PATH) as MapEditorConfig
+	if _config == null:
+		push_error("MapEditor: failed to load config at %s" % CONFIG_PATH)
 	_build_environment()
 	_build_camera()
 	_build_ghost()
@@ -148,7 +150,10 @@ func _ready() -> void:
 	)
 	_launcher.map_delete_requested.connect(_request_delete_map)
 	_launcher.setup(_scan_maps())
-	_launcher.setup_noise_defs(_scan_noise_defs(), DEFAULT_TERRAIN_GEN)
+	var default_noise_path := ""
+	if _config != null and _config.default_noise_def != null:
+		default_noise_path = _config.default_noise_def.resource_path
+	_launcher.setup_noise_defs(_scan_noise_defs(), default_noise_path)
 	_launcher.show_launcher()
 
 	_setup_exit_dialog()
@@ -624,21 +629,17 @@ func load_map(map_id: String, recapture_mouse: bool = true) -> void:
 	_undo_stack.clear()
 
 	_blocky_grid = _map_root.blocky_grid
-	if _blocky_grid != null:
-		_block_vt = _blocky_grid.get_voxel_tool()
-		_block_vt.mode = VoxelTool.MODE_SET
 
 	# 1. Smooth Grid: Resolving active live smooth grid to confirm valid terrain generator exists.
 	_smooth_grid = _resolve_live_smooth_grid()
 	if _smooth_grid != null:
-		_smooth_vt = _smooth_grid.get_voxel_tool()
 		if _smooth_grid.default_material != null and not _smooth_grid.default_material.id.is_empty():
 			_terrain_material_id = _smooth_grid.default_material.id
 		else:
-			_terrain_material_id = "ground"
+			# Empty material id defaults to the terrain's base material behavior without hardcoding content IDs.
+			_terrain_material_id = ""
 	else:
-		_smooth_vt = null
-		_terrain_material_id = "ground"
+		_terrain_material_id = ""
 
 	_attach_streams(_map_root, map_id)
 	if _furniture_auth != null:
@@ -742,9 +743,7 @@ func unload_map() -> void:
 	_undo_stack.clear()
 
 	_blocky_grid = null
-	_block_vt = null
 	_smooth_grid = null
-	_smooth_vt = null
 
 	if _hud != null:
 		_hud.hide()
@@ -1082,10 +1081,8 @@ func _apply_flora_payload(def: MapDef, payload: Dictionary) -> void:
 	def.flora_spawns_per_day = int(payload.get("flora_spawns_per_day", 0))
 	def.flora_spawn_cap = int(payload.get("flora_spawn_cap", 60))
 	def.flora_max_spawn_attempts = int(payload.get("flora_max_spawn_attempts", 15))
-	# Task 8.2 (MapEditorConfig) replaces this literal with the configured palette.
-	var tree1_def := load("res://data/furniture/tree1.tres") as BuildableDef
-	if tree1_def != null:
-		def.flora_palette = [tree1_def]
+	if _config != null and not _config.default_flora_palette.is_empty():
+		def.flora_palette = _config.default_flora_palette.duplicate()
 
 
 func _initial_heightmap_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
@@ -1104,8 +1101,11 @@ func _initial_heightmap_def(payload: Dictionary, map_name: String) -> TerrainGen
 
 func _initial_noise_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
 	var noise_path := payload.get("noise_def_path", "") as String
-	var source_path := noise_path if ResourceLoader.exists(noise_path) else DEFAULT_TERRAIN_GEN
-	var shared: TerrainGenDef = load(source_path) as TerrainGenDef if ResourceLoader.exists(source_path) else null
+	var shared: TerrainGenDef = null
+	if ResourceLoader.exists(noise_path):
+		shared = load(noise_path) as TerrainGenDef
+	elif _config != null:
+		shared = _config.default_noise_def
 	# A copy inside this map's folder, so its water flags and edits never touch the shared baseline.
 	return MapTerrainAuthoring.ensure_map_owned(shared, map_name)
 
@@ -1500,65 +1500,64 @@ func _box_center(bounds: Array[Vector3i]) -> Vector3:
 	return (Vector3(bounds[0]) + Vector3(bounds[1])) * 0.5 + Vector3(0.5, 0.5, 0.5)
 
 
-## Writes one block paint/erase stroke's full brush footprint and persists it.
-func _apply_block_brush(cell: Vector3i, value: int) -> void:
-	const MAX_RETRIES := 5
-	const RETRY_DELAY := 0.1
-	_block_vt.value = value
-	var bounds := _brush_box(cell)
-
-	for attempt in MAX_RETRIES:
-		_block_vt.do_box(bounds[0], bounds[1])
-		if _block_vt.get_voxel(cell) == value:
-			_map_root.get_blocky_terrain().save_modified_blocks()
-			_mark_dirty()
-			return
-		await Engine.get_main_loop().create_timer(RETRY_DELAY).timeout
-
-	push_warning("MapEditor: block write at %s did not land after %d retries" % [str(cell), MAX_RETRIES])
-
-
 func _do_block_paint(hit: Dictionary) -> void:
-	if _map_root == null or _block_vt == null or not hit.get("hit", false):
-		return
-	var cell := _target_cell(hit, false)
-	if cell == Vector3i.MIN:
-		return
-
-	var bounds := _brush_box(cell)
-	var ops: Array[Dictionary] = []
-	for x in range(bounds[0].x, bounds[1].x + 1):
-		for y in range(bounds[0].y, bounds[1].y + 1):
-			for z in range(bounds[0].z, bounds[1].z + 1):
-				var p := Vector3i(x, y, z)
-				ops.append({"pos": p, "old_value": _block_vt.get_voxel(p)})
-	_push_undo({"type": "block", "ops": ops})
-
-	# Rotation-variant aware paint: resolve (base, rotation) to the renderable
-	# stored index (plain base index for NONE blocks — identical to before).
+	# 1. Stored value: resolve base index plus rotation to the renderable variant index (plain base index for unrotated blocks).
 	var stored: int = _selected_block_index
 	if _block_library != null:
 		stored = _block_library.get_stored_index(_selected_block_index, _active_rotation_index)
-	_apply_block_brush(cell, stored)
+	# 2. Block stroke: delegate painting to block stroke handler with the resolved block variant index.
+	_do_block_stroke(hit, false, stored)
 
 
 func _do_block_erase(hit: Dictionary) -> void:
-	if _map_root == null or _block_vt == null or not hit.get("hit", false):
+	# 1. Block stroke: delegate erasing to block stroke handler with air index 0.
+	_do_block_stroke(hit, true, 0)
+
+
+func _do_block_stroke(hit: Dictionary, erase: bool, value: int) -> void:
+	if _map_root == null or _blocky_grid == null or not hit.get("hit", false):
 		return
-	var cell := _target_cell(hit, true)
+	var cell := _target_cell(hit, erase)
 	if cell == Vector3i.MIN:
 		return
+	# 1. Undo entry: the raw value of every cell in the footprint, captured before the write.
+	_push_undo({"type": "block", "ops": _collect_block_ops(_brush_box(cell))})
+	# 2. Write and persist (async retries, see below).
+	_apply_block_brush(cell, value)
 
-	var bounds := _brush_box(cell)
+
+func _collect_block_ops(bounds: Array[Vector3i]) -> Array[Dictionary]:
 	var ops: Array[Dictionary] = []
 	for x in range(bounds[0].x, bounds[1].x + 1):
 		for y in range(bounds[0].y, bounds[1].y + 1):
 			for z in range(bounds[0].z, bounds[1].z + 1):
 				var p := Vector3i(x, y, z)
-				ops.append({"pos": p, "old_value": _block_vt.get_voxel(p)})
-	_push_undo({"type": "block", "ops": ops})
+				ops.append({"pos": p, "old_value": _blocky_grid.get_raw_voxel(p)})
+	return ops
 
-	_apply_block_brush(cell, 0)
+
+## Writes one stroke's footprint and persists it. Terrain blocks stream in
+## asynchronously, so a write can miss; it retries with a short delay. The grid is
+## captured up front and re-checked after each wait, so unloading or switching
+## maps mid-retry ends the stroke instead of dereferencing a freed grid.
+func _apply_block_brush(cell: Vector3i, value: int) -> bool:
+	const MAX_RETRIES := 5
+	const RETRY_DELAY := 0.1
+	var grid := _blocky_grid
+	if grid == null or _map_root == null:
+		return false
+	var bounds := _brush_box(cell)
+	for attempt in MAX_RETRIES:
+		grid.fill_box_raw(bounds[0], bounds[1], value)
+		if grid.get_raw_voxel(cell) == value:
+			_map_root.get_blocky_terrain().save_modified_blocks()
+			_mark_dirty()
+			return true
+		await Engine.get_main_loop().create_timer(RETRY_DELAY).timeout
+		if grid != _blocky_grid or not is_instance_valid(grid):
+			return false
+	push_warning("MapEditor: block write at %s did not land after %d retries" % [str(cell), MAX_RETRIES])
+	return false
 
 
 func _do_terrain_add(hit: Dictionary) -> void:

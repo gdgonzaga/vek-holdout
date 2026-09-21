@@ -36,8 +36,6 @@ var _coord_label: Label
 var _block_palette: EditorPalettePanel
 var _brush_label: Label
 var _orientation_label: Label
-var _block_info_panel: PanelContainer # Alias for backward compatibility
-var _block_label: Label             # Alias for backward compatibility
 
 var _terrain_info_panel: PanelContainer
 var _terrain_material_label: Label
@@ -47,12 +45,6 @@ var _terrain_warning_label: Label
 var _furniture_palette: EditorPalettePanel
 var _furniture_dims_label: Label
 var _yaw_label: Label
-var _furniture_info_panel: PanelContainer # Alias for backward compatibility
-var _furniture_count_label: Label         # Alias for backward compatibility
-var _furniture_search_input: LineEdit     # Alias for backward compatibility
-var _furniture_item_list: ItemList         # Alias for backward compatibility
-var _furniture_label: Label               # Alias for backward compatibility
-var _furniture_id_label: Label            # Alias for backward compatibility
 var _furniture_defs: Array[FurnitureDef] = []
 
 var _structure_browser: StructureBrowserClass
@@ -173,10 +165,6 @@ func _build_ui() -> void:
 	_orientation_label.add_theme_color_override("font_color", Color(0.7, 0.85, 0.95))
 	block_footer.add_child(_orientation_label)
 
-	# Backward-compatible references
-	_block_info_panel = _block_palette
-	_block_label = _block_palette._selected_label
-
 	root.add_child(_block_palette)
 
 	# --- Terrain Info (Top Left) ---
@@ -264,14 +252,6 @@ func _build_ui() -> void:
 	_yaw_label.add_theme_font_size_override("font_size", 11)
 	_yaw_label.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	dims_yaw_hbox.add_child(_yaw_label)
-
-	# Backward-compatible references
-	_furniture_info_panel = _furniture_palette
-	_furniture_count_label = _furniture_palette._count_label
-	_furniture_search_input = _furniture_palette._search_input
-	_furniture_item_list = _furniture_palette._item_list
-	_furniture_label = _furniture_palette._selected_label
-	_furniture_id_label = _furniture_palette._id_label
 
 	root.add_child(_furniture_palette)
 
@@ -1050,16 +1030,6 @@ func populate_furniture_list(defs: Array[FurnitureDef], selected_idx: int = 0) -
 		items.append(item)
 
 	_furniture_palette.populate(items, selected_idx)
-
-
-func _on_furniture_search_changed(new_text: String) -> void:
-	if _furniture_palette != null:
-		_furniture_palette._on_search_changed(new_text)
-
-
-func _on_furniture_item_selected(list_idx: int) -> void:
-	if _furniture_palette != null:
-		_furniture_palette._on_item_selected(list_idx)
 
 
 func select_furniture_by_index(global_idx: int) -> void:

@@ -128,6 +128,17 @@ func set_raw_voxel(pos: Vector3i, raw_val: int) -> void:
 		return
 	_voxel_tool.set_voxel(pos, raw_val)
 
+
+## Writes raw_val into every cell of the box, both corners inclusive. Sets the
+## tool's mode and value on each call, so callers never depend on (or disturb)
+## whatever the shared tool was last used for.
+func fill_box_raw(min_cell: Vector3i, max_cell: Vector3i, raw_val: int) -> void:
+	if _voxel_tool == null:
+		return
+	_voxel_tool.mode = VoxelTool.MODE_SET
+	_voxel_tool.value = raw_val
+	_voxel_tool.do_box(min_cell, max_cell)
+
 ## The block type id at pos: the def's BlockLibrary BASE index. Stored values
 ## may be variant indices (rotated placements) — the library resolves them
 ## back to their owning def's base. None-rotatable blocks store their base

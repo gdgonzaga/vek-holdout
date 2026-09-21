@@ -82,7 +82,7 @@ sequenceDiagram
     Editor->>Launcher: hide_launcher()
 ```
 
-**New maps** go through the launcher's create form, which emits `new_map_requested(payload: Dictionary)` — `map_id`, `map_type`, `terrain_mode` (`EditorLauncher.TerrainMode`: `NOISE`/`HEIGHTMAP`/`NONE`), `noise_def_path`, `image`, `height_start`, `height_range`, `snap_to_grid`. Map identifiers must be snake_case (lowercase letters, digits, underscores, starting with a letter), enforced by `MapIdRules.validate(map_id)`. The identifier defines the folder name under `data/maps/<id>/`, preventing path traversal or special characters. The payload is a Dictionary (not a class) so a future blocky-image authoring key extends it without another signature change.
+**New maps** go through the launcher's create form, which emits `new_map_requested(payload: Dictionary)` — `map_id`, `map_type`, `terrain_mode` (`EditorLauncher.TerrainMode`: `NOISE`/`HEIGHTMAP`/`NONE`), `noise_def_path`, `image`, `height_start`, `height_range`, `snap_to_grid`. New maps take their baseline noise def and flora palette defaults from `res://data/map_editor/map_editor_config.tres` (`MapEditorConfig`), eliminating hardcoded content IDs from the editor script. Map identifiers must be snake_case (lowercase letters, digits, underscores, starting with a letter), enforced by `MapIdRules.validate(map_id)`. The identifier defines the folder name under `data/maps/<id>/`, preventing path traversal or special characters. The payload is a Dictionary (not a class) so a future blocky-image authoring key extends it without another signature change.
 
 **Terrain generation on open** — the two "Inject terrain_gen" / "Attach streams" diagram steps are the terrain workflow, in this order:
 

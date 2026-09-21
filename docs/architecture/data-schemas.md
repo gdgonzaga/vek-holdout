@@ -506,6 +506,17 @@ Defines a single rigid mesh component of a wearable item.
 | `material` | `Material` | Optional material override applied to the part mesh. |
 | `offset` | `Transform3D` | Local transform offset relative to the bone attachment origin. |
 
+---
+
+## `data/map_editor/map_editor_config.tres` (Resource: `data/map_editor/map_editor_config.gd`) — `MapEditorConfig`
+
+Defaults applied by the map editor when creating new maps. Stored as data so the editor script holds no content IDs (AGENTS.md hard rule 1).
+
+| Field | Type | Description |
+|---|---|---|
+| `default_noise_def` | `TerrainGenDef` | `[export]` Shared noise def used when the launcher's noise dropdown provides no valid path. |
+| `default_flora_palette` | `Array[BuildableDef]` | `[export]` Flora palette assigned by default to a newly created map's `MapDef`. |
+
 
 
 

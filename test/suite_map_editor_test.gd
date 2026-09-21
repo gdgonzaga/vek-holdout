@@ -194,17 +194,17 @@ func test_editor_hud_block_info() -> void:
 	hud.setup()
 
 	hud.set_mode(MapEditorClass.Mode.BLOCK)
-	assert_bool(hud._block_info_panel.visible).is_true()
+	assert_bool(hud._block_palette.visible).is_true()
 
 	hud.set_block_info("Planks", 5)
-	assert_str(hud._block_label.text).contains("Planks")
+	assert_str(hud._block_palette.get_selected_text()).contains("Planks")
 	assert_str(hud._brush_label.text).contains("5x5x5")
 
 	hud.set_block_info("Wood", 1)
 	assert_str(hud._brush_label.text).contains("1x1x1")
 
 	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
-	assert_bool(hud._block_info_panel.visible).is_false()
+	assert_bool(hud._block_palette.visible).is_false()
 
 
 func test_brush_box_matches_diameter() -> void:
@@ -299,7 +299,7 @@ func test_editor_hud_terrain_info() -> void:
 
 	hud.set_mode(MapEditorClass.Mode.TERRAIN)
 	assert_bool(hud._terrain_info_panel.visible).is_true()
-	assert_bool(hud._block_info_panel.visible).is_false()
+	assert_bool(hud._block_palette.visible).is_false()
 
 	hud.set_terrain_info("ground", 3.0)
 	assert_str(hud._terrain_material_label.text).contains("Ground")
@@ -353,8 +353,6 @@ func test_map_editor_terrain_state_on_load() -> void:
 	editor.load_map("dev")
 
 	assert_object(editor._smooth_grid).is_not_null()
-	assert_object(editor._smooth_vt).is_not_null()
-	assert_str(editor._terrain_material_id).is_equal("ground")
 
 
 func test_map_editor_terrain_brush_hotkeys() -> void:
@@ -414,13 +412,13 @@ func test_editor_hud_furniture_and_spawn_info() -> void:
 	hud.setup()
 
 	hud.set_mode(MapEditorClass.Mode.FURNITURE)
-	assert_bool(hud._furniture_info_panel.visible).is_true()
+	assert_bool(hud._furniture_palette.visible).is_true()
 	assert_bool(hud._spawn_info_panel.visible).is_false()
-	assert_bool(hud._block_info_panel.visible).is_false()
+	assert_bool(hud._block_palette.visible).is_false()
 	assert_bool(hud._terrain_info_panel.visible).is_false()
 
 	hud.set_furniture_info("Shelf1", 1)
-	assert_str(hud._furniture_label.text).contains("Shelf1")
+	assert_str(hud._furniture_palette.get_selected_text()).contains("Shelf1")
 	assert_str(hud._yaw_label.text).contains("90°")
 
 	hud.set_furniture_info("Shelf1", 2)
@@ -428,11 +426,11 @@ func test_editor_hud_furniture_and_spawn_info() -> void:
 
 	hud.set_mode(MapEditorClass.Mode.SPAWN)
 	assert_bool(hud._spawn_info_panel.visible).is_true()
-	assert_bool(hud._furniture_info_panel.visible).is_false()
+	assert_bool(hud._furniture_palette.visible).is_false()
 	assert_str(hud._spawn_hint_label.text).contains("Player Spawn")
 
 	hud.set_mode(MapEditorClass.Mode.NAVIGATE)
-	assert_bool(hud._furniture_info_panel.visible).is_false()
+	assert_bool(hud._furniture_palette.visible).is_false()
 	assert_bool(hud._spawn_info_panel.visible).is_false()
 
 
@@ -458,24 +456,24 @@ func test_editor_hud_furniture_palette_population_and_filter() -> void:
 	var defs: Array[FurnitureDef] = [def1, def2, def3]
 	hud.populate_furniture_list(defs, 0)
 
-	assert_int(hud._furniture_item_list.item_count).is_equal(3)
-	assert_str(hud._furniture_count_label.text).is_equal("(3/3)")
-	assert_int(hud._furniture_item_list.get_selected_items()[0]).is_equal(0)
+	assert_int(hud._furniture_palette.get_item_count()).is_equal(3)
+	assert_str(hud._furniture_palette._count_label.text).is_equal("(3/3)")
+	assert_int(hud._furniture_palette._item_list.get_selected_items()[0]).is_equal(0)
 
 	# Filter by "shelf"
-	hud._on_furniture_search_changed("shelf")
-	assert_int(hud._furniture_item_list.item_count).is_equal(1)
-	assert_str(hud._furniture_count_label.text).is_equal("(1/3)")
-	assert_str(hud._furniture_item_list.get_item_text(0)).contains("Metal Shelf")
+	hud._furniture_palette._on_search_changed("shelf")
+	assert_int(hud._furniture_palette.get_item_count()).is_equal(1)
+	assert_str(hud._furniture_palette._count_label.text).is_equal("(1/3)")
+	assert_str(hud._furniture_palette._item_list.get_item_text(0)).contains("Metal Shelf")
 
 	# Filter by ID "storage"
-	hud._on_furniture_search_changed("storage")
-	assert_int(hud._furniture_item_list.item_count).is_equal(1)
-	assert_str(hud._furniture_item_list.get_item_text(0)).contains("Storage Box")
+	hud._furniture_palette._on_search_changed("storage")
+	assert_int(hud._furniture_palette.get_item_count()).is_equal(1)
+	assert_str(hud._furniture_palette._item_list.get_item_text(0)).contains("Storage Box")
 
 	# Clear filter
-	hud._on_furniture_search_changed("")
-	assert_int(hud._furniture_item_list.item_count).is_equal(3)
+	hud._furniture_palette._on_search_changed("")
+	assert_int(hud._furniture_palette.get_item_count()).is_equal(3)
 
 
 func test_editor_hud_furniture_palette_selection_and_signals() -> void:
@@ -498,14 +496,14 @@ func test_editor_hud_furniture_palette_selection_and_signals() -> void:
 	)
 
 	# Select second item in list
-	hud._on_furniture_item_selected(1)
+	hud._furniture_palette._on_item_selected(1)
 	assert_int(selected_indices.size()).is_equal(1)
 	assert_int(selected_indices[0]).is_equal(1)
 
 	# Programmatic selection
 	hud.select_furniture_by_index(0)
 	assert_int(hud._selected_global_idx).is_equal(0)
-	assert_int(hud._furniture_item_list.get_selected_items()[0]).is_equal(0)
+	assert_int(hud._furniture_palette._item_list.get_selected_items()[0]).is_equal(0)
 
 
 func test_map_editor_furniture_defs_loaded() -> void:
@@ -581,7 +579,7 @@ func test_map_editor_furniture_cycle_filtered() -> void:
 	editor._hud.populate_furniture_list(editor._furniture_defs, 0)
 
 	# Filter by "target"
-	editor._hud._on_furniture_search_changed("target")
+	editor._hud._furniture_palette._on_search_changed("target")
 	assert_int(editor._hud.get_filtered_furniture_indices().size()).is_equal(2)
 	assert_int(editor._selected_furniture_idx).is_equal(0)
 
@@ -2470,6 +2468,44 @@ func test_wheel_still_rotates_furniture_while_the_cursor_is_captured() -> void:
 	editor._input(wheel)
 
 	assert_int(editor._yaw).is_equal(1)
+
+
+func test_block_brush_after_unload_reports_not_landed_instead_of_crashing() -> void:
+	var id := Sandbox.map_id("brush_unload")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.blocky_only_payload(id))
+	editor.unload_map()
+
+	var landed: bool = await editor._apply_block_brush(Vector3i.ZERO, 1)
+
+	assert_bool(landed).is_false()
+	Sandbox.remove_map(id)
+
+
+func test_new_map_takes_terrain_and_flora_defaults_from_the_config() -> void:
+	var id := Sandbox.map_id("config")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var config := MapEditorConfig.new()
+	config.default_noise_def = Sandbox.save_noise_def("user://sandbox_config_noise.tres", 4321, 0.02)
+	var flora := BuildableDef.new()
+	flora.id = "zz_flora"
+	config.default_flora_palette = [flora] as Array[BuildableDef]
+	editor._config = config
+
+	editor.create_new_map({"map_id": id, "map_type": MapDef.MapType.POI})
+
+	assert_int(editor._map_def.terrain_gen.noise_seed).is_equal(4321)
+	assert_str(editor._map_def.flora_palette[0].id).is_equal("zz_flora")
+	DirAccess.remove_absolute("user://sandbox_config_noise.tres")
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_editor_config_resource_loads_as_the_schema_type() -> void:
+	assert_bool(load(MapEditorClass.CONFIG_PATH) is MapEditorConfig).is_true()
 
 
 
