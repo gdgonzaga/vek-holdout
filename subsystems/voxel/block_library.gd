@@ -203,6 +203,13 @@ func is_fluid(index: int) -> bool:
 	return def != null and def.is_fluid
 
 
+## Locomotion multiplier a body feels while inside `block_id` (BlockDef.wading_speed_mult). Only
+## fluids slow: air, unknown ids and solid blocks answer 1.0 (no drag).
+func get_wading_speed_mult(block_id: String) -> float:
+	var def := get_def(block_id)
+	return def.wading_speed_mult if def != null and def.is_fluid else 1.0
+
+
 ## True if the block at the given stored/library index is water.
 func is_water(index: int) -> bool:
 	var def: BlockDef = get_def_by_index(index)

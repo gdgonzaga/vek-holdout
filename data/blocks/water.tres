@@ -11,6 +11,7 @@ display_name = "Water"
 hp = 0
 mesh = ExtResource("2_mesh")
 is_fluid = true
+wading_speed_mult = 0.6
 collision_enabled = false
 transparency_index = 1
 culls_neighbors_of_same_type = true

@@ -103,6 +103,10 @@ func _make_library() -> BlockLibrary:
 func get_block_at(pos: Vector3i) -> String:
 	return _library.get_id(get_block_type(pos))
 
+## Locomotion multiplier a body feels inside the block at `pos` (BlockDef.wading_speed_mult; 1.0 = no drag).
+func get_wading_speed_mult_at(pos: Vector3i) -> float:
+	return _library.get_wading_speed_mult(get_block_at(pos))
+
 func set_block_at(pos: Vector3i, block_id: String, rot_index: int = 0) -> void:
 	var index := _library.get_index(block_id)
 	if index < 0:

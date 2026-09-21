@@ -32,6 +32,11 @@ const YAW_INDICES: Array[int] = [0, 22, 10, 16]
 ## Fluid flag: marks non-solid fluids like water or lava.
 @export var is_fluid: bool = false
 
+## Locomotion multiplier for a body whose lower torso is inside this block. Only read for fluids
+## (solids and air never slow anyone); 1.0 = no drag. BlockLibrary.get_wading_speed_mult applies the
+## fluid gate, so consumers ask the library instead of reading this directly.
+@export_range(0.0, 1.0) var wading_speed_mult: float = 1.0
+
 ## Collision generation: set false for non-solid blocks (water, tall grass).
 @export var collision_enabled: bool = true
 
