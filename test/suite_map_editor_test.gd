@@ -261,14 +261,14 @@ func test_ghost_previews_brush_footprint() -> void:
 	# Placement cell = position + normal = (4, 3, 7).
 	editor._brush_diameter = 5
 	editor._update_ghost(hit)
-	assert_bool(editor._ghost.visible).is_true()
-	assert_vector(editor._ghost.scale).is_equal(Vector3(5, 5, 5))
-	assert_vector(editor._ghost.global_position).is_equal(Vector3(4.5, 3.5, 7.5))
+	assert_bool(editor._ghost_view.mesh_instance.visible).is_true()
+	assert_vector(editor._ghost_view.mesh_instance.scale).is_equal(Vector3(5, 5, 5))
+	assert_vector(editor._ghost_view.mesh_instance.global_position).is_equal(Vector3(4.5, 3.5, 7.5))
 
 	editor._brush_diameter = 4
 	editor._update_ghost(hit)
-	assert_vector(editor._ghost.scale).is_equal(Vector3(4, 4, 4))
-	assert_vector(editor._ghost.global_position).is_equal(Vector3(5.0, 4.0, 8.0))
+	assert_vector(editor._ghost_view.mesh_instance.scale).is_equal(Vector3(4, 4, 4))
+	assert_vector(editor._ghost_view.mesh_instance.global_position).is_equal(Vector3(5.0, 4.0, 8.0))
 
 
 func test_map_editor_block_editing_init() -> void:
@@ -280,8 +280,8 @@ func test_map_editor_block_editing_init() -> void:
 	var expected_idx: int = base[0] if not base.is_empty() else 0
 	assert_int(editor._selected_block_index).is_equal(expected_idx)
 	assert_int(editor._brush_diameter).is_equal(1)
-	assert_object(editor._ghost).is_not_null()
-	assert_bool(editor._ghost.visible).is_false()
+	assert_object(editor._ghost_view.mesh_instance).is_not_null()
+	assert_bool(editor._ghost_view.mesh_instance.visible).is_false()
 
 
 func test_map_editor_cycle_block() -> void:
@@ -337,14 +337,14 @@ func test_ghost_previews_terrain_sculpt_sphere() -> void:
 	}
 	editor._sculpt_radius = 2.5
 	editor._update_ghost(hit)
-	assert_bool(editor._ghost.visible).is_true()
-	assert_bool(editor._ghost.mesh is SphereMesh).is_true()
-	assert_vector(editor._ghost.scale).is_equal(Vector3(2.5, 2.5, 2.5))
-	assert_vector(editor._ghost.global_position).is_equal(Vector3(4.5, 2.0, 7.5))
+	assert_bool(editor._ghost_view.mesh_instance.visible).is_true()
+	assert_bool(editor._ghost_view.mesh_instance.mesh is SphereMesh).is_true()
+	assert_vector(editor._ghost_view.mesh_instance.scale).is_equal(Vector3(2.5, 2.5, 2.5))
+	assert_vector(editor._ghost_view.mesh_instance.global_position).is_equal(Vector3(4.5, 2.0, 7.5))
 	# The drawn sphere must match the edited sphere: mesh radius times scale equals the brush radius.
-	var sphere := editor._ghost.mesh as SphereMesh
-	assert_float(sphere.radius * editor._ghost.scale.x).is_equal_approx(2.5, 0.001)
-	assert_float(sphere.height * editor._ghost.scale.y).is_equal_approx(5.0, 0.001)
+	var sphere := editor._ghost_view.mesh_instance.mesh as SphereMesh
+	assert_float(sphere.radius * editor._ghost_view.mesh_instance.scale.x).is_equal_approx(2.5, 0.001)
+	assert_float(sphere.height * editor._ghost_view.mesh_instance.scale.y).is_equal_approx(5.0, 0.001)
 
 
 func test_map_editor_terrain_state_on_load() -> void:
@@ -677,15 +677,15 @@ func test_ghost_previews_furniture_and_spawn() -> void:
 	# Test furniture ghost
 	editor._set_mode(MapEditorClass.Mode.FURNITURE)
 	editor._update_ghost(hit)
-	assert_bool(editor._ghost.visible).is_true()
+	assert_bool(editor._ghost_view.mesh_instance.visible).is_true()
 	var def := editor._furniture_defs[editor._selected_furniture_idx]
-	assert_object(editor._ghost.mesh).is_equal(def.mesh)
+	assert_object(editor._ghost_view.mesh_instance.mesh).is_equal(def.mesh)
 
 	# Test spawn ghost
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 	editor._update_ghost(hit)
-	assert_bool(editor._ghost.visible).is_true()
-	assert_bool(editor._ghost.mesh is CapsuleMesh).is_true()
+	assert_bool(editor._ghost_view.mesh_instance.visible).is_true()
+	assert_bool(editor._ghost_view.mesh_instance.mesh is CapsuleMesh).is_true()
 
 
 func test_map_editor_save_scene_packs_markers() -> void:
@@ -1784,26 +1784,26 @@ func test_map_editor_ghost_preview_renders_custom_mesh_with_rotation() -> void:
 
 	editor._update_ghost(dummy_hit)
 
-	# Ghost mesh should use the custom stairs mesh, not _box_mesh
-	assert_object(editor._ghost.mesh).is_equal(stairs_def.mesh)
-	assert_bool(editor._ghost.transform.basis.is_equal_approx(Basis.IDENTITY)).is_true()
-	assert_object(editor._axis_line).is_not_null()
-	assert_bool(editor._axis_line.visible).is_true()
+	# Ghost mesh should use the custom stairs mesh, not box_mesh
+	assert_object(editor._ghost_view.mesh_instance.mesh).is_equal(stairs_def.mesh)
+	assert_bool(editor._ghost_view.mesh_instance.transform.basis.is_equal_approx(Basis.IDENTITY)).is_true()
+	assert_object(editor._ghost_view.axis_line).is_not_null()
+	assert_bool(editor._ghost_view.axis_line.visible).is_true()
 
 	# Rotate block brush and verify basis updates
 	editor._rotate_block_brush(Vector3.UP)
 	editor._update_ghost(dummy_hit)
 	assert_int(editor._active_rotation_index).is_not_equal(0)
 	var expected_basis := VoxelBlockEncoder.rot_index_to_basis(editor._active_rotation_index)
-	assert_bool(editor._ghost.transform.basis.is_equal_approx(expected_basis)).is_true()
-	assert_bool(editor._axis_line.visible).is_true()
+	assert_bool(editor._ghost_view.mesh_instance.transform.basis.is_equal_approx(expected_basis)).is_true()
+	assert_bool(editor._ghost_view.axis_line.visible).is_true()
 
-	# Multi-block brush diameter > 1 uses _box_mesh
+	# Multi-block brush diameter > 1 uses box_mesh
 	editor._brush_diameter = 2
 	editor._update_ghost(dummy_hit)
-	assert_object(editor._ghost.mesh).is_equal(editor._box_mesh)
+	assert_object(editor._ghost_view.mesh_instance.mesh).is_equal(editor._ghost_view.box_mesh)
 
-	# Single block def without mesh uses _box_mesh
+	# Single block def without mesh uses box_mesh
 	editor._brush_diameter = 1
 	var custom_def := BlockDef.new()
 	custom_def.id = "no_mesh_block"
@@ -1811,7 +1811,7 @@ func test_map_editor_ghost_preview_renders_custom_mesh_with_rotation() -> void:
 	editor._block_library._defs_by_index[99] = custom_def
 	editor._selected_block_index = 99
 	editor._update_ghost(dummy_hit)
-	assert_object(editor._ghost.mesh).is_equal(editor._box_mesh)
+	assert_object(editor._ghost_view.mesh_instance.mesh).is_equal(editor._ghost_view.box_mesh)
 
 	await _dispose_test_editor(editor)
 

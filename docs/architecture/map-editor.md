@@ -27,7 +27,9 @@ MapEditor (Node3D, tools/map_editor/map_editor.gd)
 ├── DirectionalLight3D
 ├── EditorCamera (Camera3D)
 │   └── VoxelViewer
-├── GhostMesh (MeshInstance3D)
+├── EditorGhost (Node3D, tools/map_editor/editor_ghost.gd)
+│   ├── GhostMesh (MeshInstance3D)
+│   └── AxisLineVisualizer (MeshInstance3D)
 ├── StructureTool (Node, tools/map_editor/structure_tool.gd)
 │   └── StructureGhostMesh (MeshInstance3D, from GhostPreviewBuilder)
 ├── GridOverlay (MeshInstance3D, from EditorGridOverlay)
@@ -66,6 +68,7 @@ Collaborating classes that compose the Map Editor subsystem:
 |---|---|---|
 | `tools/map_editor/editor_undo_history.gd` | `EditorUndoHistory` (`RefCounted`) | Bounded stack of undo entries (max depth 50) for block edits, smooth terrain sculpting, and structure stamps. |
 | `tools/map_editor/spawn_authoring.gd` | `SpawnAuthoring` (`RefCounted`) | Reads, creates, numbers, and tints spawn markers (Player, Colonist, Enemy) under `SpawnPoints`; preserves non-spawn markers. |
+| `tools/map_editor/editor_ghost.gd` | `EditorGhost` (`Node3D`) | Builds, positions, rotates, tints, and displays ghost preview meshes (blocks, sculpt spheres, furniture, spawn capsules) and 3D rotation axis lines. |
 
 ---
 

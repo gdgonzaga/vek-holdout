@@ -94,13 +94,7 @@ var _yaw: int = 0 # Quarter turns (0..3)
 var _spawns: SpawnAuthoring = SpawnAuthoring.new()
 var _selected_spawn_type: String = "player"
 
-var _ghost: MeshInstance3D = null
-var _ghost_mat: StandardMaterial3D = null
-var _box_mesh: BoxMesh = null
-var _sphere_mesh: SphereMesh = null
-var _capsule_mesh: CapsuleMesh = null
-var _axis_line: MeshInstance3D = null
-var _axis_line_mat: StandardMaterial3D = null
+var _ghost_view: EditorGhost = null
 
 var _cam_yaw: float = 0.0
 var _cam_pitch: float = -30.0
@@ -112,7 +106,10 @@ func _ready() -> void:
 		push_error("MapEditor: failed to load config at %s" % CONFIG_PATH)
 	_build_environment()
 	_build_camera()
-	_build_ghost()
+	_ghost_view = EditorGhost.new()
+	_ghost_view.name = "EditorGhost"
+	add_child(_ghost_view)
+	_ghost_view.setup()
 	_build_grid_overlay()
 	_block_library = BlockLibrary.new()
 	_selected_block_index = _default_block_index()
@@ -508,8 +505,8 @@ func _apply_camera_rotation() -> void:
 
 func _process(delta: float) -> void:
 	if _camera == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or (_hud != null and _hud.is_any_input_focused()):
-		if _ghost != null:
-			_ghost.visible = false
+		if _ghost_view != null:
+			_ghost_view.hide_all()
 		if _hud != null:
 			_hud.clear_coordinates()
 		return
@@ -555,8 +552,8 @@ func _process(delta: float) -> void:
 			else:
 				_hud.clear_coordinates()
 	else:
-		if _ghost != null:
-			_ghost.visible = false
+		if _ghost_view != null:
+			_ghost_view.hide_all()
 		if _hud != null:
 			var hit := _raycast_from_camera()
 			if hit.get("hit", false):
@@ -949,48 +946,6 @@ func _build_camera() -> void:
 	_camera.add_child(_viewer)
 
 
-func _build_ghost() -> void:
-	_box_mesh = BoxMesh.new()
-	_sphere_mesh = SphereMesh.new()
-	# Unit-radius sphere so scale matches the brush radius in metres.
-	_sphere_mesh.radius = 1.0
-	_sphere_mesh.height = 2.0
-	_capsule_mesh = CapsuleMesh.new()
-	_capsule_mesh.radius = 0.4
-	_capsule_mesh.height = 1.8
-
-	_ghost_mat = StandardMaterial3D.new()
-	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_ghost_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.5)
-	_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-
-	_ghost = MeshInstance3D.new()
-	_ghost.name = "GhostMesh"
-	_ghost.material_override = _ghost_mat
-	_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_ghost.visible = false
-	add_child(_ghost)
-
-	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = 0.025
-	cylinder.bottom_radius = 0.025
-	cylinder.height = 1.8
-	cylinder.radial_segments = 12
-
-	_axis_line_mat = StandardMaterial3D.new()
-	_axis_line_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_axis_line_mat.no_depth_test = true
-	_axis_line_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.95)
-
-	_axis_line = MeshInstance3D.new()
-	_axis_line.name = "AxisLineVisualizer"
-	_axis_line.mesh = cylinder
-	_axis_line.material_override = _axis_line_mat
-	_axis_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_axis_line.visible = false
-	add_child(_axis_line)
-
-
 func _position_camera_at_spawn() -> void:
 	if _map_def != null:
 		_camera.global_position = _map_def.player_spawn + Vector3(0.0, 2.0, 5.0)
@@ -1297,130 +1252,132 @@ func _set_mode(mode: Mode) -> void:
 		else:
 			_structure_tool.deactivate()
 
-	if _ghost != null:
-		_ghost.visible = false
-	_hide_axis_line()
+	if _ghost_view != null:
+		_ghost_view.hide_all()
 
 
 func _update_ghost(hit: Dictionary) -> void:
-	if _ghost == null or _ghost_mat == null:
+	if _ghost_view == null:
 		return
 
-	var is_erase := Input.is_key_pressed(KEY_SHIFT)
+	match _mode:
+		Mode.BLOCK:
+			# 1. Block Ghost: Preview block brush footprint or single-voxel custom mesh.
+			_ghost_block(hit)
+		Mode.TERRAIN:
+			# 1. Terrain Ghost: Preview sculpting sphere at hit point.
+			_ghost_terrain(hit)
+		Mode.FURNITURE:
+			# 1. Furniture Ghost: Preview furniture item mesh and yaw orientation.
+			_ghost_furniture(hit)
+		Mode.SPAWN:
+			# 1. Spawn Ghost: Preview spawn marker capsule.
+			_ghost_spawn(hit)
+		Mode.STRUCTURE:
+			# 1. Structure Ghost: Update structure stamp ghost via structure tool.
+			_ghost_structure(hit)
+		_:
+			# 1. Hide Ghost: Conceal ghost preview and rotation axis line.
+			_ghost_view.hide_all()
 
-	if _mode == Mode.BLOCK:
-		if not hit.get("hit", false):
-			_ghost.visible = false
-			_hide_axis_line()
-			return
-		var cell := _target_cell(hit, is_erase)
-		if cell == Vector3i.MIN:
-			_ghost.visible = false
-			_hide_axis_line()
-			return
-		var cell_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
-		var rot_basis := VoxelBlockEncoder.rot_index_to_basis(_active_rotation_index)
-		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index) if _block_library != null else null
-		var eff_mesh: Mesh = def.get_mesh() if def != null else null
-		if not is_erase and def != null and eff_mesh != null and _brush_diameter == 1:
-			_ghost.mesh = eff_mesh
-			var mesh_aabb := eff_mesh.get_aabb()
-			var local_center := mesh_aabb.get_center()
-			_ghost.global_position = cell_center - rot_basis * local_center
-			_ghost.transform.basis = rot_basis
-		else:
-			_ghost.mesh = _box_mesh
-			var bounds := _brush_box(cell)
-			_ghost.global_position = _box_center(bounds)
-			_ghost.transform.basis = rot_basis.scaled(Vector3(_brush_diameter, _brush_diameter, _brush_diameter))
-		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.2, 0.8, 0.2, 0.5)
-		_ghost.visible = true
-		if not is_erase:
-			_update_axis_line(cell_center)
-		else:
-			_hide_axis_line()
 
-	elif _mode == Mode.TERRAIN:
-		_hide_axis_line()
-		if not hit.get("hit", false):
-			_ghost.visible = false
-			return
-		_ghost.mesh = _sphere_mesh
-		_ghost.global_position = hit.get("point", Vector3.ZERO)
-		_ghost.scale = Vector3.ONE * _sculpt_radius
-		_ghost.global_rotation = Vector3.ZERO
-		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.2, 0.8, 0.4, 0.5)
-		_ghost.visible = true
-
-	elif _mode == Mode.FURNITURE:
-		if _furniture_defs.is_empty() or _selected_furniture_idx < 0 or _selected_furniture_idx >= _furniture_defs.size():
-			_ghost.visible = false
-			_hide_axis_line()
-			return
-		var def := _furniture_defs[_selected_furniture_idx]
-		var furn_mesh: Mesh = def.get_mesh() if def != null else null
-		if def == null or furn_mesh == null or not hit.get("hit", false):
-			_ghost.visible = false
-			_hide_axis_line()
-			return
-		var anchor := _target_cell(hit, false)
-		if anchor == Vector3i.MIN:
-			_ghost.visible = false
-			_hide_axis_line()
-			return
-		_ghost.mesh = furn_mesh
-		_ghost.scale = Vector3.ONE
-		var dims := FurnitureLayer.dimensions_of(def)
-		var origin := FurnitureLayer.world_origin(anchor, dims, _yaw)
-		_ghost.global_position = origin
-		_ghost.global_rotation = Vector3(0, deg_to_rad(_yaw * 90), 0)
-		_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5) if is_erase else Color(0.4, 0.8, 1.0, 0.5)
-		_ghost.visible = true
-		if not is_erase:
-			_update_axis_line(origin + Vector3(0, float(dims.y) * 0.5, 0))
-		else:
-			_hide_axis_line()
-
-	elif _mode == Mode.SPAWN:
-		_hide_axis_line()
-		if not hit.get("hit", false):
-			_ghost.visible = false
-			return
-		_ghost.mesh = _capsule_mesh
-		_ghost.scale = Vector3.ONE
-		var is_remove := Input.is_key_pressed(KEY_SHIFT) or _selected_spawn_type == "remove"
-		var pos := _get_surface_hit_point(hit)
-		_ghost.global_position = pos + Vector3(0, 0.9, 0)
-		_ghost.global_rotation = Vector3.ZERO
-		if is_remove:
-			_ghost_mat.albedo_color = Color(1.0, 0.4, 0.1, 0.6)
-		elif _selected_spawn_type == "player":
-			_ghost_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.5)
-		elif _selected_spawn_type == "colonist":
-			_ghost_mat.albedo_color = Color(0.2, 0.5, 1.0, 0.5)
-		elif _selected_spawn_type == "enemy":
-			_ghost_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.5)
-		else:
-			_ghost_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.5)
-		_ghost.visible = true
-
-	elif _mode == Mode.STRUCTURE:
-		_hide_axis_line()
-		_ghost.visible = false
-		if not hit.get("hit", false) or _structure_tool == null or _structure_tool.get_active_structure() == null:
-			if _structure_tool != null:
-				_structure_tool.hide_ghost()
-			return
-		var cell := _target_cell(hit, false)
-		if cell == Vector3i.MIN:
-			if _structure_tool != null:
-				_structure_tool.hide_ghost()
-			return
-		_structure_tool.update_ghost_position(cell)
-
+func _ghost_block(hit: Dictionary) -> void:
+	## Auxiliary: Updates block brush ghost mesh and rotation axis line.
+	var is_erase: bool = Input.is_key_pressed(KEY_SHIFT)
+	if not hit.get("hit", false):
+		_ghost_view.hide_all()
+		return
+	var cell: Vector3i = _target_cell(hit, is_erase)
+	if cell == Vector3i.MIN:
+		_ghost_view.hide_all()
+		return
+	var cell_center := Vector3(cell) + Vector3(0.5, 0.5, 0.5)
+	var rot_basis := VoxelBlockEncoder.rot_index_to_basis(_active_rotation_index)
+	var def: BlockDef = _block_library.get_def_by_index(_selected_block_index) if _block_library != null else null
+	var eff_mesh: Mesh = def.get_mesh() if def != null else null
+	if not is_erase and def != null and eff_mesh != null and _brush_diameter == 1:
+		var mesh_aabb := eff_mesh.get_aabb()
+		var local_center := mesh_aabb.get_center()
+		_ghost_view.show_custom_mesh(eff_mesh, cell_center - rot_basis * local_center, rot_basis, is_erase)
 	else:
-		_hide_axis_line()
-		_ghost.visible = false
+		var bounds := _brush_box(cell)
+		var center := _box_center(bounds)
+		var scaled_basis := rot_basis.scaled(Vector3(_brush_diameter, _brush_diameter, _brush_diameter))
+		_ghost_view.show_box(center, scaled_basis, is_erase)
+	if not is_erase:
+		_ghost_view.show_axis(cell_center, _active_rotation_axis)
+	else:
+		_ghost_view.hide_axis()
+
+
+func _ghost_terrain(hit: Dictionary) -> void:
+	## Auxiliary: Updates smooth terrain sculpt sphere preview.
+	_ghost_view.hide_axis()
+	if not hit.get("hit", false):
+		_ghost_view.hide_all()
+		return
+	var is_erase: bool = Input.is_key_pressed(KEY_SHIFT)
+	_ghost_view.show_sphere(hit.get("point", Vector3.ZERO), _sculpt_radius, is_erase)
+
+
+func _ghost_furniture(hit: Dictionary) -> void:
+	## Auxiliary: Updates furniture placement ghost mesh and rotation axis line.
+	if _furniture_defs.is_empty() or _selected_furniture_idx < 0 or _selected_furniture_idx >= _furniture_defs.size():
+		_ghost_view.hide_all()
+		return
+	var def: FurnitureDef = _furniture_defs[_selected_furniture_idx]
+	var furn_mesh: Mesh = def.get_mesh() if def != null else null
+	if def == null or furn_mesh == null or not hit.get("hit", false):
+		_ghost_view.hide_all()
+		return
+	var anchor: Vector3i = _target_cell(hit, false)
+	if anchor == Vector3i.MIN:
+		_ghost_view.hide_all()
+		return
+	var dims: Vector3i = FurnitureLayer.dimensions_of(def)
+	var origin: Vector3 = FurnitureLayer.world_origin(anchor, dims, _yaw)
+	var is_erase: bool = Input.is_key_pressed(KEY_SHIFT)
+	_ghost_view.show_furniture(furn_mesh, origin, _yaw, is_erase)
+	if not is_erase:
+		_ghost_view.show_axis(origin + Vector3(0, float(dims.y) * 0.5, 0), _active_rotation_axis)
+	else:
+		_ghost_view.hide_axis()
+
+
+func _ghost_spawn(hit: Dictionary) -> void:
+	## Auxiliary: Updates spawn marker preview capsule.
+	_ghost_view.hide_axis()
+	if not hit.get("hit", false):
+		_ghost_view.hide_all()
+		return
+	var is_remove: bool = Input.is_key_pressed(KEY_SHIFT) or _selected_spawn_type == "remove"
+	var color: Color
+	if is_remove:
+		color = Color(1.0, 0.4, 0.1, 0.6)
+	elif _selected_spawn_type == "player":
+		color = Color(0.2, 1.0, 0.2, 0.5)
+	elif _selected_spawn_type == "colonist":
+		color = Color(0.2, 0.5, 1.0, 0.5)
+	elif _selected_spawn_type == "enemy":
+		color = Color(1.0, 0.2, 0.2, 0.5)
+	else:
+		color = Color(0.2, 1.0, 0.2, 0.5)
+	_ghost_view.show_capsule(_get_surface_hit_point(hit), color)
+
+
+func _ghost_structure(hit: Dictionary) -> void:
+	## Auxiliary: Updates structure stamping ghost via structure tool.
+	_ghost_view.hide_all()
+	if not hit.get("hit", false) or _structure_tool == null or _structure_tool.get_active_structure() == null:
+		if _structure_tool != null:
+			_structure_tool.hide_ghost()
+		return
+	var cell: Vector3i = _target_cell(hit, false)
+	if cell == Vector3i.MIN:
+		if _structure_tool != null:
+			_structure_tool.hide_ghost()
+		return
+	_structure_tool.update_ghost_position(cell)
 
 
 func _raycast_from_camera() -> Dictionary:
@@ -1622,7 +1579,7 @@ func _do_furniture_rotate_step(dir: int = 1) -> void:
 	else:
 		_yaw = (_yaw - 1 + 4) % 4
 	_update_hud_info()
-	if _camera != null and _ghost != null and _mode == Mode.FURNITURE:
+	if _camera != null and _ghost_view != null and _mode == Mode.FURNITURE:
 		var hit := _raycast_from_camera()
 		_update_ghost(hit)
 
@@ -1817,7 +1774,7 @@ func _sanitize_rotation_for_selected_block() -> void:
 
 func _refresh_block_ghost() -> void:
 	## Auxiliary: Refreshes the active block placement ghost mesh under the cursor.
-	if _camera != null and _ghost != null and _mode == Mode.BLOCK:
+	if _camera != null and _ghost_view != null and _mode == Mode.BLOCK:
 		_update_ghost(_raycast_from_camera())
 
 
@@ -1988,31 +1945,9 @@ func _get_rotation_axis_name() -> String:
 func _cycle_rotation_axis() -> void:
 	_active_rotation_axis = (_active_rotation_axis + 1) % 3
 	_update_hud_info()
-	if _camera != null and _ghost != null and (_mode == Mode.BLOCK or _mode == Mode.FURNITURE):
+	if _camera != null and _ghost_view != null and (_mode == Mode.BLOCK or _mode == Mode.FURNITURE):
 		var hit := _raycast_from_camera()
 		_update_ghost(hit)
-
-
-func _update_axis_line(pos: Vector3) -> void:
-	if _axis_line == null or _axis_line_mat == null:
-		return
-	_axis_line.global_position = pos
-	match _active_rotation_axis:
-		RotationAxis.Y:
-			_axis_line.transform.basis = Basis.IDENTITY
-			_axis_line_mat.albedo_color = Color(0.2, 1.0, 0.2, 0.95)
-		RotationAxis.X:
-			_axis_line.transform.basis = Basis(Vector3.FORWARD, deg_to_rad(90))
-			_axis_line_mat.albedo_color = Color(1.0, 0.2, 0.2, 0.95)
-		RotationAxis.Z:
-			_axis_line.transform.basis = Basis(Vector3.RIGHT, deg_to_rad(90))
-			_axis_line_mat.albedo_color = Color(0.2, 0.6, 1.0, 0.95)
-	_axis_line.visible = true
-
-
-func _hide_axis_line() -> void:
-	if _axis_line != null:
-		_axis_line.visible = false
 
 
 func _rotate_block_brush(axis: Vector3, step_angle_rad: float = PI / 2.0) -> void:
