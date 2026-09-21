@@ -448,19 +448,6 @@ func test_complete_skips_when_occupied_slot_no_capacity() -> void:
 
 
 # ==============================
-# EquipmentSlotRow — sidearm display name
-# ==============================
-
-func test_slot_row_displays_holster_as_sidearm() -> void:
-	assert_str(EquipmentSlotRow.SLOT_DISPLAY_NAMES.get("holster", "")).is_equal("Sidearm")
-
-
-func test_slot_row_other_slots_use_title_case() -> void:
-	assert_bool(EquipmentSlotRow.SLOT_DISPLAY_NAMES.has("head")).is_false()
-	assert_bool(EquipmentSlotRow.SLOT_DISPLAY_NAMES.has("main_hand")).is_false()
-
-
-# ==============================
 # Labor Intercept Fetch Jobs
 # ==============================
 

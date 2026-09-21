@@ -316,6 +316,9 @@ func test_world_item_hauling_execution_and_storage() -> void:
 	var site_2 = haul_job.def.work_site(colonist, haul_job)
 	assert_vector(site_2).is_equal(crate.global_position)
 
+	# The delivery leg only deposits once the colonist stands at the crate (HaulingJobDef reach check).
+	colonist.global_position = crate.global_position
+
 	# Complete deliver
 	haul_job.def.complete(colonist, haul_job)
 	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
@@ -546,6 +549,9 @@ func test_world_item_job_single_assignee_and_surplus_delivery() -> void:
 	assert_int(colonist1.inventory.get_item_count("wood")).is_equal(5)
 	assert_int(colonist1.inventory.get_item_count("dirt")).is_equal(4)
 
+	# The delivery leg only deposits once the colonist stands at the crate (HaulingJobDef reach check).
+	colonist1.global_position = crate.global_position
+
 	# Cycle 2: deliver to crate -> should deposit wood AND surplus dirt
 	job.def.complete(colonist1, job)
 	assert_int(colonist1.inventory.get_item_count("wood")).is_equal(0)
@@ -725,22 +731,56 @@ func test_world_item_pickup_preserves_job_until_delivery_cycle() -> void:
 	assert_int(colonist.inventory.get_item_count("wood")).is_equal(4)
 	assert_bool(item.visible).is_false()
 
-	# Primary job is removed from board upon pickup so other haulers don't target it
+	# The pickup leg is not the end of the job: it stays on the board (still assigned to this
+	# colonist, so no other hauler can take it) and is pruned when the delivery leg finishes.
 	var job_still_exists := false
 	for j in _sandbox.test_board.get_jobs():
 		if j == haul_job:
 			job_still_exists = true
 			break
-	assert_bool(job_still_exists).is_false()
+	assert_bool(job_still_exists).is_true()
 
 	# Second cycle delivery to crate
 	var site_2 = haul_job.def.work_site(colonist, haul_job)
 	assert_vector(site_2).is_equal(crate.global_position)
+
+	# The delivery leg only deposits once the colonist stands at the crate (HaulingJobDef reach check).
+	colonist.global_position = crate.global_position
 	haul_job.def.complete(colonist, haul_job)
 
 	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
 	var crate_inv := _sandbox.test_registry.inventory_of(crate)
 	assert_int(crate_inv.get_item_count("wood")).is_equal(4)
+
+
+func test_delivery_leg_deposits_only_once_the_colonist_reaches_the_crate() -> void:
+	var crate := _sandbox.make_crate("wood", 0)
+	crate.global_position = Vector3(10.0, 0.0, 0.0)
+
+	var colonist := _sandbox.make_colonist()
+	colonist.global_position = Vector3.ZERO
+	colonist.labor_priorities["hauling"] = 3
+
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+	item.position = Vector3(2.0, 0.0, 0.0)
+	item.setup("wood", 4, false)
+	_sandbox.container.add_child(item)
+
+	var haul_job = _sandbox.test_board.get_best_job_for(colonist)
+	assert_object(haul_job).is_not_null()
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(4)
+
+	# Still 10 m from the crate: the delivery leg must leave the items on the colonist.
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(4)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("wood")).is_equal(0)
+
+	colonist.global_position = crate.global_position
+	haul_job.def.complete(colonist, haul_job)
+	assert_int(colonist.inventory.get_item_count("wood")).is_equal(0)
+	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("wood")).is_equal(4)
 
 
 func test_carried_materials_allow_sink_job_assignment_without_crate_source() -> void:

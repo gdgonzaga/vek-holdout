@@ -194,7 +194,7 @@ func test_furniture_layer_attaches_bed_component_when_bed_params_present() -> vo
 
 	var bparams: BedParams = auto_free(BedParams.new())
 	bparams.sleep_offset = Vector3(0.1, 0.2, 0.3)
-	bparams.rest_rate_per_second = 0.25
+	bparams.rest_per_game_hour = 0.25
 
 	var def: FurnitureDef = auto_free(FurnitureDef.new())
 	def.id = "test_bed"
@@ -210,7 +210,7 @@ func test_furniture_layer_attaches_bed_component_when_bed_params_present() -> vo
 	assert_object(bed_comp).is_not_null()
 	assert_bool(bed_comp.is_available()).is_true()
 	assert_object(bed_comp.params()).is_equal(bparams)
-	assert_float(bed_comp.params().rest_rate_per_second).is_equal_approx(0.25, 0.01)
+	assert_float(bed_comp.params().rest_per_game_hour).is_equal_approx(0.25, 0.01)
 
 
 func test_furniture_get_capability_and_iter_capabilities() -> void:

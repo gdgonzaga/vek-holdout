@@ -68,7 +68,7 @@ func test_session_ceiling_never_falls_below_the_floor() -> void:
 	var params := _make_params(1)
 	params.min_session_game_hours = 8.0
 	params.max_session_game_hours = 2.0
-	assert_float(params.session_ceiling_seconds()).is_equal_approx(8.0, 0.001)
+	assert_float(params.session_ceiling_game_hours()).is_equal_approx(8.0, 0.001)
 
 
 # ── FurnitureLayer capability wiring ─────────────────────────────────────────
@@ -442,7 +442,7 @@ func _install_brain_with_need(target_group: StringName) -> ColonistBrain:
 	mock_def.id = TEST_NEED
 	mock_def.goal_name = TEST_NEED
 	mock_def.target_group = target_group
-	mock_def.decay_per_second = 0.0
+	mock_def.decay_per_game_hour = 0.0
 	var curve: Curve = Curve.new()
 	curve.add_point(Vector2(0, 0))
 	curve.add_point(Vector2(1, 1))
