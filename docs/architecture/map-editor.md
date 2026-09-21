@@ -69,6 +69,7 @@ Collaborating classes that compose the Map Editor subsystem:
 | `tools/map_editor/editor_undo_history.gd` | `EditorUndoHistory` (`RefCounted`) | Bounded stack of undo entries (max depth 50) for block edits, smooth terrain sculpting, and structure stamps. |
 | `tools/map_editor/spawn_authoring.gd` | `SpawnAuthoring` (`RefCounted`) | Reads, creates, numbers, and tints spawn markers (Player, Colonist, Enemy) under `SpawnPoints`; preserves non-spawn markers. |
 | `tools/map_editor/editor_ghost.gd` | `EditorGhost` (`Node3D`) | Builds, positions, rotates, tints, and displays ghost preview meshes (blocks, sculpt spheres, furniture, spawn capsules) and 3D rotation axis lines. |
+| `tools/map_editor/map_repository.gd` | `MapRepository` (`RefCounted`) | Encapsulates map file-system scanning, scene template stamping, directory deletion, and MapDef / terrain resource creation. |
 
 ---
 

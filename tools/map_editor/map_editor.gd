@@ -14,9 +14,6 @@ const FurnitureAuthoringClass = preload("res://addons/voxel_paint/furniture_auth
 const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
 const EditorUndoHistoryClass = preload("res://tools/map_editor/editor_undo_history.gd")
 
-const MAPS_DIR: String = "res://data/maps/"
-const TERRAIN_DIR: String = "res://data/terrain/"
-const TEMPLATE_PATH: String = "res://subsystems/maps/map_template.tscn"
 const CONFIG_PATH: String = "res://data/map_editor/map_editor_config.tres"
 
 const FLY_SPEED: float = 8.0
@@ -144,11 +141,11 @@ func _ready() -> void:
 		create_new_map(payload)
 	)
 	_launcher.map_delete_requested.connect(_request_delete_map)
-	_launcher.setup(_scan_maps())
+	_launcher.setup(MapRepository.scan_maps())
 	var default_noise_path := ""
 	if _config != null and _config.default_noise_def != null:
 		default_noise_path = _config.default_noise_def.resource_path
-	_launcher.setup_noise_defs(_scan_noise_defs(), default_noise_path)
+	_launcher.setup_noise_defs(MapRepository.scan_noise_defs(), default_noise_path)
 	_launcher.show_launcher()
 
 	_setup_exit_dialog()
@@ -582,7 +579,7 @@ func _process(delta: float) -> void:
 
 
 func load_map(map_id: String, recapture_mouse: bool = true) -> void:
-	var def_path := MAPS_DIR + map_id + "/map_def.tres"
+	var def_path := MapRepository.MAPS_DIR + map_id + "/map_def.tres"
 	if not ResourceLoader.exists(def_path):
 		push_error("MapEditor: map_def not found at '%s'" % def_path)
 		return
@@ -676,33 +673,15 @@ func _resolve_live_smooth_grid() -> SmoothGrid:
 ## Create + open a new map under data/maps/<map_id>/. `payload` is the
 ## launcher's create-form Dictionary (shape: EditorLauncher.new_map_requested).
 func create_new_map(payload: Dictionary) -> String:
-	var map_name := payload.get("map_id", "") as String
-	var id_error := MapIdRules.validate(map_name)
-	if not id_error.is_empty():
-		push_warning("MapEditor: " + id_error)
+	# 1. Files: validation, folder, scene stamp, MapDef and terrain def (all disk work, no editor state).
+	var scene_path := MapRepository.create_map_files(payload, _config)
+	if scene_path.is_empty():
 		return ""
-
-	var folder_path := MAPS_DIR + map_name + "/"
-	if DirAccess.dir_exists_absolute(folder_path):
-		push_warning("MapEditor: map '%s' already exists" % map_name)
-		return ""
-
-	var err := DirAccess.make_dir_recursive_absolute(folder_path.trim_suffix("/"))
-	if err != OK:
-		push_warning("MapEditor: failed to create folder '%s' (error %d)" % [map_name, err])
-		return ""
-
-	var tscn_path := folder_path + "map.tscn"
-	var db_path := folder_path + "map.sqlite"
-	_stamp_map_scene(TEMPLATE_PATH, tscn_path, db_path)
-	_create_map_def(payload, folder_path, tscn_path)
-
+	# 2. UI: refresh the launcher list, then open the new map.
 	if _launcher != null:
-		_launcher.setup(_scan_maps())
-
-	load_map(map_name)
-
-	return tscn_path
+		_launcher.setup(MapRepository.scan_maps())
+	load_map(payload["map_id"])
+	return scene_path
 
 
 func unload_map() -> void:
@@ -738,7 +717,7 @@ func unload_map() -> void:
 		_hud.hide()
 
 	if _launcher != null:
-		_launcher.setup(_scan_maps())
+		_launcher.setup(MapRepository.scan_maps())
 		_launcher.show_launcher()
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -792,9 +771,9 @@ func _on_delete_confirmed() -> void:
 		return
 	if _map_def != null and _map_def.id == map_id:
 		unload_map()
-	_delete_map(map_id)
+	MapRepository.delete_map(map_id)
 	if _launcher != null:
-		_launcher.setup(_scan_maps())
+		_launcher.setup(MapRepository.scan_maps())
 
 
 func _setup_unsaved_dialog() -> void:
@@ -858,58 +837,6 @@ func _modal_dialog_open() -> bool:
 	return false
 
 
-## Remove the map directory and all its contents from disk. Returns false
-## (with push_error) if the directory could not be found or cleaned up.
-func _delete_map(map_id: String) -> bool:
-	var dir_path := MAPS_DIR + map_id + "/"
-	if not DirAccess.dir_exists_absolute(dir_path):
-		push_error("MapEditor: cannot delete map '%s' — directory not found" % map_id)
-		return false
-	return _remove_dir_recursive(dir_path)
-
-
-func _remove_dir_recursive(dir_path: String) -> bool:
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		push_error("MapEditor: failed to open directory '%s'" % dir_path)
-		return false
-	dir.list_dir_begin()
-	var entry := dir.get_next()
-	while not entry.is_empty():
-		var full_path := dir_path.path_join(entry)
-		if dir.current_is_dir():
-			if not _remove_dir_recursive(full_path):
-				return false
-		else:
-			if DirAccess.remove_absolute(full_path) != OK:
-				push_error("MapEditor: failed to remove file '%s'" % full_path)
-				return false
-		entry = dir.get_next()
-	dir.list_dir_end()
-	if DirAccess.remove_absolute(dir_path.trim_suffix("/")) != OK:
-		push_error("MapEditor: failed to remove map directory '%s'" % dir_path)
-		return false
-	return true
-
-
-func _scan_maps() -> Array[MapDef]:
-	var results: Array[MapDef] = []
-	var dir := DirAccess.open(MAPS_DIR)
-	if dir == null:
-		return results
-
-	dir.list_dir_begin()
-	var entry := dir.get_next()
-	while not entry.is_empty():
-		if dir.current_is_dir() and not entry.begins_with("."):
-			var def_path := MAPS_DIR + entry + "/map_def.tres"
-			if ResourceLoader.exists(def_path):
-				var def := load(def_path) as MapDef
-				if def != null:
-					results.append(def)
-		entry = dir.get_next()
-	dir.list_dir_end()
-	return results
 
 
 func _build_environment() -> void:
@@ -956,127 +883,7 @@ func _position_camera_at_spawn() -> void:
 	_apply_camera_rotation()
 
 
-func _stamp_map_scene(template_path: String, tscn_dest_path: String, db_dest_path: String) -> void:
-	var template_packed: PackedScene = load(template_path) as PackedScene
-	if template_packed == null:
-		push_error("MapEditor: failed to load template '%s'" % template_path)
-		return
 
-	var instance := template_packed.instantiate()
-	var blocky_grid: BlockyGrid = instance.find_child("BlockyGrid") as BlockyGrid
-	if blocky_grid != null:
-		var stream := VoxelStreamSQLite.new()
-		stream.database_path = db_dest_path
-		var vt: VoxelTerrain = blocky_grid.get_node_or_null("VoxelTerrain") as VoxelTerrain
-		if vt != null:
-			vt.stream = stream
-
-	var packed := PackedScene.new()
-	var err := packed.pack(instance)
-	if err == OK:
-		ResourceSaver.save(packed, tscn_dest_path)
-	else:
-		push_error("MapEditor: failed to pack scene for '%s' (error %d)" % [tscn_dest_path, err])
-	instance.free()
-
-
-func _create_map_def(payload: Dictionary, folder_path: String, tscn_path: String) -> void:
-	var map_name := payload.get("map_id", "") as String
-	# 1. Shell: identity, spawn, flora and bounds from the launcher payload.
-	var def := _new_map_def_shell(payload, tscn_path)
-	# 2. Terrain: noise copy, heightmap, or none, per the launcher's mode.
-	def.terrain_gen = _build_initial_terrain_def(payload, map_name)
-	# 3. Water: the same flags on MapDef and its (map-owned) terrain def.
-	def.water_enabled = bool(payload.get("water_enabled", false))
-	def.water_level = float(payload.get("water_level", -2.0))
-	MapTerrainAuthoring.apply_water(def.terrain_gen, def.water_enabled, def.water_level)
-	# 4. Persist the terrain def first so MapDef stores its ext_resource path.
-	MapTerrainAuthoring.persist_owned(def.terrain_gen, MAPS_DIR, map_name)
-	var err := ResourceSaver.save(def, folder_path + "map_def.tres")
-	if err != OK:
-		push_error("MapEditor: failed to save MapDef to '%s' (error %d)" % [folder_path + "map_def.tres", err])
-
-
-func _build_initial_terrain_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
-	match int(payload.get("terrain_mode", EditorLauncherClass.TerrainMode.NOISE)):
-		EditorLauncherClass.TerrainMode.NONE:
-			# No terrain_gen: the SmoothGrid frees itself, a blocky-only map.
-			return null
-		EditorLauncherClass.TerrainMode.HEIGHTMAP:
-			return _initial_heightmap_def(payload, map_name)
-		_:
-			return _initial_noise_def(payload, map_name)
-
-
-func _new_map_def_shell(payload: Dictionary, tscn_path: String) -> MapDef:
-	var map_name := payload.get("map_id", "") as String
-	var def := MapDef.new()
-	def.id = map_name
-	def.display_name = map_name.capitalize()
-	def.scene_path = tscn_path
-	def.map_type = int(payload.get("map_type", MapDef.MapType.POI)) as MapDef.MapType
-	def.player_spawn = Vector3(0, 5, 0)
-	def.difficulty = 1
-	if payload.get("world_bounds") is AABB:
-		def.world_bounds = payload["world_bounds"]
-	# Flora rate, cap, attempts and palette come from the launcher payload.
-	_apply_flora_payload(def, payload)
-	return def
-
-
-func _apply_flora_payload(def: MapDef, payload: Dictionary) -> void:
-	def.flora_spawns_per_day = int(payload.get("flora_spawns_per_day", 0))
-	def.flora_spawn_cap = int(payload.get("flora_spawn_cap", 60))
-	def.flora_max_spawn_attempts = int(payload.get("flora_max_spawn_attempts", 15))
-	if _config != null and not _config.default_flora_palette.is_empty():
-		def.flora_palette = _config.default_flora_palette.duplicate()
-
-
-func _initial_heightmap_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
-	var image: Image = payload.get("image", null)
-	if image == null:
-		push_error("MapEditor: heightmap map '%s' requested without an image - no terrain def written" % map_name)
-		return null
-	return MapTerrainAuthoring.build_heightmap_def(
-		map_name,
-		image,
-		float(payload.get("height_start", MapTerrainAuthoring.DEFAULT_HEIGHT_START)),
-		float(payload.get("height_range", MapTerrainAuthoring.DEFAULT_HEIGHT_RANGE)),
-		bool(payload.get("snap_to_grid", false)),
-	)
-
-
-func _initial_noise_def(payload: Dictionary, map_name: String) -> TerrainGenDef:
-	var noise_path := payload.get("noise_def_path", "") as String
-	var shared: TerrainGenDef = null
-	if ResourceLoader.exists(noise_path):
-		shared = load(noise_path) as TerrainGenDef
-	elif _config != null:
-		shared = _config.default_noise_def
-	# A copy inside this map's folder, so its water flags and edits never touch the shared baseline.
-	return MapTerrainAuthoring.ensure_map_owned(shared, map_name)
-
-
-## Shared-def scan for the launcher's noise dropdown: data/terrain/*.tres minus
-## heightmap-driven defs (those are per-map content, not shared baselines).
-func _scan_noise_defs() -> Array[Dictionary]:
-	var results: Array[Dictionary] = []
-	var dir := DirAccess.open(TERRAIN_DIR)
-	if dir == null:
-		return results
-	dir.list_dir_begin()
-	var entry := dir.get_next()
-	while not entry.is_empty():
-		if entry.ends_with(".tres"):
-			var path := TERRAIN_DIR + entry
-			var terrain_def := load(path) as TerrainGenDef
-			if terrain_def != null and terrain_def.heightmap == null:
-				var def_id := terrain_def.id if not terrain_def.id.is_empty() else entry.get_basename()
-				results.append({"id": def_id, "path": path})
-		entry = dir.get_next()
-	dir.list_dir_end()
-	results.sort_custom(func(a: Dictionary, b: Dictionary): return a["id"] < b["id"])
-	return results
 
 
 ## Write the per-map heightmap TerrainGenDef with an EMBEDDED ImageTexture: the
@@ -1148,7 +955,7 @@ func _apply_water_edits(edits: Dictionary) -> void:
 func _persist_terrain_def() -> void:
 	if _map_def.terrain_gen == null:
 		return
-	MapTerrainAuthoring.persist_owned(_map_def.terrain_gen, MAPS_DIR, _map_def.id)
+	MapTerrainAuthoring.persist_owned(_map_def.terrain_gen, MapRepository.MAPS_DIR, _map_def.id)
 
 
 func _on_terrain_pick_image() -> void:
@@ -1210,7 +1017,7 @@ func _attach_streams(map: Node, map_id: String) -> void:
 	if smooth_terrain == null and map != null:
 		smooth_terrain = map.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
 
-	var map_dir := MAPS_DIR + map_id + "/"
+	var map_dir := MapRepository.MAPS_DIR + map_id + "/"
 
 	if blocky_terrain != null:
 		var stream_path := map_dir + "map.sqlite"
@@ -1885,7 +1692,7 @@ func _save_map_def() -> bool:
 	## Auxiliary: Saves MapDef resource to disk.
 	if _map_def == null:
 		return false
-	var def_path := MAPS_DIR + _map_def.id + "/map_def.tres"
+	var def_path := MapRepository.MAPS_DIR + _map_def.id + "/map_def.tres"
 	var err := ResourceSaver.save(_map_def, def_path)
 	if err != OK:
 		push_warning("MapEditor: failed to save MapDef to '%s' (error %d)" % [def_path, err])

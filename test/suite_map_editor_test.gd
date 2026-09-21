@@ -59,8 +59,7 @@ func test_editor_launcher_population_and_signals() -> void:
 
 
 func test_map_editor_scan_maps() -> void:
-	var editor: MapEditor = auto_free(MapEditorClass.new())
-	var maps := editor._scan_maps()
+	var maps := MapRepository.scan_maps()
 
 	assert_bool(maps.is_empty()).is_false()
 	for m in maps:
@@ -1594,7 +1593,7 @@ func test_map_editor_delete_map_removes_directory() -> void:
 	var dir_path := "res://data/maps/%s/" % TEST_HEIGHTMAP_MAP
 	assert_bool(DirAccess.dir_exists_absolute(dir_path)).is_true()
 
-	var ok := editor._delete_map(TEST_HEIGHTMAP_MAP)
+	var ok := MapRepository.delete_map(TEST_HEIGHTMAP_MAP)
 	assert_bool(ok).is_true()
 	assert_bool(DirAccess.dir_exists_absolute(dir_path)).is_false()
 
@@ -1631,7 +1630,7 @@ func test_map_editor_delete_confirmation_confirm_removes_map() -> void:
 	assert_bool(DirAccess.dir_exists_absolute("res://data/maps/%s/" % TEST_HEIGHTMAP_MAP)).is_false()
 	assert_str(editor._pending_delete_map_id).is_empty()
 
-	var maps: Array[MapDef] = editor._scan_maps()
+	var maps: Array[MapDef] = MapRepository.scan_maps()
 	var found := false
 	for m in maps:
 		if m.id == TEST_HEIGHTMAP_MAP:
