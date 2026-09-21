@@ -236,3 +236,12 @@ func calculate_bounding_box(base_pos: Vector3i) -> AABB:
 	var vox_data := get_cached_vox_data()
 	var origin := get_placement_origin(base_pos)
 	return StructureStamper.calculate_bounding_box(active_structure, vox_data, origin, current_rotation)
+
+
+## World cells whose palette target changes smooth terrain.
+func terrain_voxel_positions(base_pos: Vector3i) -> Array[Vector3i]:
+	var vox_data := get_cached_vox_data()
+	if active_structure == null or vox_data == null:
+		return []
+	return StructureStamper.terrain_voxel_positions(active_structure, vox_data, get_placement_origin(base_pos), current_rotation)
+

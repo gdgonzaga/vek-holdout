@@ -90,3 +90,13 @@ Found while reworking the inventory, equipment and storage UI (see [Inventory](i
 4. **Orphaned stacks are invisible.** An inventory stack whose `ItemDef` no longer exists (a removed item, an old save) stays in `items` and in saves, but every item list (inventory panel, transfer panel, crate card) skips it, so it cannot be seen, moved or dropped.
 5. **The storage transfer panel has no search box.** Large crates need scrolling. Optional; the Storage Options panel already has a search field to reuse.
 6. **Known failing tests, not caused by the work above (causes not investigated):** `suite_world_item_test` (9 hauling and pickup tests), `suite_furniture_test` `test_furniture_layer_attaches_bed_component_when_bed_params_present` (`BedParams.rest_rate_per_second` missing), `suite_food_ai_test` `test_find_food_ignores_blacklisted_crate` (fails only when run after other suites). `suite_fetch_equipment_job_test` does not parse (`EquipmentSlotRow.SLOT_DISPLAY_NAMES` moved to `GearText`), and a suite that fails to parse aborts the whole gdUnit run.
+
+---
+
+## Map Editor Terrain Undo Decal Marker Stale Limit (2026-09-21)
+
+**Status: Open.**
+
+When undoing a smooth terrain `add_material` operation in the Map Editor (`tools/map_editor/map_editor.gd`), `restore_snapshot` restores prior SDF density samples and block metadata sidecars in `terrain.sqlite`. However, it does not remove the F14 visual Decal markers spawned under `SmoothGrid._marker_root` during the edit (the known stale-marker limit documented in `docs/architecture/mining.md`).
+
+**To resolve:** On `restore_snapshot`, identify any block origins whose material metadata was reverted or removed and prune the corresponding `"origin|id"` keys and Decal instances from `_marker_keys` and `_marker_root`.

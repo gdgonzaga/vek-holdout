@@ -94,6 +94,29 @@ static func get_transformed_voxels(
 	return result
 
 
+## World cells whose palette target changes smooth terrain (SMOOTH_TERRAIN adds a
+## sphere, AIR carves one). The editor snapshots terrain around exactly these
+## cells before stamping so undo can restore it.
+static func terrain_voxel_positions(
+	structure: StructureDef,
+	vox_data: VoxData,
+	origin: Vector3i,
+	rotation_y_steps: int = 0
+) -> Array[Vector3i]:
+	var out: Array[Vector3i] = []
+	for item: Dictionary in get_transformed_voxels(structure, vox_data, origin, rotation_y_steps):
+		var entry: VoxPaletteEntry = item["target_entry"]
+		if entry != null and _touches_terrain(entry.target_type):
+			out.append(item["world_pos"])
+	return out
+
+
+static func _touches_terrain(target_type: int) -> bool:
+	## Auxiliary: Checks if palette target modifies smooth terrain.
+	return target_type == VoxPaletteEntry.TargetType.SMOOTH_TERRAIN or target_type == VoxPaletteEntry.TargetType.AIR
+
+
+
 ## Stamps vox_data into the voxel world via VoxelGridAdapter.
 ## Applies BLOCK, SMOOTH_TERRAIN, and AIR operations according to structure.palette_mapping.
 ## Returns an array of operation records describing changes made for undo/redo history.

@@ -390,3 +390,53 @@ func test_is_solid_cell_degrades_like_the_old_probe() -> void:
 	# No height either: the dug cell's min corner is air, rock anywhere else.
 	assert_bool(SmoothGrid.is_solid_cell(getf, _fake_height_fn({}), Vector3i(0, 0, 0))).is_false()
 	assert_bool(SmoothGrid.is_solid_cell(getf, _fake_height_fn({}), Vector3i(4, 0, 4))).is_true()
+
+
+# --- edit snapshots (editor undo) ------------------------------------------------
+
+func test_region_cells_covers_the_box_plus_margin() -> void:
+	# x: floor(0.2)-1 .. ceil(1.4)+1 = -1..3 (5); y and z: -1..2 (4 each)
+	var cells := SmoothGrid.region_cells(Vector3(0.2, 0.0, 0.0), Vector3(1.4, 1.0, 1.0), 1)
+	assert_int(cells.size()).is_equal(5 * 4 * 4)
+	assert_bool(cells.has(Vector3i(-1, -1, -1))).is_true()
+	assert_bool(cells.has(Vector3i(3, 2, 2))).is_true()
+
+
+func test_cells_around_is_a_deduplicated_union() -> void:
+	var one: Array[Vector3i] = [Vector3i(0, 0, 0)]
+	var two: Array[Vector3i] = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)]
+	assert_int(SmoothGrid.cells_around(one, 1).size()).is_equal(4 * 4 * 4)
+	# Adjacent voxels overlap: x spans -1..3 (5), y and z 4 each.
+	assert_int(SmoothGrid.cells_around(two, 1).size()).is_equal(5 * 4 * 4)
+
+
+func test_snapshot_restore_undoes_an_add_that_an_inverse_carve_would_not() -> void:
+	# Sample 0 is pre-existing ground (solid), sample 1 is air.
+	var store := {Vector3i(0, 0, 0): -1.0, Vector3i(1, 0, 0): 1.0}
+	var get_f := func(c: Vector3i) -> float: return store.get(c, 1.0)
+	var set_f := func(c: Vector3i, v: float) -> void: store[c] = v
+	var cells: Array[Vector3i] = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)]
+	var snapshot := SmoothGrid.read_samples(get_f, cells)
+
+	# The edit fills the air sample. Carving the same sphere back would also clear the ground sample.
+	store[Vector3i(1, 0, 0)] = -1.0
+	var written := SmoothGrid.write_samples(set_f, get_f, snapshot)
+
+	assert_int(written).is_equal(1)
+	assert_float(store[Vector3i(0, 0, 0)]).is_equal(-1.0)
+	assert_float(store[Vector3i(1, 0, 0)]).is_equal(1.0)
+
+
+func test_write_samples_skips_unchanged_samples() -> void:
+	var store := {Vector3i.ZERO: 0.5}
+	var get_f := func(c: Vector3i) -> float: return store.get(c, 1.0)
+	var set_f := func(c: Vector3i, v: float) -> void: store[c] = v
+	assert_int(SmoothGrid.write_samples(set_f, get_f, {Vector3i.ZERO: 0.5})).is_equal(0)
+
+
+func test_capture_cells_without_a_voxel_tool_is_empty() -> void:
+	var grid: SmoothGrid = auto_free(SmoothGrid.new())
+	var cells: Array[Vector3i] = [Vector3i.ZERO]
+	assert_dict(grid.capture_cells(cells)).is_empty()
+	grid.restore_snapshot({})
+

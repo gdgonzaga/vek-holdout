@@ -198,55 +198,60 @@ func _undo_last() -> void:
 	if _undo_stack.is_empty() or _map_root == null:
 		return
 	var entry: Dictionary = _undo_stack.pop_back()
-	var entry_type: String = entry.get("type", "")
+	# 1. Restore: the entry type decides which voxel layers are put back exactly as they were.
+	match String(entry.get("type", "")):
+		"block":
+			_undo_block(entry)
+		"terrain":
+			_undo_terrain(entry)
+		"structure":
+			_undo_structure(entry)
+		_:
+			return
+	# 2. Persist: both terrains flush so the restored state survives a reload.
+	_flush_terrains()
+	_mark_dirty()
 
-	if entry_type == "block":
-		if _block_vt != null:
-			var ops: Array = entry.get("ops", [])
-			for op in ops:
-				var p: Vector3i = op["pos"]
-				var old_val: int = op["old_value"]
-				_block_vt.set_voxel(p, old_val)
-			var terrain := _map_root.get_blocky_terrain()
-			if terrain != null:
-				terrain.save_modified_blocks()
-			_mark_dirty()
 
-	elif entry_type == "terrain":
-		if _smooth_grid != null:
-			var point: Vector3 = entry.get("point", Vector3.ZERO)
-			var radius: float = entry.get("radius", 2.0)
-			var was_add: bool = entry.get("was_add", true)
-			if was_add:
-				_smooth_grid.carve(point, radius)
-			else:
-				_smooth_grid.add_material(point, _terrain_material_id, radius)
-			var terrain := _map_root.get_smooth_terrain()
-			if terrain != null:
-				terrain.save_modified_blocks()
-			_mark_dirty()
+func _undo_block(entry: Dictionary) -> void:
+	## Auxiliary: Restores prior blocky voxel IDs.
+	if _blocky_grid == null:
+		return
+	for op: Dictionary in entry.get("ops", []):
+		_blocky_grid.set_raw_voxel(op["pos"], op["old_value"])
 
-	elif entry_type == "structure":
-		var ops: Array = entry.get("ops", [])
-		for i in range(ops.size() - 1, -1, -1):
-			var op: Dictionary = ops[i]
-			var op_type: String = op.get("type", "")
-			var p: Vector3i = op.get("pos", Vector3i.ZERO)
-			if op_type == "block" or op_type == "air":
-				var old_raw: int = op.get("old_raw", 0)
-				if _block_vt != null:
-					_block_vt.set_voxel(p, old_raw)
-			elif op_type == "terrain":
-				if _smooth_grid != null:
-					var world_center := Vector3(float(p.x) + 0.5, float(p.y) + 0.5, float(p.z) + 0.5)
-					_smooth_grid.carve(world_center, StructureStamper.SMOOTH_TERRAIN_ADD_RADIUS)
-		var blocky_terrain := _map_root.get_blocky_terrain()
-		if blocky_terrain != null:
-			blocky_terrain.save_modified_blocks()
-		var smooth_terrain := _map_root.get_smooth_terrain()
-		if smooth_terrain != null:
-			smooth_terrain.save_modified_blocks()
-		_mark_dirty()
+
+func _undo_terrain(entry: Dictionary) -> void:
+	## Auxiliary: Restores smooth terrain snapshot.
+	if _smooth_grid != null:
+		_smooth_grid.restore_snapshot(entry.get("snapshot", {}))
+
+
+func _undo_structure(entry: Dictionary) -> void:
+	## Auxiliary: Restores structure placement blocks and terrain snapshot.
+	var ops: Array = entry.get("ops", [])
+	# 1. Blocks and air cells: put back, newest first, the raw voxel each op overwrote.
+	for i in range(ops.size() - 1, -1, -1):
+		_restore_structure_op(ops[i])
+	# 2. Terrain: one exact restore replaces the old per-voxel inverse carves.
+	if _smooth_grid != null:
+		_smooth_grid.restore_snapshot(entry.get("terrain_snapshot", {}))
+
+
+func _restore_structure_op(op: Dictionary) -> void:
+	## Auxiliary: Restores a single structure block/air operation to prior raw voxel state.
+	var op_type := String(op.get("type", ""))
+	if _blocky_grid != null and (op_type == "block" or op_type == "air"):
+		_blocky_grid.set_raw_voxel(op.get("pos", Vector3i.ZERO), int(op.get("old_raw", 0)))
+
+
+func _flush_terrains() -> void:
+	## Auxiliary: Persists modified blocks to sqlite streams on both voxel layers.
+	if _map_root == null:
+		return
+	for terrain: VoxelTerrain in [_map_root.get_blocky_terrain(), _map_root.get_smooth_terrain()]:
+		if terrain != null:
+			terrain.save_modified_blocks()
 
 
 func _input(event: InputEvent) -> void:
@@ -1540,27 +1545,36 @@ func _do_block_erase(hit: Dictionary) -> void:
 
 
 func _do_terrain_add(hit: Dictionary) -> void:
-	if _map_root == null or _smooth_grid == null or not hit.get("hit", false):
-		return
-	var point: Vector3 = hit.get("point", Vector3.ZERO)
-	_push_undo({"type": "terrain", "point": point, "radius": _sculpt_radius, "was_add": true})
-	_smooth_grid.add_material(point, _terrain_material_id, _sculpt_radius)
-	var terrain := _map_root.get_smooth_terrain()
-	if terrain != null:
-		terrain.save_modified_blocks()
-	_mark_dirty()
+	_sculpt(hit, true)
 
 
 func _do_terrain_carve(hit: Dictionary) -> void:
+	_sculpt(hit, false)
+
+
+func _sculpt(hit: Dictionary, is_add: bool) -> void:
+	## Auxiliary: Applies additive or subtractive smooth terrain sculpt with snapshot undo.
 	if _map_root == null or _smooth_grid == null or not hit.get("hit", false):
 		return
 	var point: Vector3 = hit.get("point", Vector3.ZERO)
-	_push_undo({"type": "terrain", "point": point, "radius": _sculpt_radius, "was_add": false})
-	_smooth_grid.carve(point, _sculpt_radius)
-	var terrain := _map_root.get_smooth_terrain()
-	if terrain != null:
-		terrain.save_modified_blocks()
+	# 1. Snapshot: Capture before edit so undo restores exact prior samples and material tags.
+	_push_undo({"type": "terrain", "snapshot": _capture_brush_region(point, _sculpt_radius)})
+	# 2. Edit: Modify smooth grid.
+	if is_add:
+		_smooth_grid.add_material(point, _terrain_material_id, _sculpt_radius)
+	else:
+		_smooth_grid.carve(point, _sculpt_radius)
+	# 3. Persist: Flush modified smooth terrain blocks and mark dirty.
+	_flush_terrains()
 	_mark_dirty()
+
+
+func _capture_brush_region(point: Vector3, radius: float) -> Dictionary:
+	## Auxiliary: Captures SDF samples and block material metadata within sphere brush bounding box.
+	if _smooth_grid == null:
+		return {}
+	var extent := Vector3.ONE * radius
+	return _smooth_grid.capture_cells(SmoothGrid.region_cells(point - extent, point + extent))
 
 
 func _do_furniture_place(hit: Dictionary) -> void:
@@ -1798,24 +1812,26 @@ func _do_structure_stamp(hit: Dictionary) -> void:
 	adapter.set_grid(_blocky_grid)
 	adapter.set_smooth_grid(_smooth_grid)
 
+	# 1. Snapshot: terrain the stamp can touch before it writes anything, so undo restores it exactly.
+	var terrain_snapshot := _capture_structure_terrain(cell)
 	var ops := _structure_tool.stamp(adapter, cell)
 	if ops.is_empty():
 		push_warning("MapEditor: structure stamp wrote nothing at %s — check palette mapping" % str(cell))
 		return
-
-	_push_undo({
-		"type": "structure",
-		"ops": ops,
-	})
-
-	var blocky_terrain := _map_root.get_blocky_terrain()
-	if blocky_terrain != null:
-		blocky_terrain.save_modified_blocks()
-	var smooth_terrain := _map_root.get_smooth_terrain()
-	if smooth_terrain != null:
-		smooth_terrain.save_modified_blocks()
-
+	_push_undo({"type": "structure", "ops": ops, "terrain_snapshot": terrain_snapshot})
+	# 2. Persist: flush modified blocks to disk and mark dirty.
+	_flush_terrains()
 	_mark_dirty()
+
+
+func _capture_structure_terrain(cell: Vector3i) -> Dictionary:
+	## Auxiliary: Captures smooth terrain snapshot for cells touched by the structure stamp.
+	if _smooth_grid == null:
+		return {}
+	var positions := _structure_tool.terrain_voxel_positions(cell)
+	if positions.is_empty():
+		return {}
+	return _smooth_grid.capture_cells(SmoothGrid.cells_around(positions))
 
 
 func _load_furniture_defs() -> Array[FurnitureDef]:

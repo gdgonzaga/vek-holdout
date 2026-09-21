@@ -459,6 +459,98 @@ func carve_box(min_pos: Vector3, max_pos: Vector3) -> void:
 	material_carved.emit((min_pos + max_pos) * 0.5)
 
 
+# --- edit snapshots (editor undo) ---------------------------------------------------
+
+## Samples a brush or stamp can change are captured before the edit and written
+## back on undo. Restoring beats inverting: an inverse carve removes ground that
+## was there before the add, and an inverse add fills air that was empty.
+const EDIT_SNAPSHOT_MARGIN: int = 2
+
+
+func capture_cells(cells: Array[Vector3i]) -> Dictionary:
+	if _voxel_tool == null or not _voxel_tool.has_method("get_voxel_f"):
+		return {}
+	# 1. SDF samples: the exact density values around the edit.
+	var sdf := read_samples(Callable(_voxel_tool, "get_voxel_f"), cells)
+	# 2. Material sidecar: one dict per touched block, so an overwritten material tag is recoverable.
+	var materials := _capture_block_materials(cells)
+	return {"sdf": sdf, "materials": materials}
+
+
+func restore_snapshot(snapshot: Dictionary) -> void:
+	if _voxel_tool == null or snapshot.is_empty():
+		return
+	# 1. SDF samples: the exact density values around the edit.
+	write_samples(Callable(_voxel_tool, "set_voxel_f"), Callable(_voxel_tool, "get_voxel_f"), snapshot.get("sdf", {}))
+	# 2. Material sidecar: writes the captured sidecar dicts back onto their blocks.
+	_restore_block_materials(snapshot.get("materials", {}))
+	# Any cached column near the region may have changed surface; drop the cache wholesale.
+	_height_cache.clear()
+
+
+static func region_cells(min_pos: Vector3, max_pos: Vector3, margin: int = EDIT_SNAPSHOT_MARGIN) -> Array[Vector3i]:
+	var lo := Vector3i(floori(min_pos.x), floori(min_pos.y), floori(min_pos.z)) - Vector3i.ONE * margin
+	var hi := Vector3i(ceili(max_pos.x), ceili(max_pos.y), ceili(max_pos.z)) + Vector3i.ONE * margin
+	var cells: Array[Vector3i] = []
+	for x in range(lo.x, hi.x + 1):
+		for y in range(lo.y, hi.y + 1):
+			for z in range(lo.z, hi.z + 1):
+				cells.append(Vector3i(x, y, z))
+	return cells
+
+
+static func cells_around(positions: Array[Vector3i], margin: int = EDIT_SNAPSHOT_MARGIN) -> Array[Vector3i]:
+	var seen := {}
+	for pos: Vector3i in positions:
+		# Each voxel edit spans pos..pos+1 on every axis, plus the brush margin.
+		for cell: Vector3i in region_cells(Vector3(pos), Vector3(pos) + Vector3.ONE, margin):
+			seen[cell] = true
+	var out: Array[Vector3i] = []
+	out.assign(seen.keys())
+	return out
+
+
+static func read_samples(get_f: Callable, cells: Array[Vector3i]) -> Dictionary:
+	var out := {}
+	for cell: Vector3i in cells:
+		out[cell] = float(get_f.call(cell))
+	return out
+
+
+static func write_samples(set_f: Callable, get_f: Callable, samples: Dictionary) -> int:
+	var written := 0
+	for cell: Vector3i in samples:
+		var wanted: float = samples[cell]
+		if is_equal_approx(float(get_f.call(cell)), wanted):
+			continue
+		set_f.call(cell, wanted)
+		written += 1
+	return written
+
+
+func _capture_block_materials(cells: Array[Vector3i]) -> Dictionary:
+	## Auxiliary: sidecar dict copy per block origin touched by cells.
+	var out := {}
+	for cell: Vector3i in cells:
+		var origin := _block_origin(cell)
+		if not out.has(origin):
+			out[origin] = _block_materials(origin).duplicate()
+	return out
+
+
+func _restore_block_materials(materials: Dictionary) -> void:
+	## Auxiliary: writes the captured sidecar dicts back onto their blocks.
+	if not _voxel_tool.has_method("set_voxel_metadata"):
+		return
+	for origin: Vector3i in materials:
+		var wanted: Dictionary = materials[origin]
+		var current := _block_materials(origin)
+		if current == wanted:
+			continue
+		_voxel_tool.set_voxel_metadata(origin, wanted)
+
+
+
 ## The samples a box edit covers: integer positions are LATTICE SAMPLES, so a
 ## sample counts when it lies inside the CLOSED box — ceil(min_pos) through
 ## floor(max_pos) per axis. A snapped 1x1x1 dig (bounds exactly on cell edges)

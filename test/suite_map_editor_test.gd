@@ -927,30 +927,53 @@ func test_map_editor_undo_stack_max_depth() -> void:
 
 
 func test_map_editor_terrain_undo() -> void:
+	var id := Sandbox.map_id("undo_terrain")
+	Sandbox.remove_map(id)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
-
-	var hit := {
-		"hit": true,
-		"point": Vector3(10.0, 0.0, 10.0),
-		"normal": Vector3.UP,
-	}
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	var hit := {"hit": true, "point": Vector3(10.0, 0.0, 10.0), "normal": Vector3.UP}
 
 	editor._do_terrain_add(hit)
+
 	assert_int(editor._undo_stack.size()).is_equal(1)
-	assert_str(editor._undo_stack[0].get("type", "")).is_equal("terrain")
-	assert_bool(editor._undo_stack[0].get("was_add", false)).is_true()
+	var entry: Dictionary = editor._undo_stack[0]
+	assert_str(entry.get("type", "")).is_equal("terrain")
+	assert_bool(entry.has("snapshot")).is_true()
+	# Restore, not invert: the entry no longer records add/carve intent.
+	assert_bool(entry.has("was_add")).is_false()
 
 	editor._undo_last()
 	assert_int(editor._undo_stack.size()).is_equal(0)
 	assert_bool(editor._dirty).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_terrain_snapshot_covers_the_brush_region() -> void:
+	var id := Sandbox.map_id("undo_region")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	editor._sculpt_radius = 2.0
+	var point := Vector3(4.0, 1.0, 4.0)
+
+	var snapshot: Dictionary = editor._capture_brush_region(point, 2.0)
+
+	# The brush box plus margin: the centre and both extremes are inside the captured set.
+	var sdf: Dictionary = snapshot.get("sdf", {})
+	assert_bool(sdf.has(Vector3i(4, 1, 4))).is_true()
+	assert_bool(sdf.has(Vector3i(2 - SmoothGrid.EDIT_SNAPSHOT_MARGIN, 1 - 2 - SmoothGrid.EDIT_SNAPSHOT_MARGIN, 4))).is_true()
+	assert_bool(sdf.has(Vector3i(6 + SmoothGrid.EDIT_SNAPSHOT_MARGIN, 3 + SmoothGrid.EDIT_SNAPSHOT_MARGIN, 4))).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_ctrl_z_undo_hotkey() -> void:
+	var id := Sandbox.map_id("ctrl_z")
+	Sandbox.remove_map(id)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	editor.create_new_map(Sandbox.heightmap_payload(id))
 
 	var hit := {
 		"hit": true,
@@ -967,6 +990,7 @@ func test_map_editor_ctrl_z_undo_hotkey() -> void:
 	editor._input(ctrl_z)
 
 	assert_int(editor._undo_stack.size()).is_equal(0)
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_editor_palette_panel_filtering_and_selection() -> void:
@@ -1185,11 +1209,12 @@ func test_map_editor_lmb_terrain_input_dispatches_sculpt() -> void:
 	editor._do_terrain_add(hit)
 	assert_int(editor._undo_stack.size()).is_equal(1)
 	assert_str(editor._undo_stack[-1].get("type", "")).is_equal("terrain")
-	assert_bool(editor._undo_stack[-1].get("was_add", false)).is_true()
+	assert_bool(editor._undo_stack[-1].has("snapshot")).is_true()
 
 	editor._do_terrain_carve(hit)
 	assert_int(editor._undo_stack.size()).is_equal(2)
-	assert_bool(editor._undo_stack[-1].get("was_add", true)).is_false()
+	assert_str(editor._undo_stack[-1].get("type", "")).is_equal("terrain")
+	assert_bool(editor._undo_stack[-1].has("snapshot")).is_true()
 
 
 func test_map_editor_lmb_furniture_input_dispatches_place_and_remove() -> void:

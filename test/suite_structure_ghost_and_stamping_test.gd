@@ -6,6 +6,7 @@ const Doubles = preload("res://test/helpers/doubles.gd")
 const GhostPreviewBuilderClass = preload("res://subsystems/map_authoring/ghost_preview_builder.gd")
 const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
 const MapEditorClass = preload("res://tools/map_editor/map_editor.gd")
+const Sandbox = preload("res://test/helpers/map_editor_sandbox.gd")
 
 class MockVoxelGridAdapter extends VoxelGridAdapter:
 	var _blocks: Dictionary = {}
@@ -227,38 +228,38 @@ func test_structure_tool_stamp_and_bounding_box() -> void:
 	assert_float(aabb.position.z).is_equal_approx(29.0, 0.01)
 
 
+func test_stamper_terrain_voxel_positions_lists_only_terrain_touching_targets() -> void:
+	var data := _create_sample_vox_data()
+	var def := _create_sample_structure(_create_sample_mapping())
+
+	var positions := StructureStamper.terrain_voxel_positions(def, data, Vector3i.ZERO, 0)
+
+	# SMOOTH_TERRAIN (0,0,0)-(1,0,1) and AIR (1,1,1)-(1,0,1); BLOCK and IGNORE are excluded.
+	assert_int(positions.size()).is_equal(2)
+	assert_bool(positions.has(Vector3i(-1, 0, -1))).is_true()
+	assert_bool(positions.has(Vector3i(0, 1, 0))).is_true()
+
+
 func test_map_editor_structure_stamp_and_undo() -> void:
+	var id := Sandbox.map_id("undo_structure")
+	Sandbox.remove_map(id)
 	var editor: MapEditorClass = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
-
-	var data := _create_sample_vox_data()
-	var mapping := _create_sample_mapping()
-	var def := _create_sample_structure(mapping)
-
+	editor.create_new_map(Sandbox.heightmap_payload(id))
+	var def := _create_sample_structure(_create_sample_mapping())
 	editor._structure_defs = [def]
 	editor._selected_structure_idx = 0
 	editor._set_mode(MapEditorClass.Mode.STRUCTURE)
-	editor._structure_tool.set_cached_vox_data(data)
+	editor._structure_tool.set_cached_vox_data(_create_sample_vox_data())
 
-	var hit := {
-		"hit": true,
-		"position": Vector3i(10, 20, 30),
-		"normal": Vector3i.UP,
-		"surface": "blocky",
-	}
-
-	# Perform structure stamp
-	editor._do_structure_stamp(hit)
+	editor._do_structure_stamp({"hit": true, "position": Vector3i(10, 20, 30), "normal": Vector3i.UP, "surface": "blocky"})
 
 	assert_int(editor._undo_stack.size()).is_equal(1)
-	assert_str(editor._undo_stack[0]["type"]).is_equal("structure")
+	var entry: Dictionary = editor._undo_stack[0]
+	assert_str(entry["type"]).is_equal("structure")
+	assert_bool(entry.has("terrain_snapshot")).is_true()
 	assert_bool(editor._dirty).is_true()
 
-	# Undo stamp
 	editor._undo_last()
 	assert_int(editor._undo_stack.size()).is_equal(0)
-
-	editor.unload_map()
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await Sandbox.dispose(get_tree(), editor, id)

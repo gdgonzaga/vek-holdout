@@ -178,7 +178,7 @@ Editor regeneration follows the same pipeline by design: the Terrain drawer's **
 | `_band_materials` / `_surface_material_id` | `Dictionary` / `String` | Visual band endpoints + the marker-skip surface material (F14 visuals; see [Mining](mining.md)). |
 | `_marker_keys` / `_marker_root` | `Dictionary` / `Node3D` | Authored-blob Decal registry ("origin\|id" keys dedupe both spawn paths) and their parent node. |
 
-**Constants:** `TERRAIN_LAYER = 3` (`TERRAIN_LAYER_VALUE = 4`), `TERRAIN_BODY_MASK = 8|32`, `SOLID_DENSITY = 2`, `TERRAIN_SHADER` (preloaded `assets/terrain/terrain_shader.gdshader`), `HEIGHT_BAKE_SIZE = 512` / `HEIGHT_BAKE_SPAN = 512.0` (the pristine-height bake feeding the depth bands).
+**Constants:** `TERRAIN_LAYER = 3` (`TERRAIN_LAYER_VALUE = 4`), `TERRAIN_BODY_MASK = 8|32`, `SOLID_DENSITY = 2`, `EDIT_SNAPSHOT_MARGIN = 2`, `TERRAIN_SHADER` (preloaded `assets/terrain/terrain_shader.gdshader`), `HEIGHT_BAKE_SIZE = 512` / `HEIGHT_BAKE_SPAN = 512.0` (the pristine-height bake feeding the depth bands).
 
 **Signals:**
 
@@ -204,6 +204,12 @@ Editor regeneration follows the same pipeline by design: the Terrain drawer's **
 | `raycast_to_surface(origin, dir, max_dist, exclude: Array = []) -> Dictionary` | Ray masked to TerrainSmooth; returns **float** `{position, normal, hit}` — smooth normals are non-axis-aligned (F7), consumers derive their own cells. |
 | `height_at(x: float, z: float, normal_out: Array = []) -> float` | Cached height of the natural surface at column (x, z); `NAN` where smooth terrain doesn't reach. `normal_out` receives the surface normal (Phase-3 slope gate). |
 | `get_terrain() -> VoxelTerrain` / `get_voxel_tool() -> VoxelTool` | Accessors for consumers that need the raw handles. |
+| `capture_cells(cells: Array[Vector3i]) -> Dictionary` | Captures SDF samples (`read_samples`) and block material sidecar metadata for cells before an edit; returns `{'sdf': Dictionary, 'materials': Dictionary}`. |
+| `restore_snapshot(snapshot: Dictionary) -> void` | Restores prior SDF samples (`write_samples`, writing only differing values) and block material metadata, clearing `_height_cache`. Editor undo entry point. |
+| `region_cells(min_pos: Vector3, max_pos: Vector3, margin: int = 2) -> Array[Vector3i]` | Static helper computing the integer lattice bounding box plus sample margin covering an edit volume. |
+| `cells_around(positions: Array[Vector3i], margin: int = 2) -> Array[Vector3i]` | Static helper returning the deduplicated union of region cells around multiple voxel positions. |
+| `read_samples(get_f: Callable, cells: Array[Vector3i]) -> Dictionary` | Static testable accessor reading float samples for cells. |
+| `write_samples(set_f: Callable, get_f: Callable, samples: Dictionary) -> int` | Static testable accessor writing only samples that differ from current state; returns count written. |
 | `serialize() -> Dictionary` / `deserialize(data)` | v1 no-op — the smooth terrain's whole state lives in its sqlite stream (saved blocks override the generator, F8). Kept so SaveSystem can treat both grids uniformly. |
 
 ### Class: BlockLibrary

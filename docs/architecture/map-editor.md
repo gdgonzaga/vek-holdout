@@ -149,19 +149,20 @@ Every modification records its reverse operation in a bounded undo buffer (`_und
   5. Reversing: Restores exact prior voxel IDs and saves block terrain.
 
 - **Smooth Terrain Edits (`_do_terrain_add` / `_do_terrain_carve`)**:
-  1. Records the sculpt hit point and radius.
-  2. Pushes `{ "type": "terrain", "point": Vector3, "radius": float, "was_add": bool }` to `_undo_stack`.
+  1. Captures a snapshot of the SDF samples and block material metadata across the sphere brush volume plus margin via `SmoothGrid.capture_cells()`.
+  2. Pushes `{ "type": "terrain", "snapshot": Dictionary }` to `_undo_stack`.
   3. Executes `SmoothGrid.add_material()` or `SmoothGrid.carve()` and flushes changes to `terrain.sqlite`.
-  4. Reversing: Inverts the operation (adds if previously carved, carves if previously added).
+  4. Reversing: Restores the snapshot directly via `SmoothGrid.restore_snapshot()` (writing only samples and sidecar metadata that differ), avoiding the craters or bulges produced by naive inverse booleans.
 
   `M` / `Shift+M` cycles the added material (`_cycle_terrain_material` — the Terrain-mode mirror of the block palette) through `BuildLibrary.get_terrain_materials()`; the HUD reads it back via `set_terrain_info` as `name (i/N)`. Sculpted blobs carry the id PERSISTENTLY in the F12 sidecar (a per-block metadata dict riding `terrain.sqlite`) — the dig action later resolves hp/yields per position from it. Visually each blob gets a colored Decal marker from the material's `color` (surface-material blobs excepted — they match the terrain's top band), and the terrain itself carries the depth-banded shader look; per-voxel painting is a documented dead end (F14 — see [Mining](mining.md) §Visuals).
 
 - **Structure Stamps (`_do_structure_stamp`)**:
   1. Computes placement origin with Y-offset, quarter-turn Y rotation, and horizontal nudge offset.
   2. Previews the 3D volume via `GhostPreviewBuilder` (optimized `ArrayMesh` with vertex colors and internal face culling).
-  3. Stamps `BLOCK`, `SMOOTH_TERRAIN`, and `AIR` operations via `StructureStamper` through `VoxelGridAdapter`.
-  4. Pushes `{ "type": "structure", "ops": Array[Dictionary] }` containing the recorded changes to `_undo_stack`.
-  5. Reversing: Restores previous block IDs / raw values and carves/restores terrain modifications in reverse order.
+  3. Queries terrain-touching world cells (`StructureTool.terrain_voxel_positions()`) and captures a pre-stamp smooth terrain snapshot via `SmoothGrid.capture_cells()`.
+  4. Stamps `BLOCK`, `SMOOTH_TERRAIN`, and `AIR` operations via `StructureStamper` through `VoxelGridAdapter`.
+  5. Pushes `{ "type": "structure", "ops": Array[Dictionary], "terrain_snapshot": Dictionary }` to `_undo_stack`.
+  6. Reversing: Restores previous block IDs and air cells in reverse sequence and restores the terrain snapshot via `SmoothGrid.restore_snapshot()`.
 
 ### C. Save Flow
 
