@@ -98,11 +98,31 @@ var _cam_pitch: float = -30.0
 
 
 func _ready() -> void:
+	# 1. Configuration: load editor config resource.
+	_load_config()
+	# 2. Scene: initialize environment, camera, and authoring tools.
+	_build_environment()
+	_build_camera()
+	_init_tools()
+	# 3. HUD: instantiate HUD and connect all event signals.
+	_setup_hud()
+	# 4. Launcher: instantiate launcher and wire map selection signals.
+	_setup_launcher()
+	# 5. Dialogs: create confirmation modal dialogs.
+	_setup_exit_dialog()
+	_setup_delete_dialog()
+	_setup_unsaved_dialog()
+
+
+func _load_config() -> void:
+	## Auxiliary: Loads the MapEditorConfig resource.
 	_config = load(CONFIG_PATH) as MapEditorConfig
 	if _config == null:
 		push_error("MapEditor: failed to load config at %s" % CONFIG_PATH)
-	_build_environment()
-	_build_camera()
+
+
+func _init_tools() -> void:
+	## Auxiliary: Instantiates authoring tools, content loaders, and libraries.
 	_ghost_view = EditorGhost.new()
 	_ghost_view.name = "EditorGhost"
 	add_child(_ghost_view)
@@ -119,6 +139,9 @@ func _ready() -> void:
 	if not _structure_defs.is_empty():
 		_structure_tool.set_active_structure(_structure_defs[0])
 
+
+func _setup_hud() -> void:
+	## Auxiliary: Creates EditorHUD instance and connects editor action signals.
 	_hud = EditorHUDClass.new()
 	add_child(_hud)
 	_hud.setup(self)
@@ -134,6 +157,9 @@ func _ready() -> void:
 	_hud.set_mode(_mode)
 	_hud.hide()
 
+
+func _setup_launcher() -> void:
+	## Auxiliary: Creates EditorLauncher instance, connects requests, and seeds lists.
 	_launcher = EditorLauncherClass.new()
 	add_child(_launcher)
 	_launcher.map_selected.connect(load_map)
@@ -147,10 +173,6 @@ func _ready() -> void:
 		default_noise_path = _config.default_noise_def.resource_path
 	_launcher.setup_noise_defs(MapRepository.scan_noise_defs(), default_noise_path)
 	_launcher.show_launcher()
-
-	_setup_exit_dialog()
-	_setup_delete_dialog()
-	_setup_unsaved_dialog()
 
 
 func _mark_dirty() -> void:
@@ -247,240 +269,302 @@ func _flush_terrains() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# If launcher is open, ignore camera/edit input
-	if _launcher != null and _launcher.visible:
+	if (_launcher != null and _launcher.visible) or _modal_dialog_open():
 		return
-
-	# If any confirmation dialog is open, ignore camera/edit input
-	if _modal_dialog_open():
-		return
-
-	# If search input or metadata in HUD is focused, handle Esc/Enter/Tab and let typing pass through
+	# 1. Text focus: route keyboard events to text input handler when HUD controls are focused.
 	if _hud != null and _hud.is_any_input_focused():
-		if event is InputEventKey and event.pressed:
-			if event.keycode == KEY_ESCAPE or event.keycode == KEY_ENTER:
-				_hud.unfocus_search()
-				var focused := get_viewport().gui_get_focus_owner()
-				if focused != null:
-					focused.release_focus()
-				get_viewport().set_input_as_handled()
-				return
-			elif event.keycode == KEY_TAB and _hud.is_search_focused():
-				var dir := -1 if event.shift_pressed else 1
-				if _mode == Mode.BLOCK:
-					_cycle_block(dir)
-					get_viewport().set_input_as_handled()
-					return
-				elif _mode == Mode.FURNITURE:
-					_cycle_furniture(dir)
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.SPAWN:
-					_cycle_spawn_type(dir)
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.STRUCTURE:
-					_cycle_structure(dir)
-					get_viewport().set_input_as_handled()
-					return
+		_handle_text_focus_input(event)
+		return
+	if event is InputEventMouseButton:
+		# 2. Mouse button: route clicks and scrolling to mouse button handler.
+		_handle_mouse_button(event as InputEventMouseButton)
+	elif event is InputEventKey and (event as InputEventKey).pressed:
+		# 3. Keyboard shortcut: route key press to shortcut handler.
+		_handle_key(event as InputEventKey)
+	elif event is InputEventMouseMotion:
+		# 4. Mouse motion: update free-cam orientation when captured.
+		_handle_mouse_motion(event as InputEventMouseMotion)
+
+
+func _handle_text_focus_input(event: InputEvent) -> void:
+	## Auxiliary: Handles keyboard events when text controls (e.g. search / metadata) have focus.
+	if not (event is InputEventKey and (event as InputEventKey).pressed):
+		return
+	var key_event := event as InputEventKey
+	if key_event.keycode == KEY_ESCAPE or key_event.keycode == KEY_ENTER:
+		_hud.unfocus_search()
+		var focused := get_viewport().gui_get_focus_owner()
+		if focused != null:
+			focused.release_focus()
+		get_viewport().set_input_as_handled()
+	elif key_event.keycode == KEY_TAB and _hud.is_search_focused():
+		var dir := -1 if key_event.shift_pressed else 1
+		# 1. Cycle selection: cycle active content within focused search.
+		_cycle_focused_mode_content(dir)
+		get_viewport().set_input_as_handled()
+
+
+func _cycle_focused_mode_content(dir: int) -> void:
+	## Auxiliary: Cycles active item in HUD-focused search for current mode.
+	match _mode:
+		Mode.BLOCK:
+			_cycle_block(dir)
+		Mode.FURNITURE:
+			_cycle_furniture(dir)
+		Mode.SPAWN:
+			_cycle_spawn_type(dir)
+		Mode.STRUCTURE:
+			_cycle_structure(dir)
+
+
+func _handle_mouse_button(mb: InputEventMouseButton) -> void:
+	## Auxiliary: Routes mouse button events to picking, capture, painting, or wheel scrolling.
+	if not mb.pressed:
+		return
+	if mb.button_index == MOUSE_BUTTON_MIDDLE or (mb.button_index == MOUSE_BUTTON_LEFT and mb.alt_pressed):
+		if _mode == Mode.BLOCK:
+			var hit := _raycast_from_camera()
+			_do_block_pick(hit)
+			get_viewport().set_input_as_handled()
 		return
 
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.pressed:
-			if mb.button_index == MOUSE_BUTTON_MIDDLE or (mb.button_index == MOUSE_BUTTON_LEFT and mb.alt_pressed):
-				if _mode == Mode.BLOCK:
-					var hit := _raycast_from_camera()
-					_do_block_pick(hit)
-					get_viewport().set_input_as_handled()
-					return
-			if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
-				if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-					var hovered := get_viewport().gui_get_hovered_control()
-					if hovered != null:
-						return
-					Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-					get_viewport().set_input_as_handled()
-				elif mb.button_index == MOUSE_BUTTON_LEFT:
-					if _mode == Mode.BLOCK:
-						var hit := _raycast_from_camera()
-						if mb.shift_pressed:
-							_do_block_erase(hit)
-						else:
-							_do_block_paint(hit)
-						get_viewport().set_input_as_handled()
-					elif _mode == Mode.TERRAIN:
-						var hit := _raycast_terrain()
-						if mb.shift_pressed:
-							_do_terrain_carve(hit)
-						else:
-							_do_terrain_add(hit)
-						get_viewport().set_input_as_handled()
-					elif _mode == Mode.FURNITURE:
-						var hit := _raycast_from_camera()
-						if mb.shift_pressed:
-							_do_furniture_remove(hit)
-						else:
-							_do_furniture_place(hit)
-						get_viewport().set_input_as_handled()
-					elif _mode == Mode.SPAWN:
-						var hit := _raycast_from_camera()
-						if mb.shift_pressed or _selected_spawn_type == "remove":
-							_do_spawn_remove(hit)
-						else:
-							_do_spawn_place(_selected_spawn_type, hit)
-						get_viewport().set_input_as_handled()
-					elif _mode == Mode.STRUCTURE:
-						var hit := _raycast_from_camera()
-						_do_structure_stamp(hit)
-						get_viewport().set_input_as_handled()
-			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				# 1. Viewport Routing: Allow hovered GUI controls (e.g. palettes) to scroll when cursor is uncaptured.
-				if not _wheel_reaches_viewport():
-					return
-				var wheel_dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
-				if Input.is_key_pressed(KEY_B):
-					if _mode == Mode.BLOCK:
-						_brush_diameter = clampi(_brush_diameter + wheel_dir, 1, MAX_BRUSH_DIAMETER)
-					elif _mode == Mode.TERRAIN:
-						_sculpt_radius = clampf(_sculpt_radius + float(wheel_dir) * 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
-					_update_hud_info()
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.BLOCK:
-					_rotate_block_brush(_get_rotation_axis_vector(), (PI / 2.0) * float(wheel_dir))
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.FURNITURE:
-					_do_furniture_rotate_step(wheel_dir)
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.STRUCTURE:
-					if mb.ctrl_pressed:
-						var step := 5 if mb.shift_pressed else 1
-						if _structure_tool != null:
-							_structure_tool.adjust_y_offset(wheel_dir * step)
-							_update_structure_info()
-					else:
-						if _structure_tool != null:
-							if wheel_dir > 0:
-								_structure_tool.rotate_clockwise()
-							else:
-								_structure_tool.rotate_counter_clockwise()
-							_update_structure_info()
-					get_viewport().set_input_as_handled()
+	if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			var hovered := get_viewport().gui_get_hovered_control()
+			if hovered != null:
+				return
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			get_viewport().set_input_as_handled()
+			return
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			# 1. Action dispatch: Perform primary tool action for the active mode.
+			_handle_lmb(mb)
+			get_viewport().set_input_as_handled()
+	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		# 1. Viewport Routing: Allow hovered GUI controls to scroll when cursor is uncaptured.
+		if not _wheel_reaches_viewport():
+			return
+		# 2. Wheel dispatch: Process tool size, rotation, or structure offset adjustments.
+		_handle_wheel(mb)
+		get_viewport().set_input_as_handled()
 
-	elif event is InputEventKey:
-		var k := event as InputEventKey
-		if k.pressed:
-			if k.keycode == KEY_ESCAPE:
-				if _hud != null and _hud.is_terrain_drawer_visible():
-					_hud.close_terrain_drawer()
-					get_viewport().set_input_as_handled()
-				elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-					Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-				else:
-					_request_exit()
-			elif _mode == Mode.SPAWN and k.keycode == KEY_1:
-				_set_spawn_type_direct("player")
-				get_viewport().set_input_as_handled()
-			elif _mode == Mode.SPAWN and k.keycode == KEY_2:
-				_set_spawn_type_direct("colonist")
-				get_viewport().set_input_as_handled()
-			elif _mode == Mode.SPAWN and k.keycode == KEY_3:
-				_set_spawn_type_direct("enemy")
-				get_viewport().set_input_as_handled()
-			elif _mode == Mode.SPAWN and k.keycode == KEY_4:
-				_set_spawn_type_direct("remove")
-				get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_F1:
-				_set_mode(Mode.NAVIGATE)
-			elif k.keycode == KEY_F2:
-				_set_mode(Mode.BLOCK)
-			elif k.keycode == KEY_F3:
-				_set_mode(Mode.TERRAIN)
-			elif k.keycode == KEY_F4:
-				_set_mode(Mode.FURNITURE)
-			elif k.keycode == KEY_F5:
-				_set_mode(Mode.SPAWN)
-			elif k.keycode == KEY_F6:
-				_set_mode(Mode.STRUCTURE)
-			elif k.keycode == KEY_G:
-				_toggle_grid()
-				get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_Z and k.ctrl_pressed:
+
+func _handle_lmb(mb: InputEventMouseButton) -> void:
+	## Auxiliary: Dispatches left mouse click to mode-specific paint/erase/stamp handlers.
+	match _mode:
+		Mode.BLOCK:
+			var hit := _raycast_from_camera()
+			if mb.shift_pressed:
+				_do_block_erase(hit)
+			else:
+				_do_block_paint(hit)
+		Mode.TERRAIN:
+			var hit := _raycast_terrain()
+			if mb.shift_pressed:
+				_do_terrain_carve(hit)
+			else:
+				_do_terrain_add(hit)
+		Mode.FURNITURE:
+			var hit := _raycast_from_camera()
+			if mb.shift_pressed:
+				_do_furniture_remove(hit)
+			else:
+				_do_furniture_place(hit)
+		Mode.SPAWN:
+			var hit := _raycast_from_camera()
+			if mb.shift_pressed or _selected_spawn_type == "remove":
+				_do_spawn_remove(hit)
+			else:
+				_do_spawn_place(_selected_spawn_type, hit)
+		Mode.STRUCTURE:
+			var hit := _raycast_from_camera()
+			_do_structure_stamp(hit)
+
+
+func _handle_wheel(mb: InputEventMouseButton) -> void:
+	## Auxiliary: Adjusts brush diameter, sculpt radius, or rotation using mouse wheel.
+	var wheel_dir := 1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -1
+	if Input.is_key_pressed(KEY_B):
+		if _mode == Mode.BLOCK:
+			_brush_diameter = clampi(_brush_diameter + wheel_dir, 1, MAX_BRUSH_DIAMETER)
+		elif _mode == Mode.TERRAIN:
+			_sculpt_radius = clampf(_sculpt_radius + float(wheel_dir) * 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
+		_update_hud_info()
+	elif _mode == Mode.BLOCK:
+		_rotate_block_brush(_get_rotation_axis_vector(), (PI / 2.0) * float(wheel_dir))
+	elif _mode == Mode.FURNITURE:
+		_do_furniture_rotate_step(wheel_dir)
+	elif _mode == Mode.STRUCTURE:
+		# 1. Structure wheel adjustment: adjust Y offset or rotate structure.
+		_handle_structure_wheel(wheel_dir, mb.ctrl_pressed, mb.shift_pressed)
+
+
+func _handle_structure_wheel(wheel_dir: int, ctrl_pressed: bool, shift_pressed: bool) -> void:
+	## Auxiliary: Handles mouse wheel scrolling in STRUCTURE mode for Y offset and rotation.
+	if _structure_tool == null:
+		return
+	if ctrl_pressed:
+		var step := 5 if shift_pressed else 1
+		_structure_tool.adjust_y_offset(wheel_dir * step)
+	else:
+		if wheel_dir > 0:
+			_structure_tool.rotate_clockwise()
+		else:
+			_structure_tool.rotate_counter_clockwise()
+	_update_structure_info()
+
+
+func _handle_key(k: InputEventKey) -> void:
+	## Auxiliary: Dispatches keyboard shortcuts to specialized action helpers.
+	match k.keycode:
+		KEY_ESCAPE:
+			# 1. Escape: close active sub-panels, drop mouse capture, or request map exit.
+			_handle_escape()
+		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6:
+			# 1. Mode switch: switch active authoring mode.
+			_handle_mode_key(k.keycode)
+		KEY_1, KEY_2, KEY_3, KEY_4:
+			if _mode == Mode.SPAWN:
+				# 1. Spawn selection: select specific spawn marker type.
+				_handle_spawn_numeric_key(k.keycode)
+		KEY_G:
+			_toggle_grid()
+			get_viewport().set_input_as_handled()
+		KEY_Z:
+			if k.ctrl_pressed:
 				_undo_last()
 				get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_BRACKETLEFT:
-				if _mode == Mode.BLOCK:
-					_cycle_block(-1)
-				elif _mode == Mode.TERRAIN:
-					_sculpt_radius = clampf(_sculpt_radius - 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
-					_update_hud_info()
-				elif _mode == Mode.FURNITURE:
-					_cycle_furniture(-1)
-				elif _mode == Mode.STRUCTURE:
-					_cycle_structure(-1)
-			elif k.keycode == KEY_BRACKETRIGHT:
-				if _mode == Mode.BLOCK:
-					_cycle_block(1)
-				elif _mode == Mode.TERRAIN:
-					_sculpt_radius = clampf(_sculpt_radius + 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
-					_update_hud_info()
-				elif _mode == Mode.FURNITURE:
-					_cycle_furniture(1)
-				elif _mode == Mode.STRUCTURE:
-					_cycle_structure(1)
-			elif k.keycode == KEY_TAB:
-				var dir := -1 if k.shift_pressed else 1
-				if _mode == Mode.BLOCK:
-					_cycle_block(dir)
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.FURNITURE:
-					_cycle_furniture(dir)
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.SPAWN:
-					_cycle_spawn_type(dir)
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.STRUCTURE:
-					_cycle_structure(dir)
-					get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_R:
-				if _mode == Mode.BLOCK or _mode == Mode.FURNITURE:
-					_cycle_rotation_axis()
-					get_viewport().set_input_as_handled()
-				elif _mode == Mode.STRUCTURE:
-					if _structure_tool != null:
-						_structure_tool.rotate_clockwise()
-						_update_structure_info()
-					get_viewport().set_input_as_handled()
-			elif (k.keycode == KEY_QUOTELEFT or k.keycode == KEY_SECTION or k.keycode == KEY_ASCIITILDE or (k.keycode == KEY_Z and not k.ctrl_pressed)) and _mode == Mode.BLOCK:
+			elif _mode == Mode.BLOCK:
 				_reset_block_rotation()
 				get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_I and _mode == Mode.BLOCK:
+		KEY_BRACKETLEFT, KEY_BRACKETRIGHT:
+			# 1. Bracket step: adjust brush size, sculpt radius, or palette selection.
+			_handle_bracket_key(k.keycode)
+		KEY_TAB:
+			# 1. Tab cycling: cycle active block, furniture, spawn type, or structure.
+			_handle_tab_key(k.shift_pressed)
+		KEY_R:
+			# 1. Rotation key: cycle rotation axis or rotate selected structure.
+			_handle_rotate_key()
+		KEY_QUOTELEFT, KEY_SECTION, KEY_ASCIITILDE:
+			if _mode == Mode.BLOCK:
+				_reset_block_rotation()
+				get_viewport().set_input_as_handled()
+		KEY_I:
+			if _mode == Mode.BLOCK:
 				var hit := _raycast_from_camera()
 				_do_block_pick(hit)
 				get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_M and _mode == Mode.TERRAIN:
+		KEY_M:
+			if _mode == Mode.TERRAIN:
 				_cycle_terrain_material(-1 if k.shift_pressed else 1)
 				get_viewport().set_input_as_handled()
-			elif _mode == Mode.STRUCTURE and (k.keycode == KEY_UP or k.keycode == KEY_DOWN or k.keycode == KEY_LEFT or k.keycode == KEY_RIGHT):
-				var step := 5 if k.shift_pressed else 1
-				var offset := Vector3i.ZERO
-				if k.keycode == KEY_UP: offset.z -= step
-				elif k.keycode == KEY_DOWN: offset.z += step
-				elif k.keycode == KEY_LEFT: offset.x -= step
-				elif k.keycode == KEY_RIGHT: offset.x += step
-				if _structure_tool != null:
-					_structure_tool.nudge(offset)
-					_update_structure_info()
-				get_viewport().set_input_as_handled()
-			elif k.keycode == KEY_S and k.ctrl_pressed:
+		KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT:
+			if _mode == Mode.STRUCTURE:
+				# 1. Structure nudge: adjust X/Z grid offset.
+				_handle_structure_arrow_key(k.keycode, k.shift_pressed)
+		KEY_S:
+			if k.ctrl_pressed:
 				save_map()
 				get_viewport().set_input_as_handled()
 
-	elif event is InputEventMouseMotion:
-		var mm := event as InputEventMouseMotion
-		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-			_cam_yaw -= mm.relative.x * MOUSE_SENSITIVITY
-			_cam_pitch -= mm.relative.y * MOUSE_SENSITIVITY
-			_cam_pitch = clampf(_cam_pitch, -89.0, 89.0)
-			_apply_camera_rotation()
+
+func _handle_escape() -> void:
+	## Auxiliary: Handles Escape key to dismiss drawer, uncapture mouse, or request exit.
+	if _hud != null and _hud.is_terrain_drawer_visible():
+		_hud.close_terrain_drawer()
+		get_viewport().set_input_as_handled()
+	elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		_request_exit()
+
+
+func _handle_mode_key(keycode: int) -> void:
+	## Auxiliary: Switches active editor mode based on F1-F6 function keys.
+	match keycode:
+		KEY_F1: _set_mode(Mode.NAVIGATE)
+		KEY_F2: _set_mode(Mode.BLOCK)
+		KEY_F3: _set_mode(Mode.TERRAIN)
+		KEY_F4: _set_mode(Mode.FURNITURE)
+		KEY_F5: _set_mode(Mode.SPAWN)
+		KEY_F6: _set_mode(Mode.STRUCTURE)
+
+
+func _handle_spawn_numeric_key(keycode: int) -> void:
+	## Auxiliary: Sets spawn authoring type directly using 1-4 number keys.
+	match keycode:
+		KEY_1: _set_spawn_type_direct("player")
+		KEY_2: _set_spawn_type_direct("colonist")
+		KEY_3: _set_spawn_type_direct("enemy")
+		KEY_4: _set_spawn_type_direct("remove")
+	get_viewport().set_input_as_handled()
+
+
+func _handle_bracket_key(keycode: int) -> void:
+	## Auxiliary: Steps palette selection or sculpt radius up or down with brackets.
+	var step := -1 if keycode == KEY_BRACKETLEFT else 1
+	match _mode:
+		Mode.BLOCK:
+			_cycle_block(step)
+		Mode.TERRAIN:
+			_sculpt_radius = clampf(_sculpt_radius + float(step) * 0.5, MIN_SCULPT_RADIUS, MAX_SCULPT_RADIUS)
+			_update_hud_info()
+		Mode.FURNITURE:
+			_cycle_furniture(step)
+		Mode.STRUCTURE:
+			_cycle_structure(step)
+
+
+func _handle_tab_key(shift_pressed: bool) -> void:
+	## Auxiliary: Cycles active content forwards or backwards in the current mode.
+	var dir := -1 if shift_pressed else 1
+	match _mode:
+		Mode.BLOCK:
+			_cycle_block(dir)
+		Mode.FURNITURE:
+			_cycle_furniture(dir)
+		Mode.SPAWN:
+			_cycle_spawn_type(dir)
+		Mode.STRUCTURE:
+			_cycle_structure(dir)
+	get_viewport().set_input_as_handled()
+
+
+func _handle_rotate_key() -> void:
+	## Auxiliary: Cycles rotation axis in BLOCK/FURNITURE mode, or rotates in STRUCTURE mode.
+	if _mode == Mode.BLOCK or _mode == Mode.FURNITURE:
+		_cycle_rotation_axis()
+		get_viewport().set_input_as_handled()
+	elif _mode == Mode.STRUCTURE:
+		if _structure_tool != null:
+			_structure_tool.rotate_clockwise()
+			_update_structure_info()
+		get_viewport().set_input_as_handled()
+
+
+func _handle_structure_arrow_key(keycode: int, shift_pressed: bool) -> void:
+	## Auxiliary: Nudges the active structure preview along X or Z axis.
+	var step := 5 if shift_pressed else 1
+	var offset := Vector3i.ZERO
+	match keycode:
+		KEY_UP: offset.z -= step
+		KEY_DOWN: offset.z += step
+		KEY_LEFT: offset.x -= step
+		KEY_RIGHT: offset.x += step
+	if _structure_tool != null:
+		_structure_tool.nudge(offset)
+		_update_structure_info()
+	get_viewport().set_input_as_handled()
+
+
+func _handle_mouse_motion(mm: InputEventMouseMotion) -> void:
+	## Auxiliary: Updates camera pitch and yaw when cursor is captured.
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		_cam_yaw -= mm.relative.x * MOUSE_SENSITIVITY
+		_cam_pitch -= mm.relative.y * MOUSE_SENSITIVITY
+		_cam_pitch = clampf(_cam_pitch, -89.0, 89.0)
+		_apply_camera_rotation()
 
 
 static func wheel_belongs_to_view(captured: bool, hovering_gui: bool) -> bool:
@@ -502,62 +586,38 @@ func _apply_camera_rotation() -> void:
 
 func _process(delta: float) -> void:
 	if _camera == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or (_hud != null and _hud.is_any_input_focused()):
-		if _ghost_view != null:
-			_ghost_view.hide_all()
-		if _hud != null:
-			_hud.clear_coordinates()
+		# 1. Feedback Cleanup: Hide ghost visual and clear coordinate HUD readout when inactive.
+		_hide_hover_feedback()
 		return
+	# 2. Hover: perform raycast for active mode, then update ghost and coordinate readout.
+	var hit := _raycast_terrain() if _mode == Mode.TERRAIN else _raycast_from_camera()
+	_update_ghost(hit)
+	_show_hit_coordinates(hit)
+	# 3. Fly camera: update camera position based on keyboard navigation input.
+	_fly_camera(delta)
 
-	if _mode == Mode.BLOCK:
-		var hit := _raycast_from_camera()
-		_update_ghost(hit)
-		if _hud != null:
-			if hit.get("hit", false):
-				_hud.set_coordinates(_get_surface_hit_point(hit))
-			else:
-				_hud.clear_coordinates()
-	elif _mode == Mode.TERRAIN:
-		var hit := _raycast_terrain()
-		_update_ghost(hit)
-		if _hud != null:
-			if hit.get("hit", false):
-				_hud.set_coordinates(hit.get("point", Vector3.ZERO))
-			else:
-				_hud.clear_coordinates()
-	elif _mode == Mode.FURNITURE:
-		var hit := _raycast_from_camera()
-		_update_ghost(hit)
-		if _hud != null:
-			if hit.get("hit", false):
-				_hud.set_coordinates(_get_surface_hit_point(hit))
-			else:
-				_hud.clear_coordinates()
-	elif _mode == Mode.SPAWN:
-		var hit := _raycast_from_camera()
-		_update_ghost(hit)
-		if _hud != null:
-			if hit.get("hit", false):
-				_hud.set_coordinates(_get_surface_hit_point(hit))
-			else:
-				_hud.clear_coordinates()
-	elif _mode == Mode.STRUCTURE:
-		var hit := _raycast_from_camera()
-		_update_ghost(hit)
-		if _hud != null:
-			if hit.get("hit", false):
-				_hud.set_coordinates(_get_surface_hit_point(hit))
-			else:
-				_hud.clear_coordinates()
+
+func _hide_hover_feedback() -> void:
+	## Auxiliary: Hides ghost preview and clears coordinate readout when hovering is inactive.
+	if _ghost_view != null:
+		_ghost_view.hide_all()
+	if _hud != null:
+		_hud.clear_coordinates()
+
+
+func _show_hit_coordinates(hit: Dictionary) -> void:
+	## Auxiliary: Updates HUD coordinate display from raycast hit position.
+	if _hud == null:
+		return
+	if hit.get("hit", false):
+		var point: Vector3 = hit.get("point", Vector3.ZERO) if _mode == Mode.TERRAIN else _get_surface_hit_point(hit)
+		_hud.set_coordinates(point)
 	else:
-		if _ghost_view != null:
-			_ghost_view.hide_all()
-		if _hud != null:
-			var hit := _raycast_from_camera()
-			if hit.get("hit", false):
-				_hud.set_coordinates(_get_surface_hit_point(hit))
-			else:
-				_hud.clear_coordinates()
+		_hud.clear_coordinates()
 
+
+func _fly_camera(delta: float) -> void:
+	## Auxiliary: Calculates free-cam velocity and updates camera position.
 	var speed: float = FLY_SPEED_FAST if Input.is_key_pressed(KEY_SHIFT) else FLY_SPEED
 	var forward: Vector3 = -_camera.global_transform.basis.z
 	forward.y = 0.0
@@ -579,41 +639,74 @@ func _process(delta: float) -> void:
 
 
 func load_map(map_id: String, recapture_mouse: bool = true) -> void:
+	# 1. Map definition: load and validate MapDef resource from disk.
+	var def := _read_map_def(map_id)
+	if def == null:
+		return
+
+	# 2. Scene instantiation: instantiate map scene and apply bounds.
+	var instance := _instantiate_map(def)
+	if instance == null:
+		return
+
+	_map_root = instance
+	_map_def = def
+	_map_scene_path = def.scene_path
+	_dirty = false
+	_history.clear()
+
+	# 3. State binding: wire voxel grids, streams, authoring tools, and camera.
+	_bind_map_state(map_id)
+
+	# 4. HUD initialization: populate palettes, metadata, and drawers.
+	_populate_hud_for_map(def)
+
+	if _launcher != null:
+		_launcher.hide_launcher()
+
+	if recapture_mouse:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _read_map_def(map_id: String) -> MapDef:
+	## Auxiliary: Loads the MapDef resource from disk for the specified map identifier.
 	var def_path := MapRepository.MAPS_DIR + map_id + "/map_def.tres"
 	if not ResourceLoader.exists(def_path):
 		push_error("MapEditor: map_def not found at '%s'" % def_path)
-		return
+		return null
 
 	var def: MapDef = load(def_path) as MapDef
 	if def == null:
 		push_error("MapEditor: failed to load MapDef from '%s'" % def_path)
-		return
+		return null
+	return def
 
+
+func _instantiate_map(def: MapDef) -> Map:
+	## Auxiliary: Frees previous map root, instantiates the scene, injects terrain gen, and adds to tree.
 	if _map_root != null:
 		_map_root.queue_free()
 		_map_root = null
 
 	if not ResourceLoader.exists(def.scene_path):
 		push_error("MapEditor: scene not found at '%s'" % def.scene_path)
-		return
+		return null
 
 	var packed: PackedScene = load(def.scene_path) as PackedScene
 	if packed == null:
 		push_error("MapEditor: failed to load PackedScene '%s'" % def.scene_path)
-		return
+		return null
 
 	var instance := packed.instantiate()
 	_inject_terrain_gen(instance, def)
 	if instance is Map and def != null:
 		(instance as Map).set_world_bounds(def.world_bounds)
 	add_child(instance)
+	return instance as Map
 
-	_map_root = instance as Map
-	_map_def = def
-	_map_scene_path = def.scene_path
-	_dirty = false
-	_history.clear()
 
+func _bind_map_state(map_id: String) -> void:
+	## Auxiliary: Binds grids, terrain material, streams, furniture, spawn markers, and camera position.
 	_blocky_grid = _map_root.blocky_grid
 
 	# 1. Smooth Grid: Resolving active live smooth grid to confirm valid terrain generator exists.
@@ -633,32 +726,30 @@ func load_map(map_id: String, recapture_mouse: bool = true) -> void:
 	_spawns.bind(_map_root)
 	_position_camera_at_spawn()
 
-	if _hud != null:
-		_hud.populate_block_library(_block_library, _selected_block_index)
-		_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
-		_hud.populate_structure_list(_structure_defs, _selected_structure_idx)
-		_hud.set_map_info(map_id, _dirty)
-		_hud.set_metadata(
-			def.display_name,
-			def.description,
-			def.map_type,
-			def.difficulty,
-			def.world_bounds,
-			def.flora_spawns_per_day,
-			def.flora_spawn_cap,
-			def.flora_max_spawn_attempts
-		)
-		_hud.set_terrain_available(_smooth_grid != null)
-		_hud.set_terrain_drawer_state(_map_def.terrain_gen)
-		_hud.set_water_drawer_state(def.water_enabled, def.water_level)
-		_hud.show()
-		_update_hud_info()
 
-	if _launcher != null:
-		_launcher.hide_launcher()
-
-	if recapture_mouse:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+func _populate_hud_for_map(def: MapDef) -> void:
+	## Auxiliary: Initializes all HUD panels, palettes, metadata, and drawer states for the loaded map.
+	if _hud == null:
+		return
+	_hud.populate_block_library(_block_library, _selected_block_index)
+	_hud.populate_furniture_list(_furniture_defs, _selected_furniture_idx)
+	_hud.populate_structure_list(_structure_defs, _selected_structure_idx)
+	_hud.set_map_info(def.id, _dirty)
+	_hud.set_metadata(
+		def.display_name,
+		def.description,
+		def.map_type,
+		def.difficulty,
+		def.world_bounds,
+		def.flora_spawns_per_day,
+		def.flora_spawn_cap,
+		def.flora_max_spawn_attempts
+	)
+	_hud.set_terrain_available(_smooth_grid != null)
+	_hud.set_terrain_drawer_state(_map_def.terrain_gen)
+	_hud.set_water_drawer_state(def.water_enabled, def.water_level)
+	_hud.show()
+	_update_hud_info()
 
 
 ## A SmoothGrid without terrain_gen has queued itself for deletion but is still a
@@ -685,41 +776,54 @@ func create_new_map(payload: Dictionary) -> String:
 
 
 func unload_map() -> void:
-	if _exit_dialog != null and _exit_dialog.visible:
-		_exit_dialog.hide()
-	if _delete_dialog != null and _delete_dialog.visible:
-		_delete_dialog.hide()
-	if _unsaved_dialog != null and _unsaved_dialog.visible:
-		_unsaved_dialog.hide()
-
+	# 1. Dialogs: Dismiss any visible confirmation dialogs.
+	_dismiss_dialogs()
 	if _dirty:
 		push_warning("MapEditor: unloading with unsaved changes")
+	# 2. Authoring tools: Unbind authoring components and hide ghost previews.
+	_unbind_authoring_tools()
+	# 3. Scene cleanup: Free loaded map instance and clear editor state references.
+	_clear_loaded_map_state()
+	# 4. Viewport: Restore launcher view and reset mouse capture.
+	_restore_launcher_view()
 
+
+func _dismiss_dialogs() -> void:
+	## Auxiliary: Hides confirmation dialogs if currently visible.
+	for dialog: ConfirmationDialog in [_exit_dialog, _delete_dialog, _unsaved_dialog]:
+		if dialog != null and dialog.visible:
+			dialog.hide()
+
+
+func _unbind_authoring_tools() -> void:
+	## Auxiliary: Unbinds furniture authoring, spawns, and structure preview tools.
 	if _furniture_auth != null:
 		_furniture_auth.unbind()
 	if _structure_tool != null:
 		_structure_tool.hide_ghost()
 	_spawns.unbind()
 
+
+func _clear_loaded_map_state() -> void:
+	## Auxiliary: Frees the map instance node and resets active map state properties.
 	if _map_root != null:
 		_map_root.queue_free()
 		_map_root = null
-
 	_map_def = null
 	_map_scene_path = ""
 	_dirty = false
 	_history.clear()
-
 	_blocky_grid = null
 	_smooth_grid = null
 
+
+func _restore_launcher_view() -> void:
+	## Auxiliary: Hides editor HUD, displays the launcher dialog, and releases mouse capture.
 	if _hud != null:
 		_hud.hide()
-
 	if _launcher != null:
 		_launcher.setup(MapRepository.scan_maps())
 		_launcher.show_launcher()
-
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -1003,39 +1107,41 @@ func _inject_terrain_gen(map: Node, def: MapDef) -> void:
 
 
 func _attach_streams(map: Node, map_id: String) -> void:
-	var m: Map = map as Map
-	var blocky_terrain: VoxelTerrain = null
-	var smooth_terrain: VoxelTerrain = null
-
-	if m != null:
-		blocky_terrain = m.get_blocky_terrain()
-		smooth_terrain = m.get_smooth_terrain()
-
-	# Fallback if map._ready hasn't populated @onready fields or non-Map node
-	if blocky_terrain == null and map != null:
-		blocky_terrain = map.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
-	if smooth_terrain == null and map != null:
-		smooth_terrain = map.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
-
 	var map_dir := MapRepository.MAPS_DIR + map_id + "/"
+	# 1. Blocky stream: bind map.sqlite to blocky voxel terrain.
+	_attach_terrain_stream(_resolve_blocky_terrain(map), map_dir + "map.sqlite")
+	# 2. Smooth stream: bind terrain.sqlite to smooth voxel terrain.
+	_attach_terrain_stream(_resolve_smooth_terrain(map), map_dir + "terrain.sqlite")
 
-	if blocky_terrain != null:
-		var stream_path := map_dir + "map.sqlite"
-		if blocky_terrain.stream is VoxelStreamSQLite:
-			(blocky_terrain.stream as VoxelStreamSQLite).database_path = stream_path
-		elif blocky_terrain.stream == null:
-			var stream := VoxelStreamSQLite.new()
-			stream.database_path = stream_path
-			blocky_terrain.stream = stream
 
-	if smooth_terrain != null:
-		var stream_path := map_dir + "terrain.sqlite"
-		if smooth_terrain.stream is VoxelStreamSQLite:
-			(smooth_terrain.stream as VoxelStreamSQLite).database_path = stream_path
-		elif smooth_terrain.stream == null:
-			var stream := VoxelStreamSQLite.new()
-			stream.database_path = stream_path
-			smooth_terrain.stream = stream
+func _resolve_blocky_terrain(map: Node) -> VoxelTerrain:
+	## Auxiliary: Resolves the active blocky VoxelTerrain node from the map.
+	if map is Map and (map as Map).get_blocky_terrain() != null:
+		return (map as Map).get_blocky_terrain()
+	if map != null:
+		return map.get_node_or_null("BlockyGrid/VoxelTerrain") as VoxelTerrain
+	return null
+
+
+func _resolve_smooth_terrain(map: Node) -> VoxelTerrain:
+	## Auxiliary: Resolves the active smooth VoxelTerrain node from the map.
+	if map is Map and (map as Map).get_smooth_terrain() != null:
+		return (map as Map).get_smooth_terrain()
+	if map != null:
+		return map.get_node_or_null("SmoothGrid/VoxelTerrain") as VoxelTerrain
+	return null
+
+
+func _attach_terrain_stream(terrain: VoxelTerrain, stream_path: String) -> void:
+	## Auxiliary: Configures or creates a VoxelStreamSQLite instance pointing to stream_path.
+	if terrain == null:
+		return
+	if terrain.stream is VoxelStreamSQLite:
+		(terrain.stream as VoxelStreamSQLite).database_path = stream_path
+	elif terrain.stream == null:
+		var stream := VoxelStreamSQLite.new()
+		stream.database_path = stream_path
+		terrain.stream = stream
 
 
 func _set_mode(mode: Mode) -> void:
@@ -1625,12 +1731,31 @@ func _update_hud_info() -> void:
 	if _hud == null:
 		return
 	var axis_name := _get_rotation_axis_name()
-	if _block_library != null:
-		var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
-		var block_name := def.display_name if def != null and not def.display_name.is_empty() else (def.id if def != null else "Unknown")
-		var block_id := def.id if def != null else ""
-		_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index, _active_rotation_index, axis_name)
+	# 1. Block info: Update current block selection, size, and rotation.
+	_push_block_info(axis_name)
+	# 2. Terrain info: Update active terrain material display and sculpt radius.
+	_push_terrain_info()
+	# 3. Furniture info: Update active furniture item, rotation, and dimensions.
+	_push_furniture_info(axis_name)
+
+
+func _push_block_info(axis_name: String) -> void:
+	## Auxiliary: Pushes selected block name, brush size, and rotation to HUD.
+	if _block_library == null:
+		return
+	var def: BlockDef = _block_library.get_def_by_index(_selected_block_index)
+	var block_name := def.display_name if def != null and not def.display_name.is_empty() else (def.id if def != null else "Unknown")
+	var block_id := def.id if def != null else ""
+	_hud.set_block_info(block_name, _brush_diameter, block_id, _selected_block_index, _active_rotation_index, axis_name)
+
+
+func _push_terrain_info() -> void:
+	## Auxiliary: Pushes selected terrain material and sculpt radius to HUD.
 	_hud.set_terrain_info(_terrain_material_display(), _sculpt_radius)
+
+
+func _push_furniture_info(axis_name: String) -> void:
+	## Auxiliary: Pushes selected furniture name, yaw, dimensions, and axis to HUD.
 	if not _furniture_defs.is_empty() and _selected_furniture_idx >= 0 and _selected_furniture_idx < _furniture_defs.size():
 		var fdef: FurnitureDef = _furniture_defs[_selected_furniture_idx]
 		var fname := fdef.display_name if fdef != null and not fdef.display_name.is_empty() else (fdef.id if fdef != null else "Unknown")
