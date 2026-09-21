@@ -1,4 +1,4 @@
-[gd_scene format=4 uid="uid://cc8r4v540u5s3"]
+[gd_scene format=4 uid="uid://cmbux23cya2q8"]
 
 [ext_resource type="Script" uid="uid://ydvqgi11hm4" path="res://subsystems/voxel/map.gd" id="1_am8c4"]
 [ext_resource type="Script" uid="uid://cw2aa1j2y26ga" path="res://subsystems/voxel/blocky_grid.gd" id="2_pn4ft"]
@@ -21,9 +21,9 @@
 [ext_resource type="ArrayMesh" uid="uid://bld80ohf82evw" path="res://assets/custom_meshes/wedge-corner-left.obj" id="15_myvcy"]
 [ext_resource type="ArrayMesh" uid="uid://bwg61w4hrx0jq" path="res://assets/custom_meshes/wedge-corner-right.obj" id="16_5rxjt"]
 [ext_resource type="ArrayMesh" uid="uid://bbik1ek726qyg" path="res://assets/custom_meshes/wedge.obj" id="17_chekn"]
-[ext_resource type="Material" path="res://assets/materials/water_block_material.tres" id="18_71jgj"]
+[ext_resource type="Material" uid="uid://h2t571c800i6" path="res://assets/materials/water_block_material.tres" id="18_71jgj"]
 [ext_resource type="ArrayMesh" uid="uid://c2bpkqv06me8d" path="res://assets/custom_meshes/stairs.obj" id="19_l5d2n"]
-[ext_resource type="Resource" uid="uid://cr2twsmrxxewk" path="res://data/maps/base/terrain_gen.tres" id="21_c0is1"]
+[ext_resource type="Resource" uid="uid://xn77fvp7f8e7" path="res://data/maps/base/terrain_gen.tres" id="21_c0is1"]
 [ext_resource type="Shader" uid="uid://cr3v5p1i1frcc" path="res://assets/terrain/terrain_shader.gdshader" id="23_g1245"]
 [ext_resource type="Texture2D" uid="uid://kbvoem8l34m8" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground/basecolor.PNG" id="24_kywnt"]
 [ext_resource type="Texture2D" uid="uid://ckdhr7jdxy3y7" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Color.png" id="25_bewv8"]

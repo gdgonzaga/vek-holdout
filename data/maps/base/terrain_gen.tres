@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="TerrainGenDef" format=3 uid="uid://cr2twsmrxxewk"]
+[gd_resource type="Resource" script_class="TerrainGenDef" format=3 uid="uid://xn77fvp7f8e7"]
 
 [ext_resource type="Script" uid="uid://dtnaktfps2yg6" path="res://data/terrain/terrain_gen_def.gd" id="1_h11nd"]
 
