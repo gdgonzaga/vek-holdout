@@ -2495,5 +2495,9 @@ func test_editor_config_resource_loads_as_the_schema_type() -> void:
 	assert_bool(load(MapEditorClass.CONFIG_PATH) is MapEditorConfig).is_true()
 
 
-
-
+func test_camera_ray_center_uses_visible_rect_size() -> void:
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	assert_vector(editor._camera_ray_center()).is_equal(Vector2.ZERO)
+	add_child(editor)
+	var expected_center := editor.get_viewport().get_visible_rect().size / 2.0
+	assert_vector(editor._camera_ray_center()).is_equal(expected_center)

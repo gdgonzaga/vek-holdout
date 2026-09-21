@@ -1296,10 +1296,8 @@ func _ghost_structure(hit: Dictionary) -> void:
 func _raycast_from_camera() -> Dictionary:
 	if _map_root == null or _blocky_grid == null or _camera == null:
 		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false, "surface": ""}
-	var viewport := get_viewport()
-	if viewport == null:
-		return {"position": Vector3i.ZERO, "normal": Vector3i.ZERO, "hit": false, "surface": ""}
-	var center: Vector2 = viewport.size / 2
+	# 1. Screen Center: Resolves canvas-space center coordinate aligned with HUD crosshair.
+	var center := _camera_ray_center()
 	var origin := _camera.project_ray_origin(center)
 	var dir := _camera.project_ray_normal(center)
 	return _blocky_grid.raycast_to_voxel(origin, dir, 100.0)
@@ -1308,10 +1306,8 @@ func _raycast_from_camera() -> Dictionary:
 func _raycast_terrain() -> Dictionary:
 	if _map_root == null or _smooth_grid == null or _camera == null:
 		return {"hit": false, "point": Vector3.ZERO, "normal": Vector3.ZERO}
-	var viewport := get_viewport()
-	if viewport == null:
-		return {"hit": false, "point": Vector3.ZERO, "normal": Vector3.ZERO}
-	var center: Vector2 = viewport.size / 2
+	# 1. Screen Center: Resolves canvas-space center coordinate aligned with HUD crosshair.
+	var center := _camera_ray_center()
 	var origin := _camera.project_ray_origin(center)
 	var dir := _camera.project_ray_normal(center)
 	var res := _smooth_grid.raycast_to_surface(origin, dir, 100.0)
@@ -1320,6 +1316,14 @@ func _raycast_terrain() -> Dictionary:
 		"point": res.get("position", Vector3.ZERO),
 		"normal": res.get("normal", Vector3.ZERO),
 	}
+
+
+func _camera_ray_center() -> Vector2:
+	## Auxiliary: Calculates screen-center coordinate in canvas space aligned with the HUD crosshair.
+	var viewport := get_viewport()
+	if viewport == null:
+		return Vector2.ZERO
+	return viewport.get_visible_rect().size / 2.0
 
 
 ## Derives the world-space surface hit point from a raycast hit dictionary.
