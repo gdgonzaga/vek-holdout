@@ -38,12 +38,12 @@ Player (Shift+G) -> DigBoxController (Raycast / Ghost preview / Box math)
 
 ## Flow Trace: player real-time LMB mining
 
-1. In **Normal mode**, player aims crosshair at terrain within reach (`interact_distance`) and clicks **LMB** (`InputComponent.primary_action_pressed`).
+1. In **Normal mode**, player aims crosshair at terrain within reach (`PlayerInteractor.interact_distance`) and clicks **LMB** (`InputComponent.primary_action_pressed`).
 2. `Player._on_primary_action` raycasts to find the struck terrain voxel coordinate `pos: Vector3i`.
-3. `SmoothGrid.apply_damage_at(pos, 50, player)` is called:
+3. `SmoothGrid.apply_damage_at(pos, mining_tool.swing_damage, player)` is called (`PlayerInteractor.mining_tool` is a `DigToolParams`, `data/mining/dig_tool.tres` by default):
    - Queries `TerrainMaterialDef` at `pos` to determine max HP and `minutes_to_full_heal`.
    - Computes effective current HP considering time elapsed and damage regeneration.
-   - Inflicts damage (50 HP per hit).
+   - Inflicts damage (`DigToolParams.swing_damage` HP per hit; 50 in the shipped tool).
    - If HP drops to 0 or below: the cell is carved via `carve_box`, `material.yields` are deposited into the player inventory, `"mining"` skill use is recorded on `skill_set`, and `_hp_by_pos[pos]` is erased.
    - If HP remains above 0: `_hp_by_pos[pos]` records the new HP and timestamp.
 4. Abandoned hits heal back to max HP over `minutes_to_full_heal` (default 0.25 min / 15s) and are purged from memory once full. Materials with `minutes_to_full_heal <= 0.0` (e.g. asphalt) retain damage permanently without regenerating.

@@ -158,7 +158,7 @@ If the menu doesn't appear, see Troubleshooting below.
 - **Pressing E does nothing.** Either (a) you're in Blueprint mode (interaction
   is skipped when `mode != NORMAL` — exit with Esc), (b) the furniture has no
   `InteractionComponent` (its `FurnitureDef.action_options` is empty — see
-  Step 4), or (c) `_current_interactable` is null because the raycast hit
+  Step 4), or (c) the interactor's `_current_interactable` is null because the raycast hit
   nothing within `interact_distance` (8.0).
 - **No `InteractionComponent` spawned.** `FurnitureLayer` only attaches one when
   `def is FurnitureDef` **and** `action_options` is non-empty. A plain
@@ -166,7 +166,7 @@ If the menu doesn't appear, see Troubleshooting below.
   def is a `FurnitureDef` and the array is populated.
 - **`InteractionComponent` exists but isn't found.** The child must be named
   **exactly** `"InteractionComponent"` — this is hard-coded in
-  `Player._find_interaction_component`. `FurnitureLayer` sets this name when it
+  `PlayerInteractor._find_interaction_component`. `FurnitureLayer` sets this name when it
   creates the node; if you hand-place a component in a scene, match the name.
 - **Menu mounts on the wrong layer.** `InteractionComponent._open_interaction_ui`
   prefers a CanvasLayer in the `"hud_layer"` group, falling back to `"ui_layer"`.

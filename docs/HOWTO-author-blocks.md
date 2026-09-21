@@ -246,6 +246,7 @@ Save your exported `.glb` or `.obj` mesh file to `assets/custom_meshes/<block_id
 | `hp` | `100` | Block durability. |
 | `material_cost` | `[10 x wood_block]` | Crafting/building cost (Array of `ItemAmount`). |
 | `is_fluid` | `false` | Marks non-solid fluids like water or lava. |
+| `wading_speed_mult` | `1.0` | Locomotion multiplier for a body whose lower torso is inside this block (`0.0`-`1.0`). Only read for fluids; solids and air never slow anyone. Water uses `0.6`. |
 | `collision_enabled` | `true` | Set `false` for non-solid blocks (water, tall grass). |
 | `transparency_index` | `0` | `0` = opaque, `>0` = transparent (for `VoxelMesherBlocky` face culling). |
 | `culls_neighbors_of_same_type` | `false` | When `true`, touching blocks of the same model cull their shared internal faces. |

@@ -5,7 +5,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 > **Design notes:**
 > - **The whole chain is composable Resources.** `GameAction`, `Condition`, and `ActionOption` all extend `Resource`; each is authored as its own `.tres`. An `ActionOption` references one `GameAction` plus zero-or-more `Condition`s; a `FurnitureDef` references one-or-more `ActionOption`s.
 > - **The UI never references `FurnitureDef`.** The menu label is resolved via the target's `label` property (`Furniture.label` getter returns `def.display_name`), falling back to `InteractionComponent.display_name`, then the node name. This keeps `ui/interaction/` decoupled from the data layer.
-> - **Interaction is disabled in Blueprint mode.** `Player._update_interaction_target` early-returns when `mode != NORMAL`, so the crosshair never picks a target while building.
+> - **Interaction is disabled in Blueprint mode.** `PlayerInteractor.update_target` early-returns when `mode != NORMAL`, so the crosshair never picks a target while building.
 > - **Conditions gate at menu-open time, not execute time.** `ActionOption.is_available` only sets each button's `disabled` state when the menu is built. Pressing an enabled button calls `GameAction.execute` directly — conditions are not re-checked. A condition that should block execution must keep the option disabled (or the action must re-validate internally).
 > - **`BlockDef` has no interactions.** Voxel blocks resolve through the voxel grid, not as `Node3D` instances. Only `FurnitureDef` carries `action_options`.
 
@@ -33,9 +33,9 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 
 **Trigger:** Player points the crosshair at a furniture node carrying an `InteractionComponent` and presses E (`"interact"` input action) in Normal mode.
 
-1. Every `_physics_process` tick, `Player._update_interaction_target` raycasts from the screen center (`interact_distance` 8.0, bodies only, player RID excluded). Skipped entirely when `mode != NORMAL`.
-2. On a hit, `Player._find_interaction_component(hit.collider)` walks **up** the parent chain looking for a direct child named exactly `"InteractionComponent"` (handles any nesting depth). The result is cached in `_current_interactable`.
-3. E press → `Player._try_interact`: if `_current_interactable` is non-null **and** its `action_options` is non-empty, calls `_current_interactable.interact(self)`.
+1. Every `_physics_process` tick, `PlayerInteractor.update_target` (ticked by the Player) raycasts from the screen center (`interact_distance` 8.0, bodies only, player RID excluded). Skipped entirely when `mode != NORMAL`.
+2. On a hit, `PlayerInteractor._find_interaction_component(hit.collider)` walks **up** the parent chain looking for a direct child named exactly `"InteractionComponent"` (handles any nesting depth). The result is cached in `_current_interactable`.
+3. E press → the HUD's hold timer calls `player.interactor.open_interaction_menu()` (long press) or `execute_default_action()` (tap): if `_current_interactable` is non-null **and** its `action_options` is non-empty, the long press calls `_current_interactable.interact(player)`.
 4. `InteractionComponent.interact(actor)` calls `_open_interaction_ui(actor, get_parent(), action_options, self)` — note the target is the component's **parent** (the Furniture node).
 5. `_open_interaction_ui` instantiates `interaction_ui.tscn`, connects its `action_selected` signal, and mounts it on a CanvasLayer (group `"hud_layer"` first — the shipped `main.tscn`'s HUDLayer carries it — falling back to `"ui_layer"`). The mount happens **before** `setup()` so `@onready` refs resolve. The UI registers with `UiGate` in its `_ready` (cursor + gameplay-input gating — see [UI](ui.md)).
 6. `InteractionUI.setup(actor, target, options, component)` clears the list, sets the label (`target.get("label")` → falls back to `component.display_name` → then `target.name`), and builds one `Button` per option — text from `option.action.label`, `disabled = not option.is_available(actor, target)`. If the list ends up empty, the UI frees itself immediately.
@@ -50,7 +50,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 1. `FurnitureLayer._create_furniture_node(def, dims, yaw)` instantiates `new_furniture_template.tscn` (a `Furniture` root) and assigns `root.def_id = def.id`, `root.def = def`.
 2. After mesh/collision/yaw wiring, the attach condition is capability-driven: a `FurnitureDef` with non-empty `action_options` gets an `InteractionComponent` — and `harvest_params` / `farm_plot_params` auto-append their options to the list before the check (`ToggleHarvest` for harvestable or farm-plot defs; `InspectCrop` + `SelectCrop` + `ToggleHarvest` for farm plots). It creates the component, sets `interaction.name = "InteractionComponent"`, adds it as a child of the Furniture root, and copies the combined options onto it.
 
-**End state:** The spawned Furniture node carries a discoverable `InteractionComponent` child (the exact name `Player._find_interaction_component` looks for) pre-populated with the def's options.
+**End state:** The spawned Furniture node carries a discoverable `InteractionComponent` child (the exact name `PlayerInteractor._find_interaction_component` looks for) pre-populated with the def's options.
 
 ## Class Reference
 
@@ -59,7 +59,7 @@ The E-key interaction flow: the player points the crosshair at an interactable, 
 **Extends:** Node
 **Script:** `subsystems/actions/interaction_component.gd`
 **Description:** The runtime handle the player's raycast resolves to. Parented under a Furniture node (or any interactable); `interact(actor)` builds and mounts the interaction menu. Owns actor/target caching; the cursor/mouse round-trip while the menu is open is owned by UiGate (the UI registers as a modal), not this component.
-**Used by:** `Player._try_interact` (calls `interact`), `FurnitureLayer._create_furniture_node` (creates + populates it), `InteractionUI` (the component wires the UI's `action_selected` signal to its own callback).
+**Used by:** `PlayerInteractor.open_interaction_menu` (calls `interact`), `FurnitureLayer._create_furniture_node` (creates + populates it), `InteractionUI` (the component wires the UI's `action_selected` signal to its own callback).
 
 **Properties:**
 

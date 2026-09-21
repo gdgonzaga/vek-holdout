@@ -37,7 +37,7 @@ The Areas & Orders subsystem provides player-designated persistent regions in th
 **Trigger:** The player presses `T` during normal gameplay.
 
 1. `InputComponent` receives `area_designation_toggle` and emits `area_designation_toggle_pressed`.
-2. `Player` instantiates `DesignationMenu` onto `UILayer`.
+2. `Player` instantiates `DesignationMenu` onto the `hud_layer` CanvasLayer (else `ui_layer`).
 3. `DesignationMenu` calls `UiGate.open_modal(self)` on `_ready()`, releasing the mouse cursor and gating gameplay inputs.
 4. The player chooses an action via key (1: Remove Plants, 2: Chop Trees, 3: Forage, 4: Cancel Orders) or clicks an Area button ("+ New Area", "Paint", "Erase").
 5. `DesignationMenu` emits `EventBus.area_designation_tool_selected(tool_id, target_area_id)` and closes (`queue_free()`), releasing the modal lock.
