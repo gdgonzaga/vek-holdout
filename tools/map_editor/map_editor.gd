@@ -134,7 +134,7 @@ func _ready() -> void:
 	_hud.spawn_type_selected.connect(_on_spawn_type_selected)
 	_hud.terrain_apply_requested.connect(_on_terrain_apply)
 	_hud.terrain_pick_image_requested.connect(_on_terrain_pick_image)
-	_hud.flood_water_requested.connect(_on_flood_water_requested)
+	_hud.water_apply_requested.connect(_on_water_apply_requested)
 	_hud.metadata_edited.connect(_mark_dirty)
 	_hud.set_mode(_mode)
 	_hud.hide()
@@ -1645,19 +1645,25 @@ func _on_hud_furniture_selected(idx: int) -> void:
 		_update_hud_info()
 
 
-func _on_flood_water_requested(water_level: float) -> void:
-	# 1. Water Flooding: Flood open cells below water level with blocky water.
-	flood_water_level(water_level, true)
+func _on_water_apply_requested(enabled: bool, level: float) -> void:
+	# 1. Unsaved Guard: Prompt for unsaved edits before applying water settings and reloading.
+	_guard_unsaved(apply_water_settings.bind(level, enabled))
 
 
-func flood_water_level(water_level: float, _clear_above: bool = true) -> int:
+## Writes the water flags to MapDef and its map-owned terrain def, then reloads.
+## WaterGenerator fills water only in blocks generated after the reload: blocks
+## already stored in map.sqlite keep their contents (see docs/architecture/map-editor.md A6).
+func apply_water_settings(level: float, enabled: bool = true) -> void:
 	if _map_def == null:
-		return 0
-	_apply_water_edits({"water_enabled": true, "water_level": water_level})
+		return
+	# 1. Flags: Synchronize MapDef and terrain def water parameters.
+	_apply_water_edits({"water_enabled": enabled, "water_level": level})
+	# 2. Persistence: Commit modified terrain def and map definition to disk before reload.
 	_persist_terrain_def()
+	# 3. Persistence: Commit map configuration changes.
 	_save_map_def()
+	# 4. Reload: Rebuild scene and generator with updated water parameters.
 	_reload_current_map()
-	return 1
 
 
 

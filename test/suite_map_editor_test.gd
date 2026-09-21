@@ -2084,12 +2084,54 @@ func test_map_editor_new_map_with_water_enabled() -> void:
 	assert_bool(editor._map_def.water_enabled).is_true()
 	assert_float(editor._map_def.water_level).is_equal(-2.0)
 
-	# Verify in-editor flood adjustment completes
-	var flooded := editor.flood_water_level(-1.0, true)
-	assert_int(flooded).is_greater_equal(0)
-
 	await _dispose_test_editor(editor)
 	_remove_test_map(TEST_WATER_MAP)
+
+
+func test_apply_water_settings_updates_map_and_terrain_def() -> void:
+	var id := Sandbox.map_id("water_apply")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var payload := Sandbox.heightmap_payload(id)
+	payload["water_enabled"] = true
+	payload["water_level"] = -2.0
+	editor.create_new_map(payload)
+
+	editor.apply_water_settings(-1.0)
+
+	assert_bool(editor._map_def.water_enabled).is_true()
+	assert_float(editor._map_def.water_level).is_equal(-1.0)
+	assert_float(editor._map_def.terrain_gen.water_level).is_equal(-1.0)
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_apply_water_settings_can_turn_water_off() -> void:
+	var id := Sandbox.map_id("water_off")
+	Sandbox.remove_map(id)
+	var editor: MapEditor = auto_free(MapEditorClass.new())
+	add_child(editor)
+	var payload := Sandbox.heightmap_payload(id)
+	payload["water_enabled"] = true
+	editor.create_new_map(payload)
+
+	editor.apply_water_settings(-2.0, false)
+
+	assert_bool(editor._map_def.water_enabled).is_false()
+	assert_bool(editor._map_def.terrain_gen.water_enabled).is_false()
+	await Sandbox.dispose(get_tree(), editor, id)
+
+
+func test_editor_hud_water_button_emits_enabled_and_level() -> void:
+	var hud: EditorHUD = auto_free(EditorHUDClass.new())
+	hud.setup()
+	var got: Array = []
+	hud.water_apply_requested.connect(func(enabled: bool, level: float) -> void: got.assign([enabled, level]))
+	hud.set_water_drawer_state(true, -3.5)
+
+	hud._drawer_water_flood_button.pressed.emit()
+
+	assert_array(got).is_equal([true, -3.5])
 
 
 func test_editor_hud_text_control_detection_is_generic() -> void:

@@ -20,7 +20,7 @@ signal terrain_apply_requested()
 ## The user asked for a heightmap image file — the editor owns the FileDialog.
 signal terrain_pick_image_requested()
 signal spawn_type_selected(type: String)
-signal flood_water_requested(water_level: float)
+signal water_apply_requested(enabled: bool, level: float)
 signal metadata_edited()
 
 
@@ -854,11 +854,11 @@ func _build_ui() -> void:
 
 	_drawer_water_flood_button = Button.new()
 	_drawer_water_flood_button.name = "DrawerWaterFloodButton"
-	_drawer_water_flood_button.text = "Flood Water Now"
-	_drawer_water_flood_button.tooltip_text = "Fill open volume below water level with water blocks"
+	_drawer_water_flood_button.text = "Apply Water"
+	_drawer_water_flood_button.tooltip_text = "Update the water settings and reload. Blocks already saved keep their old contents; water appears in blocks generated afterwards."
 	_drawer_water_flood_button.add_theme_font_size_override("font_size", 11)
 	_drawer_water_flood_button.pressed.connect(func() -> void:
-		flood_water_requested.emit(_drawer_water_level_spin.value)
+		water_apply_requested.emit(_drawer_water_enabled_check.button_pressed, _drawer_water_level_spin.value)
 	)
 	water_sec.add_child(_drawer_water_flood_button)
 

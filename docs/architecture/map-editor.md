@@ -129,13 +129,14 @@ Mode F5 (`Mode.SPAWN`) provides an interactive selector sidebar for configuring 
   - **Removal**: Selecting Remove or holding `Shift+LMB` deletes the nearest spawn marker within range.
 - **Runtime Consumption**: `SpawnHelpers.read_spawns()` scans `SpawnPoints` markers to instantiate actors at authored world positions.
 
-### A6. Water Authoring & Water Level Flood Tool
+### A6. Water Authoring
 
-The Map Editor provides automated water body authoring integrated with the dual-voxel pipeline:
-- **Creation Configuration**: `EditorLauncher` provides `Water Body` enable toggle and `Water Level (Y)` spinbox when generating new maps.
-- **In-Session Tuning**: `TerrainDrawer` exposes the water toggle, height spinbox, and a dedicated **"Flood Water"** action button.
-- **Flood Algorithm (`flood_water_level`)**: Sweeps all `(x, z)` columns within the map's `world_bounds`. For each column, it probes natural smooth terrain and blocky structures down to `world_bounds.position.y`. Open air cells situated between the column's solid floor and `water_level` are populated with `water` blocks, and any water blocks above `water_level` are cleared.
-- **Cofferdams & Dry Basements**: Because solid walls and enclosed terrain displace open air cells, the flood tool naturally preserves dry interiors while flooding rivers, lakes, and coastal shores outside.
+The Map Editor provides water body authoring integrated with `WaterGenerator` and the procedural terrain pipeline:
+- **Creation Configuration**: `EditorLauncher` provides a `Water Body` enable toggle and `Water Level (Y)` spinbox when generating new maps, written to `MapDef.water_enabled` and `MapDef.water_level`.
+- **In-Session Tuning**: `TerrainDrawer` exposes the water `Enabled` checkbox, `Y (m)` height spinbox, and an **"Apply Water"** action button.
+- **Mechanism (`apply_water_settings`)**: Applies the water toggle and level to `MapDef` and its map-owned terrain definition, persists them to disk, and reloads the map. At load time, `BlockyGrid` installs `WaterGenerator` when water is enabled. `WaterGenerator` populates water in newly generated terrain columns between the terrain floor and `water_level`.
+- **Generator vs Saved Blocks**: Blocks already committed to `map.sqlite` override procedural generation, so previously saved blocks retain their contents across reloads; water appears in blocks generated afterwards. There is currently no in-editor column sweep to replace blocks already saved to sqlite.
+- **Planned Flood Sweep**: A full column-sweep water flooding tool that updates existing authored and saved blocks across `world_bounds` is planned (see `docs/TODO.md`).
 
 ### B. Dual-Voxel Editing & Undo Pipeline
 

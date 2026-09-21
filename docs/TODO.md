@@ -232,6 +232,7 @@ Schemas section. Mostly mechanical once the owning subsystem settles.
 - [ ] **`combat/` accumulating shared character-stat components** (line 150) — HealthComponent/BreathComponent/StaminaComponent live in `combat/` but are general-purpose. HealthComponent's consumer list has widened further (now Player, Colonist, EnemyBase, WildFlora, and combat-capable Furniture) — still the same 3 component classes though, so the "fourth component" trigger for a `core/components/` move hasn't fired yet. Revisit when `breath_component.gd` actually lands.
 - [ ] **Colony autoload accumulating run-state children** (line 151) — Memorial, KeyItemPool, LoadoutManager, DiscoveredGear all on Colony (4 children). Consider dedicated `RunProgress` autoload before adding a fifth.
 - [ ] **Debug console release-stripping** (line 152) — decide before first export: (a) export profile excludes `debug/`, (b) `OS.is_debug_build()` gate, (c) both.
+- [ ] **Map editor water flood sweep** - real column sweep over world_bounds writing water through BlockyGrid.set_raw_voxel (about 36k columns on a 192x192 map), frame-sliced with progress, so changing the level also updates blocks already saved. Today Apply Water only affects blocks generated after the reload.
 
 ---
 
