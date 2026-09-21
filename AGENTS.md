@@ -17,7 +17,7 @@ Xeno Frontier: Colony Defense — Godot 4.7 (Forward Plus, Jolt) voxel colony-su
 - `data/` — all game content as text `.tres`, schema scripts co-located.
 - `assets/` — art only (provenance in `docs/art.md`). `addons/` — zylann.voxel, gdUnit4, voxel_paint.
 - `test/` — gdUnit4 suites. `testing/` — manual playtest scenes (editor-run). `tests/` and `debug/` are vestigial placeholders — don't write in either.
-- Generated/gitignored, never hand-edit or commit: `reports/`, `site/`, `tmp/`, `.zcode/`, `.godot/`. Authored map files (`data/maps/<id>/map.tscn`, `map_def.tres`, `map.sqlite`, `terrain.sqlite`) ARE committed content — regenerate them with the map editor or voxel_paint plugin instead of editing by hand.
+- Generated/gitignored, never hand-edit or commit: `reports/`, `site/`, `.zcode/`, `.godot/`. `tmp/` is reserved for agent scratch/temporary task files (never commit). Authored map files (`data/maps/<id>/map.tscn`, `map_def.tres`, `map.sqlite`, `terrain.sqlite`) ARE committed content — regenerate them with the map editor or voxel_paint plugin instead of editing by hand.
 
 ## Hard rules
 
@@ -31,6 +31,7 @@ Xeno Frontier: Colony Defense — Godot 4.7 (Forward Plus, Jolt) voxel colony-su
 8. No LaTeX math syntax (e.g. `$...$`, `\pm`, `\times`) in responses, docs, or code comments. Use plain text or code formatting (e.g. `+/- 3 Y`, `2x2`, `3x3`).
 9. Only run tests when necessary. And only run relevant tests for changes made during the current coding session.
 10. No backward compatibility yet: Early in development, do not write migration layers, legacy fallbacks, or compatibility shims. When schemas or data formats change, start over by updating or recreating resources and definitions directly. Always explicitly flag breaking or incompatible changes to the user.
+11. Scratch & temporary work files: Use the `tmp/` folder for scratch or temporary work files. Always create a dedicated task-specific subfolder inside `tmp/` for the current task (e.g. `tmp/<task-name>/`) and store all temporary files there. Never place temporary files in the repository root or subsystem folders, and never commit files in `tmp/`.
 
 ## GDScript style
 
@@ -114,3 +115,7 @@ func _get_grid_bounds(voxel_position: Vector3i) -> Dictionary:
 		"max": voxel_position + Vector3i(1, 1, 1)
 	}
 ```
+
+### Scratch & Temporary Files
+- **Task Isolation**: Use the `tmp/` folder for any scratch scripts, probes, or temporary work files.
+- **Dedicated Subfolders**: Always create a dedicated subfolder within `tmp/` for the current task (e.g. `tmp/<task_name>/`) and place all agent temporary files there. Never pollute the workspace root or subsystem directories with temporary files.
