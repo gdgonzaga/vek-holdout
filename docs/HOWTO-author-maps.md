@@ -141,11 +141,12 @@ You can author the natural terrain's base shape in any external image editor (Kr
 
 ## 6. Water Authoring
 
-Water bodies are configured at creation time (§2) and can be adjusted or reflooded afterward:
+Water bodies are configured at creation time (§2) and can be adjusted afterward:
 
-- The **Terrain** toolbar button's drawer exposes the same **Enable Water** toggle and **Water Level (Y)** spinbox from the creation form, plus a **Flood Water** button.
-- **Flood Water** sweeps every `(x, z)` column inside the map's `world_bounds`: it probes down to the solid floor (smooth terrain or blocky structure) and fills open air cells between that floor and `water_level` with `water` blocks, clearing any water above `water_level`.
-- Enclosed interiors stay dry automatically — solid walls and roofed rooms displace the open-air cells the flood tool fills, so building a cofferdam or a sealed basement below the water line keeps it livable without manual draining.
+- The **Terrain** toolbar button's drawer exposes the same **Enabled** toggle and **Y (m)** water level spinbox from the creation form, plus an **Apply Water** button.
+- **Apply Water** writes the settings to the map and reloads it. Water is generated only for blocks generated after the reload: blocks already saved in `map.sqlite` keep their contents, and there is no in-editor flood sweep yet (planned, see `docs/TODO.md`).
+- Water is whole 1 m cubes, so the surface sits at `floor(Y)`: a level of -1.5 renders at -2.0. Use whole-meter levels to see what you author.
+- The shoreline is derived from the smooth ground: a column gets water when any of the four ground heights under its cell is below the water top, so water reaches slightly into the bank and the terrain hides the cube edges.
 
 ---
 

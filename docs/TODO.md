@@ -123,8 +123,8 @@ heightmap work kept its bolt-on points clean instead:
   streaming on colony-sized maps, and a Map Editor bake into `map.sqlite` (F3
   streaming-traversal cost) remains the fallback for bigger maps.
 - **Bolt-on points kept clean**: `BlockyGrid`/its def were untouched by the
-  heightmap work; `SmoothGrid._prepare_heightmap_image` is a static,
-  subsystem-local helper promotable to shared by moving; the launcher's
+  heightmap work; the snapped-heightmap helper has since moved to the shared
+  `TerrainHeightSampler` (used by SmoothGrid and WaterGenerator); the launcher's
   `new_map_requested` payload is an extensible Dictionary (a `structures` key
   slots in without another signature change).
 
