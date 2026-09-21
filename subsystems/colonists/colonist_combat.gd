@@ -64,7 +64,7 @@ func attack(target: Node3D) -> bool:
 	_face_target(target)
 
 	# 2. Attack Animation Trigger: Plays the equipped weapon's one-shot swing
-	# animation, mirroring Player._execute_equipped_primary_action(). Only
+	# animation, mirroring Player._fire_equipped_action(). Only
 	# reached on the successful-execution path (already gated by the cooldown
 	# check above), so it fires once per attack instead of retriggering mid-swing.
 	_trigger_attack_animation()

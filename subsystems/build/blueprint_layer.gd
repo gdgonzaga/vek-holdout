@@ -161,7 +161,7 @@ func _create_blueprint_node(target_def: BuildableDef, dims: Vector3i, yaw_quarte
 		root.rotate_y(float(yaw_quarters) * PI * 0.5)
 
 	# Interactable: the child MUST be named exactly "InteractionComponent"
-	# (Player._find_interaction_component). A blueprint with a material_cost
+	# (PlayerInteractor._find_interaction_component). A blueprint with a material_cost
 	# starts on "Add materials" and swaps to "Build" once materials are complete
 	# (see Blueprint.deposit_from); a costless blueprint starts on "Build".
 	var interaction := InteractionComponent.new()

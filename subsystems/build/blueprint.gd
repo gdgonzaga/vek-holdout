@@ -148,7 +148,7 @@ func _swap_to_build_option() -> void:
 
 ## Rebuild the InteractionComponent's info_text from current contributions, e.g.
 ## "Plank 3/15". InteractLabel re-reads it on the next interactable_changed
-## re-emit (Player.execute_default_action emits one after every E-tap).
+## re-emit (PlayerInteractor.execute_default_action emits one after every E-tap).
 func _refresh_info_text() -> void:
 	var ic := get_node_or_null("InteractionComponent") as InteractionComponent
 	if ic == null:

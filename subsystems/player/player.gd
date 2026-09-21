@@ -1,48 +1,40 @@
 class_name Player
 extends CharacterBody3D
-## Minimal third-person controller (ARCH "Subsystem: Player").
+## Third-person controller (ARCH "Subsystem: Player").
 ##
-## This build covers only walk + gravity + mouse-look. The Mode/State enums and
-## the full state set are defined now so later features (sprint, attack, build
-## mode...) fill in without restructuring. Movement references no stat components
-## yet — Breath/Stamina/Health attach later as child nodes the code can opt into.
-##
-## TODO when CharacterDef lands: source move_speed/gravity from
-## data/characters/player.tres instead of these exports (ARCH: no hardcoded
-## content values). Exported for now so they're editor-tunable.
+## Owns the Mode state machine that routes the build and designation menus, the
+## equipped item's LMB action, the movement state, and the SaveSystem contract.
+## Locomotion (walk, sprint, jump, frozen air momentum) lives in the PlayerMotor child
+## and everything the player does to the world under the crosshair (interaction target,
+## E-key paths, manual LMB interactions, mining) in the PlayerInteractor child; the
+## Player only feeds them the input lock, the needs/wading speed penalty and its gates.
+## Needs, equipment, skills, health, the motor and the interactor attach as child components.
+## Mode/State members no code sets yet (ATTACK, INTERACT, SLEEP) are reserved so
+## later features fill in without restructuring.
 
 enum Mode {NORMAL, BUILD_MENU, BUILD_PLACEMENT, DIG_BOX_DESIGNATION, AREA_DESIGNATION, DESIGNATION_MENU, HARVEST_BOX_DESIGNATION}
 enum State {IDLE, WALK, SPRINT, ATTACK, INTERACT, SLEEP, DEAD}
 
-@export var walk_speed := 3.5
-@export var sprint_speed := 7
-@export var gravity := 9.8
-@export var jump_force := 5.0
-@export var jump_move_speed := 0.5
-@export var interact_distance := 8.0
+## Height above the player's origin (its feet) of the voxel cell sampled for wading: the lower torso.
+const _WADING_SAMPLE_HEIGHT := 0.2
 
 var mode := Mode.NORMAL
 var state := State.IDLE
 
 ## True while a timed action (e.g. a BuildAction with a build_time) holds the
-## player. While busy, movement, jump, and discrete actions (interact, build
-## menu) are ignored — see the _busy guards in _handle_move_keys, _handle_jump,
-## execute_default_action, open_interaction_menu, _on_build_key_pressed.
+## player. While busy (or dead), movement, jump, and discrete actions (interact,
+## menus, hotkeys) are ignored — every input handler gates on is_input_locked().
 var _busy := false
-
-## The InteractionComponent currently under the crosshair (or null).
-var _current_interactable: InteractionComponent = null
 
 ## The currently open BuildMenu (null when no menu is open). Tracked so B can
 ## close it and so we know whether B means "open" or "close".
 var _build_menu: BuildMenu = null
 var _designation_menu: DesignationMenu = null
 
-## Emitted when _current_interactable changes (target gained or lost).
-signal interactable_changed(component: InteractionComponent)
-
 @onready var _input: InputComponent = $InputComponent
 @onready var _rig: CameraRig = $CameraRig
+@onready var motor: PlayerMotor = $Motor
+@onready var interactor: PlayerInteractor = $Interactor
 @onready var _camera: Camera3D = _rig.get_camera()
 @onready var inventory: CharacterInventory = $Inventory
 @onready var command_controller: CommandController = get_node_or_null("CommandController") as CommandController
@@ -82,7 +74,7 @@ func get_camera() -> Camera3D:
 ## Drives visual body-facing (PlayerAnimationController) so the avatar always
 ## faces where the player looks instead of where they last walked.
 func get_look_direction() -> Vector3:
-	return _camera_forward_horizontal()
+	return _rig.get_forward_horizontal()
 
 
 ## Camera pitch (radians, look-up positive per CameraRig's convention). Drives
@@ -114,16 +106,19 @@ func remove_item(item_id: String, count: int) -> int:
 
 
 ## Drops `count` of `item_id` from the player's inventory into the world in front of the player.
+## "In front" is where the camera looks: the body itself never rotates, so its basis
+## can't say which way the player faces.
 ## Returns the created WorldItem entity (or null if item wasn't carried).
 func drop_item(item_id: String, count: int = 1) -> WorldItem:
-	if inventory == null or not inventory.has_item(item_id, count):
+	if not inventory.has_item(item_id, count):
 		return null
 	var removed := inventory.remove(item_id, count)
 	var dropped_count := count - removed
 	if dropped_count <= 0:
 		return null
 
-	var forward := -global_transform.basis.z
+	# 1. Look Direction: Horizontal camera forward, so the drop lands where the crosshair points instead of along world -Z.
+	var forward := get_look_direction()
 	var spawn_pos := global_position + Vector3(0.0, 1.2, 0.0) + forward * 0.8
 	var impulse_dir := forward + Vector3(0.0, 0.3, 0.0)
 	var tree := get_tree() if is_inside_tree() else null
@@ -143,9 +138,7 @@ func can_carry(item_id: String, count: int) -> bool:
 
 ## Consumes 1 unit of food from player inventory, restoring hunger and HP.
 func consume_food_item(item_id: String) -> bool:
-	if inventory == null or inventory.get_item_count(item_id) <= 0:
-		return false
-	if ItemDB == null:
+	if inventory.get_item_count(item_id) <= 0:
 		return false
 	var def: ItemDef = ItemDB.get_def(item_id)
 	if def == null or def.food == null:
@@ -173,11 +166,12 @@ func _on_health_component_died(_entity: Node) -> void:
 
 
 # --- SaveSystem contract -----------------------------------------------------
-# Transform + camera orientation + carried inventory. Movement mode/state and
-# the transient interactable target are NOT persisted. Assumes the player (and
-# its CameraRig) is ready — set_orientation touches the rig's spring arm.
+# Transform + camera orientation + carried inventory + equipment, needs, skills and
+# health. Movement mode/state and the transient interactable target are NOT
+# persisted. Assumes the player (and its CameraRig) is ready — set_orientation
+# touches the rig's spring arm.
 
-## Snapshot position, camera yaw/pitch, and inventory stacks.
+## Snapshot position, camera yaw/pitch, inventory stacks, and component state.
 func serialize() -> Dictionary:
 	return {
 		"pos": [global_position.x, global_position.y, global_position.z],
@@ -186,16 +180,14 @@ func serialize() -> Dictionary:
 		"inventory": inventory.serialize(),
 		"equipment": equipment.serialize() if equipment != null else {},
 		"needs": needs.serialize() if needs != null else {},
+		"skills": skill_set.serialize(),
 		"health": health_component.serialize(),
 	}
 
 
 ## Restore position, camera orientation, and inventory from a serialize() dict.
 func deserialize(data: Dictionary) -> void:
-	velocity = Vector3.ZERO
-	_velocity_on_jump = Vector3.ZERO
-	_speed_on_jump = 0.0
-	_was_on_floor = true
+	motor.reset()
 	var p: Array = data.get("pos", [global_position.x, global_position.y, global_position.z])
 	global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
 	_rig.set_orientation(float(data.get("cam_yaw", 0.0)), float(data.get("cam_pitch", -0.25)))
@@ -206,33 +198,14 @@ func deserialize(data: Dictionary) -> void:
 		equipment.deserialize(data["equipment"])
 	if data.has("needs") and needs != null:
 		needs.deserialize(data["needs"])
-	elif data.has("hunger") and needs != null:
-		needs.deserialize(data["hunger"])
-	# 1. Health Restore: Deserialize the nested HealthComponent dict, or fall
-	# back to legacy flat "hp"/"max_hp" keys from pre-HealthComponent saves.
-	_deserialize_health(data)
+	if data.has("skills"):
+		skill_set.deserialize(data["skills"])
+	if data.has("health"):
+		health_component.deserialize(data["health"])
 	var guard := get_node_or_null("GroundSafetyGuard") as GroundSafetyGuard
 	if guard != null:
 		guard.rearm()
 
-
-func _deserialize_health(data: Dictionary) -> void:
-	## Auxiliary: Restores health_component from its nested dict, or synthesizes
-	## one from legacy flat "hp"/"max_hp" keys (pre-HealthComponent saves).
-	if data.has("health"):
-		health_component.deserialize(data["health"])
-	else:
-		health_component.deserialize({
-			"max_hp": int(data.get("max_hp", health_component.max_hp)),
-			"current_hp": int(data.get("hp", health_component.max_hp)),
-			"is_dead": false,
-		})
-
-
-var _velocity_on_jump := Vector3.ZERO # horizontal world-velocity frozen at jump (y=0)
-var _speed_on_jump := 0.0 # walk_speed or sprint_speed, frozen at takeoff
-var _is_sprinting_on_jump := false
-var _was_on_floor := true
 
 func _ready() -> void:
 	add_to_group("player")
@@ -258,6 +231,8 @@ func _ready() -> void:
 	_ensure_equipment()
 
 	health_component.entity_died.connect(_on_health_component_died)
+	motor.setup(_input, _rig)
+	interactor.setup(self, _camera)
 
 	# React to a buildable selection (emitted by the build menu) by entering
 	# Blueprint mode + recapturing the mouse. The selected id itself goes straight
@@ -287,7 +262,7 @@ func _exit_tree() -> void:
 ## The menu itself consumes B and Esc while it's open (it registers with UiGate,
 ## which gates InputComponent), and Esc exits placement straight to Normal.
 func _on_build_key_pressed() -> void:
-	if _busy:
+	if is_input_locked():
 		return
 	if mode == Mode.BUILD_PLACEMENT:
 		# Placement -> menu. Drop the selected buildable and reopen the menu.
@@ -303,21 +278,37 @@ func _on_build_key_pressed() -> void:
 func open_build_menu() -> void:
 	if _build_menu != null:
 		return
-	var menu: BuildMenu = preload("res://ui/build_menu/build_menu.tscn").instantiate()
-	# Mount on a UI CanvasLayer. Prefer the one Main owns; fall back to creating one
-	# under the world root so this works in test scenes without Main.
-	var layer := get_tree().get_first_node_in_group("ui_layer") as CanvasLayer
+	# 1. Menu Layer Resolution: Find the hud_layer (else ui_layer) CanvasLayer, or create a fallback for scenes without one.
+	var layer: CanvasLayer = _resolve_menu_layer()
+	# 2. Build Menu Instantiation: Instantiate and mount build menu modal onto resolved UI layer.
+	_mount_build_menu(layer)
+
+
+func _resolve_menu_layer() -> CanvasLayer:
+	## Auxiliary: The CanvasLayer modal menus mount on: the "hud_layer" group first (AGENTS.md: ad-hoc
+	## panels live there; the UILayer is SceneManager's full-screen slot), then "ui_layer" like every other
+	## panel-mounting call site. Scenes with neither (headless tests, playtest scenes without Main) get one
+	## fallback layer that joins "hud_layer", so the next call reuses it instead of stacking another per
+	## menu open. It mounts on the running scene, or on the tree root when no scene is set.
+	var tree := get_tree()
+	var layer := tree.get_first_node_in_group("hud_layer") as CanvasLayer
+	if layer == null:
+		layer = tree.get_first_node_in_group("ui_layer") as CanvasLayer
 	if layer == null:
 		layer = CanvasLayer.new()
-		layer.name = "UILayer"
-		# Add high enough to render above the world but below the HUD overlay.
-		layer.layer = 20
-		get_tree().current_scene.add_child(layer)
+		layer.name = "HUDLayer"
+		layer.layer = 10
+		layer.add_to_group("hud_layer")
+		var mount: Node = tree.current_scene if tree.current_scene != null else tree.root
+		mount.add_child(layer)
+	return layer
+
+
+func _mount_build_menu(layer: CanvasLayer) -> void:
+	## Auxiliary: Mounts, populates, and wires signals for the build menu modal.
+	var menu: BuildMenu = preload("res://ui/build_menu/build_menu.tscn").instantiate()
 	layer.add_child(menu)
 	menu.populate()
-	# The menu registers with UiGate on _ready, which shows the cursor so the
-	# player can click entries. Selection is broadcast via EventBus (menu emits
-	# directly); only the no-selection dismissal is handled locally.
 	menu.closed.connect(_on_build_menu_closed)
 	_build_menu = menu
 	mode = Mode.BUILD_MENU
@@ -331,8 +322,8 @@ func _on_buildable_selected(_id: String) -> void:
 	# unregistration re-captures the mouse for placement.
 	_build_menu = null
 	EventBus.build_menu_toggled.emit(false)
-	mode = Mode.BUILD_PLACEMENT
-	EventBus.build_placement_toggled.emit(true)
+	# 1. Mode Entry: Switches to placement and announces it so BuildController starts previewing.
+	_enter_tool_mode(Mode.BUILD_PLACEMENT)
 
 
 func _on_build_menu_closed() -> void:
@@ -352,22 +343,44 @@ func _on_ui_cancel() -> void:
 	# handles its own Esc). This runs synchronously inside InputComponent's
 	# _unhandled_input, so marking the event handled here also stops Main from
 	# treating the same press as "open pause menu".
-	if mode == Mode.BUILD_PLACEMENT:
-		get_viewport().set_input_as_handled()
-		mode = Mode.NORMAL
-		EventBus.build_placement_toggled.emit(false)
-	elif mode == Mode.DIG_BOX_DESIGNATION:
-		get_viewport().set_input_as_handled()
-		mode = Mode.NORMAL
-		EventBus.dig_box_toggled.emit(false)
-	elif mode == Mode.AREA_DESIGNATION:
-		get_viewport().set_input_as_handled()
-		mode = Mode.NORMAL
-		EventBus.area_designation_toggled.emit(false)
-	elif mode == Mode.HARVEST_BOX_DESIGNATION:
-		get_viewport().set_input_as_handled()
-		mode = Mode.NORMAL
-		EventBus.harvest_box_toggled.emit(false)
+	# 1. Tool Mode Check: Only tool modes announce a toggled signal; Normal and the menus own their Esc, so the press isn't ours.
+	if not _is_tool_mode(mode):
+		return
+	get_viewport().set_input_as_handled()
+	# 2. Mode Exit: Returns to Normal and announces toggled(false) so the mode's controller disarms.
+	_exit_tool_mode(mode)
+
+
+func _is_tool_mode(tool_mode: Mode) -> bool:
+	## Auxiliary: True for the modes that toggle on/off via an EventBus signal (placement and the box/area tools).
+	return not _get_mode_toggled_signal(tool_mode).is_null()
+
+
+func _enter_tool_mode(tool_mode: Mode) -> void:
+	## Auxiliary: Switches to `tool_mode` and announces toggled(true) to its controller and the HUD.
+	mode = tool_mode
+	_get_mode_toggled_signal(tool_mode).emit(true)
+
+
+func _exit_tool_mode(tool_mode: Mode) -> void:
+	## Auxiliary: Returns to Normal and announces toggled(false) on the signal of the mode being left.
+	mode = Mode.NORMAL
+	_get_mode_toggled_signal(tool_mode).emit(false)
+
+
+func _get_mode_toggled_signal(tool_mode: Mode) -> Signal:
+	## Auxiliary: The EventBus signal announcing entry to / exit from `tool_mode`; a null Signal for modes that aren't tool modes.
+	match tool_mode:
+		Mode.BUILD_PLACEMENT:
+			return EventBus.build_placement_toggled
+		Mode.DIG_BOX_DESIGNATION:
+			return EventBus.dig_box_toggled
+		Mode.AREA_DESIGNATION:
+			return EventBus.area_designation_toggled
+		Mode.HARVEST_BOX_DESIGNATION:
+			return EventBus.harvest_box_toggled
+		_:
+			return Signal()
 
 
 ## Leave placement and reopen the build menu (B in placement — quick item swap).
@@ -377,304 +390,55 @@ func _exit_build_placement_mode() -> void:
 	EventBus.build_placement_toggled.emit(false)
 
 
-## Execute the first action option immediately (quick-tap E).
-func execute_default_action() -> void:
-	if _busy:
-		return
-	if _current_interactable != null:
-		var target := _current_interactable.get_parent()
-		if target != null and target.has_method("refresh_interaction_options"):
-			target.refresh_interaction_options()
-		if not _current_interactable.action_options.is_empty():
-			var option: ActionOption = _current_interactable.action_options[0]
-			if option.action != null:
-				# 1. Action Animation Trigger: Trigger interaction animation for default action.
-				_trigger_animation_action(&"Interact")
-				option.action.execute(self, target)
-				interactable_changed.emit(_current_interactable)
-
-
-## Open the full interaction menu for the targeted interactable (long-press E).
-func open_interaction_menu() -> void:
-	if _busy:
-		return
-	if _current_interactable != null:
-		var target := _current_interactable.get_parent()
-		if target != null and target.has_method("refresh_interaction_options"):
-			target.refresh_interaction_options()
-		if not _current_interactable.action_options.is_empty():
-			# 1. Action Animation Trigger: Trigger interaction animation for menu selection.
-			_trigger_animation_action(&"Interact")
-			_current_interactable.interact(self)
-
-
-## Auxiliary: Triggers tool or interaction action animations on the child animation controller
-func _trigger_animation_action(action_name: StringName) -> void:
+## Plays a tool or interaction action animation on the child animation controller (a no-op
+## when the player has none). Shared by the equipped-item action and the interactor.
+func trigger_animation_action(action_name: StringName) -> void:
 	if anim_controller:
 		anim_controller.trigger_action(action_name)
-
-
-## Screen-center physics raycast for interaction. Returns the raw hit dict
-## (empty if nothing struck). Shared by _update_interaction_target.
-func _interaction_raycast() -> Dictionary:
-	if _camera == null:
-		return {}
-	var center := get_viewport().get_visible_rect().size / 2.0
-	var origin := _camera.project_ray_origin(center)
-	var dir := _camera.project_ray_normal(center)
-	var space := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * interact_distance)
-	query.collide_with_bodies = true
-	query.collide_with_areas = false
-	
-	# 1. Multi-Hit Resolution: Resolve discrete WorldItems or Colonists prioritized through coarse BuildBody bounding boxes.
-	return _resolve_best_interaction_hit(space, query)
-
-
-func _resolve_best_interaction_hit(space: PhysicsDirectSpaceState3D, query: PhysicsRayQueryParameters3D) -> Dictionary:
-	## Auxiliary: Performs sequential raycasts to detect discrete items or colonists occluded by coarse BuildBody boxes.
-	var excluded: Array[RID] = [get_rid()]
-	query.exclude = excluded
-	
-	var first_hit: Dictionary = {}
-	var max_steps := 6
-	
-	for _i in range(max_steps):
-		var hit := space.intersect_ray(query)
-		if hit.is_empty():
-			break
-		
-		var collider: Node = hit.collider as Node
-		if collider == null:
-			break
-		
-		# Record the initial hit as baseline fallback
-		if first_hit.is_empty():
-			first_hit = hit
-		
-		# Direct hit on discrete interactable entity (WorldItem or Colonist)
-		if collider is WorldItem or collider.get_parent() is WorldItem or collider is Colonist:
-			return hit
-		
-		# If colliding with a coarse interaction bounding box (BuildBody on Layer 5), exclude and continue
-		if collider is CollisionObject3D:
-			var col_obj := collider as CollisionObject3D
-			if col_obj.name == "BuildBody" or col_obj.get_collision_layer_value(5):
-				excluded.append(col_obj.get_rid())
-				query.exclude = excluded
-				continue
-		
-		# Hit opaque physical geometry (terrain or solid structure), cannot see through
-		break
-	
-	return first_hit
-
-
-## Every-frame crosshair check. Updates _current_interactable so the HUD can
-## display what the player is looking at, and E press can act on it.
-func _update_interaction_target() -> void:
-	if mode != Mode.NORMAL or UiGate.is_input_blocked():
-		if _current_interactable != null:
-			_current_interactable = null
-			interactable_changed.emit(null)
-		return
-	var hit := _interaction_raycast()
-	if hit.is_empty():
-		if _current_interactable != null:
-			_current_interactable = null
-			interactable_changed.emit(null)
-		return
-	var component := _find_interaction_component(hit.collider)
-	if component != null:
-		var target := component.get_parent()
-		if target != null and target.has_method("refresh_interaction_options"):
-			target.refresh_interaction_options()
-	if component != _current_interactable:
-		_current_interactable = component
-		interactable_changed.emit(component)
-
-
-## Clear the current interactable target and notify listeners (e.g. the HUD's
-## InteractLabel) so they hide. Called by SceneManager.unload_current_map
-## before the map (and its InteractionComponent children) is freed — otherwise
-## the HUD keeps showing the last label over the title screen.
-func clear_interactable() -> void:
-	if _current_interactable != null:
-		_current_interactable = null
-		interactable_changed.emit(null)
-
-
-## Walk up from the hit collider looking for a sibling InteractionComponent.
-## Handles any nesting depth (RigidBody3D > MeshInstance3D > CollisionShape, etc.).
-func _find_interaction_component(node: Node) -> InteractionComponent:
-	var current: Node = node
-	while current != null:
-		var component := current.get_node_or_null("InteractionComponent") as InteractionComponent
-		if component:
-			return component
-		current = current.get_parent()
-	return null
 
 
 func _physics_process(delta: float) -> void:
 	if _equipped_action_cooldown > 0.0:
 		_equipped_action_cooldown -= delta
-	_update_interaction_target()
-	_handle_move_keys(delta)
-	_handle_jump()
-
-func _handle_move_keys(delta: float) -> void:
-	var grounded := is_on_floor()
-	if not grounded:
-		velocity.y -= gravity * delta
-		if _was_on_floor and not _input.wants_jump():
-			# Leaving ground without jumping (e.g. walking down stairs / stepping off a ledge):
-			# Capture horizontal ground momentum so walking down ledges preserves walking speed.
-			_velocity_on_jump = _camera_relative_wish(_input.get_movement_input())
-			_speed_on_jump = sprint_speed if _input.wants_sprint() else walk_speed
-			_is_sprinting_on_jump = _input.wants_sprint()
-	_was_on_floor = grounded
-
-	# Horizontal wish-velocity in WORLD space.
-	# Ground: fresh each frame from camera-relative WASD.
-	# Mid-air: starts from the frozen jump velocity; keys only BRAKE it (remove the
-	# component opposing the held direction) — they never re-project the stored
-	# vector, so rotating the camera mid-air can't curve movement. Keys are still
-	# read relative to the live camera (W still means "away from where I look"),
-	# but only to decide which component of the world-velocity to kill.
-	var wish := Vector3.ZERO
-
-	# A busy player can't drive movement — wish stays zero so velocity is wiped
-	# below (gravity still applies so they stay planted on the ground).
-	if not _busy:
-		if is_on_floor():
-			# Ground: camera-relative WASD, normalized, projected to world.
-			var input := _input.get_movement_input()
-			wish = _camera_relative_wish(input)
-		else:
-			# Mid-air: the two cardinal axes (forward/back, strafe) are resolved
-			# INDEPENDENTLY, each against the captured world-momentum projected onto
-			# the live camera directions. Keys are read relative to the live camera
-			# (W = away from where you look now); momentum stays world-locked, so
-			# rotating the camera mid-air can't curve movement.
-			var basis := _rig.global_transform.basis
-			var cam_fwd := _camera_forward_horizontal()
-			var cam_right := basis.x
-			cam_right.y = 0.0
-			cam_right = cam_right.normalized()
-
-			var air_input := _input.get_movement_input()
-
-			# Resolve each axis to a signed scalar (positive = cam_fwd / cam_right).
-			var fwd := _resolve_air_axis(
-				air_input.y > 0.0, # backward component
-				air_input.y < 0.0, # forward component
-				_velocity_on_jump.dot(cam_fwd)
-			)
-			var strafe := _resolve_air_axis(
-				air_input.x < 0.0, # left component
-				air_input.x > 0.0, # right component
-				_velocity_on_jump.dot(cam_right)
-			)
-			wish = cam_fwd * fwd + cam_right * strafe
-
-	# Speed scalar: ground uses the live sprint key; air uses the speed frozen at
-	# takeoff so holding/releasing Shift mid-air can't rescale preserved momentum.
-	var speed: float
-	if is_on_floor():
-		speed = sprint_speed if _input.wants_sprint() else walk_speed
-		if needs != null:
-			speed *= needs.get_speed_multiplier()
-		# 1. Drag Evaluation: Dampens ground movement speed by 0.6x when wading through fluid voxels.
-		if is_in_water():
-			speed *= 0.6
-	else:
-		speed = _speed_on_jump
-	velocity.x = wish.x * speed
-	velocity.z = wish.z * speed
-
-	move_and_slide()
-
-	# Movement state (CharacterBody3D itself never rotates, so the camera
-	# rig's orbit is decoupled from where the avatar looks; visual facing is
-	# driven separately by PlayerAnimationController from get_look_direction()).
-	if wish.length_squared() > 0.001:
-		# SPRINT only while grounded + sprinting; mid-air carries momentum but
-		# isn't "sprinting" (state reflects what the avatar is doing, not what it
-		# did at takeoff).
-		var sprinting := is_on_floor() and _input.wants_sprint()
-		state = State.SPRINT if sprinting else State.WALK
-	else:
-		state = State.IDLE
+	# 1. Interaction Target: Re-aims the crosshair target so the HUD label and the E press act on what is in view.
+	interactor.update_target()
+	# 2. Locomotion: One motor tick with the input lock and the speed penalty; returns the wish vector so the movement state can follow it.
+	var wish := motor.tick(delta, is_input_locked(), _movement_speed_multiplier())
+	# 3. Movement State: CharacterBody3D itself never rotates (the camera rig's orbit is decoupled from where the avatar looks; visual facing comes from PlayerAnimationController via get_look_direction()), so state follows the wish alone.
+	state = _resolve_move_state(wish)
 
 
-func _handle_jump() -> void:
-	if _busy:
-		return
-	if not is_on_floor():
-		return
-
-	if _input.wants_jump():
-		velocity.y = jump_force
-
-		# Capture horizontal wish-velocity in WORLD space at the jump instant. This
-		# is frozen for the whole jump — mid-air keys only brake it, never
-		# re-project it, so rotating the camera mid-air can't curve movement.
-		_velocity_on_jump = _camera_relative_wish(_input.get_movement_input())
-		# Freeze the takeoff speed so a sprint-jump carries sprint-scale momentum
-		# for the whole jump (mid-air Shift can't change it).
-		_speed_on_jump = sprint_speed if _input.wants_sprint() else walk_speed
-		# 1. Takeoff Drag: Dampens jump takeoff momentum by 0.6x if jumping out of fluid voxels.
-		if is_in_water():
-			_speed_on_jump *= 0.6
-		
-		_is_sprinting_on_jump = _input.wants_sprint()
+func _movement_speed_multiplier() -> float:
+	## Auxiliary: The penalties scaling ground speed, and the speed frozen into a jump or ledge exit: the
+	## depleted-need slowdown and the drag of the fluid the body is wading through. One value per tick,
+	## so airborne momentum can't shed a penalty that walking would keep.
+	var multiplier := 1.0
+	if needs != null:
+		multiplier *= needs.get_speed_multiplier()
+	# 1. Wading Drag: The multiplier of the fluid block at the lower torso (BlockDef.wading_speed_mult; 1.0 when dry or between maps).
+	multiplier *= _get_wading_speed_multiplier()
+	return multiplier
 
 
-## Project a camera-relative input Vector2 to a horizontal WORLD wish-vector.
-## Used by both ground movement and the jump-momentum capture so they share one
-## source of truth for the camera basis math.
-## Sign convention (from the Vector2 gathering above):
-##   input.y < 0 = forward, input.y > 0 = backward, input.x = strafe (right +).
-func _camera_relative_wish(input: Vector2) -> Vector3:
-	var forward := _camera_forward_horizontal()
-	var right := _rig.global_transform.basis.x
-	right.y = 0.0
-	right = right.normalized()
-	return forward * -input.y + right * input.x
+func _resolve_move_state(wish: Vector3) -> State:
+	## Auxiliary: Movement state for this tick. DEAD is terminal so a tick can't overwrite it.
+	if is_dead:
+		return State.DEAD
+	if wish.length_squared() <= 0.001:
+		return State.IDLE
+	# SPRINT only while grounded + sprinting; mid-air carries momentum but
+	# isn't "sprinting" (state reflects what the avatar is doing, not what it
+	# did at takeoff).
+	var sprinting := is_on_floor() and _input.wants_sprint()
+	return State.SPRINT if sprinting else State.WALK
 
 
-## Auxiliary: The camera rig's forward vector, flattened to horizontal and
-## normalized. Shared by movement (grounded + mid-air wish vectors) and
-## get_look_direction() (visual body-facing) so all three read one source of
-## truth for "which way is the avatar looking."
-func _camera_forward_horizontal() -> Vector3:
-	var forward := (-_rig.global_transform.basis.z)
-	forward.y = 0.0
-	return forward.normalized()
+## True while the player can't act: held by a timed action or dead. Every input-driven
+## handler gates on it, and the interactor reads it for the E key. is_busy() stays the
+## timed-action flag alone (BuildController reads it).
+func is_input_locked() -> bool:
+	return _busy or is_dead
 
-
-## Resolve ONE mid-air cardinal axis to a signed scalar.
-## - `neg_held`: is the key driving this axis negative held? (backward / left)
-## - `pos_held`: is the key driving this axis positive held? (forward / right)
-## - `momentum`: this axis's captured world-momentum component (sign = direction)
-## Returns a positive value toward the positive key, negative toward the negative.
-##
-## Per-axis rule (axes are independent):
-##   both keys held            -> 0      (cancel)
-##   pos held, momentum > 0    -> momentum (preserve — you jumped that way)
-##   pos held, momentum <= 0   -> +jump_move_speed (nudge / brake toward pos)
-##   neg held, momentum < 0    -> momentum (preserve)
-##   neg held, momentum >= 0   -> -jump_move_speed (nudge / brake toward neg)
-##   neither held              -> 0      (snap stop on this axis, no coasting)
-func _resolve_air_axis(neg_held: bool, pos_held: bool, momentum: float) -> float:
-	if neg_held and pos_held:
-		return 0.0 # conflicting input cancels the axis
-	if pos_held:
-		return momentum if momentum > 0.0 else jump_move_speed
-	if neg_held:
-		return momentum if momentum < 0.0 else -jump_move_speed
-	return 0.0 # released -> axis stops dead
 
 ## Equips a carried item: MOVES one from the inventory into the slot it belongs
 ## in (main_hand for tools/weapons, the tagged slot for apparel), stowing whatever
@@ -704,134 +468,65 @@ func _ensure_equipment() -> void:
 	equipment = Equipment.ensure_on(self, equipment)
 
 
-## Execute the equipped item's primary action.
-func _execute_equipped_primary_action() -> void:
-	var active_item: ItemDef = equipment.get_item(Equipment.SLOT_MAIN_HAND) if equipment != null else null
-	if active_item == null or not active_item.is_equippable():
-		return
-	var equip_params: EquippableParams = active_item.equippable
-	if equip_params == null or equip_params.primary_action == null:
-		return
+## Runs the equipped item's primary action unless it is still in its lockout. Only plays the
+## animation once the action actually fires -- triggering on every input event restarted the
+## one-shot mid-swing whenever the player clicked faster than the weapon's own lockout duration.
+func _fire_equipped_action(equip_params: EquippableParams) -> void:
 	if _equipped_action_cooldown > 0.0:
 		return
 
 	var action: EquipActionParams = equip_params.primary_action
 	_equipped_action_cooldown = action.get_lockout_duration()
 
-	# 1. Action Animation Trigger: Only plays once the action actually fires --
-	# triggering unconditionally on every input event (the old call site, in
-	# _on_primary_action) restarted the one-shot mid-swing whenever the player
-	# clicked faster than the weapon's own lockout duration.
+	# 1. Action Animation Trigger: Plays the item's use animation (or the generic interact) now that the action fires.
 	var anim: StringName = equip_params.use_animation if equip_params.use_animation != &"" else &"Interact"
-	_trigger_animation_action(anim)
+	trigger_animation_action(anim)
 
 	action.execute(self)
 
 
 func _on_primary_action() -> void:
-	if _busy or mode != Mode.NORMAL or UiGate.is_input_blocked():
+	if is_input_locked() or mode != Mode.NORMAL or UiGate.is_input_blocked():
 		return
 
+	# 1. Equipped Item Action: Check and trigger main-hand tool or weapon primary action.
+	if _try_execute_equipped_action():
+		return
+
+	# 2. World Interaction: A manual interaction on the crosshair target (foraging, farming, harvesting), else mining the terrain or block under it.
+	interactor.primary_interact()
+
+
+func _try_execute_equipped_action() -> bool:
+	## Auxiliary: Runs the main-hand item's primary action. True when the item owns LMB (it has a
+	## primary action, whether it fired or is still in its lockout, so a press inside the lockout is
+	## swallowed rather than mining what is under the crosshair). False when nothing usable is held,
+	## so LMB falls through to interaction and mining.
+	var equip_params := _get_equipped_params()
+	if equip_params == null or equip_params.primary_action == null:
+		return false
+	# 1. Action Fire: Cooldown-gated execution of the primary action with its animation.
+	_fire_equipped_action(equip_params)
+	return true
+
+
+func _get_equipped_params() -> EquippableParams:
+	## Auxiliary: The EquippableParams of the main-hand item, or null when the hand is empty or the item isn't equippable.
 	var active_item: ItemDef = equipment.get_item(Equipment.SLOT_MAIN_HAND) if equipment != null else null
-	if active_item != null and active_item.is_equippable():
-		_execute_equipped_primary_action()
-		return
-
-	if _current_interactable != null:
-		var target := _current_interactable.get_parent()
-		if target != null:
-			var flora := target as WildFlora
-			if flora != null and flora.can_forage():
-				_trigger_animation_action(&"Interact")
-				var forage_action := ForageAction.new()
-				forage_action.execute(self, target)
-				return
-			var growable := target.get_node_or_null("Growable") as Growable
-			if growable != null:
-				# 1. Action Animation Trigger: Trigger farming interaction animation.
-				_trigger_animation_action(&"Interact")
-				var farm_action := FarmManualAction.new()
-				farm_action.execute(self, target)
-				return
-			var harvestable := target.get_node_or_null("Harvestable") as Harvestable
-			if harvestable != null:
-				# 1. Action Animation Trigger: Trigger harvest interaction animation.
-				_trigger_animation_action(&"Interact")
-				var action := HarvestAction.new()
-				action.execute(self, target)
-				return
-
-	# Direct terrain / block mining with LMB from crosshair
-	var hit := _interaction_raycast()
-	if hit.is_empty():
-		return
-
-	var collider: Node = hit.collider as Node
-	var hit_normal: Vector3 = hit.normal
-	var hit_in: Vector3 = hit.position - hit_normal * 0.1
-	var target_cell := Vector3i(int(floor(hit_in.x)), int(floor(hit_in.y)), int(floor(hit_in.z)))
-
-	var smooth := _find_smooth_grid(collider)
-	if smooth != null:
-		# 1. Action Animation Trigger: Trigger digging animation when damaging terrain.
-		_trigger_animation_action(&"Digging")
-		smooth.apply_damage_at(target_cell, 50, self, hit_normal)
-		return
-
-	var blocky := _find_blocky_grid(collider)
-	if blocky != null and blocky.has_block_at(target_cell):
-		# 1. Action Animation Trigger: Trigger digging animation when damaging blocky grid.
-		_trigger_animation_action(&"Digging")
-		blocky.apply_damage(target_cell, 50)
-		return
-
-
-func _find_smooth_grid(node: Node) -> SmoothGrid:
-	var cur: Node = node
-	while cur != null:
-		if cur is SmoothGrid:
-			return cur
-		if cur is Map:
-			return (cur as Map).get_smooth_grid()
-		cur = cur.get_parent()
-	if SceneManager != null:
-		var current_map := SceneManager.get_current_map()
-		if current_map != null:
-			return current_map.get_smooth_grid()
-	return null
-
-
-func _find_blocky_grid(node: Node) -> BlockyGrid:
-	var cur: Node = node
-	while cur != null:
-		if cur is BlockyGrid:
-			return cur
-		if cur is Map:
-			return (cur as Map).get_blocky_grid()
-		cur = cur.get_parent()
-	if SceneManager != null:
-		var current_map := SceneManager.get_current_map()
-		if current_map != null:
-			return current_map.get_blocky_grid()
-	return null
+	return active_item.equippable if active_item != null else null
 
 
 func _on_dig_box_toggle_pressed() -> void:
-	if _busy:
-		return
-	if mode == Mode.DIG_BOX_DESIGNATION:
-		mode = Mode.NORMAL
-		EventBus.dig_box_toggled.emit(false)
-	elif mode == Mode.NORMAL:
-		mode = Mode.DIG_BOX_DESIGNATION
-		EventBus.dig_box_toggled.emit(true)
+	# 1. Mode Toggle: Enters or leaves dig-box designation; the press is ignored in any other mode.
+	_toggle_tool_mode(Mode.DIG_BOX_DESIGNATION)
 
 
 func _on_area_designation_toggle_pressed() -> void:
-	if _busy:
+	if is_input_locked():
 		return
 	if mode == Mode.AREA_DESIGNATION:
-		_exit_area_designation_mode()
+		# 1. Mode Exit: Leaves area designation and announces it, then reopens the menu for a quick tool swap.
+		_exit_tool_mode(Mode.AREA_DESIGNATION)
 		open_designation_menu()
 	elif mode == Mode.NORMAL:
 		open_designation_menu()
@@ -842,13 +537,15 @@ func _on_area_designation_toggle_pressed() -> void:
 func open_designation_menu() -> void:
 	if _designation_menu != null:
 		return
+	# 1. Menu Layer Resolution: Find the hud_layer (else ui_layer) CanvasLayer, or create a fallback for scenes without one.
+	var layer: CanvasLayer = _resolve_menu_layer()
+	# 2. Designation Menu Instantiation: Mount and wire signals for designation menu modal.
+	_mount_designation_menu(layer)
+
+
+func _mount_designation_menu(layer: CanvasLayer) -> void:
+	## Auxiliary: Mounts and wires signals for the designation orders menu modal.
 	var menu: DesignationMenu = preload("res://ui/designation_menu/designation_menu.tscn").instantiate()
-	var layer := get_tree().get_first_node_in_group("ui_layer") as CanvasLayer
-	if layer == null:
-		layer = CanvasLayer.new()
-		layer.name = "UILayer"
-		layer.layer = 20
-		get_tree().current_scene.add_child(layer)
 	layer.add_child(menu)
 	menu.closed.connect(_on_designation_menu_closed)
 	_designation_menu = menu
@@ -859,18 +556,13 @@ func _on_area_designation_tool_selected(_tool_id: String, _target_area_id: Strin
 	# 1. Listener Teardown: Disconnects closed callback to ensure dismissal does not override active mode.
 	_disconnect_designation_menu_closed()
 	_designation_menu = null
-	mode = Mode.AREA_DESIGNATION
-	EventBus.area_designation_toggled.emit(true)
+	# 2. Mode Entry: Switches to area designation and announces it so its controller arms.
+	_enter_tool_mode(Mode.AREA_DESIGNATION)
 
 
 func _on_designation_menu_closed() -> void:
 	_designation_menu = null
 	mode = Mode.NORMAL
-
-
-func _exit_area_designation_mode() -> void:
-	mode = Mode.NORMAL
-	EventBus.area_designation_toggled.emit(false)
 
 
 func _disconnect_designation_menu_closed() -> void:
@@ -880,36 +572,42 @@ func _disconnect_designation_menu_closed() -> void:
 
 
 func _on_harvest_box_toggle_pressed() -> void:
-	if _busy:
+	# 1. Mode Toggle: Enters or leaves harvest-box designation; the press is ignored in any other mode.
+	_toggle_tool_mode(Mode.HARVEST_BOX_DESIGNATION)
+
+
+func _toggle_tool_mode(tool_mode: Mode) -> void:
+	## Auxiliary: Hotkey toggle for a tool mode. Enters it from Normal, leaves it when already in it,
+	## and ignores the press in every other mode so tool modes never stack.
+	if is_input_locked():
 		return
-	if mode == Mode.HARVEST_BOX_DESIGNATION:
-		mode = Mode.NORMAL
-		EventBus.harvest_box_toggled.emit(false)
+	if mode == tool_mode:
+		_exit_tool_mode(tool_mode)
 	elif mode == Mode.NORMAL:
-		mode = Mode.HARVEST_BOX_DESIGNATION
-		EventBus.harvest_box_toggled.emit(true)
+		_enter_tool_mode(tool_mode)
 
 
-## Returns true if the player's lower body is submerged in a fluid/water voxel cell.
-func is_in_water() -> bool:
-	var grid := _find_blocky_grid(self)
+func _get_wading_speed_multiplier() -> float:
+	## Auxiliary: The drag of the fluid at the player's lower torso, from the running map's blocky
+	## grid; 1.0 with no map (between maps there is nothing to wade in) or in a cell with no fluid.
+	var grid := _get_current_blocky_grid()
 	if grid == null:
-		return false
+		return 1.0
 	# 1. Position Resolution: Resolves the voxel coordinates at the player's lower torso.
 	var cell: Vector3i = _get_wading_cell()
-	# 2. Block Evaluation: Determines whether the target voxel cell contains fluid water.
-	return _is_water_at_cell(grid, cell)
+	return grid.get_wading_speed_mult_at(cell)
+
+
+func _get_current_blocky_grid() -> BlockyGrid:
+	## Auxiliary: The blocky grid of the map SceneManager is running, or null between maps.
+	var current_map := SceneManager.get_current_map() as Map
+	return current_map.get_blocky_grid() if current_map != null else null
 
 
 func _get_wading_cell() -> Vector3i:
 	## Auxiliary: Resolves the voxel cell at the player's lower torso.
 	return Vector3i(
 		int(floor(global_position.x)),
-		int(floor(global_position.y + 0.2)),
+		int(floor(global_position.y + _WADING_SAMPLE_HEIGHT)),
 		int(floor(global_position.z))
 	)
-
-
-func _is_water_at_cell(grid: BlockyGrid, cell: Vector3i) -> bool:
-	## Auxiliary: Evaluates whether the given cell in the blocky grid contains water.
-	return grid.get_block_at(cell) == "water"

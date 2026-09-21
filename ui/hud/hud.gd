@@ -48,7 +48,7 @@ func _on_player_ready() -> void:
 
 
 func _wire_signals() -> void:
-	_player.interactable_changed.connect(_on_interactable_changed)
+	_player.interactor.interactable_changed.connect(_on_interactable_changed)
 	# The panel owns its hotkey, lists and UiGate registration; it just needs the player.
 	_inventory_panel.setup(_player)
 	# Connect to InputComponent's interact press/release for hold detection.
@@ -83,7 +83,7 @@ func _process(delta: float) -> void:
 		if _hold_timer >= _HOLD_THRESHOLD:
 			_holding_interact = false
 			_hold_timer = 0.0
-			_player.open_interaction_menu()
+			_player.interactor.open_interaction_menu()
 
 
 func _update_clock_display() -> void:
@@ -108,7 +108,7 @@ func _on_interact_released() -> void:
 		# Released before threshold — quick tap, execute default action.
 		_holding_interact = false
 		_hold_timer = 0.0
-		_player.execute_default_action()
+		_player.interactor.execute_default_action()
 	else:
 		# Long-press already fired (menu opening handled in _process).
 		_holding_interact = false

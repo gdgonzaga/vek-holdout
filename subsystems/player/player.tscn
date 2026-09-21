@@ -12,6 +12,9 @@
 [ext_resource type="Script" uid="uid://bufhbvdq71j4l" path="res://subsystems/colonists/command_controller.gd" id="15_cmdctrl"]
 [ext_resource type="Script" uid="uid://bxk8dawr6l2ra" path="res://subsystems/combat/components/health_component.gd" id="16_health"]
 [ext_resource type="Script" path="res://subsystems/core/look_lean.gd" id="17_looklean"]
+[ext_resource type="Script" path="res://subsystems/player/player_motor.gd" id="18_motor"]
+[ext_resource type="Script" path="res://subsystems/player/player_interactor.gd" id="19_interactor"]
+[ext_resource type="Resource" uid="uid://ca0w408xe3hxu" path="res://data/mining/dig_tool.tres" id="20_hands_tool"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 radius = 0.3
@@ -195,6 +198,13 @@ script = ExtResource("14_animctrl")
 
 [node name="LookLean" type="Node" parent="."]
 script = ExtResource("17_looklean")
+
+[node name="Motor" type="Node" parent="."]
+script = ExtResource("18_motor")
+
+[node name="Interactor" type="Node" parent="."]
+script = ExtResource("19_interactor")
+mining_tool = ExtResource("20_hands_tool")
 
 [node name="GroundSafetyGuard" type="Node" parent="." unique_id=2025990310]
 script = ExtResource("8_ip60t")

@@ -105,6 +105,23 @@ func test_unequip_slot_is_refused_when_the_inventory_is_full() -> void:
 	assert_object(filler).is_not_null()
 
 
+func test_dropped_item_lands_where_the_player_is_looking() -> void:
+	# Break caught: drop direction read from the body basis, which never rotates (only the
+	# camera rig and the visuals turn), so every drop flew toward world -Z.
+	var player := _spawn_player()
+	_register_item("test_drop_crate", ["tool"])
+	player.inventory.add("test_drop_crate", 1)
+	# A +90 degree rig yaw turns -Z forward into -X (hand-derived: rotating (0,0,-1) about Y by +90 gives (-1,0,0)).
+	player._rig.set_orientation(deg_to_rad(90.0), 0.0)
+
+	var dropped: WorldItem = player.drop_item("test_drop_crate", 1)
+	auto_free(dropped)
+
+	var offset := dropped.global_position - player.global_position
+	assert_float(offset.x).is_less(-0.5)
+	assert_float(offset.z).is_equal_approx(0.0, 0.1)
+
+
 func test_a_held_item_cannot_be_dropped_as_cargo() -> void:
 	# Break caught: drop_item used to unequip the last copy; a held item is now simply not carried.
 	var player := _spawn_player()

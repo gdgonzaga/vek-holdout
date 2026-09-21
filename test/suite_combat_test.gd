@@ -313,20 +313,6 @@ func test_player_serialize_deserialize_round_trips_health() -> void:
 	assert_int(restored.health_component.current_hp).is_equal(65)
 
 
-func test_player_deserialize_legacy_save_format() -> void:
-	var player: Player = PlayerScene.instantiate()
-	auto_free(player)
-	add_child(player)
-
-	# Pre-HealthComponent saves stored flat "hp"/"max_hp" keys instead of a
-	# nested "health" dict.
-	player.deserialize({"hp": 42, "max_hp": 100})
-
-	assert_int(player.health_component.current_hp).is_equal(42)
-	assert_int(player.health_component.max_hp).is_equal(100)
-	assert_bool(player.is_dead).is_false()
-
-
 func test_colonist_has_health_component_after_ready() -> void:
 	var colonist: Colonist = _sandbox.make_colonist()
 

@@ -813,7 +813,7 @@ func test_player_interaction_raycast_prioritizes_world_item_inside_build_body() 
 	query.collide_with_bodies = true
 	query.collide_with_areas = false
 
-	var best_hit := player._resolve_best_interaction_hit(space, query)
+	var best_hit := player.interactor._resolve_best_interaction_hit(space, query)
 	assert_bool(best_hit.is_empty()).is_false()
 	assert_object(best_hit.collider).is_equal(item)
 

@@ -59,7 +59,7 @@ func swap_map(scene_id: String) -> void:
 		# was created once and must never be freed with a map — reparent it out
 		# before the outgoing map dies (_wire_map re-adds it to the new map).
 		if _player != null and is_instance_valid(_player):
-			_player.clear_interactable()
+			_player.interactor.clear_interactable()
 		if _player != null and is_instance_valid(_player) and _player.get_parent() == _current_map:
 			_current_map.remove_child(_player)
 		_current_map.queue_free()
@@ -112,7 +112,7 @@ func unload_current_map() -> void:
 	# is a child of the map and would be freed with it, leaving the HUD's
 	# InteractLabel showing stale text over the title screen.
 	if _player != null and is_instance_valid(_player):
-		_player.clear_interactable()
+		_player.interactor.clear_interactable()
 	if _player != null and is_instance_valid(_player) and _player.get_parent() == _current_map:
 		_current_map.remove_child(_player)
 	_current_map.queue_free()
