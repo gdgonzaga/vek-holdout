@@ -10,6 +10,12 @@ const Doubles = preload("res://test/helpers/doubles.gd")
 const Sandbox = preload("res://test/helpers/map_editor_sandbox.gd")
 
 
+## Sweeps crash leftovers once per suite run so a prior aborted run's throwaway
+## maps never collide with this suite's own sandbox ids.
+func before() -> void:
+	Sandbox.sweep_stale()
+
+
 func test_editor_hud_modes_and_info() -> void:
 	var hud: EditorHUD = auto_free(EditorHUDClass.new())
 	hud.setup()
@@ -1259,7 +1265,7 @@ func test_map_editor_lmb_spawn_input_dispatches_spawns() -> void:
 
 ## Throwaway map id for creation tests; removed before AND after each test so a
 ## crashed run never leaves committed-looking content behind.
-const TEST_HEIGHTMAP_MAP := "test_heightmap_map"
+var TEST_HEIGHTMAP_MAP := Sandbox.map_id("heightmap_map")
 
 
 func _remove_test_map(map_id: String) -> void:
@@ -1329,22 +1335,31 @@ func test_editor_launcher_noise_def_dropdown_excludes_heightmap_defs() -> void:
 	)
 
 
-## load_heightmap_image: the committed example loads as L8; bad paths and
-## too-small images are rejected.
+## load_heightmap_image: a valid image loads and converts to L8; bad paths and
+## too-small images are rejected. Fixtures are generated in memory and written
+## only under user:// — res:// stays read-only (Hard rule 4) and the assertion
+## no longer depends on the shipped heightmap_valley.png's own dimensions.
 func test_editor_launcher_load_heightmap_image() -> void:
-	var image := EditorLauncherClass.load_heightmap_image("res://data/terrain/heightmap_valley.png")
+	var valid_path := "user://sandbox_heightmap_valid_test.png"
+	var valid_source := Image.create(32, 32, false, Image.FORMAT_RGB8)
+	valid_source.fill(Color(0.4, 0.4, 0.4))
+	valid_source.save_png(valid_path)
+
+	var image := EditorLauncherClass.load_heightmap_image(valid_path)
 	assert_object(image).is_not_null()
 	assert_int(image.get_format()).is_equal(Image.FORMAT_L8)
-	assert_vector(image.get_size()).is_equal(Vector2i(128, 128))
+	assert_vector(image.get_size()).is_equal(Vector2i(32, 32))
 
-	assert_object(EditorLauncherClass.load_heightmap_image("res://data/terrain/does_not_exist.png")).is_null()
+	assert_object(EditorLauncherClass.load_heightmap_image("user://sandbox_heightmap_does_not_exist.png")).is_null()
 
-	var tiny_path := "res://.godot/tiny_heightmap_test.png"
+	var tiny_path := "user://sandbox_tiny_heightmap_test.png"
 	var tiny := Image.create(8, 8, false, Image.FORMAT_L8)
 	tiny.fill(Color(0.5, 0.5, 0.5))
 	tiny.save_png(tiny_path)
 	assert_object(EditorLauncherClass.load_heightmap_image(tiny_path)).is_null()
-	DirAccess.open("res://.godot").remove(tiny_path.get_file())
+
+	DirAccess.remove_absolute(valid_path)
+	DirAccess.remove_absolute(tiny_path)
 
 
 ## Creating a heightmap map writes the per-map terrain_gen.tres (embedded L8
@@ -1357,7 +1372,7 @@ func test_map_editor_heightmap_creation_writes_per_map_def() -> void:
 
 	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
 
-	var terrain_path := "res://data/maps/%s/terrain_gen.tres" % TEST_HEIGHTMAP_MAP
+	var terrain_path := Sandbox.map_dir(TEST_HEIGHTMAP_MAP) + "terrain_gen.tres"
 	assert_bool(ResourceLoader.exists(terrain_path)).is_true()
 	var terrain_def := load(terrain_path) as TerrainGenDef
 	assert_str(terrain_def.id).is_equal(TEST_HEIGHTMAP_MAP + "_terrain")
@@ -1469,7 +1484,7 @@ func test_apply_edits_never_modify_a_shared_def_file() -> void:
 	var on_disk := ResourceLoader.load(shared_path, "", ResourceLoader.CACHE_MODE_IGNORE) as TerrainGenDef
 	assert_int(on_disk.noise_seed).is_equal(20260817)
 	assert_float(on_disk.noise_frequency).is_equal(0.0125)
-	assert_str(editor._map_def.terrain_gen.resource_path).is_equal("res://data/maps/%s/terrain_gen.tres" % id)
+	assert_str(editor._map_def.terrain_gen.resource_path).is_equal(Sandbox.map_dir(id) + "terrain_gen.tres")
 	assert_int(editor._map_def.terrain_gen.noise_seed).is_equal(777)
 	DirAccess.remove_absolute(shared_path)
 	await Sandbox.dispose(get_tree(), editor, id)
@@ -1590,7 +1605,7 @@ func test_map_editor_delete_map_removes_directory() -> void:
 	add_child(editor)
 	editor.create_new_map(_heightmap_payload(TEST_HEIGHTMAP_MAP))
 
-	var dir_path := "res://data/maps/%s/" % TEST_HEIGHTMAP_MAP
+	var dir_path := Sandbox.map_dir(TEST_HEIGHTMAP_MAP)
 	assert_bool(DirAccess.dir_exists_absolute(dir_path)).is_true()
 
 	var ok := MapRepository.delete_map(TEST_HEIGHTMAP_MAP)
@@ -1610,7 +1625,7 @@ func test_map_editor_delete_confirmation_cancel_keeps_map() -> void:
 	assert_bool(editor._delete_dialog.visible).is_true()
 
 	editor._delete_dialog.hide()
-	assert_bool(DirAccess.dir_exists_absolute("res://data/maps/%s/" % TEST_HEIGHTMAP_MAP)).is_true()
+	assert_bool(DirAccess.dir_exists_absolute(Sandbox.map_dir(TEST_HEIGHTMAP_MAP))).is_true()
 
 	editor._pending_delete_map_id = ""
 	await _dispose_test_editor(editor)
@@ -1627,7 +1642,7 @@ func test_map_editor_delete_confirmation_confirm_removes_map() -> void:
 	editor._request_delete_map(TEST_HEIGHTMAP_MAP)
 	editor._delete_dialog.confirmed.emit()
 
-	assert_bool(DirAccess.dir_exists_absolute("res://data/maps/%s/" % TEST_HEIGHTMAP_MAP)).is_false()
+	assert_bool(DirAccess.dir_exists_absolute(Sandbox.map_dir(TEST_HEIGHTMAP_MAP))).is_false()
 	assert_str(editor._pending_delete_map_id).is_empty()
 
 	var maps: Array[MapDef] = MapRepository.scan_maps()
@@ -1976,7 +1991,7 @@ func test_map_editor_heightmap_creation_with_snapping() -> void:
 	payload["height_range"] = 16.0
 	editor.create_new_map(payload)
 
-	var terrain_path := "res://data/maps/%s/terrain_gen.tres" % TEST_HEIGHTMAP_MAP
+	var terrain_path := Sandbox.map_dir(TEST_HEIGHTMAP_MAP) + "terrain_gen.tres"
 	assert_bool(ResourceLoader.exists(terrain_path)).is_true()
 	var terrain_def := load(terrain_path) as TerrainGenDef
 	assert_object(terrain_def.heightmap).is_not_null()
@@ -1989,7 +2004,7 @@ func test_map_editor_heightmap_creation_with_snapping() -> void:
 
 ## Map editor creation configures flora parameters and begins with 0 authored trees.
 func test_map_editor_new_map_with_flora_parameters() -> void:
-	const TEST_FLORA_MAP := "flora_params_test_map"
+	var TEST_FLORA_MAP := Sandbox.map_id("flora_params_map")
 	_remove_test_map(TEST_FLORA_MAP)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
@@ -2060,7 +2075,7 @@ func test_map_editor_spawn_selector_hud_interaction() -> void:
 
 
 func test_map_editor_new_map_with_water_enabled() -> void:
-	const TEST_WATER_MAP := "water_create_test_map"
+	var TEST_WATER_MAP := Sandbox.map_id("water_create_map")
 	_remove_test_map(TEST_WATER_MAP)
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
@@ -2192,7 +2207,7 @@ func test_save_map_failure_keeps_the_map_dirty() -> void:
 	editor.create_new_map(Sandbox.blocky_only_payload(id))
 	editor._mark_dirty()
 	# A scene path inside a folder that does not exist makes ResourceSaver.save fail.
-	editor._map_scene_path = "res://data/maps/%s/no_such_dir/map.tscn" % id
+	editor._map_scene_path = Sandbox.map_dir(id) + "no_such_dir/map.tscn"
 
 	var ok: bool = editor.save_map()
 
@@ -2301,7 +2316,7 @@ func test_failed_save_does_not_continue_into_the_reload() -> void:
 	var id := Sandbox.map_id("guard_fail")
 	var editor := _dirty_sandbox_editor(id)
 	var root_before: Map = editor._map_root
-	editor._map_scene_path = "res://data/maps/%s/no_such_dir/map.tscn" % id
+	editor._map_scene_path = Sandbox.map_dir(id) + "no_such_dir/map.tscn"
 	editor._on_terrain_apply()
 
 	editor._on_unsaved_save_confirmed()

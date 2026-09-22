@@ -8,6 +8,13 @@ const StructureToolClass = preload("res://tools/map_editor/structure_tool.gd")
 const MapEditorClass = preload("res://tools/map_editor/map_editor.gd")
 const Sandbox = preload("res://test/helpers/map_editor_sandbox.gd")
 
+
+## Sweeps crash leftovers once per suite run so the one map-editor test in
+## this file never trips over a prior aborted run's throwaway map.
+func before() -> void:
+	Sandbox.sweep_stale()
+
+
 class MockVoxelGridAdapter extends VoxelGridAdapter:
 	var _blocks: Dictionary = {}
 	var _raws: Dictionary = {}

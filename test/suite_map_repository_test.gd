@@ -4,9 +4,15 @@ extends GdUnitTestSuite
 
 const Sandbox = preload("res://test/helpers/map_editor_sandbox.gd")
 
-const TEST_MAP_ID := "zz_sandbox_repo_test"
-const TEST_NOISE_MAP_ID := "zz_sandbox_repo_noise"
-const TEST_NONE_MAP_ID := "zz_sandbox_repo_none"
+var TEST_MAP_ID := Sandbox.map_id("repo_test")
+var TEST_NOISE_MAP_ID := Sandbox.map_id("repo_noise")
+var TEST_NONE_MAP_ID := Sandbox.map_id("repo_none")
+
+
+## Sweeps crash leftovers once per suite run so a prior aborted run's throwaway
+## maps never leak into this suite's scan_maps()/dir_exists assertions.
+func before() -> void:
+	Sandbox.sweep_stale()
 
 
 func before_test() -> void:
@@ -80,7 +86,7 @@ func test_delete_map_removes_folder_and_scan() -> void:
 
 
 func test_delete_map_nonexistent_returns_false() -> void:
-	var deleted := MapRepository.delete_map("zz_sandbox_nonexistent_id_abc")
+	var deleted := MapRepository.delete_map(Sandbox.map_id("nonexistent_id_abc"))
 	assert_bool(deleted).is_false()
 
 
