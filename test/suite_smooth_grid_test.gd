@@ -10,6 +10,7 @@ extends GdUnitTestSuite
 ## (every existing map) vs heightmap defs (external-tool authoring).
 
 const HeightFixtures := preload("res://test/helpers/height_fixtures.gd")
+const TerrainFixtures := preload("res://test/helpers/terrain_fixtures.gd")
 
 ## Grid + bare VoxelTerrain in the tree. The terrain child is parented BEFORE
 ## the grid enters the tree so the grid's @onready terrain_path resolves.
@@ -439,4 +440,85 @@ func test_capture_cells_without_a_voxel_tool_is_empty() -> void:
 	var cells: Array[Vector3i] = [Vector3i.ZERO]
 	assert_dict(grid.capture_cells(cells)).is_empty()
 	grid.restore_snapshot({})
+
+
+# --- get_material_at / add_material / carve: real object, not a double -------
+
+## A viewer parked at `target` and settled for enough frames that voxel_tool
+## writes/reads at that column actually land (F3: unstreamed blocks silently
+## drop edits) — the settle idiom suite_stream_persistence_test.gd proved out
+## for smooth-grid edits.
+func _settle_viewer_at(grid: SmoothGrid, target: Vector3) -> void:
+	const STREAM_SETTLE_FRAMES := 30
+	var viewer := VoxelViewer.new()
+	viewer.position = target
+	viewer.requires_visuals = false
+	viewer.requires_collisions = false
+	grid.get_parent().add_child(viewer)
+	for _i in range(STREAM_SETTLE_FRAMES):
+		await get_tree().physics_frame
+
+
+## get_material_at's resolution order (terrain_mining/plan.md): add_material's
+## F12 sidecar wins over default_material, AND the air-first check makes a
+## carved cell's stale sidecar entry inert (F12: carved cells keep stale
+## metadata, so an air-checkless reader would resurrect material out of a
+## hole). Also pins add_material/carve's signal contract (material_placed /
+## material_carved) on the real object — R15.
+func test_get_material_at_resolves_sidecar_then_ignores_it_once_carved_to_air() -> void:
+	var grid := _build_grid(true)
+	grid.default_material = TerrainFixtures.material("test_default")
+	var target := Vector3(4.0, 4.0, 4.0)
+	var cell := Vector3i(4, 4, 4)
+	# 1. Stream settle: land voxel writes/reads at the target column.
+	await _settle_viewer_at(grid, target)
+
+	var placed: Array[Dictionary] = []
+	grid.material_placed.connect(func(pos: Vector3, material_id: String) -> void:
+		placed.append({"pos": pos, "id": material_id}))
+	var carved: Array[Vector3] = []
+	grid.material_carved.connect(func(pos: Vector3) -> void: carved.append(pos))
+
+	# 2. Sidecar write: add_material must win over default_material at this cell.
+	grid.add_material(target, "test_sidecar", 1.5)
+	var resolved := ""
+	for _i in range(60):
+		resolved = grid.get_material_at(cell)
+		if resolved != "":
+			break
+		await get_tree().physics_frame
+	assert_str(resolved).is_equal("test_sidecar")
+	assert_int(placed.size()).is_equal(1)
+	assert_str(placed[0]["id"]).is_equal("test_sidecar")
+
+	# 3. Air-first override: carving the same spot must blank the reading even
+	# though the sidecar dict for that block still carries the stale entry.
+	grid.carve(target, 3.0)
+	var air_reached := false
+	for _i in range(60):
+		if grid.get_material_at(cell) == "":
+			air_reached = true
+			break
+		await get_tree().physics_frame
+	assert_bool(air_reached).is_true()
+	assert_int(carved.size()).is_equal(1)
+
+
+## carve_box's own early-return guard (not the static box_sample_targets math,
+## already pinned by suite_mining_test.gd): a degenerate box (min > max on
+## every axis) samples to an empty span, so the instance method must no-op
+## safely — no material_carved emit, no crash — rather than corrupt samples.
+## Needs no streaming: the guard fires before any voxel_tool read/write — R15.
+func test_carve_box_inverted_extents_is_a_safe_no_op() -> void:
+	var grid := _build_grid(true)
+	await _run_frames(2)
+
+	# An Array, not a captured int: GDScript lambdas capture outer locals by
+	# value, so a plain int counter would never observe the signal firing.
+	var carved_events: Array[Vector3] = []
+	grid.material_carved.connect(func(pos: Vector3) -> void: carved_events.append(pos))
+
+	grid.carve_box(Vector3(5.0, 5.0, 5.0), Vector3(4.0, 4.0, 4.0))
+
+	assert_int(carved_events.size()).is_equal(0)
 

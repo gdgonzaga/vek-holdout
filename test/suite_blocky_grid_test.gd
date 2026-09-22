@@ -199,3 +199,67 @@ func test_fill_box_raw_writes_every_cell_inclusive() -> void:
 				assert_int(grid.get_raw_voxel(Vector3i(x, y, z))).is_equal(5)
 	assert_int(grid.get_raw_voxel(Vector3i(2, 0, 0))).is_equal(0)
 	DirAccess.remove_absolute("user://tmp_bg_test_box/map.sqlite")
+
+
+## apply_damage on a buildable block (present in _hp_by_pos): reduces HP while
+## positive, destroys (remove_block_at semantics — voxel cleared, HP entry
+## erased, block_destroyed emitted) once HP hits 0, and is a no-op for any
+## position never registered as a buildable block (terrain immunity — R15).
+func test_apply_damage_reduces_hp_then_destroys_and_ignores_terrain() -> void:
+	var grid := _build_grid()
+	grid.deserialize({"hp": {"2,0,0": 50}})
+
+	var destroyed_positions: Array[Vector3i] = []
+	grid.block_destroyed.connect(func(pos: Vector3i) -> void: destroyed_positions.append(pos))
+
+	# Partial damage: HP drops, block stays registered (not destroyed yet).
+	grid.apply_damage(Vector3i(2, 0, 0), 20)
+	assert_int(grid.get_hp_at(Vector3i(2, 0, 0))).is_equal(30)
+	assert_bool(grid.has_block_at(Vector3i(2, 0, 0))).is_true()
+	assert_int(destroyed_positions.size()).is_equal(0)
+
+	# Lethal damage: HP hits 0 -> destroyed (HP entry cleared, signal emitted).
+	grid.apply_damage(Vector3i(2, 0, 0), 30)
+	assert_int(destroyed_positions.size()).is_equal(1)
+	assert_that(destroyed_positions[0]).is_equal(Vector3i(2, 0, 0))
+	assert_bool(grid.has_block_at(Vector3i(2, 0, 0))).is_false()
+	assert_int(grid.get_hp_at(Vector3i(2, 0, 0))).is_equal(0)
+
+	# A position never registered as a buildable block (terrain, sentinel HP):
+	# apply_damage must ignore it — no crash, no emit, no phantom HP entry.
+	grid.apply_damage(Vector3i(9, 9, 9), 999)
+	assert_int(destroyed_positions.size()).is_equal(1)
+	assert_bool(grid.has_block_at(Vector3i(9, 9, 9))).is_false()
+
+
+## remove_block_at, called directly (not via apply_damage's destroy path):
+## clears the position's HP entry and emits block_destroyed — R15.
+func test_remove_block_at_clears_hp_entry_and_emits() -> void:
+	var grid := _build_grid()
+	grid.deserialize({"hp": {"5,5,5": 40}})
+
+	var destroyed_positions: Array[Vector3i] = []
+	grid.block_destroyed.connect(func(pos: Vector3i) -> void: destroyed_positions.append(pos))
+
+	grid.remove_block_at(Vector3i(5, 5, 5))
+
+	assert_int(destroyed_positions.size()).is_equal(1)
+	assert_that(destroyed_positions[0]).is_equal(Vector3i(5, 5, 5))
+	assert_bool(grid.has_block_at(Vector3i(5, 5, 5))).is_false()
+	assert_int(grid.get_hp_at(Vector3i(5, 5, 5))).is_equal(0)
+
+
+## serialize()/deserialize() round-trip _hp_by_pos, and deserialize clears
+## prior state first (a true inverse of serialize(), never a merge) — R15.
+func test_serialize_deserialize_round_trips_hp_and_clears_before_load() -> void:
+	var grid := _build_grid()
+	grid.deserialize({"hp": {"1,2,3": 40, "-1,0,5": 15}})
+
+	var snapshot := grid.serialize()
+	assert_dict(snapshot["hp"]).is_equal({"1,2,3": 40, "-1,0,5": 15})
+
+	# Loading a second snapshot must replace, not merge: the first snapshot's
+	# entries must be gone afterward.
+	grid.deserialize({"hp": {"9,9,9": 5}})
+	assert_dict(grid.serialize()["hp"]).is_equal({"9,9,9": 5})
+	assert_int(grid.get_hp_at(Vector3i(1, 2, 3))).is_equal(0)
