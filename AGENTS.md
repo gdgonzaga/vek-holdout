@@ -72,10 +72,29 @@ Preferences: prefer **scene files over dynamically created nodes** for any non-t
 
 - gdUnit4 suites in `test/`: `suite_<name>_test.gd`, `test_*` methods, `auto_free()` everything allocated, fluent asserts (`assert_int(x).is_equal(1)`). Autoloads persist across suites — clear or swap-and-restore global state (e.g. `GameLog.clear()`).
 - **Do not test for content**: Tests must be content-agnostic. Do not assert specific game content IDs (e.g. `"wood"`), counts, or indices of active `.tres` data in `res://data/` as they are subject to design adjustments. Use in-memory or directory fixtures (via test helpers) to verify system logic invariants.
-- Shared test helpers in `test/helpers/`: Colony-backed suites use `ColonySandbox` (swaps `Colony.storage_registry`/`job_board` + actor/crate factories); common doubles (`SignalCounter`, `MockInventory`) live in `doubles.gd`. Plain scripts, never `extends GdUnitTestSuite` — the runner would scan them as suites.
+- Shared test helpers in `test/helpers/`: Colony-backed suites use `ColonySandbox` (swaps `Colony.storage_registry`/`job_board`, resets and restores Colony's map-wiring caches, plus actor/crate factories); content-backed suites use `ItemDbSandbox`/`BuildLibrarySandbox`; job-plumbing suites use `JobFixtures`. Common doubles (`SignalCounter`, `MockInventory`) live in `doubles.gd`. Plain scripts, never `extends GdUnitTestSuite` — the runner would scan them as suites.
 - Run: `addons/gdUnit4/runtest.sh` (needs `GODOT_BIN`).
 - Conventional Commits: `type(scope): lowercase imperative subject` — feat/fix/chore/refactor/docs/wip; scope = subsystem (`arch` for architecture docs). Detailed bodies explaining what/why; end with the test tally (e.g. "132/132 green").
 - Architecture docs are updated **with** the code (`docs(arch):` commits); `mkdocs build --strict` must pass when arch pages change. New pages follow `docs/architecture/contributing.md`.
+
+## Test Isolation & Anti-Patterns
+
+Enforced by `tools/check_test_hygiene.sh` (run before finishing test work; exits non-zero on a violation) and `tools/run_test_orders.sh both <suites>` (a suite must pass alone, forward, and reversed alongside its neighbors).
+
+- **`res://` is read-only, no exceptions — including test fixtures.** Scratch maps, defs, and files a test creates go under `user://`, never `res://data/`. A helper that writes a "throwaway" folder into `res://` is a Hard rule 4 violation, not a pattern to copy.
+- **No shipped content in assertions or setup.** Never `load`/`preload` a `.tres`/`.sqlite`/`.vox`/`.tscn` under `res://data/` (a schema *script*, `.gd`, is fine). Build in-memory fixtures instead — extend `test/helpers/*_fixtures.gd` / `*_sandbox.gd` before hand-rolling a new one.
+- **Restore only what you touched, never a blanket reset.** A sandbox snapshots each id/field it changes and puts back exactly that (or erases it if absent); a broad clear can hide a leak instead of fixing it.
+- **No wall-clock waits.** No `create_timer`, `OS.delay_msec`, or a busy `while Time.get_ticks_msec()...:` loop. Await `get_tree().physics_frame`/`process_frame` in a bounded loop tied to the real condition, or await the component's completion signal.
+- **Drive physics-ticked components with `physics_frame`, never idle frames plus a manual tick call.** Idle-frame loops that also call `_physics_process()`/`_process()` by hand advance a different number of engine ticks depending on the renderer — a vsynced display and headless/software rendering are not interchangeable here, and this produced a real false failure.
+- **No tautologies.** An assertion's expected value must be a literal you derived by hand, never the same formula the code under test uses to compute its own output.
+- **Compare `Node`s with `is_same`, never `is_equal`** — `is_equal` on a mismatch recurses into `obj2dict` and can crash gdUnit instead of failing cleanly.
+- **Break reference cycles before `after_test` ends.** A `RefCounted` cycle survives `auto_free()` and orphan-node checks; it only shows up as "N ObjectDB instances leaked at exit." Release or clear anything that holds a reference back.
+- **Clean up every `user://` fixture directory in `after_test`**, not just at the end of the happy path — it must run even when an earlier assertion fails.
+- **No tests that pin a legacy or back-compat shape** (Hard rule 10). Delete the test and the production fallback behind it together; flag the break, don't keep the shim to keep the test green.
+- **Test the public contract, not private helpers.** A test that calls a `_`-prefixed method directly is usually pinning an implementation detail that can be refactored out from under it.
+- **Own each scenario in exactly one suite.** Before adding a test, check whether an existing suite already exercises the same behavior at the same level; delete the weaker duplicate.
+- **Split a suite before it becomes unreviewable.** A file mixing several unrelated features and growing past a few hundred lines is debt — split by feature into sibling suites sharing one sandbox/fixture helper.
+- **Mutation-check anything HIGH-RISK**: save/serialize, job assignment, inventory accounting, damage math, walkability/pathing. Break the production line on purpose in a scratch worktree and confirm the test goes red — a test that stays green under a real behavior change is worse than none.
 
 ## LLM Execution & Code Generation Strategy
 
