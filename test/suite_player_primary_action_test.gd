@@ -13,6 +13,10 @@ const TOOL_ID := "test_primary_action_tool"
 
 var _previous_def: ItemDef = null
 
+## Dummy UiGate registrant for the input-blocked test; closed defensively in after_test
+## so a failed assertion can't leave the gate blocked for the next suite.
+var _modal: Node = null
+
 
 ## EquipActionParams double: counts executions instead of doing anything.
 class RecordingEquipAction extends EquipActionParams:
@@ -31,6 +35,9 @@ func after_test() -> void:
 		ItemDB._defs_by_id[TOOL_ID] = _previous_def
 	else:
 		ItemDB._defs_by_id.erase(TOOL_ID)
+	if is_instance_valid(_modal):
+		UiGate.close_modal(_modal)
+	_modal = null
 
 
 func test_lmb_fires_the_equipped_items_primary_action() -> void:
@@ -101,6 +108,39 @@ func test_lmb_is_ignored_while_a_tool_mode_owns_the_cursor() -> void:
 	player.get_node("InputComponent").primary_action_pressed.emit()
 
 	assert_int(rig.smooth.damage_calls).is_equal(0)
+
+
+func test_lmb_is_ignored_while_ui_gate_blocks_input() -> void:
+	# Break caught: _on_primary_action's own UiGate check (AGENTS.md: gameplay code that reads
+	# Input actions directly must check is_input_blocked() itself) being dropped, so a manually
+	# emitted LMB still reaches the equipped item or mining underneath an open modal panel.
+	var rig := MiningRig.new(self)
+	rig.add_wall(rig.smooth.get_terrain())
+	var player := await rig.spawn_aimed_player()
+	_modal = auto_free(Node.new())
+	add_child(_modal)
+	UiGate.open_modal(_modal)
+
+	player.get_node("InputComponent").primary_action_pressed.emit()
+
+	assert_int(rig.smooth.damage_calls).is_equal(0)
+
+
+func test_fatal_damage_emits_player_died_with_the_combat_context() -> void:
+	# Break caught: EventBus.player_died firing with the wrong (or no) context string, silently
+	# breaking a future GameState/HUD listener that switches on it (ARCH player.md's Signals
+	# table: "combat -> GameState, HUD"). The suite_combat_test coverage only pins the fire-once
+	# count, not the payload, so the string itself was unpinned.
+	var rig := MiningRig.new(self)
+	var player := rig.spawn_player()
+	var received: Array[String] = []
+	var recorder := func(context: String) -> void: received.append(context)
+	EventBus.player_died.connect(recorder)
+
+	player.take_damage(1000)
+
+	EventBus.player_died.disconnect(recorder)
+	assert_array(received).is_equal(["combat"])
 
 
 # --- Fixtures ----------------------------------------------------------------

@@ -9,6 +9,16 @@ extends GdUnitTestSuite
 
 const MiningRig = preload("res://test/helpers/mining_rig.gd")
 
+## Dummy UiGate registrant for the modal-blocks-targeting test; closed defensively in
+## after_test so a failed assertion can't leave the gate blocked for the next suite.
+var _modal: Node = null
+
+
+func after_test() -> void:
+	if is_instance_valid(_modal):
+		UiGate.close_modal(_modal)
+	_modal = null
+
 
 ## Records the payload of interactable_changed. A RefCounted receiver, so the connection dies
 ## with the log instead of leaking into later tests.
@@ -108,6 +118,20 @@ func test_no_target_outside_normal_mode() -> void:
 	var log := ChangeLog.new(_changed_signal(scene.player))
 
 	scene.player.mode = Player.Mode.BUILD_PLACEMENT
+	await _physics_frames(2)
+
+	assert_array(log.components).is_equal([null])
+
+
+func test_no_target_while_a_modal_owns_the_cursor() -> void:
+	# Break caught: the crosshair keeping its target (and the HUD label) live under an open modal
+	# panel (storage, crafting, the build menu), instead of hiding the same way a tool mode does.
+	var scene := await _aimed_scene()
+	var log := ChangeLog.new(_changed_signal(scene.player))
+	_modal = auto_free(Node.new())
+	add_child(_modal)
+
+	UiGate.open_modal(_modal)
 	await _physics_frames(2)
 
 	assert_array(log.components).is_equal([null])

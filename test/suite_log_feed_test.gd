@@ -61,6 +61,23 @@ func test_break_in_run_resets_collapse() -> void:
 			"[color=#ffffff]Raid repelled.[/color] x2")
 
 
+func test_pushing_past_capacity_drops_the_oldest_message() -> void:
+	# Break caught: GameLog.log() not trimming the ring buffer (an unbounded history leak), or
+	# trimming from the wrong end (dropping the newest instead of the oldest).
+	# Read live rather than hardcoding: max_entries is a shipped-tunable @export, not test content.
+	var capacity: int = GameLog.max_entries
+
+	for i in range(capacity + 1):
+		GameLog.info("entry %d" % i)
+
+	var entries: Array[LogEntry] = GameLog.get_entries()
+	assert_int(entries.size()).is_equal(capacity)
+	# "entry 0" was the oldest and must be the one the ring buffer dropped; "entry 1" is now
+	# the oldest survivor and "entry <capacity>" the newest — proving a shift, not just a cap.
+	assert_str(entries[0].text).is_equal("entry 1")
+	assert_str(entries[entries.size() - 1].text).is_equal("entry %d" % capacity)
+
+
 func test_duplicate_refreshes_timeout() -> void:
 	GameLog.info("Raid repelled.")
 	# Back-date the line's own spawn_time field instead of waiting on the

@@ -2,16 +2,23 @@ extends GdUnitTestSuite
 ## Tests for TimeSystem clock calculations, 24h/12h formatting, and DayNightCycle celestial lighting.
 
 const DayNightCycleScript = preload("res://subsystems/environment/day_night_cycle.gd")
+const Doubles = preload("res://test/helpers/doubles.gd")
 
 var _saved_time_state: Dictionary = {}
+var _saved_paused: bool = false
+var _saved_current_day: int = 1
 
 
 func before_test() -> void:
 	_saved_time_state = TimeSystem.serialize()
+	_saved_paused = GameState.paused
+	_saved_current_day = GameState.current_day
 
 
 func after_test() -> void:
 	TimeSystem.deserialize(_saved_time_state)
+	GameState.paused = _saved_paused
+	GameState.current_day = _saved_current_day
 
 
 func test_clock_time_at_dawn() -> void:
@@ -56,6 +63,38 @@ func test_clock_time_at_midnight() -> void:
 	assert_int(clock.y).is_equal(0)
 	assert_str(TimeSystem.get_formatted_clock(true)).is_equal("00:00")
 	assert_str(TimeSystem.get_formatted_clock(false)).is_equal("12:00 AM")
+
+
+func test_paused_time_does_not_advance_the_clock() -> void:
+	# Break caught: TimeSystem._process ignoring GameState.paused, so the clock (and hidden
+	# depletion/decay rates that key off it) keeps running while the Pause overlay is open
+	# (ARCH core.md: "Halts entirely while GameState.paused").
+	TimeSystem.deserialize({"elapsed_in_day": 0.0, "realtime_play_time": 0.0})
+	GameState.paused = true
+	# A tenth of the configured day length: big enough to show up as a fraction change, small
+	# enough to never cross midnight itself (which would reset elapsed_in_day back to 0.0 and
+	# mask a broken pause gate as a passing test).
+	var delta: float = TimeSystem._loop_length_seconds * 0.1
+
+	TimeSystem._process(delta)
+
+	assert_float(TimeSystem.get_time_of_day_fraction()).is_equal_approx(0.0, 0.0001)
+
+
+func test_crossing_midnight_rolls_the_day_and_emits_once() -> void:
+	# Break caught: the day boundary firing more than once for a single crossing (double-counting
+	# the day, double-logging in GameLog), or not firing at all so the clock free-runs past
+	# midnight with no rollover.
+	var almost_midnight: float = TimeSystem._loop_length_seconds - 0.5
+	TimeSystem.deserialize({"elapsed_in_day": almost_midnight, "realtime_play_time": 0.0})
+	GameState.paused = false
+	var start_day: int = GameState.current_day
+	var counter := Doubles.SignalCounter.new(EventBus.day_rolled_over)
+
+	TimeSystem._process(1.0)
+
+	assert_int(counter.read()).is_equal(1)
+	assert_int(GameState.current_day).is_equal(start_day + 1)
 
 
 func test_day_night_cycle_initialization() -> void:
