@@ -1,19 +1,23 @@
-## Test suite for DebugItemSpawn screen and ItemDB querying.
+## Test suite for DebugItemSpawn screen. ItemDB lookup itself (get_all_defs,
+## get_all_ids) is covered by suite_item_display_name_test — this suite only
+## exercises the screen's own row/filter/spawn behavior, against synthetic
+## items registered through ItemDbSandbox so it never depends on the shipped
+## res://data/items catalog.
 extends GdUnitTestSuite
 
 const _SpawnerScene := preload("res://ui/debug_item_spawn/debug_item_spawn.tscn")
 const _RowScene := preload("res://ui/debug_item_spawn/debug_item_row.tscn")
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
+
+var _items: ItemDbSandbox
 
 
-func test_item_db_get_all_defs_and_ids() -> void:
-	var defs: Array[ItemDef] = ItemDB.get_all_defs()
-	var ids: Array[String] = ItemDB.get_all_ids()
+func before_test() -> void:
+	_items = ItemDbSandbox.new(self)
 
-	assert_int(defs.size()).is_equal(ids.size())
-	for def in defs:
-		assert_object(def).is_not_null()
-		assert_bool(def.id != "").is_true()
-		assert_bool(ids.has(def.id)).is_true()
+
+func after_test() -> void:
+	_items.restore()
 
 
 func test_debug_item_row_setup_and_signals() -> void:
@@ -50,57 +54,51 @@ func test_debug_item_row_setup_and_signals() -> void:
 
 
 func test_debug_item_spawner_populate_and_filter() -> void:
+	# "alpha"/"beta" are ids no shipped item uses, so the filter below can only
+	# ever match these two synthetic rows (populate() runs off ItemDB._ready-time
+	# content plus whatever the sandbox added before this scene entered the tree).
+	_items.add_item("test_alpha_widget", "Alpha Widget")
+	_items.add_item("test_beta_widget", "Beta Widget")
+
 	var spawner := auto_free(_SpawnerScene.instantiate()) as DebugItemSpawn
 	add_child(spawner)
 
 	var item_list: VBoxContainer = spawner.get_node("%ItemList") as VBoxContainer
 	assert_object(item_list).is_not_null()
 
-	var total_count: int = item_list.get_child_count()
-	var all_defs := ItemDB.get_all_defs()
-	assert_int(total_count).is_equal(all_defs.size())
+	# Filter down to the one synthetic row whose id contains "alpha".
+	spawner.filter_entries("alpha")
 
-	if total_count > 0:
-		var first_row := item_list.get_child(0) as DebugItemRow
-		var query: String = first_row.item_id
+	var visible_rows: Array[DebugItemRow] = []
+	for child in item_list.get_children():
+		var row := child as DebugItemRow
+		if row != null and row.visible:
+			visible_rows.append(row)
 
-		# Filter for the first row's ID
-		spawner.filter_entries(query)
+	assert_int(visible_rows.size()).is_equal(1)
+	assert_str(visible_rows[0].item_id).is_equal("test_alpha_widget")
 
-		var visible_count := 0
-		for child in item_list.get_children():
-			var row := child as DebugItemRow
-			if row != null and row.visible:
-				visible_count += 1
-				assert_bool(
-					row.item_id.contains(query) or
-					row.display_name.to_lower().contains(query.to_lower())
-				).is_true()
+	# Clearing the filter must restore both synthetic rows to visible.
+	spawner.filter_entries("")
+	var restored_ids: Array[String] = []
+	for child in item_list.get_children():
+		var row := child as DebugItemRow
+		if row != null and row.visible:
+			restored_ids.append(row.item_id)
 
-		assert_int(visible_count).is_greater(0)
-
-		# Clear filter
-		spawner.filter_entries("")
-		var restored_count := 0
-		for child in item_list.get_children():
-			var row := child as DebugItemRow
-			if row != null and row.visible:
-				restored_count += 1
-
-		assert_int(restored_count).is_equal(total_count)
+	assert_array(restored_ids).contains(["test_alpha_widget", "test_beta_widget"])
 
 
 func test_debug_item_spawner_search_submitted_spawns_top_match() -> void:
+	# A synthetic item that filter_entries can match exactly, so the submitted
+	# search always resolves to it — no dependence on the shipped catalog having
+	# any entries at all.
+	_items.add_item("test_spawn_target", "Spawn Target")
+
 	var spawner := auto_free(_SpawnerScene.instantiate()) as DebugItemSpawn
 	add_child(spawner)
 
-	var all_defs := ItemDB.get_all_defs()
-	if all_defs.is_empty():
-		return
-
-	var target_def: ItemDef = all_defs[0]
-	var query: String = target_def.id
-
+	var query := "test_spawn_target"
 	spawner.filter_entries(query)
 
 	# Submit search to trigger spawn on top match

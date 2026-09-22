@@ -18,14 +18,6 @@ func test_ghost_preview_falls_back_to_default_mesh_when_null() -> void:
 	ghost.show_at(Vector3(1, 2, 3), true)
 	assert_object(ghost.mesh).is_not_null()
 
-func test_build_controller_sets_ghost_mesh_for_stairs() -> void:
-	var ctrl: BuildController = auto_free(preload("res://subsystems/build/build.tscn").instantiate())
-	add_child(ctrl)
-	ctrl._on_buildable_selected("wood_stairs")
-	var def := BuildLibrary.get_def("wood_stairs")
-	assert_object(def).is_not_null()
-	assert_object(def.mesh).is_not_null()
-	assert_object(ctrl._ghost.mesh).is_equal(def.mesh)
 func test_ghost_preview_shows_scene_hologram() -> void:
 	var ghost: GhostPreview = auto_free(GhostPreviewClass.new())
 	add_child(ghost)

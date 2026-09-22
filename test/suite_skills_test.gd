@@ -25,14 +25,21 @@ func before_test() -> void:
 
 
 ## A SkillSet with a tiny use_curve [2, 4] (L2 at 2 uses, L3 at 4) for the given
-## labor, in the tree so _ready builds the labor map from it.
-func _make_set_with_curve(labor: String, use_curve: Array[int]) -> SkillSet:
+## labor, in the tree so _ready builds the labor map from it. `multipliers`
+## defaults to the schema's own baseline (not a read of the shipped
+## skills.tres — this SkillDefList is entirely in-memory).
+func _make_set_with_curve(
+	labor: String,
+	use_curve: Array[int],
+	multipliers: Array[float] = [1.0, 1.2, 1.4, 1.7, 2.0]
+) -> SkillSet:
 	var def := SkillDef.new()
 	auto_free(def)
 	def.skill_id = labor
 	def.display_name = labor
 	def.labor = labor
 	def.use_curve = use_curve
+	def.multipliers = multipliers
 	var list := SkillDefList.new()
 	auto_free(list)
 	list.skills = [def]
@@ -115,14 +122,19 @@ func test_leveled_up_signal_emits_on_crossing() -> void:
 # ── Labor mapping + multiplier ────────────────────────────────────────────────
 
 func test_multiplier_follows_labor_skill_level() -> void:
-	# skills.tres defaults: multipliers [1.0, 1.2, 1.4, 1.7, 2.0].
-	_skill_set.seed({"construction": {"xp": 0, "level": 2}})
-	assert_float(_skill_set.get_multiplier("construction")).is_equal(1.2)
+	# Synthetic multipliers diverge from the shipped skills.tres curve, so a pass
+	# here proves get_multiplier reads THIS SkillSet's own catalog, not res://data.
+	var ss := _make_set_with_curve("test_labor", [2, 4], [1.0, 1.5, 2.5, 3.0, 4.0])
+	ss.seed({"test_labor": {"xp": 0, "level": 2}})
+	# multipliers[index] is 0-based per level (index 0 = L1), so L2 reads 1.5.
+	assert_float(ss.get_multiplier("test_labor")).is_equal(1.5)
 
 
 func test_unskilled_labor_multiplier_is_one() -> void:
-	# hauling maps to no skill in the shipped catalog.
-	assert_float(_skill_set.get_multiplier("hauling")).is_equal(1.0)
+	# A labor absent from the in-memory catalog (nothing maps to it) is
+	# unskilled: baseline 1.0, regardless of what the shipped catalog maps.
+	var ss := _make_set_with_curve("test_labor_mapped", [2, 4], [1.0, 1.5, 2.5, 3.0, 4.0])
+	assert_float(ss.get_multiplier("test_labor_unmapped")).is_equal(1.0)
 
 
 func test_l1_multiplier_is_one() -> void:

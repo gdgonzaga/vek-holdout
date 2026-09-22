@@ -6,6 +6,18 @@ const _FilterPanelScene := preload("res://ui/storage_filter/storage_filter_panel
 
 const _ConfigureActionScene := preload("res://data/actions/configure_storage_filter_action.gd")
 
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
+
+var _items: ItemDbSandbox
+
+
+func before_test() -> void:
+	_items = ItemDbSandbox.new(self)
+
+
+func after_test() -> void:
+	_items.restore()
+
 
 func test_storage_inventory_allowed_item_ids_whitelist_behavior() -> void:
 	var defs := {
@@ -77,8 +89,10 @@ func test_storage_registry_find_storage_for_priority_and_distance_tiebreak() -> 
 	add_child(container)
 	registry.on_map_wired(container)
 
-	var any_item := _make_test_item("any_item", 1.0, [])
-	ItemDB._defs_by_id["any_item"] = any_item
+	# Registered through the sandbox (restored in after_test) instead of writing
+	# ItemDB._defs_by_id directly, so this test cannot leak a stray "any_item" key.
+	var any_item := _items.add_item("any_item")
+	any_item.weight = 1.0
 
 	# Crate 1: Close (dist 5m), priority 2
 	var crate1 := auto_free(Furniture.new()) as Furniture
@@ -204,6 +218,9 @@ func test_storage_filter_action_execution() -> void:
 
 
 func test_interaction_ui_displays_all_options() -> void:
+	# No suite dedicated to InteractionUI exists yet (grep -ln InteractionUI
+	# test/ turns up only this file), so it stays here; decoupled from the two
+	# shipped action-option .tres files it used to load.
 	var ui_scene := preload("res://ui/interaction/interaction_ui.tscn")
 	var ui := auto_free(ui_scene.instantiate()) as Control
 	add_child(ui)
@@ -212,8 +229,15 @@ func test_interaction_ui_displays_all_options() -> void:
 	var actor := auto_free(Node.new()) as Node
 	add_child(actor)
 
-	var opt1 := auto_free(load("res://data/action_options/open_storage_action_option.tres")) as ActionOption
-	var opt2 := auto_free(load("res://data/action_options/configure_storage_action_option.tres")) as ActionOption
+	var action1 := auto_free(GameAction.new()) as GameAction
+	action1.label = "Test Action One"
+	var opt1 := auto_free(ActionOption.new()) as ActionOption
+	opt1.action = action1
+
+	var action2 := auto_free(GameAction.new()) as GameAction
+	action2.label = "Test Action Two"
+	var opt2 := auto_free(ActionOption.new()) as ActionOption
+	opt2.action = action2
 
 	var options: Array[ActionOption] = [opt1, opt2]
 	var comp := auto_free(InteractionComponent.new()) as InteractionComponent
@@ -227,8 +251,8 @@ func test_interaction_ui_displays_all_options() -> void:
 	var btn1 := list.get_child(0) as Button
 	var btn2 := list.get_child(1) as Button
 
-	assert_str(btn1.text).is_equal("Open Storage")
-	assert_str(btn2.text).is_equal("Storage Options")
+	assert_str(btn1.text).is_equal("Test Action One")
+	assert_str(btn2.text).is_equal("Test Action Two")
 
 
 func _make_test_item(p_id: String, p_weight: float, p_tags: Array[String]) -> ItemDef:
