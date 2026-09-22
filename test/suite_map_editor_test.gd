@@ -130,6 +130,8 @@ func test_save_map_does_not_embed_injected_terrain_gen() -> void:
 func test_map_editor_attach_streams() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	var root := Node3D.new()
+	# Sandbox id only: _attach_streams never touches disk, so no map needs creating here.
+	var id := Sandbox.map_id("attach_streams")
 
 	var blocky := Node.new()
 	blocky.name = "BlockyGrid"
@@ -145,24 +147,25 @@ func test_map_editor_attach_streams() -> void:
 	smooth.add_child(smooth_terrain)
 	root.add_child(smooth)
 
-	editor._attach_streams(root, "base")
+	editor._attach_streams(root, id)
 
 	assert_bool(blocky_terrain.stream is VoxelStreamSQLite).is_true()
-	assert_str((blocky_terrain.stream as VoxelStreamSQLite).database_path).is_equal("res://data/maps/base/map.sqlite")
+	assert_str((blocky_terrain.stream as VoxelStreamSQLite).database_path).is_equal(Sandbox.map_dir(id) + "map.sqlite")
 
 	assert_bool(smooth_terrain.stream is VoxelStreamSQLite).is_true()
-	assert_str((smooth_terrain.stream as VoxelStreamSQLite).database_path).is_equal("res://data/maps/base/terrain.sqlite")
+	assert_str((smooth_terrain.stream as VoxelStreamSQLite).database_path).is_equal(Sandbox.map_dir(id) + "terrain.sqlite")
 	root.free()
 
 
 func test_map_editor_load_and_unload_lifecycle() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
+	var id := Sandbox.map_id("load_unload_lifecycle")
 
-	# Load dev map
-	editor.load_map("dev")
+	# Load a throwaway sandbox map
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 	assert_object(editor._map_root).is_not_null()
-	assert_str(editor._map_def.id).is_equal("dev")
+	assert_str(editor._map_def.id).is_equal(id)
 	assert_bool(editor._launcher.visible).is_false()
 	assert_bool(editor._hud.visible).is_true()
 
@@ -172,12 +175,14 @@ func test_map_editor_load_and_unload_lifecycle() -> void:
 	assert_object(editor._map_def).is_null()
 	assert_bool(editor._launcher.visible).is_true()
 	assert_bool(editor._hud.visible).is_false()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_mouse_look() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("mouse_look")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	var initial_yaw: float = editor._cam_yaw
 	var initial_pitch: float = editor._cam_pitch
@@ -192,6 +197,7 @@ func test_map_editor_mouse_look() -> void:
 	assert_float(editor._cam_pitch).is_less(initial_pitch)
 	assert_float(editor._camera.rotation_degrees.x).is_equal_approx(editor._cam_pitch, 0.001)
 	assert_float(editor._camera.rotation_degrees.y).is_equal_approx(editor._cam_yaw, 0.001)
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_editor_hud_block_info() -> void:
@@ -355,9 +361,12 @@ func test_ghost_previews_terrain_sculpt_sphere() -> void:
 func test_map_editor_terrain_state_on_load() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("terrain_state_on_load")
+	# Smooth terrain needed: this test's whole point is that a live smooth grid exists after load.
+	await Sandbox.create_and_load(get_tree(), editor, id, true)
 
 	assert_object(editor._smooth_grid).is_not_null()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_terrain_brush_hotkeys() -> void:
@@ -600,7 +609,8 @@ func test_map_editor_furniture_cycle_filtered() -> void:
 func test_map_editor_furniture_place_and_remove() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("furniture_place_and_remove")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 	editor._set_mode(MapEditorClass.Mode.FURNITURE)
 
 	var hit := {
@@ -627,12 +637,14 @@ func test_map_editor_furniture_place_and_remove() -> void:
 	editor._do_furniture_remove(hit)
 	var exists := is_instance_valid(placed_marker) and not placed_marker.is_queued_for_deletion()
 	assert_bool(exists).is_false()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_spawn_markers_cache_and_place() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("spawn_markers_cache_and_place")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 
 	assert_object(editor._spawns.player_marker()).is_not_null()
@@ -665,12 +677,14 @@ func test_map_editor_spawn_markers_cache_and_place() -> void:
 	var col_marker: Marker3D = colonists[0]
 	assert_str(col_marker.name).contains("ColonistSpawn")
 	assert_object(col_marker.get_node_or_null("SpawnVisualizer")).is_not_null()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_ghost_previews_furniture_and_spawn() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("ghost_previews_furniture_and_spawn")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	var hit := {
 		"hit": true,
@@ -691,12 +705,14 @@ func test_ghost_previews_furniture_and_spawn() -> void:
 	editor._update_ghost(hit)
 	assert_bool(editor._ghost_view.mesh_instance.visible).is_true()
 	assert_bool(editor._ghost_view.mesh_instance.mesh is CapsuleMesh).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_save_scene_packs_markers() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("save_scene_packs_markers")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	var spawns: Node3D = editor._map_root.find_child("SpawnPoints") as Node3D
 	var player_marker: Marker3D = spawns.find_child("PlayerSpawn") as Marker3D
@@ -730,12 +746,14 @@ func test_map_editor_save_scene_packs_markers() -> void:
 				break
 	assert_bool(found_furn).is_true()
 	inst.free()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_escape_shows_confirmation_when_mouse_free() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("escape_shows_confirmation_when_mouse_free")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	# First ESC when captured releases mouse
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -752,12 +770,14 @@ func test_map_editor_escape_shows_confirmation_when_mouse_free() -> void:
 	editor._input(esc_event)
 	assert_bool(editor._exit_dialog.visible).is_true()
 	assert_object(editor._map_root).is_not_null()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_exit_confirmation_cancel_keeps_map_loaded() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("exit_confirmation_cancel_keeps_map_loaded")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	editor._request_exit()
@@ -765,12 +785,14 @@ func test_map_editor_exit_confirmation_cancel_keeps_map_loaded() -> void:
 
 	editor._exit_dialog.hide()
 	assert_object(editor._map_root).is_not_null()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_exit_confirmation_confirm_unloads_map() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("exit_confirmation_confirm_unloads_map")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	editor._request_exit()
@@ -779,6 +801,7 @@ func test_map_editor_exit_confirmation_confirm_unloads_map() -> void:
 	editor._exit_dialog.confirmed.emit()
 	assert_object(editor._map_root).is_null()
 	assert_bool(editor._launcher.visible).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_editor_hud_save_button_emits_signal() -> void:
@@ -905,7 +928,8 @@ func test_map_editor_metadata_editing_and_save() -> void:
 func test_map_editor_block_undo() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("block_undo")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	var entry: Dictionary = {
 		"type": "block",
@@ -919,6 +943,7 @@ func test_map_editor_block_undo() -> void:
 	editor._undo_last()
 	assert_int(editor._history.size()).is_equal(0)
 	assert_bool(editor._dirty).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_terrain_undo() -> void:
@@ -1107,7 +1132,8 @@ func test_editor_hud_block_palette_selection_and_signals() -> void:
 func test_map_editor_block_cycle_filtered() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("block_cycle_filtered")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	var b1 := BlockDef.new()
 	b1.id = "wood_oak"
@@ -1137,12 +1163,14 @@ func test_map_editor_block_cycle_filtered() -> void:
 	# Cycle next -> wraps back to 1 (Oak Wood)
 	editor._cycle_block(1)
 	assert_int(editor._selected_block_index).is_equal(1)
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_block_tab_key_cycling() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("block_tab_key_cycling")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	editor._set_mode(MapEditorClass.Mode.BLOCK)
 	var initial_idx := editor._selected_block_index
@@ -1155,6 +1183,7 @@ func test_map_editor_block_tab_key_cycling() -> void:
 	editor._input(tab_event)
 
 	assert_int(editor._selected_block_index).is_not_equal(initial_idx)
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_editor_hud_overlay_mouse_filters() -> void:
@@ -1176,7 +1205,8 @@ func test_editor_hud_overlay_mouse_filters() -> void:
 func test_map_editor_mouse_lmb_input_recaptures_when_visible() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("mouse_lmb_input_recaptures_when_visible")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	assert_int(Input.mouse_mode).is_equal(Input.MOUSE_MODE_VISIBLE)
@@ -1187,12 +1217,15 @@ func test_map_editor_mouse_lmb_input_recaptures_when_visible() -> void:
 	editor._input(lmb)
 
 	assert_int(Input.mouse_mode).is_equal(Input.MOUSE_MODE_CAPTURED)
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_lmb_terrain_input_dispatches_sculpt() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("lmb_terrain_input_dispatches_sculpt")
+	# Smooth terrain needed: _sculpt() is a no-op without a live _smooth_grid.
+	await Sandbox.create_and_load(get_tree(), editor, id, true)
 	editor._set_mode(MapEditorClass.Mode.TERRAIN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1210,12 +1243,14 @@ func test_map_editor_lmb_terrain_input_dispatches_sculpt() -> void:
 	assert_int(editor._history.size()).is_equal(2)
 	assert_str(editor._history.entries[-1].get("type", "")).is_equal("terrain")
 	assert_bool(editor._history.entries[-1].has("snapshot")).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_lmb_furniture_input_dispatches_place_and_remove() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("lmb_furniture_input_dispatches_place_and_remove")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 	editor._set_mode(MapEditorClass.Mode.FURNITURE)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1231,12 +1266,14 @@ func test_map_editor_lmb_furniture_input_dispatches_place_and_remove() -> void:
 
 	editor._do_furniture_remove(hit)
 	assert_bool(editor._dirty).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_lmb_spawn_input_dispatches_spawns() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("lmb_spawn_input_dispatches_spawns")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1259,6 +1296,7 @@ func test_map_editor_lmb_spawn_input_dispatches_spawns() -> void:
 	editor._do_spawn_place("colonist", hit_col)
 	var colonists: Array[Marker3D] = editor._spawns.colonist_markers()
 	assert_bool(colonists.size() > 0).is_true()
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 # --- Heightmap terrain (phase 2: launcher setup + terrain drawer) ---------------
@@ -2036,7 +2074,8 @@ func test_map_editor_new_map_with_flora_parameters() -> void:
 func test_map_editor_enemy_spawn_place_and_remove() -> void:
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
-	editor.load_map("dev")
+	var id := Sandbox.map_id("enemy_spawn_place_and_remove")
+	await Sandbox.create_and_load(get_tree(), editor, id, false)
 	editor._set_mode(MapEditorClass.Mode.SPAWN)
 
 	var hit_enemy := {
@@ -2058,6 +2097,7 @@ func test_map_editor_enemy_spawn_place_and_remove() -> void:
 	editor._do_spawn_remove(hit_enemy)
 	enemies = editor._spawns.enemy_markers()
 	assert_int(enemies.size()).is_equal(initial_enemy_count)
+	await Sandbox.dispose(get_tree(), editor, id)
 
 
 func test_map_editor_spawn_selector_hud_interaction() -> void:

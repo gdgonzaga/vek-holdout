@@ -57,6 +57,26 @@ static func blocky_only_payload(id: String) -> Dictionary:
 	}
 
 
+## Creates a throwaway map through the same repository path the launcher uses and loads it into the
+## editor. `with_smooth_terrain` picks the heightmap payload (smooth grid present) or the blocky-only payload.
+static func create_and_load(tree: SceneTree, editor: MapEditor, id: String, with_smooth_terrain: bool) -> void:
+	# Crash-leftover guard: wipe any earlier folder for this id before writing fresh files onto it.
+	remove_map(id)
+	# Payload choice: heightmap payload attaches a live smooth grid, blocky-only skips terrain entirely.
+	var payload := _payload_for(id, with_smooth_terrain)
+	editor.create_new_map(payload)
+	# One frame so the freshly attached voxel streams settle, mirroring dispose()'s own frame-drain
+	# defensiveness around background stream workers (R12A).
+	await tree.process_frame
+
+
+static func _payload_for(id: String, with_smooth_terrain: bool) -> Dictionary:
+	## Auxiliary: Picks the heightmap or blocky-only creation payload for a throwaway map id.
+	if with_smooth_terrain:
+		return heightmap_payload(id)
+	return blocky_only_payload(id)
+
+
 ## Unload, then drain two frames so in-flight streaming workers finish before
 ## the sqlite files are deleted (otherwise they spam errors into the log).
 ## Under a loaded suite run the 2-frame drain is occasionally not enough time
