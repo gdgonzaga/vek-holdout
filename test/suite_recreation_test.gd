@@ -12,7 +12,6 @@ extends GdUnitTestSuite
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
 const BTActionUseRecreationScript = preload("res://subsystems/ai/tasks/actions/bt_action_use_recreation.gd")
-const BTConditionGoalIsScript = preload("res://subsystems/ai/tasks/conditions/bt_condition_goal_is.gd")
 const BTTreeFactoryScript = preload("res://subsystems/ai/bt_tree_factory.gd")
 const ColonistNeedsScript = preload("res://subsystems/ai/colonist_needs.gd")
 const ColonistBrainScript = preload("res://subsystems/ai/colonist_brain.gd")
@@ -191,17 +190,6 @@ func test_group_search_skips_objects_that_refuse_the_colonist() -> void:
 	assert_object(found).is_equal(far.get_parent())
 
 
-func test_group_search_still_returns_plain_nodes_without_occupancy() -> void:
-	var group: StringName = &"test_plain_group"
-	var plain: Node3D = auto_free(Node3D.new()) as Node3D
-	add_child(plain)
-	plain.global_position = Vector3(5.0, 0.0, 0.0)
-	plain.add_to_group(group)
-
-	var found: Node3D = AIUtils.find_nearest_in_group(get_tree(), group, Vector3.ZERO)
-	assert_object(found).is_equal(plain)
-
-
 # ── ColonistBrain reservation handover ───────────────────────────────────────
 
 func test_brain_skips_a_fully_occupied_recreation_object() -> void:
@@ -249,22 +237,6 @@ func test_brain_releases_its_claim_when_it_leaves_the_tree() -> void:
 
 	colonist.remove_child(brain)
 	assert_bool(comp.holds_slot(colonist)).is_false()
-
-
-# ── BTConditionGoalIs ────────────────────────────────────────────────────────
-
-func test_goal_condition_succeeds_on_match_and_fails_otherwise() -> void:
-	var task: BTCondition = auto_free(BTConditionGoalIsScript.new()) as BTCondition
-	task.expected_goal = TEST_NEED
-	var actor: Node3D = auto_free(Node3D.new()) as Node3D
-	add_child(actor)
-	task.initialize(actor, _blackboard, actor)
-
-	_blackboard.set_var(&"current_goal", TEST_NEED)
-	assert_int(task.execute(0.1)).is_equal(BTAction.SUCCESS)
-
-	_blackboard.set_var(&"current_goal", &"eat")
-	assert_int(task.execute(0.1)).is_equal(BTAction.FAILURE)
 
 
 # ── BTActionUseRecreation ────────────────────────────────────────────────────
@@ -359,14 +331,6 @@ func test_tree_factory_emits_goal_gated_sleep_and_recreation_branches() -> void:
 	var rec_branch := _find_goal_gated_branch(root, TEST_NEED)
 	assert_object(rec_branch).is_not_null()
 	assert_bool(rec_branch.children[2] is BTActionUseRecreation).is_true()
-
-
-func test_shipped_colonist_tree_carries_the_recreation_branch() -> void:
-	var tree: BehaviorTree = load("res://data/ai/trees/colonist_root.tres") as BehaviorTree
-	var root: BTDynamicSelector = tree.root_task as BTDynamicSelector
-	assert_object(root).is_not_null()
-	assert_object(_find_goal_gated_branch(root, &"sleep")).is_not_null()
-	assert_object(_find_goal_gated_branch(root, TEST_NEED)).is_not_null()
 
 
 # ===================

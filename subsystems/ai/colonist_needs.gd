@@ -242,13 +242,10 @@ func _sync_depletion_state_on_set(need_id: StringName, new_value: float) -> void
 
 
 func _deserialize_needs_dict(data: Dictionary) -> void:
-	## Auxiliary: Restores need values from either nested 'needs' key or flat dictionary.
-	var source: Dictionary = data.get("needs", data) if data.has("needs") else data
+	## Auxiliary: Restores need values from the nested 'needs' key serialize() writes.
+	var source: Dictionary = data.get("needs", {})
 	for k in source.keys():
-		var key_str := String(k)
-		if key_str == "needs" or key_str == "depletion_timers" or key_str == "depleted_states":
-			continue
-		var need_key: StringName = &"hunger" if key_str == "current_hunger" else StringName(key_str)
+		var need_key := StringName(String(k))
 		var val := float(source[k])
 		set_need(need_key, val)
 
@@ -264,5 +261,3 @@ func _deserialize_depletion_state(data: Dictionary) -> void:
 		var states_dict: Dictionary = data["depleted_states"]
 		for k in states_dict.keys():
 			_depleted_states[StringName(k)] = bool(states_dict[k])
-	elif data.has("is_starving"):
-		_depleted_states[&"hunger"] = bool(data["is_starving"])

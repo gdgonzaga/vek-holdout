@@ -335,13 +335,6 @@ func test_tree_factory_emits_goal_gated_sleep_and_bed_branches() -> void:
 	assert_bool(sleep_branch.children[2] is BTActionUseBed).is_true()
 
 
-func test_shipped_colonist_tree_carries_the_bed_branch() -> void:
-	var tree: BehaviorTree = load("res://data/ai/trees/colonist_root.tres") as BehaviorTree
-	var root: BTDynamicSelector = tree.root_task as BTDynamicSelector
-	assert_object(root).is_not_null()
-	assert_object(_find_goal_gated_branch(root, &"sleep")).is_not_null()
-
-
 # ===================
 # Auxiliary Functions
 # ===================

@@ -6,6 +6,19 @@ extends GdUnitTestSuite
 ## reaches this with a BlockDef (wood-block blueprints crashed on def.dimensions
 ## before the corner-convention branch existed).
 
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
+
+var _items: ItemDbSandbox
+
+
+func before_test() -> void:
+	_items = ItemDbSandbox.new(self)
+
+
+func after_test() -> void:
+	_items.restore()
+
+
 func _make_furniture(def: BuildableDef) -> Furniture:
 	var node: Furniture = auto_free(Furniture.new())
 	add_child(node)
@@ -236,11 +249,14 @@ func test_furniture_get_capability_and_iter_capabilities() -> void:
 	assert_int(caps.size()).is_equal(2)
 
 
-func test_furniture_serialize_deserialize_backward_compat_and_cap_state() -> void:
+func test_furniture_serialize_deserialize_round_trips_storage_contents() -> void:
 	var layer: FurnitureLayer = auto_free(FurnitureLayer.new())
 	var container: Node3D = auto_free(Node3D.new())
 	add_child(container)
 	layer.set_container(container)
+
+	# Synthetic item only: the suite never reads shipped item content.
+	_items.add_item("test_scrap")
 
 	var sparams: StorageParams = auto_free(StorageParams.new())
 	sparams.capacity = 50.0
@@ -255,28 +271,32 @@ func test_furniture_serialize_deserialize_backward_compat_and_cap_state() -> voi
 
 	var storage := node.get_node_or_null("StorageInventory") as StorageInventory
 	assert_object(storage).is_not_null()
+	storage.set_priority(4)
+	storage.set_item_allowed("test_scrap", true)
+	assert_int(storage.add("test_scrap", 6)).is_equal(0)
 
-	# 1. Serialize test: verify both cap_state and legacy storage key exist
+	# 1. Serialize: contents live only under cap_state["StorageInventory"] —
+	# the legacy "storage" key is gone (Hard rule 10, D2 breaking change).
 	var snapshot := node.serialize()
 	assert_bool(snapshot.has("cap_state")).is_true()
-	assert_bool(snapshot.has("storage")).is_true()
-	assert_bool((snapshot["cap_state"] as Dictionary).has("StorageInventory")).is_true()
+	assert_bool(snapshot.has("storage")).is_false()
+	var cap_state: Dictionary = snapshot["cap_state"]
+	assert_bool(cap_state.has("StorageInventory")).is_true()
 
-	# 2. Deserialize test: restore from legacy dictionary format without cap_state
-	var legacy_data := {
-		"def_id": "test_crate",
-		"state": {},
-		"storage": {
-			"capacity": 50.0,
-			"priority": 4,
-			"items": {},
-			"allowed_item_ids": ["scrap_ammo"],
-			"allowed_tags": []
-		}
-	}
-	node.deserialize(legacy_data)
-	assert_int(storage.priority).is_equal(4)
-	assert_bool(storage.allowed_item_ids.has("scrap_ammo")).is_true()
+	# 2. Deserialize into a fresh furniture instance: restores priority, the
+	# item filter whitelist and the item stacks from cap_state alone.
+	var fresh_def: FurnitureDef = auto_free(FurnitureDef.new())
+	fresh_def.id = "test_crate"
+	fresh_def.mesh = BoxMesh.new()
+	fresh_def.storage_params = sparams
+	var fresh_node: Furniture = layer.spawn(fresh_def, Vector3i(2, 0, 0), 0)
+	var fresh_storage := fresh_node.get_node_or_null("StorageInventory") as StorageInventory
+	assert_object(fresh_storage).is_not_null()
+
+	fresh_node.deserialize(snapshot)
+	assert_int(fresh_storage.priority).is_equal(4)
+	assert_bool(fresh_storage.allowed_item_ids.has("test_scrap")).is_true()
+	assert_int(fresh_storage.get_item_count("test_scrap")).is_equal(6)
 
 
 func test_furniture_group_registration() -> void:

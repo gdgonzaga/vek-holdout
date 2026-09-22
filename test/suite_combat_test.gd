@@ -354,17 +354,6 @@ func test_colonist_serialize_deserialize_round_trips_health() -> void:
 	assert_int(restored.health_component.current_hp).is_equal(colonist.get_max_hp() - 15)
 
 
-func test_colonist_deserialize_legacy_save_format() -> void:
-	var colonist: Colonist = _sandbox.make_colonist()
-
-	# Pre-HealthComponent saves stored flat "hp"/"is_dead" keys instead of a
-	# nested "health" dict.
-	colonist.deserialize({"hp": 7, "is_dead": false})
-
-	assert_int(colonist.health_component.current_hp).is_equal(7)
-	assert_bool(colonist.is_dead).is_false()
-
-
 func test_enemy_base_is_dead_reflects_health_component() -> void:
 	var swarmer := SwarmerScene.instantiate() as EnemyBase
 	auto_free(swarmer)

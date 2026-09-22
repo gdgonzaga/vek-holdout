@@ -489,15 +489,12 @@ func deserialize(data: Dictionary) -> void:
 	labor_priorities = data.get("labor_priorities", {}).duplicate(true)
 	raid_stance = int(data.get("raid_stance", raid_stance))
 	squad_id = data.get("squad_id", "")
-	# 1. Health Restore: Deserialize the nested HealthComponent dict, or fall
-	# back to legacy flat "hp"/"is_dead" keys from pre-HealthComponent saves.
+	# 1. Health Restore: Deserialize the nested HealthComponent dict, if present.
 	_deserialize_health(data)
 	if skill_set != null and data.has("skills"):
 		skill_set.deserialize(data["skills"])
 	if needs != null and data.has("needs"):
 		needs.deserialize(data["needs"])
-	elif needs != null and data.has("hunger"):
-		needs.deserialize(data["hunger"])
 	if inventory != null and data.has("inventory"):
 		inventory.deserialize(data["inventory"])
 	# Equipment must deserialize after inventory since slots are separate stores.
@@ -512,16 +509,11 @@ func deserialize(data: Dictionary) -> void:
 
 
 func _deserialize_health(data: Dictionary) -> void:
-	## Auxiliary: Restores health_component from its nested dict, or synthesizes
-	## one from legacy flat "hp"/"is_dead" keys (pre-HealthComponent saves).
+	## Auxiliary: Restores health_component from its nested "health" dict.
+	## Leaves the component untouched if the dict is absent (no synthesis
+	## from legacy flat "hp"/"is_dead" keys; no back-compat, Hard rule 10).
 	if data.has("health"):
 		health_component.deserialize(data["health"])
-	else:
-		health_component.deserialize({
-			"max_hp": health_component.max_hp,
-			"current_hp": int(data.get("hp", health_component.max_hp)),
-			"is_dead": bool(data.get("is_dead", false)),
-		})
 
 
 ## Dynamically builds interaction options (Deploy / Dismiss single & squad).
