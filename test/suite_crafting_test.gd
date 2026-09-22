@@ -6,19 +6,24 @@ extends GdUnitTestSuite
 ## complete/gates), the Colony routing (queue → haul, materials-ready → craft),
 ## FurnitureLayer attachment, and persistence through the Furniture state bag.
 
-const CRAFTING_DEF: JobDef = preload("res://data/jobs/crafting.tres")
-const HAULING_DEF: JobDef = preload("res://data/jobs/hauling.tres")
-const WORKBENCH_DEF: FurnitureDef = preload("res://data/furniture/crafting_stations/workbench.tres")
-
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 const Doubles = preload("res://test/helpers/doubles.gd")
+const JobFixtures = preload("res://test/helpers/job_fixtures.gd")
 
 var _sandbox: ColonySandbox
+
+## In-memory stand-ins for the shipped crafting.tres / hauling.tres (JobDef
+## gating exercised directly against fixtures, never balance-editable content).
+var _crafting_def: CraftingJobDef
+var _hauling_def: HaulingJobDef
 
 
 func before_test() -> void:
 	GameLog.clear() # completes/cancels log into the persistent autoload
 	_sandbox = ColonySandbox.new(self)
+	# Fixture job defs: the suite drives gating against these, not res://data/jobs/*.tres.
+	_crafting_def = JobFixtures.crafting()
+	_hauling_def = JobFixtures.hauling()
 
 
 func after_test() -> void:
@@ -63,6 +68,25 @@ func _recipe(id: String, inputs: Array, outputs: Array, base_time: float,
 	return recipe
 
 
+## In-memory stand-in for the shipped workbench.tres: a crafting-capable
+## FurnitureDef with an interaction option, so FurnitureLayer.spawn attaches
+## both a CraftingStation and an InteractionComponent (the bed_test pattern:
+## test_furniture_layer_attaches_bed_component_when_params_present).
+func _make_workbench_def(recipes: Array[RecipeDef]) -> FurnitureDef:
+	var def: FurnitureDef = auto_free(FurnitureDef.new())
+	def.id = "test_bench"
+	def.display_name = "Test Bench"
+	def.dimensions = Vector3i.ONE
+	def.mesh = BoxMesh.new()
+	var params: CraftingParams = auto_free(CraftingParams.new())
+	params.recipes = recipes
+	def.crafting_params = params
+	var option: ActionOption = auto_free(ActionOption.new())
+	option.action = auto_free(GameAction.new())
+	def.action_options = [option]
+	return def
+
+
 func _gate(min_level: int) -> MinSkillCondition:
 	var gate: MinSkillCondition = auto_free(MinSkillCondition.new()) as MinSkillCondition
 	gate.skill_id = "crafting"
@@ -84,11 +108,11 @@ func test_no_order_station_reads_satisfied_to_hauling() -> void:
 	var station := _make_station([_recipe("planks", ["plank", 2], ["plank", 4], 4.0)])
 	assert_bool(station.needed_item_ids().is_empty()).is_true()
 	assert_bool(station.has_complete_materials()).is_true()
-	var job := Job.from_def(HAULING_DEF)
+	var job := Job.from_def(_hauling_def)
 	job.target_node = station
-	assert_bool(HAULING_DEF.is_available(job)).is_false()
-	assert_bool(HAULING_DEF.should_close(job)).is_true()
-	assert_bool(HAULING_DEF.job_complete(job)).is_true()
+	assert_bool(_hauling_def.is_available(job)).is_false()
+	assert_bool(_hauling_def.should_close(job)).is_true()
+	assert_bool(_hauling_def.job_complete(job)).is_true()
 
 
 func test_queue_recipe_starts_order_and_emits_once() -> void:
@@ -184,7 +208,7 @@ func test_materials_ready_spawns_and_dedupes_craft_job() -> void:
 # ── CraftingJobDef ────────────────────────────────────────────────────────────
 
 func _workable_job(station: CraftingStation) -> Job:
-	var job := Job.from_def(CRAFTING_DEF)
+	var job := Job.from_def(_crafting_def)
 	job.target_node = station
 	job.location = Vector3.ZERO
 	return job
@@ -201,14 +225,17 @@ func _satisfied_order_station() -> CraftingStation:
 	return station
 
 
-func test_craft_begin_uses_skill_multiplier() -> void:
+func test_craft_begin_returns_unskilled_base_time() -> void:
+	# CraftingJobDef.begin's own doc comment: it reports the recipe's raw,
+	# UNSKILLED base_time — skill scaling divides it exactly once, downstream,
+	# in BTActionPerformWork. A begin() that also divided by the multiplier
+	# would double-scale a colonist's work speed, so this pins begin() to stay
+	# skill-blind regardless of the actor's level.
 	var station := _satisfied_order_station()
+	var job := _workable_job(station)
 	var colonist := _sandbox.make_colonist()
-	var base_time := station.active_recipe().base_time
-	assert_float(base_time).is_equal(4.0)
-	colonist.skill_set.skills["crafting"] = {"level": 3, "progress": 0}
-	var duration := base_time / colonist.skill_set.get_multiplier("crafting")
-	assert_bool(absf(duration - 4.0 / 1.4) < 0.001).is_true()
+	colonist.skill_set.skills["crafting"] = {"level": 5, "progress": 0}
+	assert_float(_crafting_def.begin(colonist, job)).is_equal(4.0)
 
 
 func test_craft_complete_drops_world_item_and_clears_order() -> void:
@@ -259,14 +286,14 @@ func test_craft_complete_drops_world_item_even_with_nearby_crate() -> void:
 func test_craft_def_lifecycle_gates() -> void:
 	var station := _satisfied_order_station()
 	var job := _workable_job(station)
-	assert_bool(CRAFTING_DEF.is_available(job)).is_true()
-	assert_bool(CRAFTING_DEF.should_close(job)).is_false()
+	assert_bool(_crafting_def.is_available(job)).is_true()
+	assert_bool(_crafting_def.should_close(job)).is_false()
 	station.clear_order()
-	assert_bool(CRAFTING_DEF.is_available(job)).is_false()
-	assert_bool(CRAFTING_DEF.should_close(job)).is_true()
+	assert_bool(_crafting_def.is_available(job)).is_false()
+	assert_bool(_crafting_def.should_close(job)).is_true()
 	job.target_node = null
-	assert_bool(CRAFTING_DEF.should_close(job)).is_true()
-	assert_bool(CRAFTING_DEF.is_available(job)).is_false()
+	assert_bool(_crafting_def.should_close(job)).is_true()
+	assert_bool(_crafting_def.is_available(job)).is_false()
 
 
 func test_meets_requirements_ands_recipe_conditions() -> void:
@@ -276,9 +303,9 @@ func test_meets_requirements_ands_recipe_conditions() -> void:
 	station.queue_recipe("gate3")
 	var job := _workable_job(station)
 	var colonist := _sandbox.make_colonist() # crafting at L1 by default
-	assert_bool(CRAFTING_DEF.meets_requirements(colonist, job)).is_false()
+	assert_bool(_crafting_def.meets_requirements(colonist, job)).is_false()
 	colonist.skill_set.skills["crafting"] = {"level": 3, "progress": 0}
-	assert_bool(CRAFTING_DEF.meets_requirements(colonist, job)).is_true()
+	assert_bool(_crafting_def.meets_requirements(colonist, job)).is_true()
 
 
 # ── Attachment + data wiring + persistence ────────────────────────────────────
@@ -286,24 +313,14 @@ func test_meets_requirements_ands_recipe_conditions() -> void:
 func test_furniture_layer_attaches_station_and_interaction() -> void:
 	var layer := FurnitureLayer.new()
 	layer.set_container(_sandbox.container)
-	var node := layer.spawn(WORKBENCH_DEF, Vector3i(10, 0, 10), 0)
+	var def := _make_workbench_def([_recipe("planks", ["plank", 2], ["plank", 4], 4.0)])
+	var node := layer.spawn(def, Vector3i(10, 0, 10), 0)
 	assert_object(node).is_not_null()
 	var station := node.get_node_or_null("CraftingStation") as CraftingStation
 	assert_object(station).is_not_null()
 	assert_object(node.get_node_or_null("InteractionComponent")).is_not_null()
 	# Recipes flow from def.crafting_params through the station's _ready.
-	assert_bool(station.recipes.size() > 0).is_true()
-
-
-func test_workbench_tres_wires_crafting() -> void:
-	# Data sanity: the def carries the capability + interaction wiring the
-	# feature depends on.
-	assert_object(WORKBENCH_DEF.crafting_params).is_not_null()
-	assert_bool(WORKBENCH_DEF.crafting_params.recipes.size() > 0).is_true()
-	assert_bool(WORKBENCH_DEF.action_options.is_empty()).is_false()
-	for recipe in WORKBENCH_DEF.crafting_params.recipes:
-		assert_bool(recipe.inputs.size() > 0).is_true()
-		assert_bool(recipe.outputs.size() > 0).is_true()
+	assert_int(station.recipes.size()).is_equal(1)
 
 
 func test_furniture_serialize_round_trips_order() -> void:
@@ -516,7 +533,15 @@ func test_craft_action_timed_path_produces_and_releases() -> void:
 	assert_bool(station.is_claimed()).is_true()
 	assert_str(station.claim_owner()).is_equal(CraftingStation.PLAYER_CLAIM)
 	assert_bool(player.is_busy()).is_true()
-	await get_tree().create_timer(0.4).timeout  # let the gauge settle
+	# Drive the ActionProgress gauge on real engine frames (base_time 0.05 s
+	# settles within a handful of them) instead of a wall-clock timer wait.
+	var settled := false
+	for _i in range(200):
+		await get_tree().process_frame
+		if not station.has_active_order():
+			settled = true
+			break
+	assert_bool(settled).is_true()
 	assert_int(player.inventory.get_item_count("plank")).is_equal(4)  # pocket-first
 	assert_bool(station.has_active_order()).is_false()
 	assert_bool(station.is_claimed()).is_false()
@@ -563,7 +588,7 @@ func test_paused_station_blocks_workable_and_persists() -> void:
 
 	var colonist := _sandbox.make_colonist()
 	var job := _workable_job(station)
-	assert_bool(CRAFTING_DEF.is_available(job)).is_false()
+	assert_bool(_crafting_def.is_available(job)).is_false()
 
 	# Verify state round-tripping through furniture serialize/deserialize
 	var furniture := station.get_parent() as Furniture
@@ -578,4 +603,4 @@ func test_paused_station_blocks_workable_and_persists() -> void:
 
 	station.set_paused(false)
 	assert_bool(station.is_paused()).is_false()
-	assert_bool(CRAFTING_DEF.is_available(job)).is_true()
+	assert_bool(_crafting_def.is_available(job)).is_true()

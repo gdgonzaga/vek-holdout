@@ -9,44 +9,46 @@ extends GdUnitTestSuite
 ## - Partial progress accumulation via set_work_done
 ## - Cleanup on furniture removal
 
-const HARVEST_DEF: JobDef = preload("res://data/jobs/harvest.tres")
-const CHOP_DEF: JobDef = preload("res://data/jobs/chop.tres")
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
 
 var _sandbox: ColonySandbox
+var _items: ItemDbSandbox
 var _furniture_layer: FurnitureLayer
 
 
 func before_test() -> void:
 	GameLog.clear() # set_marked/complete log into the persistent autoload
 	_sandbox = ColonySandbox.new(self)
+	_items = ItemDbSandbox.new(self)
 	_furniture_layer = FurnitureLayer.new()
 	_furniture_layer.set_container(_sandbox.container)
 
 
 func after_test() -> void:
 	_sandbox.restore()
+	_items.restore()
 
 
-func _make_harvestable_def(p_id: String = "test_harvestable") -> FurnitureDef:
+func _make_harvestable_def(p_id: String = "test_harvestable", p_work_time: float = 3.0) -> FurnitureDef:
 	var def := FurnitureDef.new()
 	def.id = p_id
 	def.display_name = "Harvestable Node"
 	def.hp = 100
 	def.mesh = BoxMesh.new()
-	
+
 	var item_amount := ItemAmount.new()
-	var item_def := ItemDef.new()
-	item_def.id = "test_resource"
+	# Register through the sandbox so the entry is undone in after_test rather
+	# than leaking into ItemDB for every later suite.
+	var item_def := _items.add_item("test_resource")
 	item_def.weight = 1.0
-	ItemDB._defs_by_id["test_resource"] = item_def
 	item_amount.item_def = item_def
 	item_amount.count = 3
-	
+
 	var hparams := HarvestParams.new()
-	hparams.work_time = 3.0
+	hparams.work_time = p_work_time
 	hparams.yields = [item_amount]
-	
+
 	def.harvest_params = hparams
 	return def
 
@@ -100,15 +102,19 @@ func test_toggle_mark_and_colony_job_sync() -> void:
 
 
 func test_partial_progress_reduces_begin_duration() -> void:
-	var def := _make_harvestable_def("test_duration")
+	# 10 s job with 4 s already done begins with 6 s remaining (HarvestJobDef.begin
+	# itself, not a locally recomputed formula — the tautology this replaces).
+	var def := _make_harvestable_def("test_duration", 10.0)
 	var anchor := Vector3i(7, 0, 7)
 	var node: Furniture = _furniture_layer.spawn(def, anchor, 0)
 	var harvestable := node.get_node_or_null("Harvestable") as Harvestable
 	harvestable.set_marked(true)
-	harvestable.set_work_done(1.5)
+	harvestable.set_work_done(4.0)
 
-	var remaining := harvestable.effective_work_time() - harvestable.work_done()
-	assert_float(remaining).is_equal_approx(def.harvest_params.work_time - 1.5, 0.01)
+	var job := Job.new()
+	job.target_node = node
+	var remaining := HarvestJobDef.new().begin(null, job)
+	assert_float(remaining).is_equal(6.0)
 
 
 func test_harvestable_get_stat_ratio_tracks_work_progress() -> void:
@@ -179,10 +185,8 @@ func _make_wild_flora_def(p_id: String, p_required_tool_tag: String = "", p_can_
 	def.chop_work_time = 5.0
 
 	var item_amount := ItemAmount.new()
-	var item_def := ItemDef.new()
-	item_def.id = "test_flora_drop"
+	var item_def := _items.add_item("test_flora_drop")
 	item_def.weight = 1.0
-	ItemDB._defs_by_id["test_flora_drop"] = item_def
 	item_amount.item_def = item_def
 	item_amount.count = 2
 
