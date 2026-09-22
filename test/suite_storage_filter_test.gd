@@ -311,6 +311,14 @@ func _make_filter_furniture() -> Array:
 	return [furniture, storage]
 
 
+## Whether the %AllItemsList row for item_id is currently visible (or false if no such row exists).
+func _row_visible(panel: StorageFilterPanel, item_id: String) -> bool:
+	for row: Node in (panel.get_node("%AllItemsList") as Node).get_children():
+		if row.get_meta("item_id", "") == item_id:
+			return (row as Control).visible
+	return false
+
+
 
 
 func test_filter_panel_builds_no_rows_before_it_has_a_container() -> void:
@@ -370,3 +378,34 @@ func test_filter_panel_shows_the_tag_rule_and_never_claims_unrestricted() -> voi
 	var joined := " ".join(allowed_texts)
 	assert_str(joined).contains("test_tag_food")
 	assert_str(joined).not_contains("All items allowed")
+
+
+## filter_items(query) is the live search box's handler (_on_search_changed calls it directly);
+## it must match on item id, display name AND tags, case-insensitively (ARCH R14 candidate 4).
+func test_filter_panel_search_matches_id_display_name_and_tags_case_insensitively() -> void:
+	_items.add_item("test_filter_sword_id", "Rusty Blade", ["weapon", "sharp"])
+	_items.add_item("test_filter_other_id", "Plain Rock", ["material"])
+	var parts := _make_filter_furniture()
+	var panel := auto_free(_FilterPanelScene.instantiate()) as StorageFilterPanel
+	add_child(panel)
+	panel.setup(parts[0], parts[1])
+
+	# Match by id substring; an uppercase query exercises the case-insensitive compare.
+	panel.filter_items("SWORD_ID")
+	assert_bool(_row_visible(panel, "test_filter_sword_id")).is_true()
+	assert_bool(_row_visible(panel, "test_filter_other_id")).is_false()
+
+	# Match by display name substring.
+	panel.filter_items("rusty")
+	assert_bool(_row_visible(panel, "test_filter_sword_id")).is_true()
+	assert_bool(_row_visible(panel, "test_filter_other_id")).is_false()
+
+	# Match by tag substring.
+	panel.filter_items("sharp")
+	assert_bool(_row_visible(panel, "test_filter_sword_id")).is_true()
+	assert_bool(_row_visible(panel, "test_filter_other_id")).is_false()
+
+	# An empty query shows every row again.
+	panel.filter_items("")
+	assert_bool(_row_visible(panel, "test_filter_sword_id")).is_true()
+	assert_bool(_row_visible(panel, "test_filter_other_id")).is_true()

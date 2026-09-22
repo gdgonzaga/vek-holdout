@@ -54,6 +54,16 @@ func _equipped_rows() -> Array[Node]:
 	return _panel.get_node("%EquippedList").get_children()
 
 
+## The WorldItem matching item_id among every ground item in the tree (drop tests spawn theirs
+## under the tree root via Player.drop_item -> WorldItem.spawn_at), or null if none.
+func _find_world_item(item_id: String) -> WorldItem:
+	for node: Node in get_tree().get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item != null and item.item_id == item_id:
+			return item
+	return null
+
+
 func test_open_lists_each_carried_stack() -> void:
 	var player := _make_panel()
 	_register_item("test_panel_wood", ["material"], 2.0)
@@ -250,3 +260,37 @@ func test_keyboard_focus_stays_on_the_same_button_after_an_action() -> void:
 
 	assert_int(player.inventory.get_item_count("test_panel_ration")).is_equal(2)
 	assert_object(get_viewport().gui_get_focus_owner()).is_same(_item_rows()[0].get_node("%EatButton"))
+
+
+func test_drop_button_drops_one_unit_and_spawns_a_world_item() -> void:
+	var player := _make_panel()
+	_register_item("test_panel_gravel", ["material"], 0.5)
+	player.inventory.add("test_panel_gravel", 3)
+	_panel.open()
+
+	var row := _item_rows()[0] as InventoryItemRow
+	(row.get_node("%DropButton") as Button).pressed.emit()
+	await get_tree().process_frame
+
+	assert_int(player.inventory.get_item_count("test_panel_gravel")).is_equal(2)
+	var dropped := _find_world_item("test_panel_gravel")
+	assert_object(dropped).is_not_null()
+	assert_int(dropped.count).is_equal(1)
+	auto_free(dropped)
+
+
+func test_drop_all_button_drops_the_entire_carried_stack() -> void:
+	var player := _make_panel()
+	_register_item("test_panel_sand", ["material"], 0.5)
+	player.inventory.add("test_panel_sand", 3)
+	_panel.open()
+
+	var row := _item_rows()[0] as InventoryItemRow
+	(row.get_node("%DropAllButton") as Button).pressed.emit()
+	await get_tree().process_frame
+
+	assert_int(player.inventory.get_item_count("test_panel_sand")).is_equal(0)
+	var dropped := _find_world_item("test_panel_sand")
+	assert_object(dropped).is_not_null()
+	assert_int(dropped.count).is_equal(3)
+	auto_free(dropped)

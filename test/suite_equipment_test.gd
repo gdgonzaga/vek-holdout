@@ -33,6 +33,53 @@ func _make_equipment() -> Equipment:
 
 
 # ==============================
+# ensure_on
+# ==============================
+
+func test_ensure_on_creates_equipment_and_visualizer_for_a_bare_actor() -> void:
+	var actor := auto_free(Node.new()) as Node
+
+	var eq := Equipment.ensure_on(actor)
+
+	assert_object(eq).is_not_null()
+	assert_object(actor.get_node_or_null("Equipment")).is_same(eq)
+	assert_object(actor.get_node_or_null("EquipmentVisualizer")).is_not_null()
+
+
+## Calling ensure_on a second time with the actor's own already-resolved Equipment (the
+## documented usage: "pass the actor's own field") must return that same component rather
+## than creating a second one.
+func test_ensure_on_is_idempotent_when_passed_the_previously_returned_equipment() -> void:
+	var actor := auto_free(Node.new()) as Node
+	var first := Equipment.ensure_on(actor)
+
+	var second := Equipment.ensure_on(actor, first)
+
+	assert_object(second).is_same(first)
+	var equipment_children := 0
+	for child: Node in actor.get_children():
+		if child is Equipment:
+			equipment_children += 1
+	assert_int(equipment_children).is_equal(1)
+
+
+# ==============================
+# get_all_desired_items
+# ==============================
+
+## The caller must be able to inspect the returned snapshot without risking the component's
+## own live _desired_slots dictionary.
+func test_get_all_desired_items_returns_a_copy_not_the_live_dictionary() -> void:
+	var eq := _make_equipment()
+	eq.set_desired_item(Equipment.SLOT_MAIN_HAND, "test_desired_axe")
+
+	var snapshot := eq.get_all_desired_items()
+	snapshot[Equipment.SLOT_MAIN_HAND] = "tampered"
+
+	assert_str(eq.get_desired_item(Equipment.SLOT_MAIN_HAND)).is_equal("test_desired_axe")
+
+
+# ==============================
 # can_equip_to
 # ==============================
 

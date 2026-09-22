@@ -152,6 +152,17 @@ func test_delete_removes_the_loadout() -> void:
 	assert_int(book.list_ids().size()).is_equal(0)
 
 
+func test_delete_emits_changed_on_success() -> void:
+	var book := LoadoutBook.new()
+	var id: String = book.create("Miner")
+	# Attach the counter after create() so only delete()'s own emission is counted.
+	var counter := Doubles.SignalCounter.new(book.changed)
+
+	book.delete(id)
+
+	assert_int(counter.read()).is_equal(1)
+
+
 func test_delete_unknown_loadout_is_silent() -> void:
 	var book := LoadoutBook.new()
 	var counter := Doubles.SignalCounter.new(book.changed)

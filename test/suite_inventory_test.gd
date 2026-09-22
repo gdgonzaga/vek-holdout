@@ -3,12 +3,17 @@ extends GdUnitTestSuite
 ## Unit tests for the Inventory system (Inventory, add, remove, transfer_to).
 
 const Doubles = preload("res://test/helpers/doubles.gd")
+const ItemDbSandbox = preload("res://test/helpers/item_db_sandbox.gd")
 
 # ── Test doubles ────────────────────────────────────────────────────────────────
 
 ## Mock ItemDefs with known weights.
 var _wood: ItemDef
 var _stone: ItemDef
+
+## Registers real ItemDB entries for the CharacterInventory tests below, which
+## exercise the production class directly (no _get_def() override to fake with).
+var _items: ItemDbSandbox
 
 
 func before_test() -> void:
@@ -19,6 +24,12 @@ func before_test() -> void:
 	_stone = ItemDef.new()
 	_stone.weight = 5.0
 	auto_free(_stone)
+
+	_items = ItemDbSandbox.new(self)
+
+
+func after_test() -> void:
+	_items.restore()
 
 
 ## Helper: creates a MockInventory with the given capacity and mock defs wired up.
@@ -634,3 +645,62 @@ func test_count_items_with_tag_sums_matching_stacks() -> void:
 	assert_int(inv.count_items_with_tag("tool")).is_equal(5)
 	assert_int(inv.count_items_with_tag("axe")).is_equal(3)
 	assert_int(inv.count_items_with_tag("nothing")).is_equal(0)
+
+
+# ── CharacterInventory: capacity composition (base + bonus) ─────────────────
+# _recalc_capacity() is what _ready() calls once CharacterInventory enters the
+# scene tree; called directly here for the same reason test_storage_inventory_*
+# above calls _apply_storage_params() directly — the unit harness never runs
+# _ready().
+
+func test_character_inventory_recalc_capacity_combines_base_and_bonus() -> void:
+	var inv := auto_free(CharacterInventory.new()) as CharacterInventory
+	inv.base_capacity = 50.0
+	inv.bonus_capacity = 10.0
+
+	inv._recalc_capacity()
+
+	assert_float(inv.capacity).is_equal(60.0)
+
+
+## _on_bag_equipment_changed is the callback a bag-equip signal will call once
+## wired (see the TODO in character_inventory.gd's _ready()); raising or
+## lowering bonus_capacity through it must raise or lower capacity in step.
+func test_character_inventory_bag_equip_callback_raises_and_lowers_capacity() -> void:
+	var inv := auto_free(CharacterInventory.new()) as CharacterInventory
+	inv.base_capacity = 50.0
+	inv._recalc_capacity()
+	assert_float(inv.capacity).is_equal(50.0)
+
+	inv.bonus_capacity = 20.0
+	inv._on_bag_equipment_changed()
+	assert_float(inv.capacity).is_equal(70.0)
+
+	inv.bonus_capacity = 0.0
+	inv._on_bag_equipment_changed()
+	assert_float(inv.capacity).is_equal(50.0)
+
+
+## Unequipping a capacity bag can drop capacity below what is already carried.
+## _recalc_capacity only reassigns the capacity field — it never touches items
+## — so nothing already carried is silently dropped; the lowered capacity only
+## blocks taking on more (Inventory.max_addable, pinned generically above).
+func test_character_inventory_lowered_capacity_keeps_carried_items() -> void:
+	var item_id := "test_char_inv_bag_item"
+	var def := _items.add_item(item_id)
+	def.weight = 2.0
+
+	var inv := auto_free(CharacterInventory.new()) as CharacterInventory
+	inv.base_capacity = 50.0
+	inv.bonus_capacity = 20.0
+	inv._recalc_capacity()
+	inv.add(item_id, 30)  # 30 * 2 = 60 kg, within the 70 kg capacity
+	assert_int(inv.get_item_count(item_id)).is_equal(30)
+
+	# Unequip the bag: capacity drops to 50 kg, below the 60 kg already carried.
+	inv.bonus_capacity = 0.0
+	inv._on_bag_equipment_changed()
+
+	assert_float(inv.capacity).is_equal(50.0)
+	assert_int(inv.get_item_count(item_id)).is_equal(30)
+	assert_int(inv.max_addable(item_id)).is_equal(0)
