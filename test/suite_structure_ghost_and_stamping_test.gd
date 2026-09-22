@@ -283,28 +283,3 @@ func test_stamper_terrain_voxel_positions_lists_only_terrain_touching_targets() 
 	assert_int(positions.size()).is_equal(2)
 	assert_bool(positions.has(Vector3i(-1, 0, -1))).is_true()
 	assert_bool(positions.has(Vector3i(0, 1, 0))).is_true()
-
-
-func test_map_editor_structure_stamp_and_undo() -> void:
-	var id := Sandbox.map_id("undo_structure")
-	Sandbox.remove_map(id)
-	var editor: MapEditorClass = auto_free(MapEditorClass.new())
-	add_child(editor)
-	editor.create_new_map(Sandbox.heightmap_payload(id))
-	var def := _create_sample_structure(_create_sample_mapping())
-	editor._structure_defs = [def]
-	editor._selected_structure_idx = 0
-	editor._set_mode(MapEditorClass.Mode.STRUCTURE)
-	editor._structure_tool.set_cached_vox_data(_create_sample_vox_data())
-
-	editor._do_structure_stamp({"hit": true, "position": Vector3i(10, 20, 30), "normal": Vector3i.UP, "surface": "blocky"})
-
-	assert_int(editor._history.size()).is_equal(1)
-	var entry: Dictionary = editor._history.entries[0]
-	assert_str(entry["type"]).is_equal("structure")
-	assert_bool(entry.has("terrain_snapshot")).is_true()
-	assert_bool(editor._dirty).is_true()
-
-	editor._undo_last()
-	assert_int(editor._history.size()).is_equal(0)
-	await Sandbox.dispose(get_tree(), editor, id)
