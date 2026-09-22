@@ -37,18 +37,20 @@ static func scan_maps() -> Array[MapDef]:
 	return results
 
 
-## Shared-def scan for the launcher's noise dropdown: data/terrain/*.tres minus
+## Shared-def scan for the launcher's noise dropdown: <dir_path>/*.tres minus
 ## heightmap-driven defs (those are per-map content, not shared baselines).
-static func scan_noise_defs() -> Array[Dictionary]:
+## `dir_path` defaults to the shipped TERRAIN_DIR so every production caller is
+## unaffected; tests pass a synthetic user:// directory to stay content-agnostic.
+static func scan_noise_defs(dir_path: String = TERRAIN_DIR) -> Array[Dictionary]:
 	var results: Array[Dictionary] = []
-	var dir := DirAccess.open(TERRAIN_DIR)
+	var dir := DirAccess.open(dir_path)
 	if dir == null:
 		return results
 	dir.list_dir_begin()
 	var entry := dir.get_next()
 	while not entry.is_empty():
 		if entry.ends_with(".tres"):
-			var path := TERRAIN_DIR + entry
+			var path := dir_path + entry
 			var terrain_def := load(path) as TerrainGenDef
 			if terrain_def != null and terrain_def.heightmap == null:
 				var def_id := terrain_def.id if not terrain_def.id.is_empty() else entry.get_basename()

@@ -16,6 +16,22 @@ func before() -> void:
 	Sandbox.sweep_stale()
 
 
+## Several tests in this suite drive UiGate-style cursor capture/release paths
+## and assign Input.mouse_mode directly with no guaranteed restore. Snapshotting
+## it here (rather than a blanket reset to MOUSE_MODE_VISIBLE) stops a leftover
+## captured cursor from leaking into the next test in this suite or into a
+## later suite in a batch run.
+var _saved_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
+
+
+func before_test() -> void:
+	_saved_mouse_mode = Input.mouse_mode
+
+
+func after_test() -> void:
+	Input.mouse_mode = _saved_mouse_mode
+
+
 func test_editor_hud_modes_and_info() -> void:
 	var hud: EditorHUD = auto_free(EditorHUDClass.new())
 	hud.setup()
@@ -50,12 +66,15 @@ func test_editor_launcher_population_and_signals() -> void:
 	var launcher: EditorLauncher = auto_free(EditorLauncherClass.new())
 	add_child(launcher)
 
+	# R12C hygiene cleanup: a synthetic sandbox id/path stands in for a shipped
+	# map — EditorLauncher.setup() only renders display_name, it never loads
+	# scene_path, so this never touched res:// content even before the rename.
 	var map_def := MapDef.new()
-	map_def.id = "base"
+	map_def.id = Sandbox.map_id("launcher_population")
 	map_def.display_name = "Base Camp"
 	map_def.description = "Starting outpost"
 	map_def.map_type = MapDef.MapType.BASE
-	map_def.scene_path = "res://data/maps/base/map.tscn"
+	map_def.scene_path = Sandbox.map_dir(map_def.id) + "map.tscn"
 
 	launcher.setup([map_def])
 	assert_int(launcher._maps_container.get_child_count()).is_equal(1)
@@ -1353,24 +1372,56 @@ func test_editor_launcher_heightmap_payload_validation() -> void:
 
 
 ## The launcher's noise dropdown lists shared defs but excludes heightmap-driven
-## ones (those are per-map content), with the default preselected.
+## ones (those are per-map content), with the default preselected. Fed from a
+## throwaway user:// directory (via MapRepository.scan_noise_defs' optional
+## dir_path parameter) instead of shipped res://data/terrain content, so the
+## assertions stay content-agnostic.
 func test_editor_launcher_noise_def_dropdown_excludes_heightmap_defs() -> void:
+	var scratch_dir := "user://sandbox_scan_noise_defs_editor/"
+	DirAccess.make_dir_recursive_absolute(scratch_dir)
+	var noise_path := scratch_dir + "sandbox_noise.tres"
+	var heightmap_path := scratch_dir + "sandbox_heightmap.tres"
+	var noise_def := Sandbox.save_noise_def(noise_path, 20260922, 0.02)
+	var heightmap_def := _make_heightmap_terrain_gen_def(heightmap_path)
+
 	var editor: MapEditor = auto_free(MapEditorClass.new())
 	add_child(editor)
+	# Repopulate the dropdown from the synthetic directory, overriding the
+	# real-TERRAIN_DIR scan _ready() already ran, so nothing here depends on
+	# shipped defs.
+	var entries := MapRepository.scan_noise_defs(scratch_dir)
+	editor._launcher.setup_noise_defs(entries, noise_path)
+
 	var select: OptionButton = editor._launcher._noise_def_select
 	assert_int(select.item_count).is_greater(0)
-	var has_default := false
+	var has_noise_def := false
 	var has_heightmap_def := false
 	for i in range(select.item_count):
-		if select.get_item_text(i) == "ground_default":
-			has_default = true
-		if select.get_item_text(i) == "heightmap_valley":
+		if select.get_item_text(i) == noise_def.id:
+			has_noise_def = true
+		if select.get_item_text(i) == heightmap_def.id:
 			has_heightmap_def = true
-	assert_bool(has_default).is_true()
+	assert_bool(has_noise_def).is_true()
 	assert_bool(has_heightmap_def).is_false()
-	assert_str(editor._launcher._selected_noise_def_path()).is_equal(
-		"res://data/terrain/default_ground.tres"
-	)
+	assert_str(editor._launcher._selected_noise_def_path()).is_equal(noise_path)
+
+	DirAccess.remove_absolute(noise_path)
+	DirAccess.remove_absolute(heightmap_path)
+	DirAccess.remove_absolute(scratch_dir)
+
+
+func _make_heightmap_terrain_gen_def(path: String) -> TerrainGenDef:
+	## Auxiliary: Builds and persists a synthetic heightmap-driven TerrainGenDef so
+	## the dropdown-exclusion assertion has a real entry to drop, without reading
+	## shipped res://data/terrain content.
+	var def := TerrainGenDef.new()
+	def.id = "sandbox_heightmap_def"
+	var image := Image.create(4, 4, false, Image.FORMAT_L8)
+	image.fill(Color(0.5, 0.5, 0.5))
+	def.heightmap = ImageTexture.create_from_image(image)
+	def.take_over_path(path)
+	ResourceSaver.save(def, path)
+	return def
 
 
 ## load_heightmap_image: a valid image loads and converts to L8; bad paths and
@@ -1780,7 +1831,11 @@ func test_map_editor_eyedropper_reads_stored_block_index() -> void:
 	# Stored voxels are plain library model indices (the mesher's addressing
 	# scheme — packed values render nothing, see BlockyGrid's class doc).
 	var target_pos := Vector3i(10, 5, 10)
-	await editor._apply_block_brush(target_pos, 4)
+	# hygiene-ok: awaits map_editor.gd's own bounded block-write retry loop (max
+	# 5 attempts x 0.1s = 0.5s worst case), not a new wall-clock wait; the
+	# landed result is asserted directly below instead of trusted implicitly.
+	var landed := await editor._apply_block_brush(target_pos, 4)
+	assert_bool(landed).is_true()
 
 	var hit := {
 		"hit": true,
