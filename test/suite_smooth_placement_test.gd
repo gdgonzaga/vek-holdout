@@ -7,17 +7,31 @@ extends GdUnitTestSuite
 ##   committed origin; fail-safe when unwired or the id is unknown
 
 const Doubles = preload("res://test/helpers/doubles.gd")
+const TerrainFixtures = preload("res://test/helpers/terrain_fixtures.gd")
+const BuildLibrarySandbox = preload("res://test/helpers/build_library_sandbox.gd")
+
+var _builds: BuildLibrarySandbox
+
+
+func before_test() -> void:
+	_builds = BuildLibrarySandbox.new(self)
+
+
+func after_test() -> void:
+	_builds.restore()
 
 
 func test_catalog_lists_ground_material() -> void:
-	assert_bool(BuildLibrary.is_terrain_material("ground")).is_true()
-	assert_bool(BuildLibrary.is_terrain_material("wood_block")).is_false()
-	var mat := BuildLibrary.get_terrain_material("ground")
+	_builds.add_terrain_material(TerrainFixtures.material("test_soft"))
+
+	assert_bool(BuildLibrary.is_terrain_material("test_soft")).is_true()
+	assert_bool(BuildLibrary.is_terrain_material("test_not_a_material")).is_false()
+	var mat := BuildLibrary.get_terrain_material("test_soft")
 	assert_object(mat).is_not_null()
 	assert_int(mat.hp).is_greater_equal(1)
 	var found := false
 	for entry in BuildLibrary.get_terrain_materials():
-		if entry.id == "ground":
+		if entry.id == "test_soft":
 			found = true
 	assert_bool(found).is_true()
 
@@ -31,6 +45,10 @@ func test_material_defs_shape() -> void:
 
 
 func test_strategy_commits_add_sphere_at_origin() -> void:
+	var material := TerrainFixtures.material("test_soft")
+	material.place_radius = 2.25
+	_builds.add_terrain_material(material)
+
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
 	var strategy := SmoothPlacementStrategy.new()
@@ -38,12 +56,12 @@ func test_strategy_commits_add_sphere_at_origin() -> void:
 
 	var t := Transform3D.IDENTITY
 	t.origin = Vector3(2.5, 1.0, 3.5)
-	assert_bool(strategy.commit(t, null, "ground")).is_true()
+	assert_bool(strategy.commit(t, null, "test_soft")).is_true()
 
 	assert_int(grid.adds.size()).is_equal(1)
 	assert_that(grid.adds[0]["pos"]).is_equal(Vector3(2.5, 1.0, 3.5))
-	assert_str(grid.adds[0]["material_id"]).is_equal("ground")
-	assert_float(grid.adds[0]["radius"]).is_equal(BuildLibrary.get_terrain_material("ground").place_radius)
+	assert_str(grid.adds[0]["material_id"]).is_equal("test_soft")
+	assert_float(grid.adds[0]["radius"]).is_equal(2.25)
 
 
 func test_strategy_fails_safe_unwired() -> void:

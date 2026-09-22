@@ -15,6 +15,7 @@ const _UP := Vector3i(0, 1, 0)
 const _MAX_SLOPE_DEG := 45.0
 
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+const JobFixtures = preload("res://test/helpers/job_fixtures.gd")
 
 var _sandbox: ColonySandbox
 
@@ -464,7 +465,7 @@ func test_downward_stairway_jobs_unlock_sequentially() -> void:
 	Colony.set_walkability_predicate(probe)
 	Colony.set_stand_cell_hint(_fake_hint(heights))
 
-	var dig_def: JobDef = preload("res://data/jobs/dig.tres")
+	var dig_def: JobDef = JobFixtures.dig()
 
 	# Stairway steps along +X:
 	# Step 0: (0, 10, 0)

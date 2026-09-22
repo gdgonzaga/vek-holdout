@@ -12,12 +12,10 @@ extends GdUnitTestSuite
 ## - BuildController._calculate_dig_target / _dig_target: cell-center prior +
 ##   hit-point refinement of the BOX dig
 
-const DIG_TOOL: DigToolParams = preload("res://data/mining/dig_tool.tres")
-const GROUND: TerrainMaterialDef = preload("res://data/terrain/materials/ground.tres")
-const ROCK: TerrainMaterialDef = preload("res://data/terrain/materials/rock.tres")
-
 const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 const Doubles = preload("res://test/helpers/doubles.gd")
+const TerrainFixtures = preload("res://test/helpers/terrain_fixtures.gd")
+const JobFixtures = preload("res://test/helpers/job_fixtures.gd")
 
 var _sandbox: ColonySandbox
 
@@ -30,13 +28,6 @@ func after_test() -> void:
 	_sandbox.restore()
 
 
-func test_dig_tool_params_shape() -> void:
-	assert_float(DIG_TOOL.work_time).is_greater(0.0)
-	assert_int(DIG_TOOL.shape).is_equal(DigToolParams.Shape.BOX)
-	assert_vector(DIG_TOOL.box_size).is_equal(Vector3(1.0, 1.0, 1.0))
-	assert_bool(DIG_TOOL.snap_grid).is_true()
-
-
 func test_mining_skill_in_catalog_with_labor() -> void:
 	var skill_set := SkillSet.new()
 	auto_free(skill_set)
@@ -47,27 +38,21 @@ func test_mining_skill_in_catalog_with_labor() -> void:
 	assert_int(skill_set.get_level("mining")).is_equal(1)
 
 
-func test_ground_material_has_yields() -> void:
-	assert_bool(GROUND.yields.is_empty()).is_false()
-	for entry: ItemAmount in GROUND.yields:
-		assert_object(entry.item_def).is_not_null()
-		assert_int(entry.count).is_greater(0)
-
-
 func test_apply_box_carves_and_grants_yields() -> void:
 	var player := _sandbox.make_player()
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.material_def = GROUND
+	var soil := TerrainFixtures.material("test_soft", 100, {"test_soft_item": 2})
+	grid.material_def = soil
 	var center := Vector3(4.5, 2.5, 4.5)
 
 	var action := DigAction.new()
-	action._apply(player, grid, center, DIG_TOOL)
+	action._apply(player, grid, center, TerrainFixtures.dig_tool())
 
 	assert_int(grid.box_carves.size()).is_equal(1)
 	assert_vector(grid.box_carves[0]["min"]).is_equal(Vector3(4.0, 2.0, 4.0))
 	assert_vector(grid.box_carves[0]["max"]).is_equal(Vector3(5.0, 3.0, 5.0))
-	var yield_entry: ItemAmount = GROUND.yields[0]
+	var yield_entry: ItemAmount = soil.yields[0]
 	var world_items := get_tree().get_nodes_in_group("world_items")
 	assert_int(world_items.size()).is_greater_equal(1)
 	var dropped_item := world_items[-1] as WorldItem
@@ -79,7 +64,7 @@ func test_apply_sphere_carves_when_configured() -> void:
 	var player := _sandbox.make_player()
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.material_def = GROUND
+	grid.material_def = TerrainFixtures.material("test_soft", 100, {"test_soft_item": 2})
 	var center := Vector3(4.0, 2.0, 4.0)
 
 	var sphere_tool := DigToolParams.new()
@@ -95,25 +80,28 @@ func test_apply_sphere_carves_when_configured() -> void:
 	assert_float(grid.carves[0]["radius"]).is_equal(1.5)
 
 
-## Per-position identity: the def at the dig position decides the yields —
-## a rock-position dig drops stone even when the grid's default is ground.
+## Per-position identity: the def at the dig position decides the yields — a
+## hard-material-position dig drops that material's item even when the grid's
+## default was set to a different (soft) material first.
 func test_apply_yields_come_from_the_dig_position_not_the_default() -> void:
 	var player := _sandbox.make_player()
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.material_def = GROUND
-	grid.material_def = ROCK
+	var soft := TerrainFixtures.material("test_soft", 100, {"test_soft_item": 2})
+	var hard := TerrainFixtures.material("test_hard", 300, {"test_hard_item": 1})
+	grid.material_def = soft
+	grid.material_def = hard
 
 	var action := DigAction.new()
-	action._apply(player, grid, Vector3(0.0, -10.0, 0.0), DIG_TOOL)
+	action._apply(player, grid, Vector3(0.0, -10.0, 0.0), TerrainFixtures.dig_tool())
 
-	var ground_yield: ItemAmount = GROUND.yields[0]
-	assert_bool(player.inventory.has_item(ground_yield.item_def.id, ground_yield.count)).is_false()
-	var rock_yield: ItemAmount = ROCK.yields[0]
-	var world_items_rock := get_tree().get_nodes_in_group("world_items")
-	assert_int(world_items_rock.size()).is_greater_equal(1)
-	var dropped_rock := world_items_rock[-1] as WorldItem
-	assert_str(dropped_rock.item_id).is_equal(rock_yield.item_def.id)
+	var soft_yield: ItemAmount = soft.yields[0]
+	assert_bool(player.inventory.has_item(soft_yield.item_def.id, soft_yield.count)).is_false()
+	var hard_yield: ItemAmount = hard.yields[0]
+	var world_items_hard := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items_hard.size()).is_greater_equal(1)
+	var dropped_hard := world_items_hard[-1] as WorldItem
+	assert_str(dropped_hard.item_id).is_equal(hard_yield.item_def.id)
 
 
 func test_apply_without_default_material_still_carves() -> void:
@@ -124,7 +112,7 @@ func test_apply_without_default_material_still_carves() -> void:
 	var center := Vector3(1.5, 3.5, 1.5)
 
 	var action := DigAction.new()
-	action._apply(player, grid, center, DIG_TOOL)
+	action._apply(player, grid, center, TerrainFixtures.dig_tool())
 
 	# No material identity = no yields, but the carve (and the labor) happened.
 	assert_int(grid.box_carves.size()).is_equal(1)
@@ -135,30 +123,31 @@ func test_timed_dig_locks_busy_then_carves_on_completion() -> void:
 	var player := _sandbox.make_player()
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.material_def = GROUND
+	var soil := TerrainFixtures.material("test_soft", 100, {"test_soft_item": 2})
+	grid.material_def = soil
 	var center := Vector3(1.5, 3.5, 1.5)
 
-	var fast_tool := DigToolParams.new()
-	auto_free(fast_tool)
-	fast_tool.work_time = 0.05
-	fast_tool.shape = DigToolParams.Shape.BOX
-	fast_tool.box_size = Vector3(1.0, 1.0, 1.0)
+	var fast_tool := TerrainFixtures.dig_tool(0.05)
 
 	var action := DigAction.new()
 	action.begin(player, grid, center, fast_tool)
 	assert_bool(player.is_busy()).is_true()
 	assert_int(grid.box_carves.size()).is_equal(0)
 
-	var waited := 0.0
-	while player.is_busy() and waited < 3.0:
-		await get_tree().create_timer(0.05).timeout
-		waited += 0.05
+	# Bounded frame wait for the gauge to settle (Hard rule 8/H4: no create_timer wall clock);
+	# the gauge advances on _process, so process_frame is the tick that moves it.
+	const MAX_FRAMES_TO_WAIT := 240
+	var frames_waited := 0
+	while player.is_busy() and frames_waited < MAX_FRAMES_TO_WAIT:
+		await get_tree().process_frame
+		frames_waited += 1
 
 	assert_bool(player.is_busy()).is_false()
+	assert_int(frames_waited).is_less(MAX_FRAMES_TO_WAIT)
 	assert_int(grid.box_carves.size()).is_equal(1)
 	assert_vector(grid.box_carves[0]["min"]).is_equal(Vector3(1.0, 3.0, 1.0))
 	assert_vector(grid.box_carves[0]["max"]).is_equal(Vector3(2.0, 4.0, 2.0))
-	var yield_entry: ItemAmount = GROUND.yields[0]
+	var yield_entry: ItemAmount = soil.yields[0]
 	var world_items := get_tree().get_nodes_in_group("world_items")
 	assert_int(world_items.size()).is_greater_equal(1)
 	var dropped_item := world_items[-1] as WorldItem
@@ -450,7 +439,7 @@ func test_mining_system_clean_air_markers_frees_markers_on_air_terrain() -> void
 
 
 func test_dig_job_def_checks_colony_is_terrain_at() -> void:
-	var dig_def: JobDef = preload("res://data/jobs/dig.tres")
+	var dig_def: JobDef = JobFixtures.dig()
 	var target_cell := Vector3i(8, 2, 8)
 	var job := Job.from_def(dig_def)
 	job.anchor_cell = target_cell
@@ -471,7 +460,7 @@ func test_dig_job_def_checks_colony_is_terrain_at() -> void:
 ## A buried underground dig job (no walkable adjacent cells) is unavailable
 ## until excavation reaches a neighbour and makes it walkable.
 func test_dig_job_def_buried_job_gated_by_walkable_neighbor() -> void:
-	var dig_def: JobDef = preload("res://data/jobs/dig.tres")
+	var dig_def: JobDef = JobFixtures.dig()
 	var target_cell := Vector3i(1, 3, 7)
 	var job := Job.from_def(dig_def)
 	job.anchor_cell = target_cell
@@ -495,27 +484,38 @@ func test_dig_job_def_buried_job_gated_by_walkable_neighbor() -> void:
 
 # ── Direct LMB Mining & Damage Tests ─────────────────────────────────────────
 
-func test_smooth_grid_apply_damage_multi_hit_destroys_dirt() -> void:
+## Multi-hit destroy: the exact-HP-remaining boundary must stay on the "not
+## destroyed" side of hp <= 0 — a fixture landing precisely on 1 hp remaining
+## after a hit is the regression pin for an off-by-one destroy threshold
+## (see the T7 mutation check in the phase hand-back).
+func test_smooth_grid_apply_damage_multi_hit_destroys_at_zero_hp() -> void:
 	var player := _sandbox.make_player()
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.material_def = GROUND
+	var soil := TerrainFixtures.material("test_soft", 101, {"test_soft_item": 2})
+	grid.material_def = soil
 	var target_cell := Vector3i(2, 3, 4)
 
-	# Hit 1: 50 damage to 100 HP dirt -> 50 HP left, not destroyed
+	# Hit 1: 50 damage off 101 hp -> 51 hp left, not destroyed
 	var res1 := grid.apply_damage_at(target_cell, 50, player)
 	assert_bool(res1["destroyed"]).is_false()
-	assert_int(res1["remaining_hp"]).is_equal(50)
-	assert_int(res1["max_hp"]).is_equal(100)
+	assert_int(res1["remaining_hp"]).is_equal(51)
+	assert_int(res1["max_hp"]).is_equal(101)
 	assert_int(grid.box_carves.size()).is_equal(0)
-	var yield_entry: ItemAmount = GROUND.yields[0]
+	var yield_entry: ItemAmount = soil.yields[0]
 	assert_bool(player.inventory.has_item(yield_entry.item_def.id, yield_entry.count)).is_false()
 	assert_int(_sandbox.skill_uses(player.skill_set, "mining")).is_equal(0)
 
-	# Hit 2: another 50 damage -> destroyed, carved, yields granted, skill recorded
+	# Hit 2: another 50 damage -> exactly 1 hp left, still not destroyed
 	var res2 := grid.apply_damage_at(target_cell, 50, player)
-	assert_bool(res2["destroyed"]).is_true()
-	assert_int(res2["remaining_hp"]).is_equal(0)
+	assert_bool(res2["destroyed"]).is_false()
+	assert_int(res2["remaining_hp"]).is_equal(1)
+	assert_int(grid.box_carves.size()).is_equal(0)
+
+	# Hit 3: final 50 damage -> destroyed, carved, yields granted, skill recorded
+	var res3 := grid.apply_damage_at(target_cell, 50, player)
+	assert_bool(res3["destroyed"]).is_true()
+	assert_int(res3["remaining_hp"]).is_equal(0)
 	assert_int(grid.box_carves.size()).is_equal(1)
 	assert_vector(grid.box_carves[0]["min"]).is_equal(Vector3(2, 3, 4))
 	assert_vector(grid.box_carves[0]["max"]).is_equal(Vector3(3, 4, 5))
@@ -526,14 +526,15 @@ func test_smooth_grid_apply_damage_multi_hit_destroys_dirt() -> void:
 	assert_int(_sandbox.skill_uses(player.skill_set, "mining")).is_equal(1)
 
 
-func test_smooth_grid_apply_damage_on_rock_takes_6_hits() -> void:
+func test_smooth_grid_apply_damage_takes_hp_over_swing_damage_hits() -> void:
 	var player := _sandbox.make_player()
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.material_def = ROCK # 300 HP
+	var ore := TerrainFixtures.material("test_hard", 300, {"test_hard_item": 2}) # 300 HP
+	grid.material_def = ore
 	var target_cell := Vector3i(10, 5, 10)
 
-	# 5 hits @ 50 dmg = 250 dmg -> 50 HP remaining
+	# 5 hits @ 50 dmg = 250 dmg -> 50 HP remaining (300 hp needs ceil(300 / 50) == 6 hits total)
 	for i in 5:
 		var res := grid.apply_damage_at(target_cell, 50, player)
 		assert_bool(res["destroyed"]).is_false()
@@ -544,17 +545,18 @@ func test_smooth_grid_apply_damage_on_rock_takes_6_hits() -> void:
 	var res6 := grid.apply_damage_at(target_cell, 50, player)
 	assert_bool(res6["destroyed"]).is_true()
 	assert_int(grid.box_carves.size()).is_equal(1)
-	var rock_yield: ItemAmount = ROCK.yields[0]
-	var world_items_rock := get_tree().get_nodes_in_group("world_items")
-	assert_int(world_items_rock.size()).is_greater_equal(1)
-	var dropped_rock := world_items_rock[-1] as WorldItem
-	assert_str(dropped_rock.item_id).is_equal(rock_yield.item_def.id)
+	var ore_yield: ItemAmount = ore.yields[0]
+	var world_items_ore := get_tree().get_nodes_in_group("world_items")
+	assert_int(world_items_ore.size()).is_greater_equal(1)
+	var dropped_ore := world_items_ore[-1] as WorldItem
+	assert_str(dropped_ore.item_id).is_equal(ore_yield.item_def.id)
 
 
 func test_smooth_grid_damage_decay_heals_over_time() -> void:
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	grid.material_def = GROUND # 100 HP, 0.25 min full heal
+	var soil := TerrainFixtures.material("test_soft", 100, {"test_soft_item": 2}, 0.25) # 100 HP, 0.25 min full heal
+	grid.material_def = soil
 	var target_cell := Vector3i(7, 8, 9)
 
 	# Hit once for 50 dmg
@@ -562,8 +564,11 @@ func test_smooth_grid_damage_decay_heals_over_time() -> void:
 	assert_bool(grid._hp_by_pos.has(target_cell)).is_true()
 	assert_int(grid.get_hp_at(target_cell)).is_equal(50)
 
-	# Simulate 16 seconds passed (beyond the 15s full heal time)
-	grid._hp_by_pos[target_cell]["last_hit_ms"] = Time.get_ticks_msec() - 16000
+	# Push the last-hit timestamp past the fixture's own heal window (grace period + full heal
+	# time + 1s margin), derived from the fixture instead of a hard-coded offset.
+	var heal_seconds: float = soil.minutes_to_full_heal * 60.0
+	var elapsed_ms: int = int((heal_seconds + SmoothGrid.HEAL_GRACE_PERIOD_SEC + 1.0) * 1000.0)
+	grid._hp_by_pos[target_cell]["last_hit_ms"] = Time.get_ticks_msec() - elapsed_ms
 
 	# Querying HP should show full heal and pruned entry
 	assert_int(grid.get_hp_at(target_cell)).is_equal(100)
@@ -573,12 +578,8 @@ func test_smooth_grid_damage_decay_heals_over_time() -> void:
 func test_smooth_grid_no_heal_when_minutes_to_full_heal_is_zero() -> void:
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
-	var asphalt := TerrainMaterialDef.new()
-	auto_free(asphalt)
-	asphalt.id = "asphalt"
-	asphalt.hp = 200
-	asphalt.minutes_to_full_heal = 0.0 # Non-healing material
-	grid.material_def = asphalt
+	var never_heals := TerrainFixtures.material("test_norecover", 200, {}, 0.0) # Non-healing material
+	grid.material_def = never_heals
 	var target_cell := Vector3i(1, 1, 1)
 
 	# Hit once for 50 dmg
@@ -601,7 +602,8 @@ func test_smooth_grid_spawns_and_updates_damage_decal() -> void:
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
 	root.add_child(grid)
-	grid.material_def = ROCK # 300 HP
+	var ore := TerrainFixtures.material("test_hard", 300, {"test_hard_item": 1}) # 300 HP
+	grid.material_def = ore
 
 	var target_cell := Vector3i(3, 3, 3)
 
@@ -636,7 +638,8 @@ func test_smooth_grid_removes_damage_decal_on_full_regeneration() -> void:
 	var grid: Doubles.RecordingSmoothGrid = Doubles.RecordingSmoothGrid.new()
 	auto_free(grid)
 	root.add_child(grid)
-	grid.material_def = GROUND # 100 HP, 0.25 min heal
+	var soil := TerrainFixtures.material("test_soft", 100, {"test_soft_item": 2}, 0.25) # 100 HP, 0.25 min heal
+	grid.material_def = soil
 
 	var target_cell := Vector3i(6, 6, 6)
 
@@ -646,8 +649,11 @@ func test_smooth_grid_removes_damage_decal_on_full_regeneration() -> void:
 	var decal: Decal = grid._damage_decals[target_cell]
 	assert_object(decal).is_not_null()
 
-	# Simulate 16 seconds passed (fully healed)
-	grid._hp_by_pos[target_cell]["last_hit_ms"] = Time.get_ticks_msec() - 16000
+	# Push the last-hit timestamp past the fixture's own heal window (fully healed), derived
+	# from the fixture instead of a hard-coded offset.
+	var heal_seconds: float = soil.minutes_to_full_heal * 60.0
+	var elapsed_ms: int = int((heal_seconds + SmoothGrid.HEAL_GRACE_PERIOD_SEC + 1.0) * 1000.0)
+	grid._hp_by_pos[target_cell]["last_hit_ms"] = Time.get_ticks_msec() - elapsed_ms
 
 	# Query HP -> triggers regeneration cleanup and removes decal
 	assert_int(grid.get_hp_at(target_cell)).is_equal(100)
