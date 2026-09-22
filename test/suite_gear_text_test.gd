@@ -3,13 +3,6 @@ extends GdUnitTestSuite
 ## Content-agnostic: ItemDefs are built in-memory and no ItemDB lookups happen.
 
 
-func _make_item(id_val: String, display: String = "") -> ItemDef:
-	var def: ItemDef = auto_free(ItemDef.new())
-	def.id = id_val
-	def.resource_name = display
-	return def
-
-
 # ==============================
 # slot_display_name
 # ==============================

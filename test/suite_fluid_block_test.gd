@@ -5,6 +5,34 @@ extends GdUnitTestSuite
 const Fixtures := preload("res://test/helpers/rotation_fixtures.gd")
 const HeightFixtures := preload("res://test/helpers/height_fixtures.gd")
 
+## Every user:// fixture dir a test in this suite writes into; after_test
+## sweeps all of them so a crashed or interrupted run leaves nothing behind.
+const _FIXTURE_DIRS := [
+	"user://fixture_blocks_fixed_idx/",
+	"user://fixture_blocks_fluid_query/",
+	"user://fixture_blocks_water_wiring/",
+]
+
+
+func after_test() -> void:
+	for dir_path: String in _FIXTURE_DIRS:
+		_remove_fixture_dir(dir_path)
+
+
+## Auxiliary: Removes a fixture dir and its files, tolerating a missing dir
+func _remove_fixture_dir(dir_path: String) -> void:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not fname.begins_with("."):
+			dir.remove(fname)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	DirAccess.remove_absolute(dir_path.trim_suffix("/"))
+
 
 ## BlockyGrid mounting a fixture library, so the wiring test needs no data/blocks/.
 class FixtureBlockyGrid extends BlockyGrid:
@@ -87,7 +115,7 @@ func test_smooth_grid_surface_height_analytical_fallback() -> void:
 	assert_bool(is_nan(h)).is_false()
 	assert_float(h).is_greater_equal(-10.0)
 	assert_float(h).is_less_equal(10.0)
-	grid.free()
+	auto_free(grid)
 
 
 func test_water_generator_does_not_exceed_water_level() -> void:

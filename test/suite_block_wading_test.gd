@@ -10,6 +10,14 @@ const FLUID_ID := "test_fluid"
 const SOLID_ID := "test_solid"
 const FLUID_DRAG := 0.4
 
+const _FIXTURE_DIR := "user://fixture_blocks_wading/"
+
+
+func after_test() -> void:
+	# _library() writes into a fixed user:// fixture dir every test; remove it
+	# so a crashed or interrupted run leaves nothing behind (Step 9).
+	_remove_fixture_dir(_FIXTURE_DIR)
+
 
 func test_a_fluid_reports_its_own_wading_multiplier() -> void:
 	# Break caught: a fluid ignoring its def (the old code hardcoded one drag for one block id).
@@ -38,7 +46,7 @@ func test_air_and_unknown_blocks_do_not_slow() -> void:
 ## Auxiliary: A library over a fixture dir holding one fluid (with a multiplier) and one solid
 ## (with a trap multiplier).
 func _library() -> BlockLibrary:
-	var dir := "user://fixture_blocks_wading/"
+	var dir := _FIXTURE_DIR
 	DirAccess.make_dir_recursive_absolute(dir)
 	var existing := DirAccess.open(dir)
 	if existing != null:
@@ -47,6 +55,21 @@ func _library() -> BlockLibrary:
 	_write_def(dir + "a_fluid.tres", FLUID_ID, true, FLUID_DRAG)
 	_write_def(dir + "b_solid.tres", SOLID_ID, false, 0.1)
 	return BlockLibrary.new(dir)
+
+
+## Auxiliary: Removes a fixture dir and its files, tolerating a missing dir
+func _remove_fixture_dir(dir_path: String) -> void:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not fname.begins_with("."):
+			dir.remove(fname)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	DirAccess.remove_absolute(dir_path.trim_suffix("/"))
 
 
 func _write_def(path: String, block_id: String, fluid: bool, wading: float) -> void:

@@ -12,7 +12,7 @@ const Fixtures := preload("res://test/helpers/rotation_fixtures.gd")
 ## table stays 0..3, variants are appended after it — 3 yaw + 23 full = 30.
 func test_variants_are_baked_after_the_base_table() -> void:
 	var dir := Fixtures.make_block_dir("layout")
-	var lib := BlockLibrary.new(dir)
+	var lib: BlockLibrary = auto_free(BlockLibrary.new(dir))
 	assert_int(lib.get_index("plain")).is_equal(1)
 	assert_int(lib.get_index("yawwedge")).is_equal(2)
 	assert_int(lib.get_index("fullwedge")).is_equal(3)
@@ -21,7 +21,7 @@ func test_variants_are_baked_after_the_base_table() -> void:
 
 func test_stored_index_resolution_yaw_roundtrip() -> void:
 	var dir := Fixtures.make_block_dir("yawrt")
-	var lib := BlockLibrary.new(dir)
+	var lib: BlockLibrary = auto_free(BlockLibrary.new(dir))
 	var yaw_base := lib.get_index("yawwedge")
 
 	# Rotation 0 stores the base index itself.
@@ -49,7 +49,7 @@ func test_stored_index_resolution_yaw_roundtrip() -> void:
 
 func test_stored_index_resolution_full_3d_roundtrip() -> void:
 	var dir := Fixtures.make_block_dir("fullrt")
-	var lib := BlockLibrary.new(dir)
+	var lib: BlockLibrary = auto_free(BlockLibrary.new(dir))
 	var full_base := lib.get_index("fullwedge")
 
 	for ortho in range(VoxelBlockEncoder.MAX_ORTHO_ROTATIONS):
@@ -66,7 +66,7 @@ func test_stored_index_resolution_full_3d_roundtrip() -> void:
 ## must not crash resolution or masquerade as variants).
 func test_unknown_indices_pass_through() -> void:
 	var dir := Fixtures.make_block_dir("unknown")
-	var lib := BlockLibrary.new(dir)
+	var lib: BlockLibrary = auto_free(BlockLibrary.new(dir))
 	assert_int(lib.get_stored_index(99, 5)).is_equal(99)
 	assert_int(lib.get_base_index(99)).is_equal(99)
 	assert_int(lib.get_rotation_index(99)).is_equal(0)
@@ -78,7 +78,7 @@ func test_unknown_indices_pass_through() -> void:
 ## (quarter turn about the cell center) — variants share the def's mesh.
 func test_variant_indices_render_rotated_geometry() -> void:
 	var dir := Fixtures.make_block_dir("render")
-	var lib := BlockLibrary.new(dir)
+	var lib: BlockLibrary = auto_free(BlockLibrary.new(dir))
 	var mesher := VoxelMesherBlocky.new()
 	mesher.library = lib.get_voxel_library()
 	var yaw_base := lib.get_index("yawwedge")
@@ -118,7 +118,7 @@ func _render_vertex_set(mesher: VoxelMesherBlocky, value: int) -> Array:
 
 func test_base_indices_contain_only_base_defs() -> void:
 	var dir := Fixtures.make_block_dir("base_indices")
-	var lib := BlockLibrary.new(dir)
+	var lib: BlockLibrary = auto_free(BlockLibrary.new(dir))
 	var base_indices := lib.get_base_indices()
 	# 3 fixture base definitions (plain, yawwedge, fullwedge)
 	assert_int(base_indices.size()).is_equal(3)

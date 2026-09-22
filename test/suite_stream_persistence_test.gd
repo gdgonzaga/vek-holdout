@@ -5,9 +5,12 @@ extends GdUnitTestSuite
 ## and SaveSystem's park flush / slot snapshot+restore. These tests pin that
 ## pairing, the redirect's per-stream copy/repoint/inject rules, the both-grid
 ## flush, and the snapshot -> wipe -> restore file round-trip. res://data/maps/
-## base/map.sqlite doubles as an existing committed source for the copy branch;
-## res://data/maps/dev/terrain.sqlite (deliberately not committed — the generator
-## is the dev map's smooth baseline) doubles as a missing source.
+## dev/map.sqlite and res://data/maps/dev/terrain.sqlite ARE both committed
+## (commit 2357812) and double as an existing source for the copy branch —
+## res:// is read-only at runtime (INV-1), so the copy-from-an-existing-source
+## behavior can only be exercised against a file that is really there. A
+## synthetic path under a fixture id (res://data/maps/missing_map_fixture/...)
+## doubles as the missing-source branch instead.
 
 const _REDIRECT_ID := "zz_streamtest"
 const _RT_ID := "zz_p4rt"
@@ -142,8 +145,8 @@ func test_persisted_streams_without_live_smooth() -> void:
 ## user://maps/<id>/ under their paired names and both streams repointed.
 func test_redirect_copies_and_repoints_both_streams() -> void:
 	var map := _build_map(true)
-	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/dev/map.sqlite")
-	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/dev/terrain.sqlite")
+	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/dev/map.sqlite") # hygiene-ok: asserts the committed dev map's stream layout
+	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/dev/terrain.sqlite") # hygiene-ok: asserts the committed dev map's stream layout
 	SceneManager._redirect_sqlite_stream(map, _REDIRECT_ID)
 	var dir := "user://maps/%s/" % _REDIRECT_ID
 	assert_bool(FileAccess.file_exists(dir + "map.sqlite")).is_true()
@@ -159,7 +162,7 @@ func test_redirect_copies_and_repoints_both_streams() -> void:
 ## repoints so runtime edits land in user://, never res:// (INV-1).
 func test_redirect_missing_source_repoints_without_copy() -> void:
 	var map := _build_map(true)
-	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/missing_map_fixture/terrain.sqlite")
+	map.get_smooth_terrain().stream = _sqlite_stream("res://data/maps/missing_map_fixture/terrain.sqlite") # hygiene-ok: synthetic path that never exists on disk, not shipped content
 	SceneManager._redirect_sqlite_stream(map, _REDIRECT_ID)
 	assert_bool(FileAccess.file_exists("user://maps/%s/terrain.sqlite" % _REDIRECT_ID)).is_false()
 	assert_str((map.get_smooth_terrain().stream as VoxelStreamSQLite).database_path) \
@@ -185,7 +188,7 @@ func test_redirect_injects_streams_when_absent() -> void:
 ## overwrite it with the authored original.
 func test_redirect_keeps_existing_runtime_copy() -> void:
 	var map := _build_map(true)
-	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/dev/map.sqlite")
+	map.get_blocky_terrain().stream = _sqlite_stream("res://data/maps/dev/map.sqlite") # hygiene-ok: asserts the committed dev map's stream layout
 	_write_file("user://maps/%s/map.sqlite" % _REDIRECT_ID, "player progress sentinel")
 	SceneManager._redirect_sqlite_stream(map, _REDIRECT_ID)
 	assert_str(_read_file("user://maps/%s/map.sqlite" % _REDIRECT_ID)) \
@@ -208,12 +211,24 @@ func test_flush_voxel_streams_saves_both_grids() -> void:
 	if "requires_collision" in viewer:
 		viewer.set("requires_collision", true)
 	map.add_child(viewer)
-	await get_tree().create_timer(0.5).timeout
+	# Bounded frame wait for the viewer to stream the edit sites in (F3; Hard
+	# rule 8/H4: no create_timer wall clock) — mirrors suite_blocky_grid_test's
+	# viewer-settle loop, since zylann exposes no "area streamed in" query.
+	const STREAM_SETTLE_FRAMES := 30
+	for _i in range(STREAM_SETTLE_FRAMES):
+		await get_tree().physics_frame
 	map.get_blocky_grid().set_block_at(Vector3i(2, 24, 2), "stone")
 	map.get_smooth_grid().carve(Vector3(0, 4, 0), 2.5)
 	await get_tree().physics_frame
 	map.flush_voxel_streams()
-	await get_tree().create_timer(0.6).timeout
+	# Bounded per-frame poll on the condition the test is waiting for: both
+	# db files existing on disk (zylann's own save is async).
+	const MAX_FLUSH_FRAMES := 120
+	var flush_frames_waited := 0
+	while not (FileAccess.file_exists(_SCRATCH + "blocky.sqlite") and FileAccess.file_exists(_SCRATCH + "smooth.sqlite")) \
+			and flush_frames_waited < MAX_FLUSH_FRAMES:
+		await get_tree().physics_frame
+		flush_frames_waited += 1
 	assert_bool(FileAccess.file_exists(_SCRATCH + "blocky.sqlite")).is_true()
 	assert_bool(FileAccess.file_exists(_SCRATCH + "smooth.sqlite")).is_true()
 

@@ -1,15 +1,27 @@
 extends GdUnitTestSuite
 
+const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+
+var _sandbox: ColonySandbox
 var _colonist: Colonist
 var _visualizer: ColonistDebugVisualizer
 
 
 func before_test() -> void:
-	var colonist_scene: PackedScene = load("res://subsystems/colonists/colonist.tscn")
-	_colonist = colonist_scene.instantiate() as Colonist
-	auto_free(_colonist)
-	add_child(_colonist)
+	# ColonySandbox isolates Colony's map-wiring caches (R3) so an earlier
+	# suite's real terrain predicate can never leak into this one.
+	_sandbox = ColonySandbox.new(self)
+	_colonist = _sandbox.make_colonist()
 	_visualizer = _colonist.get_node("ColonistDebugVisualizer") as ColonistDebugVisualizer
+	# The colonist is built directly (not through Colony's spawn flow), so its
+	# pathfinder is never wired to a predicate — bind a trivial always-walkable
+	# one to stop "walkability predicate not set" warnings from spamming every
+	# test; test_diagnostics_pathfinder_and_step_climber_telemetry overrides it.
+	_colonist.pathfinder.set_walkability(func(_cell: Vector3i) -> bool: return true)
+
+
+func after_test() -> void:
+	_sandbox.restore()
 
 
 func test_visualizer_initialization() -> void:
@@ -153,7 +165,9 @@ func test_freed_smart_object_does_not_crash_visualizer() -> void:
 	# Free the target node while the blackboard still references it
 	temp_node.free()
 
-	# Must not raise "Left operand of 'is' is a previously freed instance"
+	# Must not raise "Left operand of 'is' is a previously freed instance".
+	# The colonist has no path, so a crash-free draw leaves the wireframe mesh
+	# empty — a stronger check than merely surviving the calls.
 	_visualizer._draw_navigation_path()
 	_visualizer._process(0.016)
-	assert_object(_visualizer).is_not_null()
+	assert_int(_visualizer._immediate_mesh.get_surface_count()).is_equal(0)

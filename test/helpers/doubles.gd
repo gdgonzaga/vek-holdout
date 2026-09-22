@@ -67,9 +67,6 @@ class RecordingSmoothGrid extends SmoothGrid:
 	func get_material_def_at(_pos: Vector3i) -> TerrainMaterialDef:
 		return material_def
 
-	func get_first_material_def_in_box(_min_pos: Vector3, _max_pos: Vector3) -> TerrainMaterialDef:
-		return material_def
-
 
 ## Minimal IStatProvider double (subsystems/core/i_stat_provider.gd) — extends
 ## Node (not RefCounted) because MoodletDef.evaluate_icon_index(entity: Node)

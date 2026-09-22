@@ -63,10 +63,10 @@ func test_break_in_run_resets_collapse() -> void:
 
 func test_duplicate_refreshes_timeout() -> void:
 	GameLog.info("Raid repelled.")
+	# Back-date the line's own spawn_time field instead of waiting on the
+	# wall clock (Hard rule 8/H4): a refreshed spawn_time only needs to be
+	# distinguishable from this earlier value, not from "now".
+	_feed._lines[0].spawn_time -= 0.06
 	var first_spawn: float = _feed._lines[0].spawn_time
-	# Bump the engine clock so a refreshed spawn_time is distinguishable.
-	var before: float = Time.get_ticks_msec() / 1000.0
-	while Time.get_ticks_msec() / 1000.0 <= before:
-		OS.delay_msec(2)
 	GameLog.info("Raid repelled.")
 	assert_float(_feed._lines[0].spawn_time).is_greater(first_spawn)

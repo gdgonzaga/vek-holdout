@@ -6,6 +6,28 @@ const JobInstanceScript = preload("res://subsystems/jobs/job_instance.gd")
 const WorkerClaimScript = preload("res://subsystems/jobs/worker_claim.gd")
 const JobDefScript = preload("res://data/jobs/job_def.gd")
 
+## JobInstance/WorkerClaim hold a two-way reference (active_claims -> claim,
+## claim.job -> job); an unreleased claim at test end is therefore an
+## uncollectable RefCounted cycle. Every job this suite creates is tracked
+## here so after_test can break the cycle through the public release path.
+var _jobs: Array = []
+
+
+func after_test() -> void:
+	# Release every claim still outstanding on every job this test created, so
+	# no JobInstance <-> WorkerClaim cycle survives past the test (Step 8).
+	for job: JobInstance in _jobs:
+		for claim: WorkerClaim in job.active_claims.values():
+			claim.abandon()
+		job.active_claims.clear()
+	_jobs = []
+
+
+## Auxiliary: Registers a freshly created job so after_test can release its claims
+func _track(job: JobInstance) -> JobInstance:
+	_jobs.append(job)
+	return job
+
 
 func _create_dummy_job_def(
 	id: String = "mine_voxel",
@@ -29,7 +51,7 @@ func _create_dummy_job_def(
 
 func test_job_instance_initialization() -> void:
 	var def := _create_dummy_job_def()
-	var job = JobInstanceScript.create(def, 100, Vector3(1, 2, 3))
+	var job = _track(JobInstanceScript.create(def, 100, Vector3(1, 2, 3)))
 	
 	assert_str(job.labor_id).is_equal("mining")
 	assert_str(job.title).is_equal("Mine Voxel")
@@ -44,7 +66,7 @@ func test_job_instance_initialization() -> void:
 
 func test_single_claim_and_completion() -> void:
 	var def := _create_dummy_job_def()
-	var job = JobInstanceScript.create(def, 50)
+	var job = _track(JobInstanceScript.create(def, 50))
 	
 	var claim = job.try_claim_units("colonist_1", 20)
 	assert_object(claim).is_not_null()
@@ -74,7 +96,7 @@ func test_single_claim_and_completion() -> void:
 
 func test_concurrent_multi_colonist_mining() -> void:
 	var def := _create_dummy_job_def("mine_block", &"digging", &"pickaxe", 20)
-	var job = JobInstanceScript.create(def, 100)
+	var job = _track(JobInstanceScript.create(def, 100))
 	
 	# 3 colonists claim batches simultaneously
 	var claim_a = job.try_claim_units("colonist_a", 20)
@@ -120,7 +142,7 @@ func test_concurrent_multi_colonist_mining() -> void:
 
 func test_claim_clamping_to_unclaimed_units() -> void:
 	var def := _create_dummy_job_def()
-	var job = JobInstanceScript.create(def, 25)
+	var job = _track(JobInstanceScript.create(def, 25))
 	
 	# Request 50 units when only 25 are available
 	var claim = job.try_claim_units("colonist_1", 50)
@@ -132,7 +154,7 @@ func test_claim_clamping_to_unclaimed_units() -> void:
 
 func test_abandon_claim_restores_unclaimed_units() -> void:
 	var def := _create_dummy_job_def()
-	var job = JobInstanceScript.create(def, 100)
+	var job = _track(JobInstanceScript.create(def, 100))
 	
 	var claim = job.try_claim_units("colonist_1", 40)
 	assert_int(job.unclaimed_units).is_equal(60)
@@ -158,14 +180,14 @@ func test_batch_hauling_lifecycle() -> void:
 	def.labor_id = "hauling"
 	
 	# Haul job for 35 Wood items
-	var haul_job = JobInstanceScript.create_haul(
+	var haul_job = _track(JobInstanceScript.create_haul(
 		def,
 		&"wood",
 		35,
 		Vector3(0, 0, 0),
 		Vector3(10, 0, 10)
-	)
-	
+	))
+
 	assert_str(haul_job.item_id).is_equal("wood")
 	assert_int(haul_job.total_units).is_equal(35)
 	assert_int(haul_job.unclaimed_units).is_equal(35)
@@ -199,7 +221,7 @@ func test_batch_hauling_lifecycle() -> void:
 
 func test_claim_rejection_when_exhausted() -> void:
 	var def := _create_dummy_job_def()
-	var job = JobInstanceScript.create(def, 20)
+	var job = _track(JobInstanceScript.create(def, 20))
 	
 	var claim1 = job.try_claim_units("colonist_1", 20)
 	assert_object(claim1).is_not_null()
@@ -210,7 +232,7 @@ func test_claim_rejection_when_exhausted() -> void:
 
 func test_job_cancellation() -> void:
 	var def := _create_dummy_job_def()
-	var job = JobInstanceScript.create(def, 100)
+	var job = _track(JobInstanceScript.create(def, 100))
 	
 	var claim = job.try_claim_units("colonist_1", 30)
 	assert_object(claim).is_not_null()
@@ -228,7 +250,7 @@ func test_job_cancellation() -> void:
 
 func test_worker_claim_forwarding() -> void:
 	var def := _create_dummy_job_def("chop_tree", &"chopping", &"axe", 25, 2.0)
-	var job = JobInstanceScript.create(def, 100, Vector3(5, 0, 5))
+	var job = _track(JobInstanceScript.create(def, 100, Vector3(5, 0, 5)))
 	
 	var claim = job.try_claim_units("worker_9", 25)
 	assert_object(claim).is_not_null()

@@ -94,5 +94,15 @@ func test_build_heightmap_def_carries_span_and_embeds_image() -> void:
 
 
 func test_apply_water_ignores_null_def() -> void:
+	# The guard returns before touching anything; there is no def field left
+	# to inspect, so the observable is simply that this call raises nothing.
 	MTA.apply_water(null, true, -2.0)
-	assert_bool(true).is_true()
+
+
+func test_apply_water_sets_the_toggle_and_level_on_a_valid_def() -> void:
+	var def := TerrainGenDef.new()
+	def.water_enabled = false
+	def.water_level = 0.0
+	MTA.apply_water(def, true, 3.0)
+	assert_bool(def.water_enabled).is_true()
+	assert_float(def.water_level).is_equal(3.0)
