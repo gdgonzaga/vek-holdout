@@ -129,3 +129,13 @@ When undoing a smooth terrain `add_material` operation in the Map Editor (`tools
 
 **To resolve:** Migrate the remaining 18 `load_map("base")` and `load_map("dev")` test cases in `test/suite_map_editor_test.gd` to sandbox fixtures so unit tests remain fully content-agnostic and resilient to changes in shipped map definitions.
 
+---
+
+## Committed Content References Gitignored `res://tmp/` Assets (2026-09-22)
+
+**Status: Open.**
+
+Eight committed `.tres` files under `res://data/items/materials/` and `res://data/furniture/storage/` reference meshes and a texture under `res://tmp/...`, which `tmp/` gitignores (found while auditing the test suite): `coal.tres`, `copper_ore.tres`, `dirt.tres`, `gold_ore.tres`, `iron_ore.tres`, `rock.tres`, `sulfur.tres` (all via one shared `ArrayMesh` at `res://tmp/AAA-save/Polygon-Mega Survival Kit/SM_Stone_01.SM_Stone_01.mesh`), and `storage_crate.tres` (an `ArrayMesh` and a `Texture2D` under `res://tmp/Polygon-Mega Survival Construction/`). The AAA-save mesh exists only in checkouts that happen to still have that scratch download; the two `storage_crate.tres` assets are missing even here. A clean checkout or a fresh git worktree cannot load any of these seven material defs, and `storage_crate.tres` fails everywhere until its assets are restored.
+
+**To resolve:** Move the referenced meshes and textures into `res://assets/` (provenance recorded in `docs/art.md`, per the Layout rule that `assets/` is art-only) and repoint the `ext_resource` paths; for `storage_crate.tres`, first recover or replace the two missing files. Until resolved, do not rely on these defs in a fresh checkout or worktree.
+
