@@ -379,6 +379,26 @@ func test_world_changed_wakes_sleeping_jobs() -> void:
 	assert_int(job.sleep_until_msec).is_equal(0)
 
 
+## Per-colonist isolation and the expiry clock comparison are already pinned by
+## suite_ai_tasks_test::test_unreachable_navigation_blacklists_job_for_colonist
+## (verified with two mutants during this phase — both KILLED there). Only
+## clear_blacklists itself is unpinned: nothing calls it and then checks a
+## previously blacklisted pair became offerable again.
+func test_clear_blacklists_makes_every_blacklisted_job_offerable_again() -> void:
+	var board := JobBoard.new()
+	auto_free(board)
+
+	board.blacklist_job_for("job_a", "colonist_1", 10.0)
+	board.blacklist_job_for("job_b", "colonist_2", 10.0)
+	assert_bool(board.is_job_blacklisted_for("job_a", "colonist_1")).is_true()
+	assert_bool(board.is_job_blacklisted_for("job_b", "colonist_2")).is_true()
+
+	board.clear_blacklists()
+
+	assert_bool(board.is_job_blacklisted_for("job_a", "colonist_1")).is_false()
+	assert_bool(board.is_job_blacklisted_for("job_b", "colonist_2")).is_false()
+
+
 # ── Construction occupation & stacked blueprints ──────────────────────────────
 
 func test_construction_is_available_when_clear_and_gated_when_occupied() -> void:
@@ -736,6 +756,30 @@ func test_hauling_def_retains_surplus_when_sink_satisfied_early() -> void:
 	_hauling.complete(colonist, job)
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(3)
 	assert_int(_sandbox.test_registry.inventory_of(crate).get_item_count("plank")).is_equal(0)
+
+
+## R13 candidate 6: work_site leg-switching is already pinned by the three
+## site_1/site_2 assertions above and in suite_world_item_test. on_abort's world-
+## item unreserve turned out to be redundant with its OWN tree-wide sweep
+## (_unreserve_actor_items_recursive, run at the end of on_abort for the same
+## actor) whenever the item is in the tree, as it always is in real play — a
+## mutant on the direct call alone survived even a dedicated test. The delivery-
+## crate reservation release is NOT covered by that sweep (a different subsystem,
+## StorageRegistry) and IS a real gap: it must happen immediately on abort rather
+## than waiting out RESERVATION_TTL_MSEC, so the job can be reclaimed and
+## re-delivered right away.
+func test_hauling_def_on_abort_releases_the_delivery_crate_reservation() -> void:
+	var crate := _sandbox.make_crate(MATERIAL_ID, 0)
+	var crate_inv: StorageInventory = _sandbox.test_registry.inventory_of(crate)
+
+	var job := Job.from_def(_hauling)
+	assert_bool(crate_inv.reserve_capacity(job, MATERIAL_ID, 1)).is_true()
+	assert_bool(_sandbox.test_registry.has_reservation(job)).is_true()
+
+	var colonist: Colonist = _sandbox.make_colonist()
+	_hauling.on_abort(colonist, job, 0.5)
+
+	assert_bool(_sandbox.test_registry.has_reservation(job)).is_false()
 
 
 # ── Test doubles ──────────────────────────────────────────────────────────────

@@ -110,6 +110,30 @@ func test_construction_sequence_def_factory() -> void:
 	assert_int(seq.step_job_ids.size()).is_equal(1) # costless blueprint has 1 step (construction)
 
 
+## R13 candidate 7: unlike ConstructionSequenceDef above, nothing exercised
+## CraftingSequenceDef at all before this test (grep-confirmed) — any mutation
+## to it survived trivially. A station with an unsatisfied recipe input gets
+## the same 2-step (haul, craft) pipeline in order.
+func test_crafting_sequence_def_factory() -> void:
+	var recipe := _make_synthetic_recipe("test_recipe", "test_ingot", 2)
+	var station := _make_station(recipe)
+	assert_bool(station.queue_recipe("test_recipe")).is_true()
+
+	var seq_def := CraftingSequenceDef.new()
+	var seq: JobSequence = seq_def.create_sequence(station, Vector3i(4, 5, 6))
+	auto_free(seq)
+
+	assert_object(seq).is_not_null()
+	assert_int(seq.step_job_ids.size()).is_equal(2) # unsatisfied input -> haul step, then craft step
+
+	var haul_job: Job = _sandbox.test_board.get_job(seq.step_job_ids[0]) as Job
+	var craft_job: Job = _sandbox.test_board.get_job(seq.step_job_ids[1]) as Job
+	assert_object(haul_job).is_not_null()
+	assert_object(craft_job).is_not_null()
+	assert_bool(haul_job.def is HaulingJobDef).is_true()
+	assert_bool(craft_job.def is CraftingJobDef).is_true()
+
+
 func test_sequence_save_load_roundtrip() -> void:
 	var board: JobBoard = Colony.job_board
 
@@ -133,3 +157,38 @@ func test_sequence_save_load_roundtrip() -> void:
 	assert_int(restored.current_step_index).is_equal(1)
 	assert_bool(restored.is_step_active("j2")).is_true()
 	assert_bool(restored.is_step_active("j1")).is_false()
+
+
+# ── Fixtures (CraftingSequenceDef factory) ────────────────────────────────────
+# Local to this suite (the suite_crafting_test.gd pattern): CraftingStation only
+# reads item ids off ItemAmount.item_def, never through ItemDB, so an in-memory
+# ItemDef with no ItemDB registration is enough here.
+
+## A one-input recipe that is never satisfied (given_count starts at 0), so the
+## factory's "unsatisfied materials" branch is exercised.
+func _make_synthetic_recipe(id: String, input_item_id: String, input_count: int) -> RecipeDef:
+	var item_def: ItemDef = auto_free(ItemDef.new()) as ItemDef
+	item_def.id = input_item_id
+	var amount: ItemAmount = auto_free(ItemAmount.new()) as ItemAmount
+	amount.item_def = item_def
+	amount.count = input_count
+	var recipe: RecipeDef = auto_free(RecipeDef.new()) as RecipeDef
+	recipe.id = id
+	recipe.display_name = id
+	recipe.inputs = [amount]
+	recipe.outputs = []
+	recipe.base_time = 1.0
+	return recipe
+
+
+## A station-capable Furniture (CraftingStation child, recipe set directly),
+## parented under the sandbox container so global_position resolves.
+func _make_station(recipe: RecipeDef) -> CraftingStation:
+	var furniture := Furniture.new()
+	auto_free(furniture)
+	var station := CraftingStation.new()
+	station.name = "CraftingStation"
+	furniture.add_child(station)
+	station.recipes.append(recipe)
+	_sandbox.container.add_child(furniture)
+	return station

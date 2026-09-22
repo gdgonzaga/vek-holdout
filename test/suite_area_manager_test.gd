@@ -70,6 +70,24 @@ func test_paint_and_erase_area() -> void:
 	assert_object(Colony.area_manager.get_area(area_id)).is_null()
 
 
+## R13 candidate (Step 5): every other outer-bounds check in this suite paints a
+## single box, so Area._calculate_outer_bounds's min/max-merge loop over boxes[1:]
+## never ran (confirmed with a mutant that skips it entirely during this phase —
+## every test here still passed). Three disjoint boxes in three different
+## quadrants force the merge to actually widen on every axis.
+func test_get_outer_bounds_spans_disjoint_boxes_in_mixed_quadrants() -> void:
+	var area := Colony.area_manager.create_area(Vector3i(-10, 0, -10), Vector3i(-5, 2, -5), "Scattered")
+	var area_id := area.id
+
+	Colony.area_manager.paint_area(area_id, Vector3i(3, 5, -8), Vector3i(6, 9, -1))
+	Colony.area_manager.paint_area(area_id, Vector3i(-2, -4, 4), Vector3i(1, -1, 8))
+	assert_int(area.boxes.size()).is_equal(3)
+
+	var bounds: Dictionary = area.get_outer_bounds()
+	assert_vector(bounds["min"]).is_equal(Vector3i(-10, -4, -10))
+	assert_vector(bounds["max"]).is_equal(Vector3i(6, 9, 8))
+
+
 # ── Spatial Queries & Containment ─────────────────────────────────────────────
 
 func test_area_contains_cell() -> void:
