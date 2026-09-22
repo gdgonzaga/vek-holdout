@@ -39,6 +39,8 @@ func test_health_component_damage_hp_only() -> void:
 	health.max_hp = 100
 	health.max_durability = 0
 	auto_free(health)
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(health)
 	health._ready()
 
 	health.take_damage(25)
@@ -52,6 +54,8 @@ func test_health_component_durability_absorbs_fully() -> void:
 	health.max_hp = 100
 	health.max_durability = 50
 	auto_free(health)
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(health)
 	health._ready()
 
 	health.take_damage(30)
@@ -65,6 +69,8 @@ func test_health_component_durability_overflow_to_hp() -> void:
 	health.max_hp = 100
 	health.max_durability = 30
 	auto_free(health)
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(health)
 	health._ready()
 
 	# 30 absorbs into durability, remaining 20 hits HP
@@ -79,6 +85,8 @@ func test_health_component_fatal_damage() -> void:
 	health.max_hp = 50
 	health.max_durability = 10
 	auto_free(health)
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(health)
 	health._ready()
 
 	var counter := Doubles.SignalCounter.new(health.entity_died)
@@ -100,6 +108,8 @@ func test_health_component_heal_and_repair() -> void:
 	health.max_hp = 100
 	health.max_durability = 50
 	auto_free(health)
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(health)
 	health._ready()
 
 	health.take_damage(70) # 50 durability + 20 HP -> hp = 80, dur = 0
@@ -124,6 +134,8 @@ func test_health_component_serialize_deserialize() -> void:
 	health.max_hp = 120
 	health.max_durability = 40
 	auto_free(health)
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(health)
 	health._ready()
 	health.take_damage(50) # dur=0, hp=110
 
@@ -143,77 +155,97 @@ func test_health_component_serialize_deserialize() -> void:
 func test_enemy_swarmer_instantiation() -> void:
 	var swarmer := SwarmerScene.instantiate() as EnemyBase
 	auto_free(swarmer)
-	swarmer._ready()
+	add_child(swarmer)
 
 	assert_that(swarmer).is_not_null()
 	assert_that(swarmer.health_component).is_not_null()
-	assert_int(swarmer.health_component.max_hp).is_equal(50)
-	assert_int(swarmer.health_component.max_durability).is_equal(10)
+	# Wiring only: HealthComponent must be initialized from this archetype's own
+	# enemy_def, not a hardcoded shipped number (content-agnostic per Testing section).
+	assert_int(swarmer.health_component.max_hp).is_equal(swarmer.enemy_def.max_hp)
+	assert_int(swarmer.health_component.max_durability).is_equal(swarmer.enemy_def.max_durability)
+	assert_that(swarmer.bt_player).is_not_null()
 
-	swarmer.take_damage(20)
-	assert_int(swarmer.health_component.current_durability).is_equal(0)
-	assert_int(swarmer.health_component.current_hp).is_equal(40)
+	var pool_before := swarmer.health_component.current_hp + swarmer.health_component.current_durability
+	swarmer.take_damage(1)
+	var pool_after := swarmer.health_component.current_hp + swarmer.health_component.current_durability
+	assert_int(pool_after).is_equal(pool_before - 1)
 
 
 func test_enemy_brawler_instantiation() -> void:
 	var brawler := BrawlerScene.instantiate() as EnemyBase
 	auto_free(brawler)
-	brawler._ready()
+	add_child(brawler)
 
 	assert_that(brawler).is_not_null()
 	assert_that(brawler.health_component).is_not_null()
-	assert_int(brawler.health_component.max_hp).is_equal(140)
-	assert_int(brawler.health_component.max_durability).is_equal(0)
+	# Wiring only: HealthComponent must be initialized from this archetype's own
+	# enemy_def, not a hardcoded shipped number (content-agnostic per Testing section).
+	assert_int(brawler.health_component.max_hp).is_equal(brawler.enemy_def.max_hp)
+	assert_int(brawler.health_component.max_durability).is_equal(brawler.enemy_def.max_durability)
 	assert_that(brawler.bt_player).is_not_null()
+	# Populated behaviour-tree slot, not the shipped tree's resource path.
 	assert_that(brawler.bt_player.behavior_tree).is_not_null()
-	assert_str(brawler.bt_player.behavior_tree.resource_path).contains("enemy_melee")
 
 	var combat_action: CombatActionParams = brawler.get_combat_action()
 	assert_object(combat_action).is_instanceof(MeleeActionParams)
 
-	brawler.take_damage(30)
-	assert_int(brawler.health_component.current_hp).is_equal(110)
+	var pool_before := brawler.health_component.current_hp + brawler.health_component.current_durability
+	brawler.take_damage(1)
+	var pool_after := brawler.health_component.current_hp + brawler.health_component.current_durability
+	assert_int(pool_after).is_equal(pool_before - 1)
 
 
 func test_enemy_shooter_instantiation() -> void:
 	var shooter := ShooterScene.instantiate() as EnemyBase
 	auto_free(shooter)
-	shooter._ready()
+	add_child(shooter)
 
 	assert_that(shooter).is_not_null()
 	assert_that(shooter.health_component).is_not_null()
-	assert_int(shooter.health_component.max_hp).is_equal(60)
-	assert_int(shooter.health_component.max_durability).is_equal(0)
+	# Wiring only: HealthComponent must be initialized from this archetype's own
+	# enemy_def, not a hardcoded shipped number (content-agnostic per Testing section).
+	assert_int(shooter.health_component.max_hp).is_equal(shooter.enemy_def.max_hp)
+	assert_int(shooter.health_component.max_durability).is_equal(shooter.enemy_def.max_durability)
 	assert_that(shooter.bt_player).is_not_null()
+	# Populated behaviour-tree slot, not the shipped tree's resource path.
 	assert_that(shooter.bt_player.behavior_tree).is_not_null()
-	assert_str(shooter.bt_player.behavior_tree.resource_path).contains("enemy_ranged_kiter")
 
 	var combat_action: CombatActionParams = shooter.get_combat_action()
 	assert_object(combat_action).is_instanceof(RangedActionParams)
 
-	shooter.take_damage(25)
-	assert_int(shooter.health_component.current_hp).is_equal(35)
+	var pool_before := shooter.health_component.current_hp + shooter.health_component.current_durability
+	shooter.take_damage(1)
+	var pool_after := shooter.health_component.current_hp + shooter.health_component.current_durability
+	assert_int(pool_after).is_equal(pool_before - 1)
 
 
 func test_enemy_base_serialize_deserialize() -> void:
 	var swarmer := SwarmerScene.instantiate() as EnemyBase
 	auto_free(swarmer)
-	swarmer._ready()
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(swarmer)
 	swarmer.position = Vector3(10.0, 2.5, -5.0)
 	swarmer.velocity = Vector3(1.0, 0.0, -1.0)
-	swarmer.take_damage(15)
+
+	# Expected remaining HP derived from this instance's own stats, not a shipped number.
+	var starting_hp := swarmer.health_component.current_hp
+	var starting_dur := swarmer.health_component.current_durability
+	var damage := 15
+	var dur_absorbed := mini(damage, starting_dur)
+	var expected_hp := starting_hp - (damage - dur_absorbed)
+	swarmer.take_damage(damage)
 
 	var saved := swarmer.serialize()
 
 	var restored := SwarmerScene.instantiate() as EnemyBase
 	auto_free(restored)
-	restored._ready()
+	add_child(restored)
 	restored.deserialize(saved)
 
 	assert_float(restored.position.x).is_equal_approx(10.0, 0.01)
 	assert_float(restored.position.y).is_equal_approx(2.5, 0.01)
 	assert_float(restored.position.z).is_equal_approx(-5.0, 0.01)
-	assert_int(restored.health_component.current_hp).is_equal(45)
+	assert_int(restored.health_component.current_hp).is_equal(expected_hp)
 
 
 func test_enemy_base_ai_components_initialization() -> void:
@@ -357,11 +389,54 @@ func test_colonist_serialize_deserialize_round_trips_health() -> void:
 func test_enemy_base_is_dead_reflects_health_component() -> void:
 	var swarmer := SwarmerScene.instantiate() as EnemyBase
 	auto_free(swarmer)
-	swarmer._ready()
+	# In the scene tree so take_damage's particle-effect lookup finds a valid get_tree() (D3).
+	add_child(swarmer)
 
 	assert_bool(swarmer.is_dead).is_false()
 	swarmer.take_damage(10000)
 	assert_bool(swarmer.is_dead).is_true()
+
+
+## Migrated from suite_equippable_schema_test.gd (R9): the enemy is now built
+## from an EnemyDef-driven actor instead of a bare, def-less EnemyBase, retiring
+## one of the two callers keeping the EnemyBase.enemy_def == null branch alive
+## (docs/architecture/tech-debt.md).
+func test_player_gun_fire_damages_enemy() -> void:
+	var enemy := SwarmerScene.instantiate() as EnemyBase
+	auto_free(enemy)
+	# Synthetic stats on a duplicated def so the assertion below never reads shipped numbers.
+	enemy.enemy_def = enemy.enemy_def.duplicate()
+	enemy.enemy_def.max_hp = 100
+	enemy.enemy_def.max_durability = 0
+	add_child(enemy)
+
+	var combat_params: CombatActionParams = auto_free(CombatActionParams.new())
+	combat_params.damage = 35.0
+
+	var player: Player = auto_free(Player.new())
+	# Direct test on enemy damage execution
+	enemy.take_damage(int(combat_params.damage), player)
+	assert_int(enemy.health_component.current_hp).is_equal(65)
+
+
+## Migrated from suite_equippable_schema_test.gd (R9): see test_player_gun_fire_damages_enemy above.
+func test_enemy_lethal_damage_triggers_death_and_free() -> void:
+	var enemy := SwarmerScene.instantiate() as EnemyBase
+	auto_free(enemy)
+	# Synthetic stats on a duplicated def so the assertion below never reads shipped numbers.
+	enemy.enemy_def = enemy.enemy_def.duplicate()
+	enemy.enemy_def.max_hp = 50
+	enemy.enemy_def.max_durability = 0
+	add_child(enemy)
+
+	var combat_params: CombatActionParams = auto_free(CombatActionParams.new())
+	combat_params.damage = 60.0
+
+	var player: Player = auto_free(Player.new())
+	enemy.take_damage(int(combat_params.damage), player)
+
+	assert_int(enemy.health_component.current_hp).is_equal(0)
+	assert_bool(enemy.is_queued_for_deletion()).is_true()
 
 
 class SpyPlayerAnimController extends PlayerAnimationController:

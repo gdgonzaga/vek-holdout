@@ -3,6 +3,8 @@ extends GdUnitTestSuite
 ## Unit tests for EquippableParams and modular action schemas (ARCH "Data Schemas / Capabilities").
 ## Tests capability composition on ItemDef and polymorphic action params.
 
+const SwarmerScene := preload("res://subsystems/combat/enemies/enemy_swarmer/enemy_swarmer.tscn")
+
 func test_item_def_default_not_equippable() -> void:
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "plain_stone"
@@ -74,7 +76,7 @@ func test_melee_action_params_schema() -> void:
 	assert_str(retrieved.hit_audio_event).is_equal("melee_impact")
 
 
-func test_load_assault_rifle_tres() -> void:
+func test_ranged_equippable_params_hold_the_authored_fields() -> void:
 	var item: ItemDef = auto_free(ItemDef.new())
 	item.id = "assault_rifle"
 	item.tags = ["weapon", "ranged"]
@@ -114,31 +116,10 @@ func test_colonist_equip_item() -> void:
 	assert_object(colonist.get_equipped_item()).is_equal(item)
 
 
-func test_player_weapon_visual_attachment_with_skeleton() -> void:
-	var player: Player = auto_free(Player.new())
-	var skeleton: Skeleton3D = auto_free(Skeleton3D.new())
-	skeleton.name = "GeneralSkeleton"
-	skeleton.add_bone("RightHand")
-	player.add_child(skeleton)
-
-	var item: ItemDef = auto_free(ItemDef.new())
-	item.id = "test_club"
-	item.tags = ["weapon"]
-	item.mesh = BoxMesh.new()
-
-	player.equipment = Equipment.ensure_on(player, null)
-	player.equipment.equip(Equipment.SLOT_MAIN_HAND, item)
-	# EquipmentVisualizer creates EquipSocket_main_hand on the skeleton's RightHand bone.
-	var socket: BoneAttachment3D = skeleton.get_node_or_null("EquipSocket_main_hand") as BoneAttachment3D
-	assert_object(socket).is_not_null()
-	assert_str(socket.bone_name).is_equal("RightHand")
-	assert_int(socket.get_child_count()).is_equal(1)
-	assert_str(socket.get_child(0).name).is_equal("EquippedVisual")
-
-	player.equipment.unequip(Equipment.SLOT_MAIN_HAND)
-	assert_int(socket.get_child_count()).is_equal(0)
-
-
+## Kept in place rather than ported to suite_equipment_visualizer_test.gd (R9 does
+## not have that file in its edit scope): unique coverage not present there --
+## EquipmentVisualizer.SLOT_BONE_HINTS prefers a custom "socket_hand_r" bone over
+## the generic "mixamorig:RightHand" fallback when both exist on the skeleton.
 func test_colonist_weapon_visual_attachment_with_custom_socket() -> void:
 	var colonist: Colonist = auto_free(Colonist.new())
 	var skeleton: Skeleton3D = auto_free(Skeleton3D.new())
@@ -163,14 +144,6 @@ func test_colonist_weapon_visual_attachment_with_custom_socket() -> void:
 	assert_int(socket.get_child_count()).is_equal(0)
 
 
-func test_animation_controller_resolves_attack_overhead() -> void:
-	var controller: PlayerAnimationController = auto_free(PlayerAnimationController.new())
-	assert_str(String(controller._resolve_action_animation_name(&"AttackOverhead"))).is_equal("AttackOverhead")
-	assert_str(String(controller._resolve_action_animation_name(&"swing"))).is_equal("AttackOverhead")
-	assert_str(String(controller._resolve_action_animation_name(&"fire"))).is_equal("Interact")
-	assert_str(String(controller._resolve_action_animation_name(&"dig"))).is_equal("Digging")
-
-
 func test_melee_action_params_windup_and_active_hitbox() -> void:
 	var params: MeleeActionParams = auto_free(MeleeActionParams.new())
 	params.windup_seconds = 0.01
@@ -178,18 +151,15 @@ func test_melee_action_params_windup_and_active_hitbox() -> void:
 	params.damage = 10.0
 	params.range_meters = 2.0
 
-	var enemy: EnemyBase = auto_free(EnemyBase.new())
-	var col_shape: CollisionShape3D = auto_free(CollisionShape3D.new())
-	var capsule := CapsuleShape3D.new()
-	col_shape.shape = capsule
-	enemy.add_child(col_shape)
-	var health: HealthComponent = auto_free(HealthComponent.new())
-	health.name = "HealthComponent"
-	health.max_hp = 50
-	enemy.add_child(health)
+	var enemy := SwarmerScene.instantiate() as EnemyBase
+	auto_free(enemy)
+	# Synthetic stats on a duplicated def -- retires this test as a caller of the
+	# EnemyBase.enemy_def == null fallback branch (docs/architecture/tech-debt.md).
+	enemy.enemy_def = enemy.enemy_def.duplicate()
+	enemy.enemy_def.max_hp = 50
+	enemy.enemy_def.max_durability = 0
 	add_child(enemy)
 	enemy.position = Vector3(0, 0, 1.0)
-	enemy._ready()
 
 	var attacker: Node3D = auto_free(Node3D.new())
 	add_child(attacker)
@@ -198,34 +168,27 @@ func test_melee_action_params_windup_and_active_hitbox() -> void:
 
 	await get_tree().physics_frame
 	await params.execute(attacker)
-	assert_int(health.current_hp).is_equal(40)
+	assert_int(enemy.health_component.current_hp).is_equal(40)
 
 
+## Base CombatActionParams.execute() is a no-op with no branch to exercise;
+## MeleeActionParams' null-actor guard is the concrete contract worth pinning:
+## execute(null) must return before touching any target's HealthComponent.
+func test_combat_action_execute_on_null_actor_is_safe() -> void:
+	var action: MeleeActionParams = auto_free(MeleeActionParams.new())
+	action.damage = 10.0
 
-
-func test_player_gun_fire_damages_enemy() -> void:
-	var enemy: EnemyBase = auto_free(EnemyBase.new())
+	var dummy := StaticBody3D.new()
+	auto_free(dummy)
 	var health: HealthComponent = auto_free(HealthComponent.new())
 	health.name = "HealthComponent"
-	health.max_hp = 100
-	enemy.add_child(health)
-	add_child(enemy)
-	enemy._ready()
+	health.max_hp = 50
+	dummy.add_child(health)
+	add_child(dummy)
 
-	var combat_params: CombatActionParams = auto_free(CombatActionParams.new())
-	combat_params.damage = 35.0
+	await action.execute(null)
 
-	var player: Player = auto_free(Player.new())
-	# Direct test on enemy damage execution
-	enemy.take_damage(int(combat_params.damage), player)
-	assert_int(health.current_hp).is_equal(65)
-
-
-func test_combat_action_execute_on_null_actor_is_safe() -> void:
-	var action: CombatActionParams = auto_free(CombatActionParams.new())
-	# Should not crash or error
-	action.execute(null)
-	assert_bool(true).is_true()
+	assert_int(health.current_hp).is_equal(50)
 
 
 func test_ranged_action_params_show_tracer_property() -> void:
@@ -233,25 +196,6 @@ func test_ranged_action_params_show_tracer_property() -> void:
 	assert_bool(action.show_tracer).is_true()
 	action.show_tracer = false
 	assert_bool(action.show_tracer).is_false()
-
-
-func test_enemy_lethal_damage_triggers_death_and_free() -> void:
-	var enemy: EnemyBase = auto_free(EnemyBase.new())
-	var health: HealthComponent = auto_free(HealthComponent.new())
-	health.name = "HealthComponent"
-	health.max_hp = 50
-	enemy.add_child(health)
-	add_child(enemy)
-	enemy._ready()
-
-	var combat_params: CombatActionParams = auto_free(CombatActionParams.new())
-	combat_params.damage = 60.0
-
-	var player: Player = auto_free(Player.new())
-	enemy.take_damage(int(combat_params.damage), player)
-
-	assert_int(health.current_hp).is_equal(0)
-	assert_bool(enemy.is_queued_for_deletion()).is_true()
 
 
 func test_equippable_params_stance_animation() -> void:

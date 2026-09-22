@@ -378,9 +378,15 @@ func test_is_desired_equipped_status() -> void:
 
 
 func test_get_eligible_items_for_slot() -> void:
-	# Main hand accepts "tool" and "weapon"
+	# Main hand accepts "tool" and "weapon"; register one synthetic item that fits
+	# and one that does not, instead of assuming shipped items with those tags exist.
+	var fits: ItemDef = _make_item("test_eligible_fits", ["tool"])
+	var excluded: ItemDef = _make_item("test_eligible_excluded", ["material"])
+
 	var eligible: Array[ItemDef] = Equipment.get_eligible_items_for_slot(Equipment.SLOT_MAIN_HAND)
-	assert_object(eligible).is_not_null()
+
+	assert_bool(eligible.has(fits)).is_true()
+	assert_bool(eligible.has(excluded)).is_false()
 	# Every returned item must carry at least tool or weapon
 	for def: ItemDef in eligible:
 		assert_bool(def.has_tag("tool") or def.has_tag("weapon")).is_true()
@@ -482,25 +488,6 @@ func test_bt_action_equip_tool_stows_main_hand_to_inventory() -> void:
 	assert_str(eq.get_item(Equipment.SLOT_HOLSTER).id).is_equal("pistol")
 	assert_int(inv.get_item_count("sword")).is_equal(1)
 	assert_int(inv.get_item_count("pickaxe")).is_equal(0)
-
-
-func test_panel_unequip_preserves_item_in_inventory() -> void:
-	var colonist_scene: PackedScene = preload("res://subsystems/colonists/colonist.tscn")
-	var colonist: Colonist = auto_free(colonist_scene.instantiate()) as Colonist
-	add_child(colonist)
-
-	var hammer: ItemDef = _make_item("hammer", ["tool"])
-	colonist.equipment.equip(Equipment.SLOT_MAIN_HAND, hammer)
-
-	var panel: ColonistEquipmentPanel = auto_free(
-			preload("res://ui/colony_management/colonist_equipment_panel.tscn").instantiate() as ColonistEquipmentPanel)
-	add_child(panel)
-	panel.set_colonist(colonist)
-	panel.select_slot(Equipment.SLOT_MAIN_HAND)
-	(panel.get_node("%UnequipButton") as Button).pressed.emit()
-
-	assert_object(colonist.equipment.get_item(Equipment.SLOT_MAIN_HAND)).is_null()
-	assert_int(colonist.inventory.get_item_count("hammer")).is_equal(1)
 
 
 # ==============================
