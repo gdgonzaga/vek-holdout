@@ -3,24 +3,22 @@ extends GdUnitTestSuite
 ## Colony.spawn_colonist applies it. Content-agnostic: pools are built in memory with
 ## synthetic names, and the RNG is seeded so every roll is reproducible.
 
-# Swap-and-restore (AGENTS.md): the real registry must never be wired to test
-# fixtures, and Colony's container must survive the spawn tests' on_map_wired.
-var _real_registry: StorageRegistry
-var _real_container: Node3D
-var _test_registry: StorageRegistry
+# Swap-and-restore (AGENTS.md): ColonySandbox swaps storage_registry and also owns
+# Colony's container (protects the spawn tests' on_map_wired calls; a dead container
+# left by an earlier, non-sandboxed suite is normalized to null rather than crashing
+# this suite's own restore — see test/helpers/colony_sandbox.gd).
+const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
+
+var _sandbox: ColonySandbox
 
 
 func before_test() -> void:
-	_real_registry = Colony.storage_registry
-	_real_container = Colony._container
-	_test_registry = auto_free(StorageRegistry.new())
-	Colony.storage_registry = _test_registry
+	_sandbox = ColonySandbox.new(self)
 	Colony.colonists.clear()
 
 
 func after_test() -> void:
-	Colony.storage_registry = _real_registry
-	Colony._container = _real_container
+	_sandbox.restore()
 	Colony.colonists.clear()
 
 

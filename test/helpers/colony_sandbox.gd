@@ -4,9 +4,11 @@ extends RefCounted
 ## Colony.job_board for test-owned instances and restores them afterwards —
 ## AGENTS.md: autoloads persist across suites, so swap-and-restore instead of
 ## mutating the real ones. Also isolates the map-wiring caches (walkability, stand
-## hint, cell cost, ground query, terrain predicate, world bounds): a sandbox starts
-## with them unbound and restore() puts back whatever an earlier suite left there.
-## Also hosts the shared actor/crate factories.
+## hint, cell cost, ground query, terrain predicate, world bounds, and the active
+## map's colonist container): a sandbox starts with them unbound and restore() puts
+## back whatever an earlier suite left there (a dead container reference is
+## normalized to null instead of being carried forward). Also hosts the shared
+## actor/crate factories.
 ##
 ## Composition on purpose: extending GdUnitTestSuite would make the gdUnit
 ## scanner pick this file up as an (empty) suite, and a RefCounted helper keeps
@@ -28,6 +30,7 @@ var _real_cell_cost: Callable
 var _real_ground_query: Callable
 var _real_terrain_predicate: Callable
 var _real_world_bounds: AABB
+var _real_container: Node3D
 
 ## The swapped-in, test-owned registry/board (auto-freed with the suite).
 var test_registry: StorageRegistry
@@ -72,12 +75,19 @@ func _snapshot_and_reset_map_caches() -> void:
 	_real_ground_query = Colony._ground_query
 	_real_terrain_predicate = Colony._is_terrain_at
 	_real_world_bounds = Colony.get_world_bounds()
+	# Colony._container is a plain Node3D reference with no restoring owner before this
+	# sandbox existed: an earlier, non-sandboxed suite can leave it pointing at a node
+	# that node's own suite already freed. Round-tripping a freed reference through
+	# restore() later would itself throw ("previously freed"), so a dead reference is
+	# normalized to null here rather than carried forward to the next sandboxed suite.
+	_real_container = Colony._container if is_instance_valid(Colony._container) else null
 	Colony.set_walkability_predicate(Callable())
 	Colony.set_stand_cell_hint(Callable())
 	Colony.set_cell_cost_fn(Callable())
 	Colony.set_ground_query(Callable())
 	Colony.set_terrain_predicate(Callable())
 	Colony.set_world_bounds(AABB())
+	Colony._container = null
 
 
 func _restore_map_caches() -> void:
@@ -88,6 +98,9 @@ func _restore_map_caches() -> void:
 	Colony.set_ground_query(_real_ground_query)
 	Colony.set_terrain_predicate(_real_terrain_predicate)
 	Colony.set_world_bounds(_real_world_bounds)
+	# _real_container was already normalized to null in _snapshot_and_reset_map_caches
+	# if it was a dead reference, so this assignment can never throw.
+	Colony._container = _real_container
 
 
 func make_colonist() -> Colonist:

@@ -5,10 +5,9 @@ const ColonySandbox = preload("res://test/helpers/colony_sandbox.gd")
 
 var _scene: Control
 
-# Swap-and-restore (AGENTS.md): the sandbox swaps the registry, job board and map caches;
-# Colony's container must also survive the spawn tests' on_map_wired.
+# Swap-and-restore (AGENTS.md): the sandbox swaps the registry, job board, map caches,
+# and Colony's container (protects the spawn tests' on_map_wired calls).
 var _sandbox: ColonySandbox
-var _real_container: Node3D
 
 
 func before_test() -> void:
@@ -16,12 +15,10 @@ func before_test() -> void:
 	_scene = auto_free(packed.instantiate() as Control)
 	add_child(_scene)
 	_sandbox = ColonySandbox.new(self)
-	_real_container = Colony._container
 
 
 func after_test() -> void:
 	_sandbox.restore()
-	Colony._container = _real_container
 	Colony.colonists.clear()
 	# Suites that deserialize or spawn leave squads, loadouts, areas and pending records behind; wipe them after the real registry and board are back.
 	Colony.reset_for_new_game()
