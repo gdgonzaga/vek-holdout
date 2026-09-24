@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="PbrTextureSet" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="1_anbg3"]
+[ext_resource type="Script" path="res://data/pbr/pbr_texture_set.gd" id="2_a4e4e"]
+
+[resource]
+script = ExtResource("2_a4e4e")
+id = "maintexture"
+albedo = ExtResource("1_anbg3")

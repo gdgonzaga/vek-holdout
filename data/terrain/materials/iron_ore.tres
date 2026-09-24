@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://brsux24lo6grg"]
+[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3]
 
-[ext_resource type="Texture2D" uid="uid://cv56yhx5r8xl2" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Displacement.png" id="1_hw0jx"]
-[ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
-[ext_resource type="Texture2D" uid="uid://bsldxxqdgeowu" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Metalness.png" id="2_rsr8h"]
-[ext_resource type="Texture2D" uid="uid://d0lgi5wmjeuw1" path="res://assets/realer_than_real_textures/MT00433_Metal.PNG" id="2_t4mbx"]
-[ext_resource type="Resource" uid="uid://8luoh6m1jbv0" path="res://data/items/materials/iron_ore.tres" id="3_iron"]
-[ext_resource type="Texture2D" uid="uid://cuaflafyqvjge" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_NormalGL.png" id="3_qnp2f"]
-[ext_resource type="Texture2D" uid="uid://tw7jttgjddd6" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Roughness.png" id="4_8qfat"]
+[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Displacement.png" id="1_hw0jx"]
+[ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Metalness.png" id="2_rsr8h"]
+[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00433_Metal.PNG" id="2_t4mbx"]
+[ext_resource type="Resource" path="res://data/items/materials/iron_ore.tres" id="3_iron"]
+[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_NormalGL.png" id="3_qnp2f"]
+[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Roughness.png" id="4_8qfat"]
+[ext_resource type="Resource" path="res://data/pbr/iron_ore.tres" id="4_rsr8h"]
 
 [sub_resource type="Resource" id="Resource_iron_yield"]
 script = ExtResource("2_item_amount")
@@ -21,6 +22,7 @@ hp = 400
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_iron_yield")])
 min_depth = 10
 texture = ExtResource("2_t4mbx")
+pbr = ExtResource("4_rsr8h")
 displacement_texture = ExtResource("1_hw0jx")
 metalness_texture = ExtResource("2_rsr8h")
 normal_texture = ExtResource("3_qnp2f")

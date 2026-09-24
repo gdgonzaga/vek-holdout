@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="PbrTextureSet" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="1_27jcp"]
+[ext_resource type="Script" path="res://data/pbr/pbr_texture_set.gd" id="2_la6bj"]
+
+[resource]
+script = ExtResource("2_la6bj")
+id = "mt00374_wood_planks_rotated"
+albedo = ExtResource("1_27jcp")

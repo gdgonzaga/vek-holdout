@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="PbrTextureSet" format=3]
+
+[ext_resource type="Texture2D" path="res://tmp/AAA-save/Polygon-Mega Survival Construction/Textures/TerrainTextures/Sand.png" id="1_wp1my"]
+[ext_resource type="Script" path="res://data/pbr/pbr_texture_set.gd" id="2_decti"]
+
+[resource]
+script = ExtResource("2_decti")
+id = "sand"
+albedo = ExtResource("1_wp1my")

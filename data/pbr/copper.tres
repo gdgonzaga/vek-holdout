@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="PbrTextureSet" format=3]
+
+[ext_resource type="Script" path="res://data/pbr/pbr_texture_set.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/pbr/copper/albedo.png" id="2_albedo"]
+[ext_resource type="Texture2D" path="res://assets/pbr/copper/normal.png" id="3_normal"]
+[ext_resource type="Texture2D" path="res://assets/pbr/copper/orme.png" id="4_orme"]
+
+[resource]
+script = ExtResource("1_script")
+id = "copper"
+albedo = ExtResource("2_albedo")
+normal = ExtResource("3_normal")
+orme = ExtResource("4_orme")

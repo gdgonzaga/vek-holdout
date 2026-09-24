@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="BlockDef" format=3 uid="uid://c03qrie50bjfy"]
+[gd_resource type="Resource" script_class="BlockDef" format=3]
 
-[ext_resource type="Script" uid="uid://b174ngojt5ovy" path="res://data/blocks/block_def.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_1d3ly"]
-[ext_resource type="ArrayMesh" uid="uid://cgliort6rskny" path="res://assets/custom_meshes/full-block.obj" id="2_mesh"]
-[ext_resource type="Texture2D" uid="uid://c4j4kkwdhgluf" path="res://assets/item_icons/metal_block.png" id="3_icon"]
+[ext_resource type="Script" path="res://data/blocks/block_def.gd" id="1_script"]
+[ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_1d3ly"]
+[ext_resource type="ArrayMesh" path="res://assets/custom_meshes/full-block.obj" id="2_mesh"]
+[ext_resource type="Texture2D" path="res://assets/item_icons/metal_block.png" id="3_icon"]
 [ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Color.png" id="4_color"]
 [ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Displacement.png" id="5_disp"]
 [ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Metalness.png" id="6_metal"]
 [ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_NormalGL.png" id="7_norm"]
+[ext_resource type="Resource" path="res://data/pbr/metal052c.tres" id="7_r4a8t"]
 [ext_resource type="Texture2D" path="res://assets/ambientcg/Metal052C_1K-PNG-IRON-ROUGH/Metal052C_1K-PNG_Roughness.png" id="8_rough"]
 
 [resource]
@@ -22,6 +23,7 @@ displacement_texture = ExtResource("5_disp")
 metalness_texture = ExtResource("6_metal")
 normal_texture = ExtResource("7_norm")
 roughness_texture = ExtResource("8_rough")
+pbr = ExtResource("7_r4a8t")
 unlocked_by_default = true
 build_time = 2.0
 metadata/_custom_type_script = "uid://b174ngojt5ovy"

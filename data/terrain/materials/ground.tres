@@ -1,11 +1,12 @@
-[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3 uid="uid://5s4y52q3vbc3"]
+[gd_resource type="Resource" script_class="TerrainMaterialDef" format=3]
 
-[ext_resource type="Script" uid="uid://bvl3uonsnevkw" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
-[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="2_item_amount"]
-[ext_resource type="Texture2D" uid="uid://dski467bdj4bq" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground/orme.PNG" id="3_a65v2"]
-[ext_resource type="Resource" uid="uid://cjt4sw4frgw7o" path="res://data/items/materials/dirt.tres" id="3_dirt"]
-[ext_resource type="Texture2D" uid="uid://hwdw331xed34" path="res://assets/item_icons/dirt_block.png" id="4_icon"]
-[ext_resource type="Texture2D" uid="uid://lemx11jbl6ia" path="res://assets/ambientcg/Ground037_1K-PNG-MILD_GREEN/Ground037_1K-PNG_Color.png" id="4_jjx2j"]
+[ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
+[ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
+[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00614-Debris_Ground/orme.PNG" id="3_a65v2"]
+[ext_resource type="Resource" path="res://data/items/materials/dirt.tres" id="3_dirt"]
+[ext_resource type="Resource" path="res://data/pbr/ground037.tres" id="3_jwpom"]
+[ext_resource type="Texture2D" path="res://assets/item_icons/dirt_block.png" id="4_icon"]
+[ext_resource type="Texture2D" path="res://assets/ambientcg/Ground037_1K-PNG-MILD_GREEN/Ground037_1K-PNG_Color.png" id="4_jjx2j"]
 
 [sub_resource type="Resource" id="Resource_dirt_yield"]
 script = ExtResource("2_item_amount")
@@ -20,5 +21,6 @@ yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_dirt_yield")
 max_depth = 3
 vein_size = 16
 texture = ExtResource("4_jjx2j")
+pbr = ExtResource("3_jwpom")
 orme_texture = ExtResource("3_a65v2")
 icon = ExtResource("4_icon")
