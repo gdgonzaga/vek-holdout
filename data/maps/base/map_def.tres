@@ -1,22 +1,17 @@
-[gd_resource type="Resource" script_class="MapDef" format=3 uid="uid://bcb6vhdhgdd1c"]
+[gd_resource type="Resource" script_class="MapDef" format=3]
 
-[ext_resource type="Script" uid="uid://b3lhesw6s1vi6" path="res://data/buildables/buildable_def.gd" id="1_nou41"]
-[ext_resource type="Resource" uid="uid://ciujx1u7c5wdl" path="res://data/furniture/tree1.tres" id="2_7p741"]
-[ext_resource type="Resource" uid="uid://dyrkm368ejt5w" path="res://data/furniture/wild_berry_bush.tres" id="3_d7cib"]
-[ext_resource type="Script" uid="uid://du7misylvvk7b" path="res://data/maps/map_def.gd" id="3_n54l1"]
-[ext_resource type="Resource" uid="uid://bd48k62buoacv" path="res://data/furniture/apple.tres" id="4_bxjxh"]
-[ext_resource type="Resource" uid="uid://xn77fvp7f8e7" path="res://data/maps/base/terrain_gen.tres" id="4_d7cib"]
+[ext_resource type="Script" path="res://data/buildables/buildable_def.gd" id="1_nou41"]
+[ext_resource type="Resource" path="res://data/furniture/tree1.tres" id="2_7p741"]
+[ext_resource type="Script" path="res://data/maps/map_def.gd" id="3_n54l1"]
+[ext_resource type="Resource" path="res://data/maps/base/terrain_gen.tres" id="4_d7cib"]
 
 [resource]
 script = ExtResource("3_n54l1")
 id = "base"
 display_name = "Base"
 scene_path = "res://data/maps/base/map.tscn"
-player_spawn = Vector3(-13.564103, 0.58410454, 11.684678)
-world_bounds = AABB(-96, -48, -96, 192, 80, 192)
+player_spawn = Vector3(-6.4591174, 0.020000458, 25.004942)
+world_bounds = AABB(-96, -64, -96, 192, 128, 192)
 terrain_gen = ExtResource("4_d7cib")
 water_enabled = true
-water_level = 0.0
-flora_palette = Array[ExtResource("1_nou41")]([ExtResource("2_7p741"), ExtResource("3_d7cib"), ExtResource("4_bxjxh")])
-flora_spawns_per_day = 20
-flora_spawn_cap = 180
+flora_palette = Array[ExtResource("1_nou41")]([ExtResource("2_7p741")])
