@@ -1,10 +1,12 @@
 shader_type spatial;
+
+// Per-block UV / brightness variation (BuildableDef.texture_variation). Maps
+// come from PbrMaterialFactory.variation(); every map is always bound (the
+// set's own or the neutral one), so there is no missing-map branch.
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
-uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
-uniform sampler2D roughness_tex : hint_roughness_r, filter_linear_mipmap, repeat_enable;
-uniform sampler2D metallic_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D disp_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D orme_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D normal_tex : filter_linear_mipmap, repeat_enable;
+// Occlusion R, roughness G, metallic B (linear).
+uniform sampler2D orme_tex : filter_linear_mipmap, repeat_enable;
 
 uniform float uv_offset_strength : hint_range(0.0, 0.3) = 0.16;
 uniform float color_variation : hint_range(0.0, 0.3) = 0.08;
@@ -38,15 +40,13 @@ void fragment() {
 	float brightness = 1.0 + (r3 - 0.5) * color_variation * 2.0;
 
 	ALBEDO = texture(albedo_tex, uv).rgb * brightness;
-	NORMAL_MAP = texture(normal_tex, uv).rgb;
 
-	vec4 orme_sample = texture(orme_tex, uv);
-	if (orme_sample != vec4(0.0)) {
-		AO = orme_sample.r;
-		ROUGHNESS = orme_sample.g;
-		METALLIC = orme_sample.b;
-	} else {
-		ROUGHNESS = texture(roughness_tex, uv).r;
-		METALLIC = texture(metallic_tex, uv).r;
-	}
+	// Normals may be imported as two-channel RGTC, so Z is rebuilt from XY.
+	vec2 nxy = texture(normal_tex, uv).rg * 2.0 - 1.0;
+	NORMAL_MAP = vec3(nxy * 0.5 + 0.5, sqrt(max(0.0, 1.0 - dot(nxy, nxy))) * 0.5 + 0.5);
+
+	vec4 orme = texture(orme_tex, uv);
+	AO = orme.r;
+	ROUGHNESS = orme.g;
+	METALLIC = orme.b;
 }

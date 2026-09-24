@@ -193,16 +193,15 @@ func _create_furniture_node(def: BuildableDef, dims: Vector3i, yaw_quarters: int
 			_setup_scene_collision(scene_instance)
 	else:
 		mesh_node.mesh = def.get_mesh()
-		# Build the albedo material from def.texture. Skipped when null so meshes that
+		# Build the material from def.pbr. Skipped when the def has no maps so meshes that
 		# carry their own embedded material (e.g. OBJ with .mtl) keep it; without this,
 		# material-less meshes (e.g. extracted GLTF) render with Godot's white default.
 		# NOTE: do not call a build_material() helper on the def from a @tool context —
 		# editor tool-script instances load stale compiled bytecode after a script edit
-		# (has_method returns true but the call throws). Access `texture` directly.
-		if def.texture != null:
-			var mat := StandardMaterial3D.new()
-			mat.albedo_texture = def.texture
-			mesh_node.material_override = mat
+		# (has_method returns true but the call throws). Access `pbr` directly and build
+		# through the static PbrMaterialFactory.
+		if PbrTextureSet.has_any(def.pbr):
+			mesh_node.material_override = PbrMaterialFactory.standard(def.pbr)
 
 		mesh_node.create_trimesh_collision()
 		

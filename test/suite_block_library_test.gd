@@ -134,49 +134,37 @@ func test_base_indices_contain_only_base_defs() -> void:
 		assert_bool(lib.is_base_index(variant_idx)).is_false()
 
 
-func test_pbr_textures_applied_to_material() -> void:
-	# 1. Def Instantiation: Creating a temporary BlockDef with PBR textures.
+func test_block_pbr_set_becomes_the_models_material() -> void:
 	var def := BlockDef.new()
 	def.id = "pbr_test_block"
-	def.texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
-	def.normal_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
-	def.roughness_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_L8))
-	def.metalness_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_L8))
-	def.displacement_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_L8))
+	def.pbr = PbrTextureSet.new()
+	def.pbr.albedo = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	def.pbr.normal = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	def.pbr.orme = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
 
-	# 2. Standard Model Generation: Verifying PBR maps in StandardMaterial3D mode.
-	var std_model := VoxelLibraryGenerator.create_block_model(def, 0)
-	var std_mat := std_model.material_override_0 as StandardMaterial3D
+	# 1. Standard path: the set's maps land on a StandardMaterial3D.
+	var std_mat := VoxelLibraryGenerator.create_block_model(def, 0).material_override_0 as StandardMaterial3D
 	assert_object(std_mat).is_not_null()
-	assert_object(std_mat.albedo_texture).is_equal(def.texture)
+	assert_object(std_mat.albedo_texture).is_same(def.pbr.albedo)
 	assert_bool(std_mat.normal_enabled).is_true()
-	assert_object(std_mat.normal_texture).is_equal(def.normal_texture)
-	assert_object(std_mat.roughness_texture).is_equal(def.roughness_texture)
-	assert_float(std_mat.metallic).is_equal(1.0)
-	assert_object(std_mat.metallic_texture).is_equal(def.metalness_texture)
-	assert_bool(std_mat.heightmap_enabled).is_true()
-	assert_object(std_mat.heightmap_texture).is_equal(def.displacement_texture)
+	assert_object(std_mat.ao_texture).is_same(def.pbr.orme)
 
-	# 3. Shader Model Generation: Verifying PBR parameters in ShaderMaterial (texture_variation) mode.
+	# 2. Variation path: opting in swaps to the per-block shader with the same maps bound.
 	def.texture_variation = true
-	var shader_model := VoxelLibraryGenerator.create_block_model(def, 0)
-	var shader_mat := shader_model.material_override_0 as ShaderMaterial
+	var shader_mat := VoxelLibraryGenerator.create_block_model(def, 0).material_override_0 as ShaderMaterial
 	assert_object(shader_mat).is_not_null()
-	assert_object(shader_mat.get_shader_parameter("albedo_tex")).is_equal(def.texture)
-	assert_object(shader_mat.get_shader_parameter("normal_tex")).is_equal(def.normal_texture)
-	assert_object(shader_mat.get_shader_parameter("roughness_tex")).is_equal(def.roughness_texture)
-	assert_object(shader_mat.get_shader_parameter("metallic_tex")).is_equal(def.metalness_texture)
-	assert_object(shader_mat.get_shader_parameter("disp_tex")).is_equal(def.displacement_texture)
+	assert_object(shader_mat.get_shader_parameter("albedo_tex")).is_same(def.pbr.albedo)
+	assert_object(shader_mat.get_shader_parameter("orme_tex")).is_same(def.pbr.orme)
 
-	# 4. ORME Texture Generation: Verifying ORME channel map bindings.
-	def.texture_variation = false
-	def.orme_texture = ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
-	var orme_model := VoxelLibraryGenerator.create_block_model(def, 0)
-	var orme_mat := orme_model.material_override_0 as StandardMaterial3D
-	assert_object(orme_mat).is_not_null()
-	assert_bool(orme_mat.ao_enabled).is_true()
-	assert_object(orme_mat.ao_texture).is_equal(def.orme_texture)
-	assert_object(orme_mat.roughness_texture).is_equal(def.orme_texture)
-	assert_object(orme_mat.metallic_texture).is_equal(def.orme_texture)
+	# 3. A custom material wins over the set.
+	var custom := StandardMaterial3D.new()
+	def.custom_material = custom
+	assert_object(VoxelLibraryGenerator.create_block_model(def, 0).material_override_0).is_same(custom)
+
+	# 4. No set and no custom material: no override at all.
+	def.custom_material = null
+	def.pbr = null
+	assert_object(VoxelLibraryGenerator.create_block_model(def, 0).material_override_0).is_null()
+
 
 

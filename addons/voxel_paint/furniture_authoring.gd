@@ -108,10 +108,8 @@ func place(def: BuildableDef, anchor: Vector3i, yaw_quarters: int) -> Marker3D:
         mesh_inst.name = "PreviewMesh"
         mesh_inst.mesh = def.get_mesh()
         mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-        if def.texture != null:
-            var mat := StandardMaterial3D.new()
-            mat.albedo_texture = def.texture
-            mesh_inst.material_override = mat
+        if PbrTextureSet.has_any(def.pbr):
+            mesh_inst.material_override = PbrMaterialFactory.standard(def.pbr)
         marker.add_child(mesh_inst)
 
     # Add to scene tree first, then set owner on the marker and its mesh
