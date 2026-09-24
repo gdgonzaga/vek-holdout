@@ -103,6 +103,7 @@ Editor regeneration follows the same pipeline by design: the Terrain drawer's **
 | `ground_height_at(x: float, z: float) -> float` | Combined spawn query (D4/Phase 3): one downward ray masked `TerrainBlocky\|TerrainSmooth` — the first hit from above is the highest surface (hill or plate), so player/colonist spawn markers snap onto real ground regardless of authored Y. Furniture statics and bodies never answer. `NAN` when neither terrain reaches the column. Per-grid `height_at` stays layer-specific — this is a placement query, not the walkability source. |
 | `get_furniture_container() -> Node3D` | The furniture parent node. |
 | `get_colonist_container() -> Node3D` | The colonist parent node (where persistent colonists reparent on map swaps). |
+| `get_items_container() -> Node3D` | The parent of every loose `WorldItem` (`ItemsLayer`). Unlike the containers above it is not authored into map scenes: the first call creates it as a child of the map and later calls return it. `MapWiring.wire_items` registers it for `WorldItem.spawn_at`. |
 
 ### Class: BlockyGrid
 

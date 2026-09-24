@@ -63,6 +63,23 @@ func test_wire_enemies_instantiates_swarmer() -> void:
 	assert_str(enemy.name).contains("EnemySwarmer")
 
 
+func test_wire_items_creates_the_items_layer_once_and_registers_its_group() -> void:
+	var map := preload("res://subsystems/maps/map_template.tscn").instantiate() as Map
+	add_child(map)
+	auto_free(map)
+
+	var layer := MapWiring.wire_items(map)
+
+	assert_object(layer).is_not_null()
+	assert_str(String(layer.name)).is_equal("ItemsLayer")
+	assert_object(layer.get_parent()).is_same(map)
+	assert_bool(layer.is_in_group(&"items_layer")).is_true()
+
+	# A second wiring (map re-wired on swap) must reuse the same node instead of stacking another.
+	assert_object(MapWiring.wire_items(map)).is_same(layer)
+	assert_int(map.find_children("ItemsLayer*", "Node3D", false, false).size()).is_equal(1)
+
+
 # --- wire_build / wire_mining / wire_day_night / wire_flora / wire_player /
 # wire_colonists / wire_enemy_pathfinder: each attaches its documented child
 # (or wires its documented dependency) and tolerates a second call without

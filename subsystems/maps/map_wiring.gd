@@ -13,6 +13,17 @@ extends RefCounted
 ## for a fresh process targeting an unloaded coordinate; see IMPLEMENTATION.md F3).
 
 
+## Ensure the map's ItemsLayer exists and is registered in WorldItem's layer group,
+## which is how WorldItem.spawn_at finds where loose items belong. Idempotent, so a
+## re-wired map reuses its layer. Must run before anything on the map can spawn an
+## item (flora, colonists, mining). Returns the layer.
+static func wire_items(map: Map) -> Node3D:
+	var layer := map.get_items_container()
+	if not layer.is_in_group(WorldItem.ITEMS_LAYER_GROUP):
+		layer.add_to_group(WorldItem.ITEMS_LAYER_GROUP)
+	return layer
+
+
 ## Wire BuildController deps (adapter -> grid, FurnitureLayer -> container,
 ## BlueprintLayer -> container/grid/furniture, strategy -> layers). Returns the
 ## FurnitureLayer (or null if the map has no BuildController).

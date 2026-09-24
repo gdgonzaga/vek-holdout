@@ -52,6 +52,17 @@ func test_world_item_setup_and_properties() -> void:
 	assert_bool(item.is_forbidden()).is_false()
 
 
+func test_setup_names_the_node_by_item_id_and_renames_on_resetup() -> void:
+	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
+	var item: WorldItem = auto_free(scene.instantiate())
+
+	item.setup("wood", 1)
+	assert_str(String(item.name)).is_equal("wood")
+
+	item.setup("stone", 1)
+	assert_str(String(item.name)).is_equal("stone")
+
+
 func test_set_forbidden_updates_state_and_interaction() -> void:
 	var scene: PackedScene = load("res://subsystems/inventory/world_item.tscn")
 	var item: WorldItem = auto_free(scene.instantiate())
@@ -168,23 +179,53 @@ func test_toggle_forbidden_action() -> void:
 	assert_bool(item.forbidden).is_false()
 
 
-func test_spawn_at_adds_to_parent_node() -> void:
-	var parent: Node3D = auto_free(Node3D.new())
+func test_spawn_at_parents_under_items_layer_and_names_node_by_item_id() -> void:
 	var spawn_pos := Vector3(5.0, 2.0, 5.0)
 
-	var item: WorldItem = WorldItemScript.spawn_at(parent, "stone", 8, spawn_pos, Vector3.UP, 0.0)
+	var item: WorldItem = WorldItemScript.spawn_at(get_tree(), "stone", 8, spawn_pos, Vector3.UP, 0.0)
 	assert_object(item).is_not_null()
 	auto_free(item)
 
 	assert_str(item.item_id).is_equal("stone")
 	assert_int(item.count).is_equal(8)
-	assert_object(item.get_parent()).is_same(parent)
+	assert_object(item.get_parent()).is_same(_sandbox.items_layer)
+	assert_str(String(item.name)).is_equal("stone")
 	assert_vector(item.position).is_equal(spawn_pos)
 
 
+func test_spawn_at_ignores_a_node_argument_as_the_parent() -> void:
+	# Callers pass whatever node they hold (a colonist, a crate); the item must still land in the layer, never under that node.
+	var carrier: Node3D = auto_free(Node3D.new())
+	add_child(carrier)
+
+	var item: WorldItem = WorldItemScript.spawn_at(carrier, "stone", 1, Vector3.ZERO, Vector3.UP, 0.0)
+	assert_object(item).is_not_null()
+	auto_free(item)
+
+	assert_object(item.get_parent()).is_same(_sandbox.items_layer)
+	assert_int(carrier.get_child_count()).is_equal(0)
+
+
+func test_spawn_at_gives_same_id_stacks_distinct_readable_names() -> void:
+	var first: WorldItem = WorldItemScript.spawn_at(get_tree(), "stone", 1, Vector3.ZERO, Vector3.UP, 0.0)
+	var second: WorldItem = WorldItemScript.spawn_at(get_tree(), "stone", 1, Vector3.ZERO, Vector3.UP, 0.0)
+	auto_free(first)
+	auto_free(second)
+
+	assert_str(String(first.name)).is_equal("stone")
+	assert_str(String(second.name)).is_equal("stone2")
+
+
+func test_spawn_at_without_an_items_layer_returns_null() -> void:
+	_sandbox.items_layer.remove_from_group(&"items_layer")
+
+	var item: WorldItem = WorldItemScript.spawn_at(get_tree(), "stone", 1, Vector3.ZERO, Vector3.UP, 0.0)
+
+	assert_object(item).is_null()
+
+
 func test_wake_up_and_wake_items_near() -> void:
-	var parent: Node3D = auto_free(Node3D.new())
-	var item: WorldItem = WorldItemScript.spawn_at(parent, "stone", 1, Vector3(2.0, 1.0, 2.0), Vector3.UP, 0.0)
+	var item: WorldItem = WorldItemScript.spawn_at(get_tree(), "stone", 1, Vector3(2.0, 1.0, 2.0), Vector3.UP, 0.0)
 	auto_free(item)
 	item.freeze = true
 	item.sleeping = true
@@ -196,15 +237,9 @@ func test_wake_up_and_wake_items_near() -> void:
 	item.freeze = true
 	item.sleeping = true
 
-	# Put parent in tree so get_nodes_in_group works
-	get_tree().root.add_child(parent)
-	item.add_to_group("world_items")
-
 	WorldItemScript.wake_items_near(get_tree(), Vector3(2.0, 1.0, 2.0), 3.0)
 	assert_bool(item.freeze).is_false()
 	assert_bool(item.sleeping).is_false()
-
-	get_tree().root.remove_child(parent)
 
 
 func test_player_drop_item_spawns_world_item() -> void:

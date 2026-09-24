@@ -249,7 +249,7 @@ func test_craft_complete_drops_world_item_and_clears_order() -> void:
 
 	# Verify WorldItem dropped
 	var world_items: Array[Node] = []
-	for child in _sandbox.container.get_children():
+	for child in _sandbox.items_layer.get_children():
 		if child is WorldItem:
 			world_items.append(child)
 	assert_int(world_items.size()).is_equal(1)
@@ -274,7 +274,7 @@ func test_craft_complete_drops_world_item_even_with_nearby_crate() -> void:
 	assert_int(colonist.inventory.get_item_count("plank")).is_equal(0)
 
 	var world_items: Array[Node] = []
-	for child in _sandbox.container.get_children():
+	for child in _sandbox.items_layer.get_children():
 		if child is WorldItem:
 			world_items.append(child)
 	assert_int(world_items.size()).is_equal(1)

@@ -20,6 +20,7 @@ extends RefCounted
 
 const COLONIST_SCENE: PackedScene = preload("res://subsystems/colonists/colonist.tscn")
 const PLAYER_SCENE: PackedScene = preload("res://subsystems/player/player.tscn")
+const ItemsLayerFixture = preload("res://test/helpers/items_layer_fixture.gd")
 
 var _suite: GdUnitTestSuite
 var _real_registry: StorageRegistry
@@ -40,6 +41,10 @@ var test_board: JobBoard
 ## (capability params load). Wire FurnitureLayers to it via set_container.
 var container: Node3D
 
+## Per-test stand-in for the map's ItemsLayer: WorldItem.spawn_at parents every
+## item here (found through the "items_layer" group, like a wired map's layer).
+var items_layer: Node3D
+
 
 func _init(suite: GdUnitTestSuite) -> void:
 	_suite = suite
@@ -54,6 +59,7 @@ func _init(suite: GdUnitTestSuite) -> void:
 	_suite.auto_free(test_board)
 	_suite.auto_free(container)
 	_suite.add_child(container)
+	items_layer = ItemsLayerFixture.add_to(_suite)
 	test_registry.on_map_wired(container)
 	Colony.storage_registry = test_registry
 	Colony.job_board = test_board

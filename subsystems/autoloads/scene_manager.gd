@@ -225,6 +225,8 @@ func _wire_map(map: Node, map_def: MapDef) -> void:
 	if m == null:
 		push_error("SceneManager: scene '%s' root is not a Map" % map_def.scene_path)
 		return
+	# Items first: mining, flora and colonists all drop WorldItems into this layer.
+	MapWiring.wire_items(m)
 	var furniture_layer: FurnitureLayer = MapWiring.wire_build(m)
 	MapWiring.wire_mining(m)
 	MapWiring.wire_areas(m)

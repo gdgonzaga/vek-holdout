@@ -5,6 +5,9 @@ extends RigidBody3D
 ## pickup by colonists executing hauling jobs.
 
 const SCENE_PATH := "res://subsystems/inventory/world_item.tscn"
+## Scene group of the node every spawned item is parented under. MapWiring.wire_items
+## registers the map's ItemsLayer in it, so this subsystem never paths into the map.
+const ITEMS_LAYER_GROUP := &"items_layer"
 
 @export var item_id: String = ""
 @export var count: int = 1
@@ -44,6 +47,9 @@ func _exit_tree() -> void:
 
 func setup(p_item_id: String, p_count: int = 1, p_forbidden: bool = false) -> void:
 	item_id = p_item_id
+	# Node named by its id so the scene tree and remote inspector read "plank", not "WorldItem".
+	if p_item_id != "":
+		name = p_item_id
 	count = maxi(1, p_count)
 	forbidden = p_forbidden
 	if is_node_ready():
@@ -381,6 +387,12 @@ static func spawn_at(
 	impulse_dir: Vector3 = Vector3.UP,
 	strength: float = 2.5
 ) -> WorldItem:
+	# 1. Layer Lookup: Resolving the map's ItemsLayer first so a failed spawn allocates nothing.
+	var items_layer: Node3D = _find_items_layer(_resolve_tree(tree_or_node))
+	if items_layer == null:
+		push_error("WorldItem: no node in group '%s' (is the map wired?); cannot spawn '%s'" % [ITEMS_LAYER_GROUP, p_item_id])
+		return null
+
 	var scene: PackedScene = load(SCENE_PATH)
 	if scene == null:
 		push_error("WorldItem: Could not load scene at %s" % SCENE_PATH)
@@ -388,23 +400,12 @@ static func spawn_at(
 
 	var item := scene.instantiate() as WorldItem
 	item.setup(p_item_id, p_count)
-	item.position = pos
 
-	var parent: Node = null
-	if tree_or_node is SceneTree:
-		if tree_or_node.current_scene != null:
-			parent = tree_or_node.current_scene
-		elif tree_or_node.root != null:
-			parent = tree_or_node.root
-	elif tree_or_node is Node:
-		parent = tree_or_node
+	# 2. Spawn Position: Set before parenting because _ready registers the item with Colony at its position; local to the layer so a moved layer still places it at the world point.
+	item.position = items_layer.to_local(pos)
 
-	if parent != null:
-		var items_layer := parent.find_child("ItemsLayer", true, false)
-		if items_layer != null:
-			items_layer.add_child(item)
-		else:
-			parent.add_child(item)
+	# 3. Parenting: Readable-name flag so a second stack of the same id becomes "plank2" instead of an "@plank@2" auto-name.
+	items_layer.add_child(item, true)
 
 	var effective_impulse_dir := impulse_dir
 
@@ -462,3 +463,23 @@ static func spawn_at(
 			item.apply_torque_impulse(Vector3(randf_range(-0.3, 0.3), randf_range(-0.3, 0.3), randf_range(-0.3, 0.3)))
 
 	return item
+
+
+# ===================
+# Auxiliary Functions
+# ===================
+
+static func _resolve_tree(tree_or_node: Variant) -> SceneTree:
+	## Auxiliary: Callers pass a SceneTree or any node; only the tree matters, the node is never the parent. Null when unresolvable.
+	if tree_or_node is SceneTree:
+		return tree_or_node
+	if tree_or_node is Node and is_instance_valid(tree_or_node):
+		return (tree_or_node as Node).get_tree()
+	return null
+
+
+static func _find_items_layer(tree: SceneTree) -> Node3D:
+	## Auxiliary: First Node3D registered in ITEMS_LAYER_GROUP, or null when no map is wired.
+	if tree == null:
+		return null
+	return tree.get_first_node_in_group(ITEMS_LAYER_GROUP) as Node3D

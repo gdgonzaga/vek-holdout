@@ -21,6 +21,8 @@ extends Node3D
 @onready var colonist_container: Node3D = $ColonistContainer
 @onready var enemy_container: Node3D = $EnemyContainer
 @onready var furniture_container: Node3D = $FurnitureContainer
+## Created lazily by get_items_container(); maps authored before it existed have no such node.
+var items_container: Node3D = null
 
 ## Playable volume bounding box. Prevents entity egress and out-of-bounds queries.
 var world_bounds: AABB = AABB(Vector3(-96.0, -48.0, -96.0), Vector3(192.0, 64.0, 192.0))
@@ -245,3 +247,15 @@ func get_enemy_container() -> Node3D:
 	if enemy_container == null:
 		enemy_container = get_node_or_null(^"EnemyContainer") as Node3D
 	return enemy_container
+
+## Parent Node3D for loose WorldItems (loot, drops, hauled leftovers). Created on
+## first use instead of authored into each map scene, so existing and regenerated
+## maps behave identically.
+func get_items_container() -> Node3D:
+	if items_container == null:
+		items_container = get_node_or_null(^"ItemsLayer") as Node3D
+	if items_container == null:
+		items_container = Node3D.new()
+		items_container.name = "ItemsLayer"
+		add_child(items_container)
+	return items_container

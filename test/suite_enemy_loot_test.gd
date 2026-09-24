@@ -9,10 +9,16 @@ const ENEMY_SCENE_PATH := "res://subsystems/combat/enemies/enemy_swarmer/enemy_s
 const _ITEM_PREFIX := "test_loot_"
 const _LETHAL_DAMAGE: int = 1000000
 const _DEATH_POS := Vector3(40.0, 5.0, 40.0)
+const ItemsLayerFixture = preload("res://test/helpers/items_layer_fixture.gd")
+
+
+func before_test() -> void:
+	# Drops are parented under the map's ItemsLayer (a stand-in here), not the enemy, so they outlive it.
+	ItemsLayerFixture.add_to(self)
 
 
 func after_test() -> void:
-	# Spawned WorldItems are parented to the scene, not the enemy, so they outlive it.
+	# Sweep leftovers explicitly: drops made before a failed assert must not leak into later suites.
 	for node in get_tree().get_nodes_in_group("world_items"):
 		var item := node as WorldItem
 		if item != null and item.item_id.begins_with(_ITEM_PREFIX):

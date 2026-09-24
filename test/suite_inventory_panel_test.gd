@@ -6,9 +6,15 @@ extends GdUnitTestSuite
 
 const PlayerScene = preload("res://subsystems/player/player.tscn")
 const _PanelScene: PackedScene = preload("res://ui/inventory/inventory_panel.tscn")
+const ItemsLayerFixture = preload("res://test/helpers/items_layer_fixture.gd")
 
 var _previous_defs: Dictionary = {}
 var _panel: InventoryPanel = null
+
+
+func before_test() -> void:
+	# Drop buttons spawn WorldItems, which need a map ItemsLayer to land in.
+	ItemsLayerFixture.add_to(self)
 
 
 func after_test() -> void:
@@ -55,7 +61,7 @@ func _equipped_rows() -> Array[Node]:
 
 
 ## The WorldItem matching item_id among every ground item in the tree (drop tests spawn theirs
-## under the tree root via Player.drop_item -> WorldItem.spawn_at), or null if none.
+## under the fixture ItemsLayer via Player.drop_item -> WorldItem.spawn_at), or null if none.
 func _find_world_item(item_id: String) -> WorldItem:
 	for node: Node in get_tree().get_nodes_in_group("world_items"):
 		var item := node as WorldItem

@@ -41,7 +41,7 @@ Loot is local to the POI scene + Inventory — no cross-scene signals. The Key I
 2. `_drop_loot()` returns early when `enemy_def` or `enemy_def.loot_table` is null, or the enemy is not in the tree.
 3. Otherwise it calls `LootRoller.roll(table, rng)`. The roller adds every valid `guaranteed` amount, then rolls each entry (chance, then count) and merges the results into one stack per item id.
 4. Each stack is spawned with `WorldItem.spawn_at`, on its own slice of a circle around the death position (`_LOOT_SCATTER_RADIUS`, an outward and upward impulse), so drops never share a spawn point.
-5. `WorldItem`s are parented to the scene (or its `ItemsLayer`), not the enemy, so they outlive it. Colonists haul them and the player picks them up through the normal `WorldItem` paths.
+5. `WorldItem`s are parented to the map's `ItemsLayer` (see [Inventory](inventory.md)), not the enemy, so they outlive it, and each node is named by its item id. Colonists haul them and the player picks them up through the normal `WorldItem` paths.
 
 **End state:** The enemy is freed and its drops lie scattered where it fell. Enemies freed directly (for example raid cleanup) never emit `entity_died` and so never drop.
 
