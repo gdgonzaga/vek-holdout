@@ -17,6 +17,12 @@ func _make_def(id: String, min_depth: int, max_depth: int, weight: float) -> Ter
 	return def
 
 
+func _albedo_set() -> PbrTextureSet:
+	var texture_set: PbrTextureSet = auto_free(PbrTextureSet.new())
+	texture_set.albedo = SmoothGrid.marker_texture()
+	return texture_set
+
+
 # --- band endpoint selection -------------------------------------------------------
 
 func test_band_picks_prefer_surface_min_depth_and_dominant_deep() -> void:
@@ -69,7 +75,7 @@ func test_band_picks_selects_ore_preferring_texture() -> void:
 	var rock := _make_def("rock", 3, 0x7FFFFFFF, 10.0)
 	var common_ore := _make_def("common_ore", 5, 0x7FFFFFFF, 5.0)
 	var textured_ore := _make_def("textured_ore", 1, 0x7FFFFFFF, 0.5)
-	textured_ore.texture = SmoothGrid.marker_texture()
+	textured_ore.pbr = _albedo_set()
 	var picks := SmoothGrid._pick_band_materials([ground, rock, common_ore, textured_ore])
 	assert_str(picks["ore"].id).is_equal("textured_ore")
 
@@ -99,7 +105,7 @@ func test_band_picks_ore_is_coal_with_real_catalog_shape() -> void:
 	var ground := _make_def("ground", 0, 3, 1.0)
 	var rock := _make_def("rock", 3, 0x7FFFFFFF, 1.0)
 	var coal := _make_def("coal", 0, 100, 0.9)
-	coal.texture = SmoothGrid.marker_texture()
+	coal.pbr = _albedo_set()
 	var copper := _make_def("copper", 8, 0x7FFFFFFF, 1.0)
 	var picks := SmoothGrid._pick_band_materials([ground, rock, coal, copper])
 	assert_str(picks["surface"].id).is_equal("ground")
@@ -109,25 +115,6 @@ func test_band_picks_ore_is_coal_with_real_catalog_shape() -> void:
 
 func test_band_picks_empty_catalog_answers_nothing() -> void:
 	assert_dict(SmoothGrid._pick_band_materials([])).is_empty()
-
-
-# --- band tint / texture fallback --------------------------------------------------
-
-func test_band_tint_uses_def_color_without_texture() -> void:
-	var clay := _make_def("clay", 0, 2, 1.0)
-	clay.color = Color(0.5, 0.2, 0.1, 1.0)
-	assert_that(SmoothGrid._band_tint(clay, Color.BLACK)).is_equal(Color(0.5, 0.2, 0.1, 1.0))
-
-
-func test_band_tint_falls_back_to_shader_default_for_white_defs() -> void:
-	var plain := _make_def("plain", 0, 2, 1.0)
-	assert_that(SmoothGrid._band_tint(plain, Color.BLACK)).is_equal(Color.BLACK)
-
-
-func test_band_tint_never_tints_a_real_texture() -> void:
-	var textured := _make_def("textured", 0, 2, 1.0)
-	textured.texture = SmoothGrid.marker_texture()
-	assert_that(SmoothGrid._band_tint(textured, Color.BLACK)).is_equal(Color.WHITE)
 
 
 # --- marker helpers ------------------------------------------------------------------
@@ -170,7 +157,7 @@ func test_smooth_grid_volume_wiring_pushes_shader_uniforms() -> void:
 	var ground := _make_def("ground", 0, 3, 1.0)
 	var rock := _make_def("rock", 3, 0x7FFFFFFF, 1.0)
 	var coal := _make_def("coal", 4, 100, 0.9)
-	coal.texture = SmoothGrid.marker_texture()
+	coal.color = Color(0.2, 0.3, 0.4)
 
 	grid.set_material_catalog([ground, rock, coal])
 	grid._bake_strata_volume()
@@ -189,28 +176,47 @@ func test_smooth_grid_volume_wiring_pushes_shader_uniforms() -> void:
 	assert_object(mat.get_shader_parameter("strata_volume")).is_equal(result.texture)
 	assert_vector(mat.get_shader_parameter("volume_origin")).is_equal(Vector3(-8, -4, -8))
 	assert_vector(mat.get_shader_parameter("volume_size")).is_equal(Vector3(16, 8, 16))
-	var textures: Array = mat.get_shader_parameter("ore_textures")
-	assert_object(textures[grid.get_strata_palette()["coal"]]).is_equal(coal.texture)
-	var tints: Array = mat.get_shader_parameter("ore_palette_tint")
-	assert_vector(tints[grid.get_strata_palette()["coal"]]).is_equal(Vector3.ONE)
 	assert_float(mat.get_shader_parameter("ore_blend_radius")).is_equal(1.2)
 	assert_float(mat.get_shader_parameter("ore_warp_strength")).is_equal(0.9)
 
+	# The ore's layer exists in every array, sized to the highest palette layer in use.
+	var coal_layer := TerrainTextureArrays.layer_for_palette_index(grid.get_strata_palette()["coal"])
+	var albedo_array: Texture2DArray = mat.get_shader_parameter("albedo_array")
+	assert_int(albedo_array.get_layers()).is_equal(coal_layer + 1)
+	assert_object(mat.get_shader_parameter("normal_array")).is_not_null()
+	assert_object(mat.get_shader_parameter("orme_array")).is_not_null()
+	# A textureless def tints its neutral layer with its flat color.
+	var tints: PackedVector3Array = mat.get_shader_parameter("layer_tint")
+	assert_vector(tints[coal_layer]).is_equal(Vector3(0.2, 0.3, 0.4))
+	var tiles: PackedFloat32Array = mat.get_shader_parameter("layer_tiles")
+	assert_int(tiles.size()).is_equal(TerrainTextureArrays.MAX_LAYERS)
 
-func test_terrain_material_def_pbr_fields() -> void:
+
+func test_terrain_material_def_carries_a_pbr_set_and_tile_scale() -> void:
 	var def: TerrainMaterialDef = auto_free(TerrainMaterialDef.new())
-	def.id = "pbr_terrain"
-	def.texture = SmoothGrid.marker_texture()
-	def.displacement_texture = SmoothGrid.marker_texture()
-	def.metalness_texture = SmoothGrid.marker_texture()
-	def.normal_texture = SmoothGrid.marker_texture()
-	def.roughness_texture = SmoothGrid.marker_texture()
-	def.orme_texture = SmoothGrid.marker_texture()
+	assert_object(def.pbr).is_null()
+	assert_float(def.tiles_per_meter).is_equal(TerrainTextureArrays.DEFAULT_TILES_PER_METER)
+	def.pbr = _albedo_set()
+	assert_bool(PbrTextureSet.has_albedo(def.pbr)).is_true()
 
-	assert_object(def.texture).is_not_null()
-	assert_object(def.displacement_texture).is_not_null()
-	assert_object(def.metalness_texture).is_not_null()
-	assert_object(def.normal_texture).is_not_null()
-	assert_object(def.roughness_texture).is_not_null()
-	assert_object(def.orme_texture).is_not_null()
+
+func test_layer_arrays_are_rebuilt_only_when_the_catalog_changes() -> void:
+	var grid: SmoothGrid = auto_free(SmoothGrid.new())
+	var ground := _make_def("ground", 0, 3, 1.0)
+	var rock := _make_def("rock", 3, 0x7FFFFFFF, 1.0)
+	grid.set_material_catalog([ground, rock])
+
+	var first := ShaderMaterial.new()
+	var second := ShaderMaterial.new()
+	grid._push_band_uniforms(first)
+	grid._push_band_uniforms(second)
+	# A second push with no catalog change reuses the cached arrays.
+	assert_object(second.get_shader_parameter("albedo_array")).is_same(first.get_shader_parameter("albedo_array"))
+
+	grid.set_material_catalog([ground, rock])
+	var third := ShaderMaterial.new()
+	grid._push_band_uniforms(third)
+	# A catalog injection invalidates the cache.
+	assert_object(third.get_shader_parameter("albedo_array")).is_not_same(first.get_shader_parameter("albedo_array"))
+
 

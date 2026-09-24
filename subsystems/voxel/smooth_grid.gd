@@ -139,6 +139,9 @@ var _band_materials: Dictionary = {}
 var _surface_material_id := ""
 var _strata_bake_result: StrataBakeResult = null
 var _strata_palette: Dictionary = {}
+## Texture arrays for the terrain shader, built once per catalog injection or strata bake
+## (the build reads every layer back with get_image()); null means "rebuild on the next push".
+var _layer_arrays: TerrainTextureArrays.Result = null
 var _marker_keys: Dictionary = {}
 var _marker_root: Node3D = null
 static var _shared_marker_texture: ImageTexture = null
@@ -360,6 +363,7 @@ func set_material_catalog(materials: Array) -> void:
 		_surface_material_id = String(_band_materials["surface"].id)
 	# Invalidate previous volume bake so a fresh catalog re-bakes
 	_strata_bake_result = null
+	_layer_arrays = null
 	# Catalog injection may precede the tree (both injectors do), so _terrain
 	# can be unset — _ready's _apply_visuals covers that order.
 	if _terrain != null and "material_override" in _terrain:
@@ -709,8 +713,8 @@ static func _pick_band_materials(defs: Array) -> Dictionary:
 		if ore == null:
 			ore = m
 		else:
-			var m_has_tex := m.texture != null
-			var ore_has_tex := ore.texture != null
+			var m_has_tex := PbrTextureSet.has_albedo(m.pbr)
+			var ore_has_tex := PbrTextureSet.has_albedo(ore.pbr)
 			if m_has_tex and not ore_has_tex:
 				ore = m
 			elif m_has_tex == ore_has_tex:
@@ -724,62 +728,84 @@ static func _pick_band_materials(defs: Array) -> Dictionary:
 func _push_band_uniforms(material: ShaderMaterial) -> void:
 	var surface: TerrainMaterialDef = _band_materials.get("surface")
 	var deep: TerrainMaterialDef = _band_materials.get("deep")
-	material.set_shader_parameter("ground_tex", _band_texture(surface))
-	material.set_shader_parameter("rock_tex", _band_texture(deep))
-	material.set_shader_parameter("ground_tint", _band_tint(surface, Color(0.545, 0.435, 0.278)))
-	material.set_shader_parameter("rock_tint", _band_tint(deep, Color(0.541, 0.541, 0.561)))
-	var center := 3.0
-	if surface != null:
-		center = float(surface.max_depth)
-	material.set_shader_parameter("band_center_depth", center)
+	# Band and ore textures as three Texture2DArrays indexed by layer, so every catalog material reaches the shader.
+	_push_layer_uniforms(material, surface, deep)
+	# The depth where ground fades into rock is the surface material's own band edge.
+	material.set_shader_parameter("band_center_depth", float(surface.max_depth) if surface != null else 3.0)
+	# Procedural ore fallback, used only while the strata volume is absent.
+	_push_ore_fallback_uniforms(material, _band_materials.get("ore"))
+	# Strata volume uniforms that keep the visible veins in lockstep with mined drops.
+	_push_volume_uniforms(material)
 
-	var ore: TerrainMaterialDef = _band_materials.get("ore")
-	if ore != null:
-		material.set_shader_parameter("ore_enabled", true)
-		material.set_shader_parameter("ore_tex", _band_texture(ore))
-		material.set_shader_parameter("ore_tint", _band_tint(ore, Color(0.15, 0.15, 0.15)))
-		material.set_shader_parameter("ore_min_depth", float(ore.min_depth))
-		material.set_shader_parameter("ore_max_depth", float(ore.max_depth))
-		var vein_sz := float(maxi(1, ore.vein_size))
-		material.set_shader_parameter("ore_noise_scale", 1.0 / vein_sz)
-		var seed := terrain_gen.noise_seed if terrain_gen != null else 1337
-		material.set_shader_parameter("ore_seed_offset", Vector3(
-			float(seed % 97),
-			float((seed / 97) % 89),
-			float((seed / 8633) % 79)
-		))
-		material.set_shader_parameter("ore_threshold", 0.65)
-	else:
-		material.set_shader_parameter("ore_enabled", false)
 
-	if _strata_bake_result != null and _strata_bake_result.texture != null:
-		material.set_shader_parameter("volume_enabled", true)
-		material.set_shader_parameter("strata_volume", _strata_bake_result.texture)
-		material.set_shader_parameter("volume_origin", Vector3(_strata_bake_result.origin))
-		material.set_shader_parameter("volume_size", Vector3(_strata_bake_result.size))
-		material.set_shader_parameter("ore_palette_tint", _build_palette_tints())
-		material.set_shader_parameter("ore_textures", _build_ore_textures(deep))
-		material.set_shader_parameter("ore_blend_radius", ore_blend_radius)
-		material.set_shader_parameter("ore_warp_strength", ore_warp_strength)
-	else:
+func _push_layer_uniforms(material: ShaderMaterial, surface: TerrainMaterialDef, deep: TerrainMaterialDef) -> void:
+	# Arrays are rebuilt only after a catalog or strata-bake change: building them reads every layer back with get_image().
+	if _layer_arrays == null:
+		# Ore defs by strata palette index, which fixes each ore's array layer.
+		_layer_arrays = TerrainTextureArrays.build(surface, deep, _palette_defs())
+	if _layer_arrays == null:
+		return
+	material.set_shader_parameter("albedo_array", _layer_arrays.albedo)
+	material.set_shader_parameter("normal_array", _layer_arrays.normal)
+	material.set_shader_parameter("orme_array", _layer_arrays.orme)
+	material.set_shader_parameter("layer_tiles", _layer_arrays.tiles)
+	material.set_shader_parameter("layer_tint", _layer_arrays.tints)
+
+
+## Strata palette index -> def, for the ores the volume actually contains.
+func _palette_defs() -> Dictionary:
+	var defs := {}
+	for material_id: String in _strata_palette:
+		var palette_index: int = _strata_palette[material_id]
+		if palette_index > 0 and palette_index < 16 and _catalog_by_id.has(material_id):
+			defs[palette_index] = _catalog_by_id[material_id]
+	return defs
+
+
+func _push_ore_fallback_uniforms(material: ShaderMaterial, ore: TerrainMaterialDef) -> void:
+	material.set_shader_parameter("ore_enabled", ore != null)
+	if ore == null:
+		return
+	# Fallback Albedo: Acquire albedo texture from set or default white texture.
+	material.set_shader_parameter("ore_tex", _ore_fallback_albedo(ore))
+	material.set_shader_parameter("ore_tex_tiles", ore.tiles_per_meter)
+	material.set_shader_parameter("ore_tint", TerrainTextureArrays.tint_for(ore, Color(0.15, 0.15, 0.15)))
+	material.set_shader_parameter("ore_min_depth", float(ore.min_depth))
+	material.set_shader_parameter("ore_max_depth", float(ore.max_depth))
+	material.set_shader_parameter("ore_noise_scale", 1.0 / float(maxi(1, ore.vein_size)))
+	# Seed Offset Calculation: Generate deterministic 3D offset vector from terrain seed.
+	material.set_shader_parameter("ore_seed_offset", _ore_seed_offset())
+	material.set_shader_parameter("ore_threshold", 0.65)
+
+
+func _push_volume_uniforms(material: ShaderMaterial) -> void:
+	if _strata_bake_result == null or _strata_bake_result.texture == null:
 		material.set_shader_parameter("volume_enabled", false)
+		return
+	material.set_shader_parameter("volume_enabled", true)
+	material.set_shader_parameter("strata_volume", _strata_bake_result.texture)
+	material.set_shader_parameter("volume_origin", Vector3(_strata_bake_result.origin))
+	material.set_shader_parameter("volume_size", Vector3(_strata_bake_result.size))
+	material.set_shader_parameter("ore_blend_radius", ore_blend_radius)
+	material.set_shader_parameter("ore_warp_strength", ore_warp_strength)
 
 
-## A real texture carries its own color, so it is never tinted (WHITE); the
-## textureless fallback path paints the def's flat color instead. Static +
-## pure — the visuals suite tests it.
-static func _band_texture(def: TerrainMaterialDef) -> Texture2D:
-	if def != null and def.texture != null:
-		return def.texture
+## Albedo for the procedural ore fallback: the ore's set albedo, else white
+## (tinted by the def's color).
+static func _ore_fallback_albedo(ore: TerrainMaterialDef) -> Texture2D:
+	if PbrTextureSet.has_albedo(ore.pbr):
+		return ore.pbr.albedo
+	# Shared Fallback Texture: Acquire cached 4x4 white image texture.
 	return _white_texture()
 
 
-static func _band_tint(def: TerrainMaterialDef, fallback: Color) -> Color:
-	if def != null and def.texture != null:
-		return Color.WHITE
-	if def != null and def.color != Color.WHITE:
-		return def.color
-	return fallback
+func _ore_seed_offset() -> Vector3:
+	var noise_seed := terrain_gen.noise_seed if terrain_gen != null else 1337
+	return Vector3(
+		float(noise_seed % 97),
+		float((noise_seed / 97) % 89),
+		float((noise_seed / 8633) % 79)
+	)
 
 
 static func _white_texture() -> ImageTexture:
@@ -1310,6 +1336,8 @@ func get_strata_palette() -> Dictionary:
 func _bake_strata_volume() -> void:
 	if _strata == null or _catalog_by_id.is_empty():
 		return
+	# The palette below can change layer indices, so any cached arrays are stale.
+	_layer_arrays = null
 	_strata_palette = StrataBaker.build_palette(_catalog_by_id.values())
 	var origin := Vector3i(-volume_bake_span_xz / 2, volume_min_y, -volume_bake_span_xz / 2)
 	var size := Vector3i(volume_bake_span_xz, volume_bake_span_y, volume_bake_span_xz)
@@ -1322,40 +1350,3 @@ func _bake_strata_volume() -> void:
 		true,
 		false
 	)
-
-
-func _build_palette_tints() -> Array[Vector3]:
-	var tints: Array[Vector3] = []
-	tints.resize(16)
-	for i: int in 16:
-		tints[i] = Vector3.ONE
-	for mat_id: String in _strata_palette:
-		var idx: int = _strata_palette[mat_id]
-		if idx > 0 and idx < 16:
-			var def: TerrainMaterialDef = _catalog_by_id.get(mat_id)
-			if def != null:
-				if def.texture != null:
-					# A real texture carries its own authored colors; do not dim it with def.color
-					tints[idx] = Vector3.ONE
-				elif def.color != Color.WHITE:
-					tints[idx] = Vector3(def.color.r, def.color.g, def.color.b)
-				else:
-					tints[idx] = Vector3(0.541, 0.541, 0.561)
-	return tints
-
-
-func _build_ore_textures(deep: TerrainMaterialDef) -> Array[Texture2D]:
-	var fallback_tex: Texture2D = _band_texture(deep)
-	var textures: Array[Texture2D] = []
-	textures.resize(16)
-	for i: int in 16:
-		textures[i] = fallback_tex
-	for mat_id: String in _strata_palette:
-		var idx: int = _strata_palette[mat_id]
-		if idx > 0 and idx < 16:
-			var def: TerrainMaterialDef = _catalog_by_id.get(mat_id)
-			if def != null and def.texture != null:
-				textures[idx] = def.texture
-			else:
-				textures[idx] = fallback_tex
-	return textures
