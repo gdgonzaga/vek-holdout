@@ -7,7 +7,7 @@ extends Node
 ## Emits the map_loading/loaded/unloading signals so HUD/save/ExpeditionManager
 ## can hook in.
 
-var _map_root_parent: Node = null    # set by Main; where MapRoot mounts
+var _map_root_parent: Node = null    # set by Main; the World node where maps mount
 var _ui_layer: CanvasLayer = null      # set by Main; the layer-20 slot
 var _current_map: Node = null
 var _current_scene_id: String = ""
@@ -62,7 +62,8 @@ func swap_map(scene_id: String) -> void:
 			_player.interactor.clear_interactable()
 		if _player != null and is_instance_valid(_player) and _player.get_parent() == _current_map:
 			_current_map.remove_child(_player)
-		_current_map.queue_free()
+		# Free the outgoing map, releasing its node name for the incoming one.
+		_retire_map_node(_current_map)
 		_current_map = null
 		_current_scene_id = ""
 
@@ -79,6 +80,8 @@ func swap_map(scene_id: String) -> void:
 		smooth.set_material_catalog(BuildLibrary.get_terrain_materials())
 	if map is Map:
 		(map as Map).set_world_bounds(map_def.world_bounds)
+	# Named by map id (World/<id>) so tree paths are stable and readable.
+	map.name = map_def.id
 	_map_root_parent.add_child(map)
 	_current_map = map
 	_current_scene_id = scene_id
@@ -115,11 +118,21 @@ func unload_current_map() -> void:
 		_player.interactor.clear_interactable()
 	if _player != null and is_instance_valid(_player) and _player.get_parent() == _current_map:
 		_current_map.remove_child(_player)
-	_current_map.queue_free()
+	# Free the map, releasing its node name for any map mounted next.
+	_retire_map_node(_current_map)
 	_current_map = null
 	_current_scene_id = ""
 	GameState.map_root = null
 	GameState.set_scene_id("")
+
+
+## queue_free() defers the free to end of frame, so the outgoing map still owns
+## its id-derived name when the next map (often the same id, e.g. loading a save
+## into the current map) mounts. Renaming first avoids Godot auto-renaming the
+## incoming map to "@Node3D@2".
+func _retire_map_node(map: Node) -> void:
+	map.name = "%s_unloading" % map.name
+	map.queue_free()
 
 
 ## Wipe the user://maps/ cache so the next swap_map(s) pull fresh copies

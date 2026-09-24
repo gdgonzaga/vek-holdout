@@ -6,7 +6,7 @@ The **Core** subsystem (`subsystems/core/`) owns the game's top-level orchestrat
 
 | File | Type | Responsibility |
 |---|---|---|
-| `subsystems/core/main.gd` / `main.tscn` | Scene/Script (`class_name Main`, autoload-adjacent root scene) | Persistent scene skeleton (`UILayer`, `HUDLayer`, `MapRootSlot`), creates the persistent `Player`, mounts HUD/log-feed/dig-box overlays, routes global hotkeys. |
+| `subsystems/core/main.gd` / `main.tscn` | Scene/Script (`class_name Main`, autoload-adjacent root scene) | Persistent scene skeleton (`UILayer`, `HUDLayer`, `World`), creates the persistent `Player`, mounts HUD/log-feed/dig-box overlays, routes global hotkeys. |
 | `subsystems/autoloads/game_state.gd` | Script (autoload `GameState`) | Run-level state holder: day, scene id, pause, save slot, pathfinding strategy, local player ref. |
 | `subsystems/autoloads/scene_manager.gd` | Script (autoload `SceneManager`) | Map swap orchestrator + full-screen UI slot manager. |
 | `subsystems/autoloads/time_system.gd` | Script (autoload `TimeSystem`) | Real-time-driven in-game clock; day rollover; sleep trigger. |
@@ -150,7 +150,7 @@ Other Core-owned autoloads (`Colony`, `RunProgress`, `UiGate`, `Tools`) have the
 
 **Extends:** Node (autoload)  
 **Script:** `scene_manager.gd`  
-**Description:** Map transition orchestrator and UI screen manager. Owns SQLite stream redirection, map instantiation, entity reparenting between maps, and full-screen screen swapping. `setup()` is called once by `Main._ready` to hand it the node slots (`MapRootSlot`, `UILayer`) it manages.  
+**Description:** Map transition orchestrator and UI screen manager. Owns SQLite stream redirection, map instantiation, entity reparenting between maps, and full-screen screen swapping. `setup()` is called once by `Main._ready` to hand it the node slots (`World`, `UILayer`) it manages. Each map is named by its `MapDef.id` on mount (`Main/World/<map_id>`); the outgoing map is renamed `<id>_unloading` before `queue_free()` so a same-id reload keeps the clean name.  
 **Used by:** `Main` (setup, once), `SaveSystem` (current map/player queries, park hooks), `main.gd::_unhandled_input` (screen open/close), any transit trigger (`swap_map`).
 
 **Functions:**
@@ -193,7 +193,7 @@ Other Core-owned autoloads (`Colony`, `RunProgress`, `UiGate`, `Tools`) have the
 
 **Extends:** Node (`class_name Main`)  
 **Script:** `subsystems/core/main.gd` — the project's root scene, persists across the entire session.  
-**Description:** Builds the persistent scene skeleton once: `UILayer` (CanvasLayer 20, full-screen UI slot), `HUDLayer` (CanvasLayer 10, HUD slot), `MapRootSlot` (where SceneManager mounts each map). Creates the persistent `Player` and hands it to `SceneManager`; mounts the persistent HUD, log feed tail, and dig-box HUD overlay onto `HUDLayer`. Contains no gameplay logic itself — routes global hotkeys and delegates everything else to `SceneManager`/`UiGate`.  
+**Description:** Builds the persistent scene skeleton once: `UILayer` (CanvasLayer 20, full-screen UI slot), `HUDLayer` (CanvasLayer 10, HUD slot), `World` (a `Node3D`, the 3D root where SceneManager mounts each map as `World/<map_id>`). Creates the persistent `Player` and hands it to `SceneManager`; mounts the persistent HUD, log feed tail, and dig-box HUD overlay onto `HUDLayer`. Contains no gameplay logic itself — routes global hotkeys and delegates everything else to `SceneManager`/`UiGate`.  
 **Used by:** Nothing — it's the scene root. Owns/creates `SceneManager`'s slots, the `Player`, and the persistent HUD-layer widgets.
 
 **Functions:**

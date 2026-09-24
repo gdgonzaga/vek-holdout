@@ -13,4 +13,5 @@ groups = ["hud_layer"]
 layer = 20
 groups = ["ui_layer"]
 
-[node name="MapRootSlot" type="Node" parent="."]
+[node name="World" type="Node3D" parent="."]
+unique_name_in_owner = true

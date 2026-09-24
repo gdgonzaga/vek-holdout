@@ -1,28 +1,28 @@
 class_name Main
 extends Node
 ## Root scene — persists across the entire game session (ARCH "Scene Tree", line 59).
-## Owns the CanvasLayers, the MapRoot slot, and the persistent Player. No
+## Owns the CanvasLayers, the World node, and the persistent Player. No
 ## gameplay logic (ARCH line 231).
 ##
 ## Structure (built in _ready):
 ##   Main
 ##   ├── UILayer (CanvasLayer, layer=20)   full-screen UI slot (SceneManager)
 ##   ├── HUDLayer (CanvasLayer, layer=10)  HUD slot (mounts hud.tscn later)
-##   └── MapRootSlot (Node)                 MapRoot mounts here (SceneManager)
+##   └── World (Node3D)                    3D root; each map mounts here as World/<map_id> (SceneManager)
 ##
 ## The Player is created once and persists across map swaps — SceneManager
 ## reparents it into each loaded map (ARCH: persistent player across scenes).
 
 @onready var _hud_layer: CanvasLayer = $HUDLayer
 @onready var _ui_layer: CanvasLayer = $UILayer
-@onready var _map_slot: Node = $MapRootSlot
+@onready var _world: Node3D = %World
 
 var _player: Player = null
 
 
 func _ready() -> void:
 	# Hand the node slots to SceneManager so it can swap maps/screens.
-	SceneManager.setup(_map_slot, _ui_layer)
+	SceneManager.setup(_world, _ui_layer)
 	# Persistent player: created once, reparented into each map on swap.
 	_player = preload("res://subsystems/player/player.tscn").instantiate()
 	SceneManager.set_player(_player)
