@@ -190,3 +190,32 @@ func test_neutral_set_is_flat_unoccluded_rough_and_white() -> void:
 	assert_that(packed["normal"].get_pixel(0, 0)).is_equal(Color8(128, 128, 255))
 	assert_int(packed["orme"].get_pixel(0, 0).g8).is_equal(255)
 	assert_int(packed["orme"].get_pixel(0, 0).b8).is_equal(0)
+
+
+# --- writer: pure text and id rules ------------------------------------------------------
+
+func test_valid_set_ids_are_lower_snake_case() -> void:
+	assert_bool(PbrPackWriter.is_valid_id("ground037")).is_true()
+	assert_bool(PbrPackWriter.is_valid_id("iron_ore_2")).is_true()
+	assert_bool(PbrPackWriter.is_valid_id("Ground 037")).is_false()
+	assert_bool(PbrPackWriter.is_valid_id("1ground")).is_false()
+	assert_bool(PbrPackWriter.is_valid_id("")).is_false()
+
+
+func test_import_sidecar_enables_the_normal_map_flag_only_for_normals() -> void:
+	var normal_text := PbrPackWriter.import_sidecar("res://assets/pbr/x/normal.png", true)
+	var albedo_text := PbrPackWriter.import_sidecar("res://assets/pbr/x/albedo.png", false)
+	assert_str(normal_text).contains("compress/normal_map=1")
+	assert_str(albedo_text).contains("compress/normal_map=2")
+	assert_str(albedo_text).contains("source_file=\"res://assets/pbr/x/albedo.png\"")
+	assert_str(albedo_text).contains("compress/mode=2")
+	assert_str(albedo_text).contains("mipmaps/generate=true")
+
+
+func test_set_resource_text_references_the_three_packed_maps_by_path() -> void:
+	var text := PbrPackWriter.set_resource_text("my_set")
+	assert_str(text).contains("script_class=\"PbrTextureSet\"")
+	assert_str(text).contains("id = \"my_set\"")
+	assert_str(text).contains("path=\"res://assets/pbr/my_set/albedo.png\"")
+	assert_str(text).contains("path=\"res://assets/pbr/my_set/normal.png\"")
+	assert_str(text).contains("path=\"res://assets/pbr/my_set/orme.png\"")
