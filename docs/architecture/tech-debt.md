@@ -261,3 +261,16 @@ clean `git status --short data/`). Files changed: `test/helpers/colony_sandbox.g
 `test/suite_colony_roster_test.gd`, `test/suite_colony_management_test.gd`,
 `test/suite_colonist_namer_test.gd`.
 
+---
+
+## Terrain PBR follow-ups (2026-09-22)
+
+- The procedural ore fallback (`ore_enabled`, only used while the strata volume is absent) samples albedo only, from one `sampler2D`; it gets no normal or ORME.
+- ORME Extra (A) is reserved and packed as 0; no terrain, block or furniture consumer reads it.
+- Triplanar normals use the whiteout blend without mirroring correction on negative-facing sides.
+- Terrain arrays use one shared layer size (1024); a per-material resolution would need a different array strategy.
+- Block and furniture displacement (parallax) was dropped with `displacement_texture`.
+- `SmoothGrid` caches the built arrays (`_layer_arrays`) and rebuilds them only after a catalog injection or strata bake; editing a `PbrTextureSet` at runtime needs a catalog re-injection to show.
+- `TerrainTextureArrays.build` reads every layer back with `get_image()` on compressed textures. If that ever fails under Vulkan, the plan-B is to bake the arrays offline (Godot `2d_array_texture` import or a saved `Texture2DArray`) instead of at runtime.
+- `detail_fade_start` / `detail_fade_end` / `normal_strength` / `metallic_scale` are terrain-wide shader defaults, not per-material.
+

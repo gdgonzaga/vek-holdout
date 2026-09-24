@@ -68,6 +68,7 @@ nav:
   - How tos:
     - "Authoring Behavior Trees": HOWTO-author-behavior-trees.md
     - "Authoring Blocks": HOWTO-author-blocks.md
+    - "Authoring PBR Textures": HOWTO-author-pbr-textures.md
     - "Authoring Crops": HOWTO-author-crops.md
     - "Authoring Enemies & Loot": HOWTO-author-enemies.md
     - "Authoring Wild Flora": HOWTO-author-wild-flora.md

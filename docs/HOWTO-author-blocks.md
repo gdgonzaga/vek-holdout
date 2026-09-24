@@ -193,12 +193,11 @@ sourced texture packs under their own top-level folder (e.g. `assets/ambientcg/`
 per `docs/art.md`.
 
 ### A. Adding Textures
-1. Import your texture file (e.g., `wood_wedge_albedo.png`) into `assets/custom_images/`.
-2. Ensure Import Settings use **Lossless** or **VRAM Uncompressed** for crisp voxel textures.
+Pack the downloaded material with the PBR packer (see [Authoring PBR Textures](HOWTO-author-pbr-textures.md)) and assign the resulting `res://data/pbr/<id>.tres` to the def's `pbr`; an albedo-only set is fine.
 
 ### B. Texture Variations Shader (`texture_variation`)
 To prevent large blocky surfaces (walls, ground) from looking like repeating grid tiles, `BlockDef` provides a `texture_variation` toggle:
-- When `texture_variation = true`, `BlockLibrary` assigns `res://assets/shaders/block_shader.gdshader` instead of a plain `StandardMaterial3D`.
+- When `texture_variation = true`, `PbrMaterialFactory.variation(pbr)` builds the shader material with every map bound (missing maps are the neutral set's).
 - The shader applies subtle per-voxel UV flipping and brightness offsets derived from world position, making seamless blocky surfaces look natural and organic.
 
 ---
@@ -241,7 +240,7 @@ Save your exported `.glb` or `.obj` mesh file to `assets/custom_meshes/<block_id
 | `rotation_mode` | `FULL_3D` (`24`) | `NONE` (1), `YAW_ONLY` (4), or `FULL_3D` (24). Triggers automatic variant baking. |
 | `scene` | `res://assets/custom_meshes/wedge_wood.glb` | *(Recommended)* Direct `.glb` scene — `BlockLibrary` extracts the base mesh automatically. |
 | `mesh` | `res://assets/custom_meshes/wedge_wood.obj` | *(Alternative)* Unrotated base source mesh in `[0, 1]³` bounding box (variants are baked from this). |
-| `texture` | `res://assets/custom_images/wood_albedo.png` | Albedo texture map. |
+| `pbr` | `res://data/pbr/wood_planks.tres` | PbrTextureSet (albedo required, normal and ORME optional). |
 | `texture_variation` | `true` | Enables UV/brightness shader variation. |
 | `hp` | `100` | Block durability. |
 | `material_cost` | `[10 x wood_block]` | Crafting/building cost (Array of `ItemAmount`). |

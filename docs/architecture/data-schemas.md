@@ -205,12 +205,25 @@ Data-driven definition for buildable blocks, free-standing furniture entities, a
 | `hp` | `int` | Structure durability and damage buffer. |
 | `scene` | `PackedScene` | Optional primary 3D scene (e.g. `.glb` model with sockets/colliders). |
 | `mesh` | `Mesh` | Preview and placement fallback mesh. |
-| `texture` | `Texture2D` | Albedo texture used to construct standard materials. |
+| `pbr` | `PbrTextureSet` | Texture maps (albedo, normal, packed ORME). `PbrMaterialFactory` builds the block/furniture material from it. |
 | `texture_variation` | `bool` | Enables per-block UV and brightness randomization shader for blocky voxels. |
 | `material_cost` | `Array[ItemAmount]` | Construction item requirements. |
 | `unlocked_by_default` | `bool` | Whether the item is available at the start of a run. |
 | `build_time` | `float` | Construction time requirement. |
 | `tags` | `Array[String]` | Classification tags (e.g. `["live_flora"]`, `["bed"]`, `["storage"]`) for system queries. |
+
+### `PbrTextureSet` (`data/pbr/<id>.tres`, Resource: `pbr_texture_set.gd`)
+
+One material's maps as a set, produced by `tools/pbr/pbr_pack_cli.gd` (see [Authoring PBR Textures](../HOWTO-author-pbr-textures.md)). Shared by `BuildableDef` and `TerrainMaterialDef`.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Set id; matches the file name and `assets/pbr/<id>/`. |
+| `albedo` | `Texture2D` | RGB, sRGB. |
+| `normal` | `Texture2D` | RGB, OpenGL (Y+). |
+| `orme` | `Texture2D` | RGBA linear: Occlusion R, Roughness G, Metallic B, Extra A (reserved, always 0). |
+
+Missing maps are neutral-filled at pack time (albedo white, normal flat, ORME `(1, 1, 0, 0)`); the fields stay nullable for albedo-only block and furniture sets.
 
 ### Subclass: `FurnitureDef`
 Extends `BuildableDef`. Adds `dimensions` (`Vector3i`, default `1x1x1`) representing the bounding cell-box occupied on the voxel grid, with rotation swapping X and Z extents.
@@ -459,6 +472,29 @@ Parameters for smooth natural terrain generation in the dual-voxel system. `Terr
 | `max_walk_slope_deg` | `float` | Maximum walkable slope gate in degrees for pathfinding (default `45.0`). |
 | `water_enabled` | `bool` | Whether baseline water plane is enabled (default `false`). |
 | `water_level` | `float` | Baseline water elevation in meters (default `-2.0`). |
+
+---
+
+## `data/terrain/materials/<id>.tres` (Resource: `data/terrain/materials/terrain_material_def.gd`) — `TerrainMaterialDef`
+
+Identity, mining, and visual parameters for natural terrain materials.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique material identifier (e.g. `ground`, `rock`, `iron_ore`). |
+| `display_name` | `String` | UI display label. |
+| `color` | `Color` | Visual identity tint. |
+| `hp` | `int` | Durability scaling dig time. |
+| `minutes_to_full_heal` | `float` | Time to regenerate damaged voxels (default `0.25`). |
+| `yields` | `Array[ItemAmount]` | Items dropped when dug. |
+| `min_depth` | `int` | Minimum depth band in voxel rows below pristine surface. |
+| `max_depth` | `int` | Maximum depth band in voxel rows below pristine surface. |
+| `vein_size` | `int` | Approximate cluster block count. |
+| `spawn_weight` | `float` | Relative frequency within depth band. |
+| `pbr` | `PbrTextureSet` | Texture maps (albedo, normal, packed ORME) for the terrain shader. |
+| `tiles_per_meter` | `float` | Triplanar texture repeats per meter (default `0.25`, one tile per 4 m). |
+| `place_radius` | `float` | Sphere radius when placing this material. |
+| `icon` | `Texture2D` | Build menu icon. |
 
 ---
 
