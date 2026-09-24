@@ -2,9 +2,13 @@
 
 [ext_resource type="Script" uid="uid://d277064bfrknd" path="res://data/enemies/enemy_def.gd" id="1_def"]
 [ext_resource type="Script" uid="uid://s6oulktogq82" path="res://data/moodlets/moodlet_def.gd" id="2_moodlet"]
+[ext_resource type="Script" uid="uid://51m8ra06liuq" path="res://data/loot/loot_entry.gd" id="3_8wntm"]
 [ext_resource type="Resource" uid="uid://mmltmlexqq6a" path="res://data/moodlets/heart_hp_gauge.tres" id="3_hp_gauge"]
 [ext_resource type="BehaviorTree" uid="uid://brucpai1ig0sb" path="res://data/ai/trees/enemy_melee.tres" id="4_tree"]
+[ext_resource type="Script" uid="uid://taqanw6psc6o" path="res://data/items/item_amount.gd" id="4_yvapg"]
+[ext_resource type="Resource" uid="uid://0i6qx0gicusg" path="res://data/items/materials/plank.tres" id="5_cy3mn"]
 [ext_resource type="Script" uid="uid://ck40vkswllpr6" path="res://data/capability_params/melee_action_params.gd" id="5_melee"]
+[ext_resource type="Script" uid="uid://b6fvmwabirpbp" path="res://data/loot/loot_table.gd" id="6_utjnd"]
 
 [sub_resource type="Resource" id="Resource_brawler_attack"]
 script = ExtResource("5_melee")
@@ -13,6 +17,17 @@ active_seconds = 0.0
 damage = 25.0
 range_meters = 1.5
 cooldown_seconds = 0.6
+
+[sub_resource type="Resource" id="Resource_q8ysw"]
+script = ExtResource("4_yvapg")
+item_def = ExtResource("5_cy3mn")
+count = 3
+metadata/_custom_type_script = "uid://taqanw6psc6o"
+
+[sub_resource type="Resource" id="Resource_e02yw"]
+script = ExtResource("6_utjnd")
+guaranteed = Array[ExtResource("4_yvapg")]([SubResource("Resource_q8ysw")])
+metadata/_custom_type_script = "uid://b6fvmwabirpbp"
 
 [resource]
 script = ExtResource("1_def")
@@ -23,5 +38,6 @@ base_move_speed = 2.1
 detect_range = 10.0
 behavior_tree = ExtResource("4_tree")
 attack_params = SubResource("Resource_brawler_attack")
+loot_table = SubResource("Resource_e02yw")
 moodlet_defs = Array[ExtResource("2_moodlet")]([ExtResource("3_hp_gauge")])
 metadata/_custom_type_script = "uid://d277064bfrknd"

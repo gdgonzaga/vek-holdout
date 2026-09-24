@@ -1,8 +1,8 @@
-[gd_resource type="BehaviorTree" format=3]
+[gd_resource type="BehaviorTree" format=3 uid="uid://b05lmmk8ngme"]
 
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="1_mr5x2"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_ranged_attack.gd" id="2_dt6b5"]
-[ext_resource type="Script" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="3_a0nny"]
+[ext_resource type="Script" uid="uid://clv35wq5ixo15" path="res://subsystems/ai/tasks/actions/bt_action_scan_threats.gd" id="1_mr5x2"]
+[ext_resource type="Script" uid="uid://dq8aefk7qekxj" path="res://subsystems/ai/tasks/actions/bt_action_ranged_attack.gd" id="2_dt6b5"]
+[ext_resource type="Script" uid="uid://bpmh16yj4fdaq" path="res://subsystems/ai/tasks/actions/bt_action_navigate_to.gd" id="3_a0nny"]
 
 [sub_resource type="BTAction" id="BTAction_mr5x2"]
 script = ExtResource("1_mr5x2")
