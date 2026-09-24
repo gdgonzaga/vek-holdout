@@ -57,6 +57,14 @@ class_name TerrainMaterialDef
 ## endpoints (the surface material and the dominant deep material) sample it;
 ## other materials are visually identified by their Decal marker `color`.
 @export var texture: Texture2D = null
+
+## The material's texture maps (albedo / normal / packed ORME), produced by
+## tools/pbr/pbr_pack_cli.gd at the terrain array size. Null renders as a
+## flat `color`-tinted neutral surface.
+@export var pbr: PbrTextureSet = null
+## Texture repeats per meter in the triplanar projection. ambientCG lists each
+## material's real-world tile size; 0.25 is one tile per 4 m.
+@export var tiles_per_meter: float = 0.25
 @export var displacement_texture: Texture2D = null
 @export var metalness_texture: Texture2D = null
 @export var normal_texture: Texture2D = null

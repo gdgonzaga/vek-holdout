@@ -37,6 +37,9 @@ class_name BuildableDef
 @export var normal_texture: Texture2D = null
 @export var roughness_texture: Texture2D = null
 @export var orme_texture: Texture2D = null # Packed ORME texture: Occlusion (R), Roughness (G), Metallic (B), Extra/Emissive (A)
+## Texture maps as one set (albedo / normal / packed ORME). Replaces the flat
+## texture fields above, which are removed once the data has migrated.
+@export var pbr: PbrTextureSet = null
 @export var texture_variation: bool = false # True → use per-block UV/brightness randomization shader
 @export var material_cost: Array[ItemAmount] = []
 @export var unlocked_by_default: bool = false # available without earning an unlock this run
