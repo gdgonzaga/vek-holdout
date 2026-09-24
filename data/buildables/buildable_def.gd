@@ -8,12 +8,13 @@ class_name BuildableDef
 ## subclasses; do not redeclare as block_id/furniture_id/etc.). `scene` and `mesh`
 ## live here so the build ghost, voxel mesher, and furniture layers can preview
 ## and instantiate any buildable's shape.
-## `texture` is the albedo only — BlockLibrary builds a StandardMaterial3D from
-## it (no separate material .tres per block type); the furniture authoring path
-## does the same inline (see furniture_authoring.gd). Do NOT add a build_material()
-## helper to this class and call it from @tool code: editor tool-script instances
-## loaded from .tres bind to stale compiled bytecode after a script edit, so
-## has_method() returns true but the call throws — access `texture` directly.
+## `pbr` holds the texture maps (albedo / normal / packed ORME) as one shared
+## PbrTextureSet; PbrMaterialFactory builds the render material from it (no
+## separate material .tres per block type), for blocks and furniture alike. Do
+## NOT add a build_material() helper to this class and call it from @tool code:
+## editor tool-script instances loaded from .tres bind to stale compiled
+## bytecode after a script edit, so has_method() returns true but the call
+## throws — access `pbr` directly.
 ## `texture_variation` opts into a per-block randomization shader that offsets UVs,
 ## rotates them, and modulates brightness so repeating textures don't tile visibly.
 ## (Block-only: the shader hashes `floor(world_pos+0.5)`, which assumes unit-cube
@@ -31,14 +32,7 @@ class_name BuildableDef
 ## BlockLibrary/VoxelLibraryGenerator extracts the underlying Mesh automatically.
 @export var scene: PackedScene = null
 @export var mesh: Mesh # Preview/placement mesh; voxel blocks MUST occupy (0,0,0)->(1,1,1)
-@export var texture: Texture2D # Albedo texture; BlockLibrary builds a StandardMaterial3D from this
-@export var displacement_texture: Texture2D = null
-@export var metalness_texture: Texture2D = null
-@export var normal_texture: Texture2D = null
-@export var roughness_texture: Texture2D = null
-@export var orme_texture: Texture2D = null # Packed ORME texture: Occlusion (R), Roughness (G), Metallic (B), Extra/Emissive (A)
-## Texture maps as one set (albedo / normal / packed ORME). Replaces the flat
-## texture fields above, which are removed once the data has migrated.
+## Texture maps as one set (albedo / normal / packed ORME).
 @export var pbr: PbrTextureSet = null
 @export var texture_variation: bool = false # True → use per-block UV/brightness randomization shader
 @export var material_cost: Array[ItemAmount] = []

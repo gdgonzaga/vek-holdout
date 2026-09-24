@@ -5,7 +5,6 @@
 [ext_resource type="Resource" path="res://data/items/materials/plank.tres" id="2_4wu8n"]
 [ext_resource type="ArrayMesh" path="res://assets/custom_meshes/stairs.obj" id="3_5stde"]
 [ext_resource type="Script" path="res://data/blocks/block_def.gd" id="4_1r5ce"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="5_3cukd"]
 [ext_resource type="Resource" path="res://data/pbr/mt00374_wood_planks_rotated.tres" id="5_x4x28"]
 
 [sub_resource type="Resource" id="Resource_fia8h"]
@@ -22,7 +21,6 @@ display_name = "wood stairs"
 icon = ExtResource("1_4wu8n")
 hp = 50
 mesh = ExtResource("3_5stde")
-texture = ExtResource("5_3cukd")
 pbr = ExtResource("5_x4x28")
 material_cost = Array[ExtResource("1_n3toc")]([SubResource("Resource_fia8h")])
 unlocked_by_default = true

@@ -2,7 +2,6 @@
 
 [ext_resource type="Resource" path="res://data/pbr/coal.tres" id="1_4p7ys"]
 [ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00310_Multi_Size_Bricks.PNG" id="2_h74c1"]
 [ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
 [ext_resource type="Resource" path="res://data/items/materials/coal.tres" id="3_coal"]
 
@@ -19,5 +18,4 @@ hp = 250
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_coal_yield")])
 max_depth = 100
 spawn_weight = 0.9
-texture = ExtResource("2_h74c1")
 pbr = ExtResource("1_4p7ys")

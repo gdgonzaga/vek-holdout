@@ -5,7 +5,6 @@
 [ext_resource type="ArrayMesh" path="res://assets/animpic-mega-survival-construction/workbench/SM_Workbench_01.SM_Workbench_01.mesh" id="4_71ciu"]
 [ext_resource type="Resource" path="res://data/pbr/maintexture.tres" id="4_o3kgy"]
 [ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="5_jcv4g"]
-[ext_resource type="Texture2D" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="6_s57u1"]
 
 [resource]
 script = ExtResource("5_jcv4g")
@@ -15,7 +14,6 @@ id = "instant_workbench"
 display_name = "Instant workbench"
 hp = 60
 mesh = ExtResource("4_71ciu")
-texture = ExtResource("6_s57u1")
 pbr = ExtResource("4_o3kgy")
 texture_variation = false
 material_cost = Array[ExtResource("2_1l2iw")]([])

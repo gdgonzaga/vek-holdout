@@ -6,7 +6,6 @@
 [ext_resource type="ArrayMesh" path="res://assets/custom_meshes/quarter-block.obj" id="4_ulo7w"]
 [ext_resource type="Resource" path="res://data/pbr/mt00374_wood_planks_rotated.tres" id="5_7wssv"]
 [ext_resource type="Script" path="res://data/blocks/block_def.gd" id="5_sasm5"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_rd1dm"]
 
 [sub_resource type="Resource" id="Resource_s7pj6"]
 script = ExtResource("2_ulo7w")
@@ -22,7 +21,6 @@ display_name = "quarter block wood"
 icon = ExtResource("1_xnwso")
 hp = 50
 mesh = ExtResource("4_ulo7w")
-texture = ExtResource("6_rd1dm")
 pbr = ExtResource("5_7wssv")
 material_cost = Array[ExtResource("2_ulo7w")]([SubResource("Resource_s7pj6")])
 unlocked_by_default = true

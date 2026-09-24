@@ -6,7 +6,6 @@
 [ext_resource type="ArrayMesh" path="res://assets/custom_meshes/full-block.obj" id="4_w6x1d"]
 [ext_resource type="Script" path="res://data/blocks/block_def.gd" id="5_3hvax"]
 [ext_resource type="Resource" path="res://data/pbr/mt00374_wood_planks_rotated.tres" id="5_68fk4"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_hnq64"]
 
 [sub_resource type="Resource" id="Resource_s7pj6"]
 script = ExtResource("2_ho5v2")
@@ -21,7 +20,6 @@ display_name = "wood block"
 icon = ExtResource("1_hnq64")
 hp = 50
 mesh = ExtResource("4_w6x1d")
-texture = ExtResource("6_hnq64")
 pbr = ExtResource("5_68fk4")
 material_cost = Array[ExtResource("2_ho5v2")]([SubResource("Resource_s7pj6")])
 unlocked_by_default = true

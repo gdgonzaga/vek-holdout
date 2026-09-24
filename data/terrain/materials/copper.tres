@@ -1,14 +1,9 @@
 [gd_resource type="Resource" script_class="TerrainMaterialDef" format=3]
 
-[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Displacement.png" id="1_qkl7j"]
 [ext_resource type="Script" path="res://data/terrain/materials/terrain_material_def.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Metalness.png" id="2_f8vvc"]
 [ext_resource type="Script" path="res://data/items/item_amount.gd" id="2_item_amount"]
-[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_NormalGL.png" id="3_4t5kh"]
 [ext_resource type="Resource" path="res://data/items/materials/copper_ore.tres" id="3_copper"]
 [ext_resource type="Resource" path="res://data/pbr/copper.tres" id="4_f8vvc"]
-[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Roughness.png" id="4_lhouu"]
-[ext_resource type="Texture2D" path="res://assets/ambientcg/Metal047B_1K-PNG-COPPER-DIRTY/Metal047B_1K-PNG_Color.png" id="6_jtwes"]
 
 [sub_resource type="Resource" id="Resource_copper_yield"]
 script = ExtResource("2_item_amount")
@@ -21,9 +16,4 @@ display_name = "copper"
 hp = 350
 yields = Array[ExtResource("2_item_amount")]([SubResource("Resource_copper_yield")])
 min_depth = 8
-texture = ExtResource("6_jtwes")
 pbr = ExtResource("4_f8vvc")
-displacement_texture = ExtResource("1_qkl7j")
-metalness_texture = ExtResource("2_f8vvc")
-normal_texture = ExtResource("3_4t5kh")
-roughness_texture = ExtResource("4_lhouu")

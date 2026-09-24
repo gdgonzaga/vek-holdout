@@ -10,17 +10,17 @@ class_name TerrainMaterialDef
 ## natural ground resolves through TerrainStrata's deterministic depth rules.
 ## The mesher remains a one-look-per-map ceiling — per-voxel texturing is
 ## verified non-functional (F14) — so visuals are INDIRECT: the terrain shader
-## bands the two `band_material` endpoints' look by depth (F11 shader rules),
-## and authored blobs each get a Decal marker tinted `color`. Equipment gating
-## (later) matches on `id`.
+## bands the two band_material endpoints' look by depth (F11 shader rules),
+## and authored blobs each get a Decal marker tinted color. Equipment gating
+## (later) matches on id.
 
 @export var id: String
 @export var display_name: String
 
-## Visual identity color: tints the depth-band look when this material is a
-## band endpoint without a `texture`, and tints the Decal marker that makes
-## authored blobs of this material visually distinct (iron vs gold at a
-## glance). White reads as "no tint".
+## Visual identity color: tints this material's neutral layer when it has no
+## albedo in pbr, and tints the Decal marker that makes authored blobs of this
+## material visually distinct (iron vs gold at a glance). White reads as "no
+## tint".
 @export var color: Color = Color.WHITE
 
 ## Break pool. Today it scales dig time (work_time * hp / 100 — hp 100 keeps
@@ -52,24 +52,13 @@ class_name TerrainMaterialDef
 ## ratio); 0 = never generates.
 @export var spawn_weight: float = 1.0
 
-## Triplanar band texture for the terrain shader's DEPTH-BAND look (F14
-## fallback: shader rules only — there is no per-voxel rendering). Only band
-## endpoints (the surface material and the dominant deep material) sample it;
-## other materials are visually identified by their Decal marker `color`.
-@export var texture: Texture2D = null
-
 ## The material's texture maps (albedo / normal / packed ORME), produced by
 ## tools/pbr/pbr_pack_cli.gd at the terrain array size. Null renders as a
-## flat `color`-tinted neutral surface.
+## flat color-tinted neutral surface.
 @export var pbr: PbrTextureSet = null
 ## Texture repeats per meter in the triplanar projection. ambientCG lists each
 ## material's real-world tile size; 0.25 is one tile per 4 m.
 @export var tiles_per_meter: float = 0.25
-@export var displacement_texture: Texture2D = null
-@export var metalness_texture: Texture2D = null
-@export var normal_texture: Texture2D = null
-@export var roughness_texture: Texture2D = null
-@export var orme_texture: Texture2D = null # Packed ORME texture: Occlusion (R), Roughness (G), Metallic (B), Extra/Emissive (A)
 
 ## Radius of the sphere one placement of this material adds (also the blob
 ## ghost's radius — the preview shows exactly the volume). Fixed size in v1,

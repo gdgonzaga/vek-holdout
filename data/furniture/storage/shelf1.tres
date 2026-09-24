@@ -7,7 +7,6 @@
 [ext_resource type="Script" path="res://data/items/item_amount.gd" id="3_pwcpm"]
 [ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="4_5kw2j"]
 [ext_resource type="Resource" path="res://data/pbr/maintexture.tres" id="6_5vyx0"]
-[ext_resource type="Texture2D" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="6_pwcpm"]
 
 [resource]
 script = ExtResource("4_5kw2j")
@@ -17,7 +16,6 @@ id = "shelf1"
 display_name = "Shelf"
 hp = 100
 mesh = ExtResource("3_2seyd")
-texture = ExtResource("6_pwcpm")
 pbr = ExtResource("6_5vyx0")
 texture_variation = false
 material_cost = Array[ExtResource("3_pwcpm")]([])

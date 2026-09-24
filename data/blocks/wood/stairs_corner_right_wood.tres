@@ -6,7 +6,6 @@
 [ext_resource type="ArrayMesh" path="res://assets/custom_meshes/stairs-corner-right.obj" id="4_doc0h"]
 [ext_resource type="Script" path="res://data/blocks/block_def.gd" id="5_52yvr"]
 [ext_resource type="Resource" path="res://data/pbr/mt00374_wood_planks_rotated.tres" id="5_cs2p0"]
-[ext_resource type="Texture2D" path="res://assets/realer_than_real_textures/MT00374-Wood_Planks-rotated.png" id="6_4pxrg"]
 
 [sub_resource type="Resource" id="Resource_s7pj6"]
 script = ExtResource("2_doc0h")
@@ -22,7 +21,6 @@ display_name = "stairs corner right wood"
 icon = ExtResource("1_r51ej")
 hp = 50
 mesh = ExtResource("4_doc0h")
-texture = ExtResource("6_4pxrg")
 pbr = ExtResource("5_cs2p0")
 material_cost = Array[ExtResource("2_doc0h")]([SubResource("Resource_s7pj6")])
 unlocked_by_default = true

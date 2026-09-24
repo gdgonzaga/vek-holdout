@@ -3,7 +3,6 @@
 [ext_resource type="Script" path="res://subsystems/actions/action_option.gd" id="1_hwdb1"]
 [ext_resource type="ArrayMesh" path="res://assets/animpic-mega-survival-construction/bed1/SM_Bed_01.SM_Bed_01.mesh" id="1_mesh"]
 [ext_resource type="Script" path="res://data/furniture/furniture_def.gd" id="2_fdef"]
-[ext_resource type="Texture2D" path="res://assets/animpic-mega-survival-construction/MainTexture.png" id="3_tex"]
 [ext_resource type="Script" path="res://data/items/item_amount.gd" id="4_amt"]
 [ext_resource type="Resource" path="res://data/items/materials/plank.tres" id="5_plank"]
 [ext_resource type="Resource" path="res://data/items/materials/fiber.tres" id="6_fiber"]
@@ -32,7 +31,6 @@ id = "colonist_bed"
 display_name = "Colonist Bed"
 hp = 80
 mesh = ExtResource("1_mesh")
-texture = ExtResource("3_tex")
 pbr = ExtResource("7_i3otr")
 texture_variation = false
 material_cost = Array[ExtResource("4_amt")]([SubResource("Resource_cost_plank"), SubResource("Resource_cost_fiber")])
